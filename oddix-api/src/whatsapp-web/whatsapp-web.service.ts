@@ -14,6 +14,7 @@ export class WhatsappWebService implements OnModuleInit {
   private readonly logger = new Logger(WhatsappWebService.name);
   private sock: WASocket | null = null;
   private connecting = false;
+  private lastQr: string | null = null;
 
   async onModuleInit() {
     if (this.enabled()) {
@@ -22,7 +23,7 @@ export class WhatsappWebService implements OnModuleInit {
   }
 
   private enabled() {
-    return String(process.env.WHATSAPP_WEB_ENABLED || 'true').toLowerCase() === 'true';
+    return String(process.env.WHATSAPP_WEB_ENABLED || process.env.WHATSAPP_ENABLED || 'true').toLowerCase() === 'true';
   }
 
   private sessionDir() {
@@ -30,11 +31,11 @@ export class WhatsappWebService implements OnModuleInit {
   }
 
   private vipGroupJid() {
-    return process.env.WHATSAPP_WEB_GROUP_VIP || '';
+    return process.env.WHATSAPP_WEB_GROUP_VIP || process.env.ODDIX_VIP_GROUP_ID || '';
   }
 
   private freeGroupJid() {
-    return process.env.WHATSAPP_WEB_GROUP_FREE || '';
+    return process.env.WHATSAPP_WEB_GROUP_FREE || process.env.ODDIX_FREE_GROUP_ID || '';
   }
 
   private getTarget(type: 'vip' | 'free' = 'vip') {
@@ -76,18 +77,19 @@ export class WhatsappWebService implements OnModuleInit {
       });
 
       this.sock = sock;
-
       sock.ev.on('creds.update', saveCreds);
 
       sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
+          this.lastQr = qr;
           this.logger.log('Escaneie o QR Code abaixo com o WhatsApp:');
           qrcode.generate(qr, { small: true });
         }
 
         if (connection === 'open') {
+          this.lastQr = null;
           this.logger.log('WhatsApp Web conectado com sucesso.');
         }
 
@@ -118,6 +120,14 @@ export class WhatsappWebService implements OnModuleInit {
     }
   }
 
+  getQr() {
+    return {
+      connected: !!this.sock && !this.lastQr,
+      qr: this.lastQr,
+      sessionDir: this.sessionDir(),
+    };
+  }
+
   async sendText(message: string, target: 'vip' | 'free' = 'vip') {
     if (!(await this.ensureConnected())) {
       return { ok: false, skipped: true, reason: 'WhatsApp Web não conectado' };
@@ -145,56 +155,15 @@ export class WhatsappWebService implements OnModuleInit {
     url?: string;
     target?: 'vip' | 'free';
   }) {
-    if (!(await this.ensureConnected())) {
-      return { ok: false, skipped: true, reason: 'WhatsApp Web não conectado' };
-    }
-
     const target = params.target || 'vip';
-    const jid = this.getTarget(target);
-
-    if (!jid) {
-      this.logger.warn(`JID do grupo ${target.toUpperCase()} não configurado.`);
-      return { ok: false, skipped: true, reason: `Grupo ${target} não configurado` };
-    }
-
     const text = this.cleanText(params.text);
     const buttonText = params.buttonText || 'QUERO SER VIP';
     const url = params.url || process.env.ODDIX_VIP_LINK || '';
 
-    try {
-      await this.sock!.sendMessage(jid, {
-        text,
-        footer: 'ODDIX BOOST',
-        buttons: [
-          {
-            buttonId: 'oddix_quero_ser_vip',
-            buttonText: { displayText: buttonText },
-            type: 1,
-          },
-        ],
-        headerType: 1,
-      } as any);
-
-      if (url) {
-        await this.sock!.sendMessage(jid, {
-          text: `🔥 Clique aqui para entrar no VIP:\n${url}`,
-        });
-      }
-
-      return { ok: true, target, jid };
-    } catch (error: any) {
-      this.logger.warn(`Erro ao enviar botão WhatsApp Web: ${error?.message}`);
-
-      return this.sendText(
-        [
-          text,
-          '',
-          `🔥 *${buttonText}*`,
-          url ? url : '',
-        ].filter(Boolean).join('\n'),
-        target,
-      );
-    }
+    return this.sendText(
+      [text, '', `🔥 *${buttonText}*`, url ? url : ''].filter(Boolean).join('\n'),
+      target,
+    );
   }
 
   async sendImageFile(params: { filePath: string; caption?: string; target?: 'vip' | 'free' }) {
@@ -205,12 +174,10 @@ export class WhatsappWebService implements OnModuleInit {
     const jid = this.getTarget(params.target || 'vip');
 
     if (!jid) {
-      this.logger.warn(`JID do grupo ${(params.target || 'vip').toUpperCase()} não configurado.`);
       return { ok: false, skipped: true, reason: 'Grupo não configurado' };
     }
 
     if (!fs.existsSync(params.filePath)) {
-      this.logger.warn(`Imagem WhatsApp Web não encontrada: ${params.filePath}`);
       return this.sendText(params.caption || 'Imagem Oddix VIP', params.target || 'vip');
     }
 
@@ -222,7 +189,6 @@ export class WhatsappWebService implements OnModuleInit {
 
       return { ok: true, target: params.target || 'vip', jid };
     } catch (error: any) {
-      this.logger.warn(`Erro ao enviar imagem WhatsApp Web: ${error?.message}`);
       return { ok: false, error: error?.message };
     }
   }
