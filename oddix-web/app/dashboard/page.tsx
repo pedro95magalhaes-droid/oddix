@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 
+const FREE_GROUP_LINK = 'https://chat.whatsapp.com/JQuwv77T1b8J6KMlXCEeRb';
+
 function logoFallback(name: string, bg = '111827', color = 'ffffff') {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(
     name || 'Time',
@@ -183,12 +185,23 @@ export default function Dashboard() {
 
     if (!isGameLive(game)) return apiElapsed;
 
-    if (!apiElapsed || !timestamp) return apiElapsed;
+    if (!apiElapsed) return apiElapsed;
 
     const nowSeconds = Math.floor(Date.now() / 1000);
-    const apiGameTimeSeconds = timestamp + apiElapsed * 60;
+    const dateSeconds = game.fixture?.date
+      ? Math.floor(new Date(game.fixture.date).getTime() / 1000)
+      : 0;
+    const baseTimestamp = timestamp || dateSeconds;
+
+    if (!baseTimestamp) return apiElapsed;
+
+    const apiGameTimeSeconds = timestamp
+      ? timestamp + apiElapsed * 60
+      : baseTimestamp;
     const diffMinutes = Math.floor((nowSeconds - apiGameTimeSeconds) / 60);
-    const calculated = apiElapsed + Math.max(0, diffMinutes);
+    const calculated = timestamp
+      ? apiElapsed + Math.max(0, diffMinutes)
+      : Math.max(apiElapsed, diffMinutes);
 
     if (['ET', 'BT', 'P'].includes(statusShort)) {
       return Math.min(calculated, 120);
@@ -697,11 +710,15 @@ export default function Dashboard() {
 
       const [aiResponse, statsResponse] = await Promise.allSettled([
         api.post('/ai/generate-bet', {
+          ...game,
           homeTeam: game.teams?.home?.name,
           awayTeam: game.teams?.away?.name,
           league: game.league?.name,
+          leagueName: game.league?.name,
           teams: game.teams,
-          score: getScore(game),
+          fixture: game.fixture,
+          goals: game.goals,
+          score: game.score || getScore(game),
           status: game.fixture?.status,
         }),
         fixtureId
@@ -905,6 +922,13 @@ export default function Dashboard() {
 
           <button style={styles.favoriteNavButton} onClick={() => (window.location.href = '/favorites')}>
             Favoritos
+          </button>
+
+          <button
+            style={styles.freeGroupButton}
+            onClick={() => window.open(FREE_GROUP_LINK, '_blank')}
+          >
+            Grupo FREE
           </button>
 
           <button style={styles.vipButton} onClick={() => (window.location.href = '/plans')}>
@@ -1553,6 +1577,15 @@ const styles = {
     background: 'rgba(250,204,21,.15)',
     color: '#facc15',
     border: '1px solid rgba(250,204,21,.45)',
+    padding: '11px 16px',
+    borderRadius: '999px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+  },
+  freeGroupButton: {
+    background: 'rgba(34,197,94,.14)',
+    color: '#22c55e',
+    border: '1px solid rgba(34,197,94,.45)',
     padding: '11px 16px',
     borderRadius: '999px',
     fontWeight: 'bold',

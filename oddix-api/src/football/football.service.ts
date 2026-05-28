@@ -64,11 +64,13 @@ export class FootballService {
       fixture: {
         id: Number(fixture.id || 0),
         date: fixture.date || new Date().toISOString(),
+        timestamp: fixture.timestamp ?? null,
         timezone: fixture.timezone || 'UTC',
         status: {
           long: status.long || 'Unknown',
           short: status.short || 'UNK',
           elapsed: status.elapsed ?? null,
+          extra: status.extra ?? null,
         },
       },
       league: {
@@ -651,14 +653,20 @@ export class FootballService {
   }
 
   async getLiveFixtures() {
-    const cacheLive = await this.getLiveFixturesFromCache();
-
-    if (cacheLive.length > 0) {
-      return this.mergeUniqueFixtures([cacheLive]);
-    }
-
     const groups: any[][] = [];
     const today = new Date().toISOString().slice(0, 10);
+
+    const apiFootball = await this.getLiveFixturesFromApiFootball();
+
+    if (apiFootball.ok && apiFootball.data.length > 0) {
+      const live = apiFootball.data
+        .filter((game: any) =>
+          this.isLiveStatus(game?.fixture?.status?.short, game?.fixture?.status?.long),
+        )
+        .map((item: any) => this.normalizeLiveStatus(item));
+
+      if (live.length > 0) groups.push(live);
+    }
 
     const sportmonksKey = this.getSportmonksKey();
 
@@ -692,35 +700,17 @@ export class FootballService {
       if (live.length > 0) groups.push(live);
     }
 
-    const todayCache = await this.getFixturesFromCache(today);
-    const liveFromTodayCache = todayCache
-      .filter((game: any) =>
-        this.isLiveStatus(game?.fixture?.status?.short, game?.fixture?.status?.long),
-      )
-      .map((item: any) => this.normalizeLiveStatus(item));
+    const mergedLive = this.mergeUniqueFixtures(groups);
 
-    if (liveFromTodayCache.length > 0) groups.push(liveFromTodayCache);
-
-    const mergedWithoutApi = this.mergeUniqueFixtures(groups);
-
-    if (mergedWithoutApi.length > 0) {
-      await this.saveFixturesCache(mergedWithoutApi);
-      return mergedWithoutApi;
+    if (mergedLive.length > 0) {
+      await this.saveFixturesCache(mergedLive);
+      return mergedLive;
     }
 
-    const apiFootball = await this.getLiveFixturesFromApiFootball();
+    const cacheLive = await this.getLiveFixturesFromCache();
 
-    if (apiFootball.ok && apiFootball.data.length > 0) {
-      const live = apiFootball.data
-        .filter((game: any) =>
-          this.isLiveStatus(game?.fixture?.status?.short, game?.fixture?.status?.long),
-        )
-        .map((item: any) => this.normalizeLiveStatus(item));
-
-      if (live.length > 0) {
-        await this.saveFixturesCache(live);
-        return this.mergeUniqueFixtures([live]);
-      }
+    if (cacheLive.length > 0) {
+      return this.mergeUniqueFixtures([cacheLive]);
     }
 
     return [];
