@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.3.0",
+    "axios": "^1.16.1",
+    "postcss": "^8.5.15",
+    "sharp": "^0.34.5",
+    "tailwindcss": "^4.3.0"
+  }
+}

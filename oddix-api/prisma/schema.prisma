@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("USER")
+  plan      String   @default("Free")
+  createdAt DateTime @default(now())
+
+  histories UserBetHistory[]
+  favorites UserFavoriteBet[]
+}
+
+model Bet {
+  id         String   @id @default(uuid())
+  homeTeam   String
+  awayTeam   String
+  league     String
+  tip        String
+  odd        Float
+  confidence Int
+  status     String   @default("open")
+  createdAt  DateTime @default(now())
+
+  homeLogo   String?
+  awayLogo   String?
+  leagueLogo String?
+  fixtureId  Int?
+  gameDate   DateTime?
+
+  markets    Json?
+  analysis   String?
+  risk       String?
+  homeScore   Int?
+  awayScore   Int?
+  statusShort String?
+  elapsed     Int?
+  provider    String?
+  multiples Json?
+
+  histories UserBetHistory[]
+  favorites UserFavoriteBet[]
+}
+
+model UserBetHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  betId     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bet  Bet  @relation(fields: [betId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, betId])
+}
+
+model UserFavoriteBet {
+  id        String   @id @default(uuid())
+  userId    String
+  betId     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bet  Bet  @relation(fields: [betId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, betId])
+}
+
+model CachedFixture {
+  id          String   @id @default(uuid())
+  fixtureId   String   @unique
+  provider    String
+  date        DateTime?
+  league      String?
+  country     String?
+  homeTeam    String
+  awayTeam    String
+  homeLogo    String?
+  awayLogo    String?
+  leagueLogo  String?
+  homeScore   Int?
+  awayScore   Int?
+  statusShort String?
+  statusLong  String?
+  elapsed     Int?
+  raw         Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+  @@index([provider])
+  @@index([statusShort])
+}

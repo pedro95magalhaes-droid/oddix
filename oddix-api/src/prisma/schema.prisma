@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("USER")
+  plan      String   @default("Free")
+  createdAt DateTime @default(now())
+
+  histories UserBetHistory[]
+  favorites UserFavoriteBet[]
+}
+
+model Bet {
+  id         String   @id @default(uuid())
+  homeTeam   String
+  awayTeam   String
+  league     String
+  tip        String
+  odd        Float
+  confidence Int
+  status     String   @default("open")
+  createdAt  DateTime @default(now())
+
+  homeLogo   String?
+  awayLogo   String?
+  leagueLogo String?
+  fixtureId  Int?
+  gameDate   DateTime?
+
+  markets  Json?
+  analysis String?
+  risk     String?
+
+  histories UserBetHistory[]
+  favorites UserFavoriteBet[]
+}
+
+model UserBetHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  betId     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bet  Bet  @relation(fields: [betId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, betId])
+}
+
+model UserFavoriteBet {
+  id        String   @id @default(uuid())
+  userId    String
+  betId     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bet  Bet  @relation(fields: [betId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, betId])
+}
+
+model AiResultLog {
+  id          String   @id @default(uuid())
+  checked     Int      @default(0)
+  updatedWon  Int      @default(0)
+  updatedLost Int      @default(0)
+  stillOpen   Int      @default(0)
+  source      String   @default("auto")
+  createdAt   DateTime @default(now())
+}

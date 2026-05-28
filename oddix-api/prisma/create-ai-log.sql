@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS "AiResultLog" (
+  "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  "checked" INTEGER NOT NULL DEFAULT 0,
+  "updatedWon" INTEGER NOT NULL DEFAULT 0,
+  "updatedLost" INTEGER NOT NULL DEFAULT 0,
+  "stillOpen" INTEGER NOT NULL DEFAULT 0,
+  "source" TEXT NOT NULL DEFAULT 'auto',
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
