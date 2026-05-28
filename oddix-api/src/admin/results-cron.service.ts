@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { TelegramService } from '../telegram/telegram.service';
+import { WhatsappWebService } from '../whatsapp-web/whatsapp-web.service';
 
 type BetResult = 'won' | 'lost' | 'open';
 
@@ -17,6 +18,7 @@ export class ResultsCronService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly telegram: TelegramService,
+    private readonly whatsapp: WhatsappWebService,
   ) {}
 
   @Cron('0 * * * *')
@@ -37,7 +39,6 @@ export class ResultsCronService {
 
   dateCandidates(date: any) {
     const parsed = new Date(date);
-
     if (Number.isNaN(parsed.getTime())) return [];
 
     const dates = [0, -1, 1].map((offset) => {
@@ -96,9 +97,7 @@ export class ResultsCronService {
 
     try {
       const response = await fetch(url.toString(), {
-        headers: {
-          'x-apisports-key': apiKey,
-        },
+        headers: { 'x-apisports-key': apiKey },
         signal: controller.signal,
       });
 
@@ -115,10 +114,7 @@ export class ResultsCronService {
         timezone: this.timezone,
       });
 
-      if (data?.errors && Object.keys(data.errors).length > 0) {
-        return null;
-      }
-
+      if (data?.errors && Object.keys(data.errors).length > 0) return null;
       return data?.response?.[0] || null;
     } catch {
       return null;
@@ -132,9 +128,7 @@ export class ResultsCronService {
   ) {
     const cacheKey = `api-football:${date}`;
 
-    if (dateCache.has(cacheKey)) {
-      return dateCache.get(cacheKey) || [];
-    }
+    if (dateCache.has(cacheKey)) return dateCache.get(cacheKey) || [];
 
     try {
       const data = await this.fetchApiFootball(apiKey, '/fixtures', {
@@ -222,9 +216,7 @@ export class ResultsCronService {
   async getSportsDbFixturesByDate(date: string, dateCache: Map<string, any[]>) {
     const cacheKey = `thesportsdb:${date}`;
 
-    if (dateCache.has(cacheKey)) {
-      return dateCache.get(cacheKey) || [];
-    }
+    if (dateCache.has(cacheKey)) return dateCache.get(cacheKey) || [];
 
     const key = this.getSportsDbKey();
     const url = new URL(`${this.sportsDbURL}/${key}/eventsday.php`);
@@ -235,10 +227,7 @@ export class ResultsCronService {
     const timeout = setTimeout(() => controller.abort(), 8000);
 
     try {
-      const response = await fetch(url.toString(), {
-        signal: controller.signal,
-      });
-
+      const response = await fetch(url.toString(), { signal: controller.signal });
       const data = await response.json();
       const events = data?.events || [];
       const fixtures = events.map((event: any) => this.mapSportsDbEvent(event));
@@ -259,7 +248,6 @@ export class ResultsCronService {
     const betName = this.normalize(betNameRaw);
 
     if (!apiName || !betName) return 0;
-
     if (apiName === betName) return 100;
     if (apiName.includes(betName) || betName.includes(apiName)) return 90;
 
@@ -283,28 +271,17 @@ export class ResultsCronService {
       }
     }
 
-    const maxWords = Math.max(apiWords.length, betWords.length);
-
-    return Math.round((common / maxWords) * 100);
+    return Math.round((common / Math.max(apiWords.length, betWords.length)) * 100);
   }
 
   fixtureScore(fixture: any, bet: any) {
     const homeScore = this.teamScore(fixture.teams?.home?.name, bet.homeTeam);
     const awayScore = this.teamScore(fixture.teams?.away?.name, bet.awayTeam);
 
-    const reversedHomeScore = this.teamScore(
-      fixture.teams?.home?.name,
-      bet.awayTeam,
-    );
-    const reversedAwayScore = this.teamScore(
-      fixture.teams?.away?.name,
-      bet.homeTeam,
-    );
+    const reversedHomeScore = this.teamScore(fixture.teams?.home?.name, bet.awayTeam);
+    const reversedAwayScore = this.teamScore(fixture.teams?.away?.name, bet.homeTeam);
 
-    const normalScore = homeScore + awayScore;
-    const reversedScore = reversedHomeScore + reversedAwayScore;
-
-    return Math.max(normalScore, reversedScore);
+    return Math.max(homeScore + awayScore, reversedHomeScore + reversedAwayScore);
   }
 
   async fetchFixtureByDateAndTeams(
@@ -315,12 +292,7 @@ export class ResultsCronService {
     const candidates = this.dateCandidates(bet.gameDate || bet.createdAt);
 
     if (!candidates.length) {
-      return {
-        fixture: null,
-        bestScore: 0,
-        searchedDates: [],
-        provider: null,
-      };
+      return { fixture: null, bestScore: 0, searchedDates: [], provider: null };
     }
 
     let bestFixture = null;
@@ -331,11 +303,9 @@ export class ResultsCronService {
     for (const date of candidates) {
       searchedDates.push(date);
 
-      const apiFixtures = await this.getApiFootballFixturesByDate(
-        apiKey,
-        date,
-        dateCache,
-      );
+      const apiFixtures = apiKey
+        ? await this.getApiFootballFixturesByDate(apiKey, date, dateCache)
+        : [];
 
       const sportsDbFixtures = await this.getSportsDbFixturesByDate(date, dateCache);
 
@@ -357,9 +327,7 @@ export class ResultsCronService {
         }
       }
 
-      if (bestScore >= 180) {
-        break;
-      }
+      if (bestScore >= 180) break;
     }
 
     if (bestFixture && bestScore >= 80) {
@@ -478,13 +446,54 @@ export class ResultsCronService {
     return 'open';
   }
 
+  private async sendWhatsappResult(params: {
+    result: BetResult;
+    homeTeam: string;
+    awayTeam: string;
+    tip: string;
+    score: string;
+    provider: string;
+  }) {
+    if (params.result !== 'won' && params.result !== 'lost') return;
+
+    const isGreen = params.result === 'won';
+    const title = isGreen ? '✅🔥 *ODDIX GREEN*' : '❌ *ODDIX RED*';
+    const resultText = isGreen ? 'GREEN ✅' : 'RED ❌';
+
+    const vipMessage = [
+      title,
+      '',
+      `⚽ *${params.homeTeam} x ${params.awayTeam}*`,
+      `🎯 Palpite: *${params.tip}*`,
+      `📊 Placar: *${params.score}*`,
+      '',
+      `Resultado: *${resultText}*`,
+      `Fonte: ${params.provider}`,
+    ].join('\n');
+
+    await this.whatsapp.sendText(vipMessage, 'vip');
+
+    await this.whatsapp.sendButtonText({
+      target: 'free',
+      buttonText: 'QUERO SER VIP',
+      url: process.env.ODDIX_VIP_LINK || '',
+      text: [
+        isGreen ? '✅🔥 *GREEN NA ODDIX FREE*' : '❌ *RED NA ODDIX FREE*',
+        '',
+        `⚽ *${params.homeTeam} x ${params.awayTeam}*`,
+        `🎯 Palpite: *${params.tip}*`,
+        `📊 Placar: *${params.score}*`,
+        '',
+        '🔒 No VIP você recebe entradas completas em tempo real.',
+      ].join('\n'),
+    });
+  }
+
   async syncResults(source: 'auto' | 'manual' = 'auto') {
     this.logger.log(`IA Oddix verificando resultados... origem=${source}`);
 
     const openBets = await this.prisma.bet.findMany({
-      where: {
-        status: 'open',
-      },
+      where: { status: 'open' },
     });
 
     let updatedWon = 0;
@@ -505,9 +514,7 @@ export class ResultsCronService {
 
     for (const bet of openBets) {
       try {
-        if (!bet.fixtureId) {
-          noFixtureId++;
-        }
+        if (!bet.fixtureId) noFixtureId++;
 
         let fixture: any = null;
         let foundBy = 'fixtureId';
@@ -519,12 +526,7 @@ export class ResultsCronService {
         }
 
         if (!fixture) {
-          fallbackInfo = await this.fetchFixtureByDateAndTeams(
-            apiKey,
-            bet,
-            dateCache,
-          );
-
+          fallbackInfo = await this.fetchFixtureByDateAndTeams(apiKey, bet, dateCache);
           fixture = fallbackInfo?.fixture || null;
           foundBy = 'date_and_teams';
           provider = fallbackInfo?.provider || provider;
@@ -538,9 +540,7 @@ export class ResultsCronService {
             ) {
               await this.prisma.bet.update({
                 where: { id: bet.id },
-                data: {
-                  fixtureId: Number(fixture.fixture.id),
-                },
+                data: { fixtureId: Number(fixture.fixture.id) },
               });
             }
           }
@@ -617,14 +617,10 @@ export class ResultsCronService {
         }
 
         await this.prisma.bet.update({
-          where: {
-            id: bet.id,
-          },
+          where: { id: bet.id },
           data: {
             status: result,
-            fixtureId: fixture.fixture?.id
-              ? Number(fixture.fixture.id)
-              : bet.fixtureId,
+            fixtureId: fixture.fixture?.id ? Number(fixture.fixture.id) : bet.fixtureId,
           },
         });
 
@@ -632,6 +628,15 @@ export class ResultsCronService {
         if (result === 'lost') updatedLost++;
 
         await this.telegram.sendResultMessage({
+          result,
+          homeTeam: bet.homeTeam,
+          awayTeam: bet.awayTeam,
+          tip: bet.tip,
+          score: `${homeGoals}x${awayGoals}`,
+          provider,
+        });
+
+        await this.sendWhatsappResult({
           result,
           homeTeam: bet.homeTeam,
           awayTeam: bet.awayTeam,
@@ -674,7 +679,7 @@ export class ResultsCronService {
       source,
     });
 
-return {
+    return {
       message: 'Resultados sincronizados com sucesso',
       checked: openBets.length,
       updatedWon,
