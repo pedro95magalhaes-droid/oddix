@@ -54,7 +54,6 @@ export class ResultsCronService {
 
   private isFixtureActuallyLive(game: any) {
     const short = String(game?.fixture?.status?.short || '').toUpperCase();
-
     return ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE'].includes(short);
   }
 
@@ -154,13 +153,18 @@ export class ResultsCronService {
         const alreadyExists = await this.prisma.bet.findFirst({
           where: {
             fixtureId,
-            status: 'open',
+          },
+          select: {
+            id: true,
+            status: true,
+            homeTeam: true,
+            awayTeam: true,
           },
         });
 
         if (alreadyExists) {
           this.logger.log(
-            `⚠️ Palpite já existe para fixtureId=${fixtureId}. Tentando próximo jogo...`,
+            `⚠️ Palpite já enviado antes para fixtureId=${fixtureId} | status=${alreadyExists.status} | ${alreadyExists.homeTeam} x ${alreadyExists.awayTeam}. Pulando...`,
           );
           continue;
         }
