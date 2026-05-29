@@ -326,7 +326,7 @@ export class FootballService {
     const s = String(short || '').toUpperCase();
     const l = String(long || '').toLowerCase();
 
-    return ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(s) || l.includes('finished') || l.includes('after extra time') || l.includes('after penalties') || l.includes('walkover');
+    return ['FT', 'AET', 'PEN'].includes(s) || l.includes('finished');
   }
 
   private isLiveStatus(short?: string, long?: string) {
@@ -885,21 +885,12 @@ export class FootballService {
   }
 
   async getFixtureById(fixtureId: string) {
-    const cached = await this.getFixtureFromCacheById(fixtureId);
-
-    // Para jogo ao vivo, nunca confie em cache velho. Isso evita jogo finalizado ficar preso como AO VIVO.
-    const cachedIsLive = this.isLiveStatus(cached?.fixture?.status?.short, cached?.fixture?.status?.long);
-    const cachedIsFinished = this.isFinishedStatus(cached?.fixture?.status?.short, cached?.fixture?.status?.long);
-    const maxAgeSeconds = cachedIsLive ? this.liveCacheSeconds() : this.fixturesCacheMinutes() * 60;
-
-    if (cached && cachedIsFinished) {
-      return cached;
-    }
-
-    if (cached && this.isCacheFresh(cached, maxAgeSeconds)) {
-      return cached;
-    }
-
+    /**
+     * IMPORTANTE PARA GREEN/RED:
+     * Para aposta aberta, não podemos confiar primeiro em cache antigo.
+     * Aqui a API-Football é consultada antes do cache para evitar jogo FT aparecendo como LIVE.
+     * Se a API estiver sem chave/limite, aí sim usamos Sportmonks e depois cache como fallback.
+     */
     const apiFootball = await this.getFixtureByIdFromApiFootball(fixtureId);
 
     if (apiFootball.ok && apiFootball.data) {
@@ -929,9 +920,8 @@ export class FootballService {
       } catch {}
     }
 
-    if (cached) return cached;
-
-    return null;
+    const cached = await this.getFixtureFromCacheById(fixtureId);
+    return cached || null;
   }
 
   async getLeagues() {
