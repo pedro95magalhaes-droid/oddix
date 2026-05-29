@@ -50,11 +50,79 @@ function isLiveStatus(status: string) {
 }
 
 function isFinishedStatus(status: string) {
-  return ['FT', 'AET', 'PEN'].includes(status);
+  return ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(status);
 }
 
 function isCanceledStatus(status: string) {
   return ['CANC', 'ABD', 'AWD', 'WO', 'PST'].includes(status);
+}
+
+
+function getSavedStatus(game: any) {
+  return game?.savedStatus || game?.bet?.status || null;
+}
+
+function hasClosedSavedStatus(game: any) {
+  const status = getSavedStatus(game);
+  return status === 'won' || status === 'lost';
+}
+
+function isFinishedByTime(game: any) {
+  const status = getStatusShort(game);
+  const elapsed = Number(game.fixture?.status?.elapsed || 0);
+  const date = game.fixture?.date;
+
+  if (['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(status)) return true;
+  if (!['2H', 'LIVE', 'IN_PLAY', 'ET'].includes(status)) return false;
+  if (elapsed < 90 || !date) return false;
+
+  const start = new Date(date).getTime();
+  if (Number.isNaN(start)) return false;
+
+  const minutesSinceStart = Math.floor((Date.now() - start) / 1000 / 60);
+  return minutesSinceStart >= 125;
+}
+
+function attachSavedBetStatus(game: any, savedBetByFixtureId: Map<number, any>) {
+  const fixtureId = Number(game?.fixture?.id || 0);
+  const bet = fixtureId ? savedBetByFixtureId.get(fixtureId) : null;
+
+  if (!bet) return game;
+
+  const closed = bet.status === 'won' || bet.status === 'lost';
+
+  return {
+    ...game,
+    savedBetId: bet.id,
+    savedStatus: bet.status,
+    bet,
+    goals: {
+      ...game.goals,
+      home: bet.homeScore ?? game.goals?.home ?? null,
+      away: bet.awayScore ?? game.goals?.away ?? null,
+    },
+    score: {
+      ...game.score,
+      fulltime: {
+        ...game.score?.fulltime,
+        home: bet.homeScore ?? game.score?.fulltime?.home ?? game.goals?.home ?? null,
+        away: bet.awayScore ?? game.score?.fulltime?.away ?? game.goals?.away ?? null,
+      },
+    },
+    fixture: {
+      ...game.fixture,
+      status: {
+        ...game.fixture?.status,
+        short: closed ? 'FT' : game.fixture?.status?.short,
+        long:
+          bet.status === 'won'
+            ? 'Palpite ganho'
+            : bet.status === 'lost'
+            ? 'Palpite perdido'
+            : game.fixture?.status?.long,
+      },
+    },
+  };
 }
 
 export default function Dashboard() {
@@ -161,19 +229,25 @@ export default function Dashboard() {
   }
 
   function isGameLive(game: any) {
+    if (hasClosedSavedStatus(game)) return false;
+
     if (game.source === 'saved') {
       return game.savedStatus === 'open';
     }
+
+    if (isFinishedByTime(game)) return false;
 
     return isLiveStatus(getStatusShort(game));
   }
 
   function isGameFinished(game: any) {
+    if (hasClosedSavedStatus(game)) return true;
+
     if (game.source === 'saved') {
       return game.savedStatus === 'won' || game.savedStatus === 'lost';
     }
 
-    return isFinishedStatus(getStatusShort(game));
+    return isFinishedByTime(game) || isFinishedStatus(getStatusShort(game));
   }
 
   function getLiveElapsedMinute(game: any) {
@@ -520,6 +594,12 @@ export default function Dashboard() {
 
       setSavedBets(currentSavedBets);
 
+      const savedBetByFixtureId = new Map<number, any>();
+      currentSavedBets.forEach((bet: any) => {
+        const fixtureId = Number(bet.fixtureId);
+        if (fixtureId) savedBetByFixtureId.set(fixtureId, bet);
+      });
+
       const apiGames = responses.slice(0, -1).flatMap((result: any) => {
         if (result.status !== 'fulfilled') return [];
         return result.value?.data || [];
@@ -529,10 +609,13 @@ export default function Dashboard() {
       const apiFixtureIds = new Set<number>();
       const apiGamesDeduped: any[] = [];
 
-      apiGames.forEach((game: any) => {
-        const id = Number(game.fixture?.id);
+      apiGames.forEach((rawGame: any) => {
+        const id = Number(rawGame.fixture?.id);
 
         if (!id) return;
+
+        const game = attachSavedBetStatus(rawGame, savedBetByFixtureId);
+
         if (isCanceledStatus(getStatusShort(game))) return;
 
         apiFixtureIds.add(id);
@@ -546,7 +629,7 @@ export default function Dashboard() {
           return;
         }
 
-        if (isGameLive(game)) {
+        if (isGameLive(game) || isGameFinished(game)) {
           map.set(key, game);
           return;
         }
@@ -574,7 +657,7 @@ export default function Dashboard() {
         const bet = missingSavedBets[index];
 
         if (result.status === 'fulfilled' && result.value?.data?.fixture?.id) {
-          const apiGame = result.value.data;
+          const apiGame = attachSavedBetStatus(result.value.data, savedBetByFixtureId);
           const fixtureId = Number(apiGame.fixture?.id);
 
           apiFixtureIds.add(fixtureId);
@@ -585,10 +668,11 @@ export default function Dashboard() {
         const matchedApiGame: any = findApiGameForSavedBet(bet, apiGamesDeduped);
 
         if (matchedApiGame?.fixture?.id) {
-          const fixtureId = Number(matchedApiGame.fixture.id);
+          const decoratedGame = attachSavedBetStatus(matchedApiGame, savedBetByFixtureId);
+          const fixtureId = Number(decoratedGame.fixture.id);
 
           apiFixtureIds.add(fixtureId);
-          map.set(`api-${fixtureId}`, matchedApiGame);
+          map.set(`api-${fixtureId}`, decoratedGame);
           return;
         }
 
@@ -605,10 +689,11 @@ export default function Dashboard() {
         const matchedApiGame: any = findApiGameForSavedBet(bet, apiGamesDeduped);
 
         if (matchedApiGame?.fixture?.id) {
-          const matchedFixtureId = Number(matchedApiGame.fixture.id);
+          const decoratedGame = attachSavedBetStatus(matchedApiGame, savedBetByFixtureId);
+          const matchedFixtureId = Number(decoratedGame.fixture.id);
 
           apiFixtureIds.add(matchedFixtureId);
-          map.set(`api-${matchedFixtureId}`, matchedApiGame);
+          map.set(`api-${matchedFixtureId}`, decoratedGame);
           return;
         }
 

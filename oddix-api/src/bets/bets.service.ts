@@ -6,7 +6,15 @@ export class BetsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getAll() {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
     return this.prisma.bet.findMany({
+      where: {
+        OR: [
+          { status: 'open' },
+          { createdAt: { gte: sevenDaysAgo } },
+        ],
+      },
       orderBy: {
         createdAt: 'desc',
       },
