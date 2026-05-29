@@ -99,9 +99,9 @@ export default function Dashboard() {
       const gameDate = getGameDateKey(game.fixture?.date);
 
       const matchStatus =
-        statusFilter === "all" ||
+        (statusFilter === "all" && !finished) ||
         (statusFilter === "live" && live) ||
-        (statusFilter === "today" && gameDate === today) ||
+        (statusFilter === "today" && gameDate === today && !finished) ||
         (statusFilter === "future" && !live && !finished) ||
         (statusFilter === "finished" && finished);
 
@@ -164,23 +164,67 @@ export default function Dashboard() {
     };
   }
 
+  function getFixtureMinutesSinceStart(game: any) {
+    const fixtureDate = game.fixture?.date;
+
+    if (!fixtureDate) return 0;
+
+    const start = new Date(fixtureDate).getTime();
+
+    if (Number.isNaN(start)) return 0;
+
+    return Math.floor((Date.now() - start) / 1000 / 60);
+  }
+
+  function getEffectiveElapsedMinute(game: any) {
+    const statusShort = String(getStatusShort(game) || "").toUpperCase();
+    const apiElapsed = Number(game.fixture?.status?.elapsed || 0);
+    const timestamp = Number(game.fixture?.timestamp || 0);
+
+    if (statusShort === "HT") return 45;
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const dateSeconds = game.fixture?.date
+      ? Math.floor(new Date(game.fixture.date).getTime() / 1000)
+      : 0;
+
+    if (timestamp && apiElapsed) {
+      const apiGameTimeSeconds = timestamp + apiElapsed * 60;
+      const diffMinutes = Math.floor((nowSeconds - apiGameTimeSeconds) / 60);
+      return apiElapsed + Math.max(0, diffMinutes);
+    }
+
+    if (dateSeconds && ["1H", "2H", "LIVE", "IN_PLAY"].includes(statusShort)) {
+      return Math.max(apiElapsed, Math.floor((nowSeconds - dateSeconds) / 60));
+    }
+
+    return apiElapsed;
+  }
+
   function isGameLive(game: any) {
     if (game.source === "saved") {
       return String(game.savedStatus || "").toLowerCase() === "open";
     }
 
     const status = String(getStatusShort(game) || "").toUpperCase();
-    const elapsed = Number(game.fixture?.status?.elapsed || 0);
-    const extra = Number(game.fixture?.status?.extra || 0);
+    const elapsed = getEffectiveElapsedMinute(game);
+    const minutesSinceStart = getFixtureMinutesSinceStart(game);
 
     if (isFinishedStatus(status)) return false;
-    if (!isLiveStatus(status)) return false;
 
-    // Segurança contra jogos fantasmas da API: 2º tempo em 90+ não é mais tratado como ao vivo.
-    if (status === "2H" && elapsed >= 90) return false;
-    if (status === "2H" && elapsed >= 85 && extra > 0) return false;
+    if (["1H", "HT"].includes(status)) {
+      return minutesSinceStart < 85;
+    }
 
-    return true;
+    if (status === "2H") {
+      return elapsed < 90 && minutesSinceStart < 120;
+    }
+
+    if (["LIVE", "IN_PLAY"].includes(status)) {
+      return elapsed < 90 && minutesSinceStart < 120;
+    }
+
+    return false;
   }
 
   function isGameFinished(game: any) {
@@ -190,12 +234,13 @@ export default function Dashboard() {
     }
 
     const status = String(getStatusShort(game) || "").toUpperCase();
-    const elapsed = Number(game.fixture?.status?.elapsed || 0);
-    const extra = Number(game.fixture?.status?.extra || 0);
+    const elapsed = getEffectiveElapsedMinute(game);
+    const minutesSinceStart = getFixtureMinutesSinceStart(game);
 
     if (isFinishedStatus(status)) return true;
     if (status === "2H" && elapsed >= 90) return true;
-    if (status === "2H" && elapsed >= 85 && extra > 0) return true;
+    if (["2H", "LIVE", "IN_PLAY"].includes(status) && minutesSinceStart >= 120) return true;
+    if (["1H", "HT"].includes(status) && minutesSinceStart >= 85) return true;
 
     return false;
   }
@@ -209,37 +254,20 @@ export default function Dashboard() {
   function getLiveElapsedMinute(game: any) {
     liveTick;
 
-    const statusShort = getStatusShort(game);
+    const statusShort = String(getStatusShort(game) || "").toUpperCase();
     const apiElapsed = Number(game.fixture?.status?.elapsed || 0);
-    const timestamp = Number(game.fixture?.timestamp || 0);
 
     if (statusShort === "HT") return 45;
 
     if (!isGameLive(game)) return apiElapsed;
 
-    if (!apiElapsed) return apiElapsed;
-
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const dateSeconds = game.fixture?.date
-      ? Math.floor(new Date(game.fixture.date).getTime() / 1000)
-      : 0;
-    const baseTimestamp = timestamp || dateSeconds;
-
-    if (!baseTimestamp) return apiElapsed;
-
-    const apiGameTimeSeconds = timestamp
-      ? timestamp + apiElapsed * 60
-      : baseTimestamp;
-    const diffMinutes = Math.floor((nowSeconds - apiGameTimeSeconds) / 60);
-    const calculated = timestamp
-      ? apiElapsed + Math.max(0, diffMinutes)
-      : Math.max(apiElapsed, diffMinutes);
+    const calculated = getEffectiveElapsedMinute(game);
 
     if (["ET", "BT", "P"].includes(statusShort)) {
       return Math.min(calculated, 120);
     }
 
-    return Math.min(calculated, 90);
+    return Math.min(calculated, 89);
   }
 
   function getLiveExtraMinute(game: any) {
@@ -662,7 +690,21 @@ export default function Dashboard() {
         }
       });
 
-      const ordered = Array.from(map.values()).sort((a: any, b: any) => {
+      const cleanGames = Array.from(map.values()).filter((game: any) => {
+        const finished = isGameFinished(game);
+        const live = isGameLive(game);
+        const today = getGameDateKey(game.fixture?.date) === dateKey(new Date());
+
+        // Não manter jogos velhos/fantasmas na lista principal.
+        if (!today && finished) return false;
+
+        // Se a API marcou 2H mas nosso cálculo diz que passou de 90, deixa apenas em Finalizados.
+        if (finished && statusFilter !== "finished") return true;
+
+        return live || !finished || statusFilter === "finished";
+      });
+
+      const ordered = cleanGames.sort((a: any, b: any) => {
         const liveA = isGameLive(a) ? 1 : 0;
         const liveB = isGameLive(b) ? 1 : 0;
 
@@ -685,14 +727,9 @@ export default function Dashboard() {
         return dateA - dateB;
       });
 
-      setGames((current) => {
-        if (!ordered.length && current.length > 0) {
-          return current;
-        }
-
-        const merged = mergeStableGames(current, ordered);
-
-        return merged.sort((a: any, b: any) => {
+      setGames(() => {
+        // Importante: não mesclar com estado antigo, porque isso mantinha jogos fantasmas 90+ no Dashboard.
+        return ordered.sort((a: any, b: any) => {
           const liveA = isGameLive(a) ? 1 : 0;
           const liveB = isGameLive(b) ? 1 : 0;
 
