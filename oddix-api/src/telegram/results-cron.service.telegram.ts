@@ -118,10 +118,10 @@ export class ResultsCronService {
       .join("\n");
   }
 
-  @Cron("*/10 * * * *")
+  @Cron("*/15 * * * *")
   async sendLiveTipsAutomatically() {
     try {
-      this.logger.log("🔥 ODDIX cron de palpites ao vivo iniciado...");
+      this.logger.log("🔥 ODDIX cron de palpites ao vivo iniciado... intervalo=15min | max padrão=1");
 
       const liveGames = await this.footballService.getLiveFixtures();
 
@@ -134,7 +134,7 @@ export class ResultsCronService {
 
       let sentCount = 0;
       const maxTipsPerCron = Number(
-        process.env.ODDIX_MAX_LIVE_TIPS_PER_CRON || 2,
+        process.env.ODDIX_MAX_LIVE_TIPS_PER_CRON || 1,
       );
 
       for (const game of liveGames) {
