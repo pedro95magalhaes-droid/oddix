@@ -326,7 +326,7 @@ export class FootballService {
     const s = String(short || '').toUpperCase();
     const l = String(long || '').toLowerCase();
 
-    return ['FT', 'AET', 'PEN'].includes(s) || l.includes('finished');
+    return ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(s) || l.includes('finished') || l.includes('after extra time') || l.includes('after penalties') || l.includes('walkover');
   }
 
   private isLiveStatus(short?: string, long?: string) {
@@ -887,7 +887,16 @@ export class FootballService {
   async getFixtureById(fixtureId: string) {
     const cached = await this.getFixtureFromCacheById(fixtureId);
 
-    if (cached && this.isCacheFresh(cached, this.fixturesCacheMinutes() * 60)) {
+    // Para jogo ao vivo, nunca confie em cache velho. Isso evita jogo finalizado ficar preso como AO VIVO.
+    const cachedIsLive = this.isLiveStatus(cached?.fixture?.status?.short, cached?.fixture?.status?.long);
+    const cachedIsFinished = this.isFinishedStatus(cached?.fixture?.status?.short, cached?.fixture?.status?.long);
+    const maxAgeSeconds = cachedIsLive ? this.liveCacheSeconds() : this.fixturesCacheMinutes() * 60;
+
+    if (cached && cachedIsFinished) {
+      return cached;
+    }
+
+    if (cached && this.isCacheFresh(cached, maxAgeSeconds)) {
       return cached;
     }
 
