@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
+import { AllScoresService } from './allscores.service';
 
 @Injectable()
 export class FootballService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly allScoresService: AllScoresService,
+  ) {}
 
   private apiFootballURL = 'https://v3.football.api-sports.io';
   private sportmonksURL = 'https://api.sportmonks.com/v3/football';
@@ -326,7 +330,18 @@ export class FootballService {
     const s = String(short || '').toUpperCase();
     const l = String(long || '').toLowerCase();
 
-    return ['FT', 'AET', 'PEN'].includes(s) || l.includes('finished');
+    return (
+      ['FT', 'AET', 'PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'].includes(s) ||
+      l.includes('finished') ||
+      l.includes('final') ||
+      l.includes('after extra time') ||
+      l.includes('after penalties') ||
+      l.includes('walkover') ||
+      l.includes('cancelled') ||
+      l.includes('canceled') ||
+      l.includes('abandoned') ||
+      l.includes('postponed')
+    );
   }
 
   private isLiveStatus(short?: string, long?: string) {
@@ -342,6 +357,32 @@ export class FootballService {
       l.includes('halftime') ||
       l.includes('half-time')
     );
+  }
+
+  private shouldTreatAsLive(item: any) {
+    const short = String(item?.fixture?.status?.short || '').toUpperCase();
+    const long = String(item?.fixture?.status?.long || '');
+    const elapsed = Number(item?.fixture?.status?.elapsed || 0);
+    const extra = Number(item?.fixture?.status?.extra || 0);
+    const fixtureDate = item?.fixture?.date;
+
+    if (this.isFinishedStatus(short, long)) return false;
+    if (!this.isLiveStatus(short, long)) return false;
+
+    // Proteção contra jogo fantasma: API/cache preso em 2H 90+
+    if (short === '2H' && elapsed >= 90) return false;
+    if (short === '2H' && elapsed >= 85 && extra > 0) return false;
+
+    // Segurança por horário real: jogo começou há 2h ou mais.
+    if (fixtureDate) {
+      const start = new Date(fixtureDate).getTime();
+      if (!Number.isNaN(start)) {
+        const minutesSinceStart = Math.floor((Date.now() - start) / 1000 / 60);
+        if (minutesSinceStart >= 120) return false;
+      }
+    }
+
+    return true;
   }
 
   private normalizeLiveStatus(item: any) {
@@ -545,6 +586,42 @@ export class FootballService {
     }
   }
 
+  async getFixturesFromAllScores(date: string) {
+    try {
+      return await this.allScoresService.getFixtures(date);
+    } catch (error: any) {
+      return {
+        ok: false,
+        data: [],
+        error: error?.message || 'Erro na AllScores',
+      };
+    }
+  }
+
+  async getLiveFixturesFromAllScores(date?: string) {
+    try {
+      return await this.allScoresService.getLiveFixtures(date);
+    } catch (error: any) {
+      return {
+        ok: false,
+        data: [],
+        error: error?.message || 'Erro na AllScores Live',
+      };
+    }
+  }
+
+  async getFixtureByIdFromAllScores(fixtureId: string) {
+    try {
+      return await this.allScoresService.getGameDetails(fixtureId);
+    } catch (error: any) {
+      return {
+        ok: false,
+        data: null,
+        error: error?.message || 'Erro na AllScores por ID',
+      };
+    }
+  }
+
   async getFixturesFromSportmonks(date: string) {
     const apiKey = this.getSportmonksKey();
     if (!apiKey) return { ok: false, data: [], error: 'SPORTMONKS_API_KEY não encontrada' };
@@ -672,6 +749,13 @@ export class FootballService {
       return this.mergeUniqueFixtures([apiFootball.data]);
     }
 
+    const allScores = await this.getFixturesFromAllScores(date);
+
+    if (allScores.ok && allScores.data.length > 0) {
+      await this.saveFixturesCache(allScores.data);
+      return this.mergeUniqueFixtures([allScores.data]);
+    }
+
     const sportmonks = await this.getFixturesFromSportmonks(date);
 
     if (sportmonks.ok && sportmonks.data.length > 0) {
@@ -717,9 +801,7 @@ export class FootballService {
 
     return cached
       .map((item) => item.raw)
-      .filter((item: any) =>
-        this.isLiveStatus(item?.fixture?.status?.short, item?.fixture?.status?.long),
-      )
+      .filter((item: any) => this.shouldTreatAsLive(item))
       .filter((item: any) =>
         onlyFresh ? this.isCacheFresh(item, this.liveCacheSeconds()) : true,
       )
@@ -740,12 +822,22 @@ export class FootballService {
 
     if (apiFootball.ok && apiFootball.data.length > 0) {
       const live = apiFootball.data
-        .filter((game: any) =>
-          this.isLiveStatus(game?.fixture?.status?.short, game?.fixture?.status?.long),
-        )
+        .filter((game: any) => this.shouldTreatAsLive(game))
         .map((item: any) => this.normalizeLiveStatus(item));
 
       if (live.length > 0) groups.push(live);
+    }
+
+    if (groups.length === 0) {
+      const allScores = await this.getLiveFixturesFromAllScores(today);
+
+      if (allScores.ok && allScores.data.length > 0) {
+        const live = allScores.data
+          .filter((game: any) => this.shouldTreatAsLive(game))
+          .map((item: any) => this.normalizeLiveStatus(item));
+
+        if (live.length > 0) groups.push(live);
+      }
     }
 
     if (groups.length === 0) {
@@ -763,6 +855,7 @@ export class FootballService {
 
           const liveFixtures = (response.data?.data || [])
             .map((item: any) => this.mapSportmonksFixture(item))
+            .filter((item: any) => this.shouldTreatAsLive(item))
             .map((item: any) => this.normalizeLiveStatus(item));
 
           if (liveFixtures.length > 0) groups.push(liveFixtures);
@@ -775,9 +868,7 @@ export class FootballService {
 
       if (footballData.ok && footballData.data.length > 0) {
         const live = footballData.data
-          .filter((game: any) =>
-            this.isLiveStatus(game?.fixture?.status?.short, game?.fixture?.status?.long),
-          )
+          .filter((game: any) => this.shouldTreatAsLive(game))
           .map((item: any) => this.normalizeLiveStatus(item));
 
         if (live.length > 0) groups.push(live);
@@ -898,6 +989,13 @@ export class FootballService {
       return apiFootball.data;
     }
 
+    const allScores = await this.getFixtureByIdFromAllScores(fixtureId);
+
+    if (allScores.ok && allScores.data) {
+      await this.saveFixturesCache([allScores.data]);
+      return allScores.data;
+    }
+
     const sportmonksKey = this.getSportmonksKey();
 
     if (sportmonksKey) {
@@ -1015,6 +1113,8 @@ export class FootballService {
     const sportmonks = await this.getFixturesFromSportmonks(date);
     const footballData = await this.getFixturesFromFootballData(date);
     const sportsDb = await this.getFixturesFromSportsDb(date);
+    const allScores = await this.getFixturesFromAllScores(date);
+    const allScoresLive = await this.getLiveFixturesFromAllScores(date);
 
     let apiFootball = { ok: false, data: [], error: 'Poupada no debug' } as any;
     let apiFootballLive = { ok: false, data: [], error: 'Poupada no debug' } as any;
@@ -1032,6 +1132,8 @@ export class FootballService {
       sportmonksKeyExists: !!this.getSportmonksKey(),
       footballDataKeyExists: !!this.getFootballDataKey(),
       sportsDbKeyExists: !!this.getSportsDbKey(),
+      allScoresEnabled: this.allScoresService.isEnabled(),
+      allScoresKeyExists: this.allScoresService.hasKey(),
       apiFootballDisabled: process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === 'true',
       apiFootballBlockedUntil: this.apiFootballBlockedUntil?.toISOString() || null,
       liveCacheSeconds: this.liveCacheSeconds(),
@@ -1062,6 +1164,20 @@ export class FootballService {
         error: sportsDb.error,
         responseLength: sportsDb.data.length,
         sample: sportsDb.data.slice(0, 2),
+      },
+
+      allScores: {
+        ok: allScores.ok,
+        error: allScores.error,
+        responseLength: allScores.data.length,
+        sample: allScores.data.slice(0, 2),
+      },
+
+      allScoresLive: {
+        ok: allScoresLive.ok,
+        error: allScoresLive.error,
+        responseLength: allScoresLive.data.length,
+        sample: allScoresLive.data.slice(0, 3),
       },
 
       apiFootball: {
