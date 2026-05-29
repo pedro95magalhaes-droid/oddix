@@ -71,21 +71,21 @@ export class ResultsCronService {
   }
 
   private maxFreeTipsPerDay() {
-    return Number(process.env.ODDIX_FREE_MAX_TIPS_PER_DAY || 3);
+    return Number(process.env.ODDIX_FREE_MAX_TIPS_PER_DAY || 2);
   }
 
   private maxVipTipsPerDay() {
-    return Number(process.env.ODDIX_VIP_MAX_TIPS_PER_DAY || 5);
+    return Number(process.env.ODDIX_VIP_MAX_TIPS_PER_DAY || 3);
   }
 
   private minMinutesBetweenTips() {
-    return Number(process.env.ODDIX_MIN_MINUTES_BETWEEN_TIPS || 25);
+    return Number(process.env.ODDIX_MIN_MINUTES_BETWEEN_TIPS || 45);
   }
 
   private minMsBetweenDirectMessages(group: GroupType) {
     return group === "free"
-      ? Number(process.env.ODDIX_FREE_DIRECT_INTERVAL_MS || 10 * 60 * 1000)
-      : Number(process.env.ODDIX_VIP_DIRECT_INTERVAL_MS || 8 * 60 * 1000);
+      ? Number(process.env.ODDIX_FREE_DIRECT_INTERVAL_MS || 20 * 60 * 1000)
+      : Number(process.env.ODDIX_VIP_DIRECT_INTERVAL_MS || 15 * 60 * 1000);
   }
 
   private async sleepRandom(minMs: number, maxMs: number): Promise<void> {
@@ -117,6 +117,7 @@ export class ResultsCronService {
   private dayRangeFortaleza() {
     const now = new Date();
     const key = this.formatDateKeyInFortaleza(now);
+
     return {
       key,
       start: new Date(`${key}T00:00:00.000-03:00`),
@@ -137,7 +138,10 @@ export class ResultsCronService {
 
   private isFixtureActuallyLive(game: any) {
     const short = String(game?.fixture?.status?.short || "").toUpperCase();
-    return ["1H", "HT", "2H", "ET", "BT", "P", "LIVE", "IN_PLAY"].includes(short);
+
+    return ["1H", "HT", "2H", "ET", "BT", "P", "LIVE", "IN_PLAY"].includes(
+      short,
+    );
   }
 
   private isFinished(statusShort: string, statusLong: string) {
@@ -149,8 +153,35 @@ export class ResultsCronService {
       long.includes("match finished") ||
       long.includes("finished") ||
       long.includes("after extra time") ||
-      long.includes("after penalties")
+      long.includes("after penalties") ||
+      long.includes("walkover")
     );
+  }
+
+  private inferFinishedByTime(fixture: any) {
+    const statusShort = String(fixture?.fixture?.status?.short || "").toUpperCase();
+
+    if (!["2H", "ET", "LIVE", "IN_PLAY"].includes(statusShort)) {
+      return false;
+    }
+
+    const elapsed = Number(fixture?.fixture?.status?.elapsed || 0);
+    const fixtureDate = fixture?.fixture?.date;
+
+    if (elapsed < 90 || !fixtureDate) {
+      return false;
+    }
+
+    const start = new Date(fixtureDate);
+    if (Number.isNaN(start.getTime())) {
+      return false;
+    }
+
+    const minutesSinceStart = Math.floor(
+      (Date.now() - start.getTime()) / 1000 / 60,
+    );
+
+    return minutesSinceStart >= 125;
   }
 
   private getGoals(fixture: any) {
@@ -176,7 +207,14 @@ export class ResultsCronService {
   private numberValue(value: any) {
     if (value === null || value === undefined) return 0;
     if (typeof value === "number") return value;
-    const parsed = Number(String(value).replace("%", "").replace(",", ".").replace(/[^0-9.-]/g, ""));
+
+    const parsed = Number(
+      String(value)
+        .replace("%", "")
+        .replace(",", ".")
+        .replace(/[^0-9.-]/g, ""),
+    );
+
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
@@ -199,20 +237,27 @@ export class ResultsCronService {
 
   private extractStats(statistics: any): LiveStats {
     const stats = this.emptyStats();
+
     const rows = Array.isArray(statistics?.response)
       ? statistics.response
       : Array.isArray(statistics)
         ? statistics
         : Array.isArray(statistics?.data)
           ? statistics.data
-          : [];
+          : Array.isArray(statistics?.teams)
+            ? statistics.teams
+            : [];
 
     const readTeam = (index: number, typeNames: string[]) => {
       const team = rows[index];
       const items = team?.statistics || [];
+
       const found = items.find((item: any) =>
-        typeNames.some((name) => this.normalize(item?.type).includes(this.normalize(name))),
+        typeNames.some((name) =>
+          this.normalize(item?.type).includes(this.normalize(name)),
+        ),
       );
+
       return this.numberValue(found?.value);
     };
 
@@ -220,16 +265,32 @@ export class ResultsCronService {
     stats.cornersAway = readTeam(1, ["Corner Kicks", "Corners", "Escanteios"]);
     stats.cornersTotal = stats.cornersHome + stats.cornersAway;
 
-    stats.shotsOnGoalHome = readTeam(0, ["Shots on Goal", "Shots on target", "Chutes no gol"]);
-    stats.shotsOnGoalAway = readTeam(1, ["Shots on Goal", "Shots on target", "Chutes no gol"]);
+    stats.shotsOnGoalHome = readTeam(0, [
+      "Shots on Goal",
+      "Shots on target",
+      "Chutes no gol",
+    ]);
+    stats.shotsOnGoalAway = readTeam(1, [
+      "Shots on Goal",
+      "Shots on target",
+      "Chutes no gol",
+    ]);
     stats.shotsOnGoalTotal = stats.shotsOnGoalHome + stats.shotsOnGoalAway;
 
     stats.shotsTotalHome = readTeam(0, ["Total Shots", "Shots", "Chutes"]);
     stats.shotsTotalAway = readTeam(1, ["Total Shots", "Shots", "Chutes"]);
     stats.shotsTotal = stats.shotsTotalHome + stats.shotsTotalAway;
 
-    stats.yellowCardsHome = readTeam(0, ["Yellow Cards", "Cartões amarelos", "Cartoes amarelos"]);
-    stats.yellowCardsAway = readTeam(1, ["Yellow Cards", "Cartões amarelos", "Cartoes amarelos"]);
+    stats.yellowCardsHome = readTeam(0, [
+      "Yellow Cards",
+      "Cartões amarelos",
+      "Cartoes amarelos",
+    ]);
+    stats.yellowCardsAway = readTeam(1, [
+      "Yellow Cards",
+      "Cartões amarelos",
+      "Cartoes amarelos",
+    ]);
     stats.yellowCardsTotal = stats.yellowCardsHome + stats.yellowCardsAway;
 
     return stats;
@@ -242,14 +303,21 @@ export class ResultsCronService {
       const data = await this.footballService.getStatistics(String(fixtureId));
       return this.extractStats(data);
     } catch (error: any) {
-      this.logger.warn(`⚠️ Falha ao buscar estatísticas fixtureId=${fixtureId}: ${error?.message || "erro"}`);
+      this.logger.warn(
+        `⚠️ Falha ao buscar estatísticas fixtureId=${fixtureId}: ${
+          error?.message || "erro"
+        }`,
+      );
       return this.emptyStats();
     }
   }
 
   private getLine(tip: string) {
     const normalized = this.normalize(tip).replace(/,/g, ".");
-    const match = normalized.match(/(?:over|under|mais de|menos de)\s*(\d+(?:\.\d+)?)/);
+    const match = normalized.match(
+      /(?:over|under|mais de|menos de)\s*(\d+(?:\.\d+)?)/,
+    );
+
     return match ? Number(match[1]) : null;
   }
 
@@ -258,17 +326,52 @@ export class ResultsCronService {
     const line = this.getLine(text);
 
     if (text.includes("escante") || text.includes("corner")) {
-      if (line !== null && line >= 8.5) return true;
+      return true;
     }
 
-    if (text.includes("chutes no gol") || text.includes("shots on goal") || text.includes("sot")) {
-      if (line !== null && line >= 5.5) return true;
+    if (
+      text.includes("chutes no gol") ||
+      text.includes("shots on goal") ||
+      text.includes("sot")
+    ) {
+      return true;
     }
 
-    if (text.includes("handicap") && /[-+]\s*[12](\.\d+)?/.test(text)) return true;
-    if (text.includes("cartao vermelho") || text.includes("red card")) return true;
-    if (text.includes("placar exato") || text.includes("correct score")) return true;
-    if (text.includes("primeiro marcador") || text.includes("first goalscorer")) return true;
+    if (text.includes("chutes") || text.includes("shots")) {
+      return true;
+    }
+
+    if (text.includes("cartao") || text.includes("cartoes") || text.includes("cards")) {
+      return true;
+    }
+
+    if (text.includes("impedimento") || text.includes("offside")) {
+      return true;
+    }
+
+    if (text.includes("faltas") || text.includes("fouls")) {
+      return true;
+    }
+
+    if (text.includes("handicap") && /[-+]\s*[12](\.\d+)?/.test(text)) {
+      return true;
+    }
+
+    if (text.includes("cartao vermelho") || text.includes("red card")) {
+      return true;
+    }
+
+    if (text.includes("placar exato") || text.includes("correct score")) {
+      return true;
+    }
+
+    if (text.includes("primeiro marcador") || text.includes("first goalscorer")) {
+      return true;
+    }
+
+    if (line !== null && line > 4.5 && (text.includes("gol") || text.includes("goal"))) {
+      return true;
+    }
 
     return false;
   }
@@ -279,18 +382,32 @@ export class ResultsCronService {
     const market = bet?.markets?.[0]?.market || bet?.market || "";
 
     if (!bet?.tip) return { ok: false, reason: "sem tip" };
-    if (!Number.isFinite(odd) || odd < this.minOdd()) return { ok: false, reason: `odd abaixo de ${this.minOdd()}` };
-    if (odd > this.maxOdd()) return { ok: false, reason: `odd acima de ${this.maxOdd()}` };
-    if (!Number.isFinite(confidence) || confidence < this.minConfidence()) {
-      return { ok: false, reason: `confiança abaixo de ${this.minConfidence()}%` };
+
+    if (!Number.isFinite(odd) || odd < this.minOdd()) {
+      return { ok: false, reason: `odd abaixo de ${this.minOdd()}` };
     }
-    if (this.isBlockedMarket(bet.tip, market)) return { ok: false, reason: "mercado agressivo bloqueado" };
+
+    if (odd > this.maxOdd()) {
+      return { ok: false, reason: `odd acima de ${this.maxOdd()}` };
+    }
+
+    if (!Number.isFinite(confidence) || confidence < this.minConfidence()) {
+      return {
+        ok: false,
+        reason: `confiança abaixo de ${this.minConfidence()}%`,
+      };
+    }
+
+    if (this.isBlockedMarket(bet.tip, market)) {
+      return { ok: false, reason: "mercado agressivo bloqueado" };
+    }
 
     return { ok: true, reason: "aprovado" };
   }
 
   private async countTodayOpenOrSentBets() {
     const { start, end } = this.dayRangeFortaleza();
+
     return this.prisma.bet.count({
       where: {
         createdAt: { gte: start, lte: end },
@@ -299,12 +416,16 @@ export class ResultsCronService {
   }
 
   private async hasRecentBet() {
-    const since = new Date(Date.now() - this.minMinutesBetweenTips() * 60 * 1000);
+    const since = new Date(
+      Date.now() - this.minMinutesBetweenTips() * 60 * 1000,
+    );
+
     const recent = await this.prisma.bet.findFirst({
       where: { createdAt: { gte: since } },
       select: { id: true, createdAt: true },
       orderBy: { createdAt: "desc" },
     });
+
     return !!recent;
   }
 
@@ -358,10 +479,12 @@ export class ResultsCronService {
     const key = `${group}:direct`;
     const now = Date.now();
     const last = this.lastDirectMessageAt.get(key) || 0;
+
     if (now - last < this.minMsBetweenDirectMessages(group)) {
       this.logger.log(`⏭️ Mensagem direta bloqueada por intervalo: ${group}`);
       return;
     }
+
     this.lastDirectMessageAt.set(key, now);
     await this.whatsappWebService.sendText(text, group);
   }
@@ -369,27 +492,37 @@ export class ResultsCronService {
   @Cron("*/15 * * * *")
   async sendLiveTipsAutomatically() {
     try {
-      this.logger.log("🔥 ODDIX cron de palpites ao vivo iniciado... filtros ativos | odd 1.40-2.00 | confiança 80+");
+      this.logger.log(
+        "🔥 ODDIX cron de palpites ao vivo iniciado... filtros ativos | odd 1.40-2.00 | confiança 80+ | sem escanteios/chutes",
+      );
 
       const totalToday = await this.countTodayOpenOrSentBets();
+
       if (totalToday >= this.maxVipTipsPerDay()) {
-        this.logger.log(`⏭️ Limite diário VIP atingido: ${totalToday}/${this.maxVipTipsPerDay()}`);
+        this.logger.log(
+          `⏭️ Limite diário VIP atingido: ${totalToday}/${this.maxVipTipsPerDay()}`,
+        );
         return;
       }
 
       if (await this.hasRecentBet()) {
-        this.logger.log(`⏭️ Pulando cron: última entrada enviada há menos de ${this.minMinutesBetweenTips()} min`);
+        this.logger.log(
+          `⏭️ Pulando cron: última entrada enviada há menos de ${this.minMinutesBetweenTips()} min`,
+        );
         return;
       }
 
       const liveGames = await this.footballService.getLiveFixtures();
+
       if (!liveGames?.length) {
         this.logger.log("⚠️ Nenhum jogo ao vivo encontrado para enviar palpite.");
         return;
       }
 
       let sentCount = 0;
-      const maxTipsPerCron = Number(process.env.ODDIX_MAX_LIVE_TIPS_PER_CRON || 1);
+      const maxTipsPerCron = Number(
+        process.env.ODDIX_MAX_LIVE_TIPS_PER_CRON || 1,
+      );
 
       for (const game of liveGames) {
         if (sentCount >= maxTipsPerCron) break;
@@ -400,8 +533,11 @@ export class ResultsCronService {
 
         if (!fixtureId) continue;
         if (!this.isTodayInFortaleza(fixtureDate)) continue;
+
         if (!this.isFixtureActuallyLive(game)) {
-          this.logger.log(`⏭️ Pulando jogo que não está ao vivo: fixtureId=${fixtureId} | status=${statusShort}`);
+          this.logger.log(
+            `⏭️ Pulando jogo que não está ao vivo: fixtureId=${fixtureId} | status=${statusShort}`,
+          );
           continue;
         }
 
@@ -411,14 +547,19 @@ export class ResultsCronService {
         });
 
         if (alreadyExists) {
-          this.logger.log(`⚠️ Palpite já existe fixtureId=${fixtureId} | ${alreadyExists.homeTeam} x ${alreadyExists.awayTeam}`);
+          this.logger.log(
+            `⚠️ Palpite já existe fixtureId=${fixtureId} | ${alreadyExists.homeTeam} x ${alreadyExists.awayTeam}`,
+          );
           continue;
         }
 
         const bet = await this.aiService.generateBet(game);
         const quality = this.qualityBetAllowed(bet);
+
         if (!quality.ok) {
-          this.logger.log(`⏭️ Palpite reprovado fixtureId=${fixtureId}: ${quality.reason}`);
+          this.logger.log(
+            `⏭️ Palpite reprovado fixtureId=${fixtureId}: ${quality.reason}`,
+          );
           continue;
         }
 
@@ -460,6 +601,7 @@ export class ResultsCronService {
         });
 
         const todayTotalAfterCreate = await this.countTodayOpenOrSentBets();
+
         if (todayTotalAfterCreate <= this.maxFreeTipsPerDay()) {
           await this.whatsappWebService.sendButtonText({
             target: "free",
@@ -467,7 +609,9 @@ export class ResultsCronService {
             buttonText: "QUERO SER VIP",
             url: this.vipLink(),
           });
+
           await this.sleepRandom(25_000, 60_000);
+
           await this.whatsappWebService.sendButtonText({
             target: "free",
             text: this.createFreeTipMessage(bet),
@@ -485,23 +629,37 @@ export class ResultsCronService {
             target: "vip",
           });
         } else {
-          await this.whatsappWebService.sendText(this.createVipTipMessage(bet), "vip");
+          await this.whatsappWebService.sendText(
+            this.createVipTipMessage(bet),
+            "vip",
+          );
         }
 
         sentCount++;
-        this.logger.log(`✅ Palpite enviado com filtros: ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip} | odd=${bet.odd}`);
+
+        this.logger.log(
+          `✅ Palpite enviado com filtros: ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip} | odd=${bet.odd}`,
+        );
       }
     } catch (error: any) {
-      this.logger.error(`❌ Erro no cron de palpites: ${error?.message || "erro desconhecido"}`);
+      this.logger.error(
+        `❌ Erro no cron de palpites: ${error?.message || "erro desconhecido"}`,
+      );
     }
   }
 
   @Cron("0 18 * * *")
   async sendVipMultipleAutomatically() {
     try {
-      if (String(process.env.ODDIX_ENABLE_VIP_MULTIPLE || "true").toLowerCase() !== "true") return;
+      if (
+        String(process.env.ODDIX_ENABLE_VIP_MULTIPLE || "true").toLowerCase() !==
+        "true"
+      ) {
+        return;
+      }
 
       const { start, end } = this.dayRangeFortaleza();
+
       const already = await this.prisma.bet.findFirst({
         where: {
           createdAt: { gte: start, lte: end },
@@ -509,6 +667,7 @@ export class ResultsCronService {
         } as any,
         select: { id: true },
       });
+
       if (already) return;
 
       const liveGames = await this.footballService.getLiveFixtures();
@@ -516,15 +675,21 @@ export class ResultsCronService {
 
       for (const game of liveGames || []) {
         if (legs.length >= 3) break;
+
         const fixtureId = Number(game.fixture?.id || 0);
         if (!fixtureId || !this.isTodayInFortaleza(game.fixture?.date)) continue;
         if (!this.isFixtureActuallyLive(game)) continue;
 
-        const exists = await this.prisma.bet.findFirst({ where: { fixtureId }, select: { id: true } });
+        const exists = await this.prisma.bet.findFirst({
+          where: { fixtureId },
+          select: { id: true },
+        });
+
         if (exists) continue;
 
         const bet = await this.aiService.generateBet(game);
         const quality = this.qualityBetAllowed(bet);
+
         if (!quality.ok) continue;
 
         legs.push({ game, bet, fixtureId });
@@ -535,9 +700,15 @@ export class ResultsCronService {
         return;
       }
 
-      const oddTotal = legs.reduce((acc, item) => acc * Number(item.bet.odd || 1), 1);
+      const oddTotal = legs.reduce(
+        (acc, item) => acc * Number(item.bet.odd || 1),
+        1,
+      );
+
       if (oddTotal < 2.5 || oddTotal > 6) {
-        this.logger.log(`⏭️ Múltipla VIP bloqueada por odd total=${oddTotal.toFixed(2)}`);
+        this.logger.log(
+          `⏭️ Múltipla VIP bloqueada por odd total=${oddTotal.toFixed(2)}`,
+        );
         return;
       }
 
@@ -555,25 +726,28 @@ export class ResultsCronService {
               risk: item.bet.risk || "Médio",
               analysis: "ODDIX_MULTIPLA_VIP | Perna da múltipla VIP diária.",
               status: "open",
-              gameDate: item.game.fixture?.date ? new Date(item.game.fixture.date) : new Date(),
+              gameDate: item.game.fixture?.date
+                ? new Date(item.game.fixture.date)
+                : new Date(),
               provider: item.game.provider || "api-football",
             } as any,
           }),
         ),
       );
 
-      const imagePath = await (this.oddixImageService as any).createVipMultipleCard?.({
-        legs: legs.map((item) => ({
-          homeTeam: item.bet.homeTeam,
-          awayTeam: item.bet.awayTeam,
-          league: item.bet.league,
-          tip: item.bet.tip,
-          odd: item.bet.odd,
-          homeLogo: item.game.teams?.home?.logo,
-          awayLogo: item.game.teams?.away?.logo,
-        })),
-        oddTotal: oddTotal.toFixed(2),
-      });
+      const imagePath = await (this.oddixImageService as any)
+        .createVipMultipleCard?.({
+          legs: legs.map((item) => ({
+            homeTeam: item.bet.homeTeam,
+            awayTeam: item.bet.awayTeam,
+            league: item.bet.league,
+            tip: item.bet.tip,
+            odd: item.bet.odd,
+            homeLogo: item.game.teams?.home?.logo,
+            awayLogo: item.game.teams?.away?.logo,
+          })),
+          oddTotal: oddTotal.toFixed(2),
+        });
 
       const caption = [
         "🚀 *ODDIX BOOST VIP | MÚLTIPLA*",
@@ -590,12 +764,18 @@ export class ResultsCronService {
       ].join("\n");
 
       if (imagePath) {
-        await this.whatsappWebService.sendImageFile({ filePath: imagePath, caption, target: "vip" });
+        await this.whatsappWebService.sendImageFile({
+          filePath: imagePath,
+          caption,
+          target: "vip",
+        });
       } else {
         await this.whatsappWebService.sendText(caption, "vip");
       }
     } catch (error: any) {
-      this.logger.error(`❌ Erro ao enviar múltipla VIP: ${error?.message || "erro desconhecido"}`);
+      this.logger.error(
+        `❌ Erro ao enviar múltipla VIP: ${error?.message || "erro desconhecido"}`,
+      );
     }
   }
 
@@ -606,27 +786,105 @@ export class ResultsCronService {
 
   async getCachedFixtureById(fixtureId: any) {
     if (!fixtureId) return null;
-    const cached = await this.prisma.cachedFixture.findUnique({ where: { fixtureId: String(fixtureId) } });
+
+    const cached = await this.prisma.cachedFixture.findUnique({
+      where: { fixtureId: String(fixtureId) },
+    });
+
     return cached?.raw || null;
   }
 
-  async fetchApiFootball(apiKey: string, path: string, params: Record<string, any>) {
+  async fetchApiFootball(
+    apiKey: string,
+    path: string,
+    params: Record<string, any>,
+  ) {
     const url = new URL(`${this.apiFootballURL}${path}`);
+
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
+      if (value !== undefined && value !== null && value !== "") {
+        url.searchParams.set(key, String(value));
+      }
     });
 
-    const response = await fetch(url.toString(), { headers: { "x-apisports-key": apiKey } });
+    const response = await fetch(url.toString(), {
+      headers: { "x-apisports-key": apiKey },
+    });
+
     return response.json();
+  }
+
+  private mapApiFootballFixture(item: any) {
+    if (!item?.fixture) return item;
+
+    return {
+      provider: "api-football",
+      fixture: {
+        id: Number(item.fixture?.id || 0),
+        date: item.fixture?.date || new Date().toISOString(),
+        timestamp: item.fixture?.timestamp ?? null,
+        timezone: item.fixture?.timezone || "UTC",
+        status: {
+          long: item.fixture?.status?.long || "Unknown",
+          short: item.fixture?.status?.short || "UNK",
+          elapsed: item.fixture?.status?.elapsed ?? null,
+          extra: item.fixture?.status?.extra ?? null,
+        },
+      },
+      league: {
+        id: Number(item.league?.id || 0),
+        name: item.league?.name || "Liga não informada",
+        country: item.league?.country || "",
+        logo: item.league?.logo || "",
+      },
+      teams: {
+        home: {
+          id: Number(item.teams?.home?.id || 0),
+          name: item.teams?.home?.name || "",
+          logo: item.teams?.home?.logo || "",
+          winner: item.teams?.home?.winner ?? null,
+        },
+        away: {
+          id: Number(item.teams?.away?.id || 0),
+          name: item.teams?.away?.name || "",
+          logo: item.teams?.away?.logo || "",
+          winner: item.teams?.away?.winner ?? null,
+        },
+      },
+      goals: {
+        home: item.goals?.home ?? item.score?.fulltime?.home ?? null,
+        away: item.goals?.away ?? item.score?.fulltime?.away ?? null,
+      },
+      score: {
+        fulltime: {
+          home: item.score?.fulltime?.home ?? item.goals?.home ?? null,
+          away: item.score?.fulltime?.away ?? item.goals?.away ?? null,
+        },
+        extratime: {
+          home: item.score?.extratime?.home ?? null,
+          away: item.score?.extratime?.away ?? null,
+        },
+      },
+    };
   }
 
   async fetchFixtureById(apiKey: string, fixtureId: number) {
     try {
       if (process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === "true") return null;
-      const data = await this.fetchApiFootball(apiKey, "/fixtures", { id: fixtureId, timezone: this.timezone });
-      return data?.response?.[0] || null;
+
+      const data = await this.fetchApiFootball(apiKey, "/fixtures", {
+        id: fixtureId,
+        timezone: this.timezone,
+      });
+
+      const raw = data?.response?.[0] || null;
+      return raw ? this.mapApiFootballFixture(raw) : null;
     } catch (error: any) {
-      this.logger.warn(`⚠️ API-Football fixtureId=${fixtureId} falhou: ${error?.message || "erro"}`);
+      this.logger.warn(
+        `⚠️ API-Football fixtureId=${fixtureId} falhou: ${
+          error?.message || "erro"
+        }`,
+      );
       return null;
     }
   }
@@ -644,13 +902,16 @@ export class ResultsCronService {
     const tip = this.normalize(params.tip);
     const homeTeam = this.normalize(params.homeTeam);
     const awayTeam = this.normalize(params.awayTeam);
+
     const { homeGoals, awayGoals, totalGoals, stats, finished } = params;
 
     const homeWon = homeGoals > awayGoals;
     const awayWon = awayGoals > homeGoals;
     const draw = homeGoals === awayGoals;
 
-    if (!tip) return { result: "open", reason: "Palpite vazio" };
+    if (!tip) {
+      return { result: "open", reason: "Palpite vazio" };
+    }
 
     const line = this.getLine(tip);
     const isOver = tip.includes("over") || tip.includes("mais de");
@@ -662,73 +923,192 @@ export class ResultsCronService {
     if (tip.includes("escante") || tip.includes("corner")) {
       metricName = "escanteios";
       metricValue = stats.cornersTotal;
-    } else if (tip.includes("chutes no gol") || tip.includes("shots on goal") || tip.includes("sot")) {
+    } else if (
+      tip.includes("chutes no gol") ||
+      tip.includes("shots on goal") ||
+      tip.includes("sot")
+    ) {
       metricName = "chutes no gol";
       metricValue = stats.shotsOnGoalTotal;
     } else if (tip.includes("chutes") || tip.includes("shots")) {
       metricName = "chutes";
       metricValue = stats.shotsTotal;
-    } else if (tip.includes("cartoes") || tip.includes("cartao") || tip.includes("cards")) {
+    } else if (
+      tip.includes("cartoes") ||
+      tip.includes("cartao") ||
+      tip.includes("cards")
+    ) {
       metricName = "cartões amarelos";
       metricValue = stats.yellowCardsTotal;
     }
 
     if (line !== null && isOver) {
       if (metricValue > line) {
-        return { result: "won", reason: `GREEN antecipado: ${metricName} ${metricValue} > ${line}`, metricName, metricValue, line };
+        return {
+          result: "won",
+          reason: `GREEN antecipado: ${metricName} ${metricValue} > ${line}`,
+          metricName,
+          metricValue,
+          line,
+        };
       }
+
       if (finished) {
-        return { result: "lost", reason: `Jogo finalizado: ${metricName} ${metricValue} <= ${line}`, metricName, metricValue, line };
+        return {
+          result: "lost",
+          reason: `Jogo finalizado: ${metricName} ${metricValue} <= ${line}`,
+          metricName,
+          metricValue,
+          line,
+        };
       }
-      return { result: "open", reason: `Aguardando bater: ${metricName} ${metricValue}/${line + 0.5}`, metricName, metricValue, line };
+
+      return {
+        result: "open",
+        reason: `Aguardando bater: ${metricName} ${metricValue}/${line + 0.5}`,
+        metricName,
+        metricValue,
+        line,
+      };
     }
 
     if (line !== null && isUnder) {
       if (metricValue > line) {
-        return { result: "lost", reason: `RED antecipado: ${metricName} ${metricValue} > ${line}`, metricName, metricValue, line };
+        return {
+          result: "lost",
+          reason: `RED antecipado: ${metricName} ${metricValue} > ${line}`,
+          metricName,
+          metricValue,
+          line,
+        };
       }
+
       if (finished) {
-        return { result: "won", reason: `Jogo finalizado: ${metricName} ${metricValue} < ${line}`, metricName, metricValue, line };
+        return {
+          result: "won",
+          reason: `Jogo finalizado: ${metricName} ${metricValue} < ${line}`,
+          metricName,
+          metricValue,
+          line,
+        };
       }
-      return { result: "open", reason: `Under ainda vivo: ${metricName} ${metricValue}/${line}`, metricName, metricValue, line };
+
+      return {
+        result: "open",
+        reason: `Under ainda vivo: ${metricName} ${metricValue}/${line}`,
+        metricName,
+        metricValue,
+        line,
+      };
     }
 
-    if (tip.includes("ambas equipes marcam sim") || tip.includes("ambas marcam sim") || tip.includes("btts sim")) {
-      if (homeGoals > 0 && awayGoals > 0) return { result: "won", reason: "GREEN antecipado: ambas marcaram" };
-      if (finished) return { result: "lost", reason: "Jogo finalizado sem ambas marcarem" };
+    if (
+      tip.includes("ambas equipes marcam sim") ||
+      tip.includes("ambas marcam sim") ||
+      tip.includes("btts sim")
+    ) {
+      if (homeGoals > 0 && awayGoals > 0) {
+        return { result: "won", reason: "GREEN antecipado: ambas marcaram" };
+      }
+
+      if (finished) {
+        return { result: "lost", reason: "Jogo finalizado sem ambas marcarem" };
+      }
+
       return { result: "open", reason: "Aguardando ambas marcarem" };
     }
 
-    if (tip.includes("ambas equipes marcam nao") || tip.includes("ambas marcam nao") || tip.includes("btts nao")) {
-      if (homeGoals > 0 && awayGoals > 0) return { result: "lost", reason: "RED antecipado: ambas marcaram" };
-      if (finished) return { result: "won", reason: "GREEN: uma ou nenhuma equipe marcou" };
+    if (
+      tip.includes("ambas equipes marcam nao") ||
+      tip.includes("ambas marcam nao") ||
+      tip.includes("btts nao")
+    ) {
+      if (homeGoals > 0 && awayGoals > 0) {
+        return { result: "lost", reason: "RED antecipado: ambas marcaram" };
+      }
+
+      if (finished) {
+        return { result: "won", reason: "GREEN: uma ou nenhuma equipe marcou" };
+      }
+
       return { result: "open", reason: "BTTS não ainda vivo" };
     }
 
-    if (!finished) return { result: "open", reason: "Mercado depende do final do jogo" };
-
-    if (tip.includes("ou empate") || tip.includes("dupla chance")) {
-      if (tip.includes(homeTeam)) return { result: homeWon || draw ? "won" : "lost", reason: "Dupla chance resolvida" };
-      if (tip.includes(awayTeam)) return { result: awayWon || draw ? "won" : "lost", reason: "Dupla chance resolvida" };
+    if (!finished) {
+      return { result: "open", reason: "Mercado depende do final do jogo" };
     }
 
-    if (tip.includes("empate anula") || tip.includes("draw no bet") || tip.includes("dnb")) {
-      if (draw) return { result: "open", reason: "Empate anula: aposta sem resultado no sistema" };
-      if (tip.includes(homeTeam)) return { result: homeWon ? "won" : "lost", reason: "Empate anula resolvido" };
-      if (tip.includes(awayTeam)) return { result: awayWon ? "won" : "lost", reason: "Empate anula resolvido" };
+    if (tip.includes("ou empate") || tip.includes("dupla chance")) {
+      if (tip.includes(homeTeam)) {
+        return {
+          result: homeWon || draw ? "won" : "lost",
+          reason: "Dupla chance resolvida",
+        };
+      }
+
+      if (tip.includes(awayTeam)) {
+        return {
+          result: awayWon || draw ? "won" : "lost",
+          reason: "Dupla chance resolvida",
+        };
+      }
+    }
+
+    if (
+      tip.includes("empate anula") ||
+      tip.includes("draw no bet") ||
+      tip.includes("dnb")
+    ) {
+      if (draw) {
+        return {
+          result: "open",
+          reason: "Empate anula: aposta sem resultado no sistema",
+        };
+      }
+
+      if (tip.includes(homeTeam)) {
+        return {
+          result: homeWon ? "won" : "lost",
+          reason: "Empate anula resolvido",
+        };
+      }
+
+      if (tip.includes(awayTeam)) {
+        return {
+          result: awayWon ? "won" : "lost",
+          reason: "Empate anula resolvido",
+        };
+      }
     }
 
     if (tip.includes("+0.25")) {
-      if (tip.includes(homeTeam)) return { result: homeWon || draw ? "won" : "lost", reason: "Handicap leve resolvido" };
-      if (tip.includes(awayTeam)) return { result: awayWon || draw ? "won" : "lost", reason: "Handicap leve resolvido" };
+      if (tip.includes(homeTeam)) {
+        return {
+          result: homeWon || draw ? "won" : "lost",
+          reason: "Handicap leve resolvido",
+        };
+      }
+
+      if (tip.includes(awayTeam)) {
+        return {
+          result: awayWon || draw ? "won" : "lost",
+          reason: "Handicap leve resolvido",
+        };
+      }
     }
 
     if (tip.includes(`${homeTeam} para vencer`) || tip.includes(`${homeTeam} vence`)) {
-      return { result: homeWon ? "won" : "lost", reason: "Vencedor resolvido" };
+      return {
+        result: homeWon ? "won" : "lost",
+        reason: "Vencedor resolvido",
+      };
     }
 
     if (tip.includes(`${awayTeam} para vencer`) || tip.includes(`${awayTeam} vence`)) {
-      return { result: awayWon ? "won" : "lost", reason: "Vencedor resolvido" };
+      return {
+        result: awayWon ? "won" : "lost",
+        reason: "Vencedor resolvido",
+      };
     }
 
     return { result: "open", reason: "Mercado não reconhecido" };
@@ -745,6 +1125,7 @@ export class ResultsCronService {
     metricValue?: number;
   }) {
     if (params.result === "open") return;
+
     const isGreen = params.result === "won";
 
     if (isGreen) {
@@ -772,7 +1153,9 @@ export class ResultsCronService {
         metricLine,
         "",
         "🔒 Resultado completo e próximas entradas no VIP.",
-      ].filter(Boolean).join("\n"),
+      ]
+        .filter(Boolean)
+        .join("\n"),
     });
 
     await this.whatsappWebService.sendText(
@@ -784,7 +1167,9 @@ export class ResultsCronService {
         `📊 Placar: *${params.score}*`,
         metricLine,
         params.reason ? `🧠 ${params.reason}` : "",
-      ].filter(Boolean).join("\n"),
+      ]
+        .filter(Boolean)
+        .join("\n"),
       "vip",
     );
   }
@@ -794,6 +1179,7 @@ export class ResultsCronService {
 
     const now = new Date();
     const minDate = new Date(now.getTime() - 1000 * 60 * 60 * 72);
+
     const openBets = await this.prisma.bet.findMany({
       where: {
         status: "open",
@@ -802,12 +1188,17 @@ export class ResultsCronService {
       orderBy: { createdAt: "desc" },
     });
 
-    const apiKey = this.config.get<string>("API_FOOTBALL_KEY") || process.env.API_FOOTBALL_KEY || "";
+    const apiKey =
+      this.config.get<string>("API_FOOTBALL_KEY") ||
+      process.env.API_FOOTBALL_KEY ||
+      "";
+
     let updatedWon = 0;
     let updatedLost = 0;
     let stillOpen = 0;
     let fixtureFoundByCache = 0;
     let fixtureFoundByApi = 0;
+
     const details: any[] = [];
 
     for (const bet of openBets) {
@@ -827,6 +1218,7 @@ export class ResultsCronService {
 
         if (bet.fixtureId && apiKey) {
           fixture = await this.fetchFixtureById(apiKey, Number(bet.fixtureId));
+
           if (fixture) {
             foundBy = "api_fixtureId_fresh";
             fixtureFoundByApi++;
@@ -835,6 +1227,7 @@ export class ResultsCronService {
 
         if (!fixture && bet.fixtureId) {
           fixture = await this.getCachedFixtureById(bet.fixtureId);
+
           if (fixture) {
             foundBy = "cache_fixtureId";
             fixtureFoundByCache++;
@@ -843,15 +1236,24 @@ export class ResultsCronService {
 
         if (!fixture) {
           stillOpen++;
-          details.push({ ...baseDetail, result: "open", reason: "Fixture não encontrado na API nem no cache" });
+          details.push({
+            ...baseDetail,
+            result: "open",
+            reason: "Fixture não encontrado na API nem no cache",
+          });
           continue;
         }
 
         const statusShort = fixture.fixture?.status?.short || "";
         const statusLong = fixture.fixture?.status?.long || "";
-        const finished = this.isFinished(statusShort, statusLong);
+
+        const finished =
+          this.isFinished(statusShort, statusLong) ||
+          this.inferFinishedByTime(fixture);
+
         const { homeGoals, awayGoals, totalGoals } = this.getGoals(fixture);
         const stats = await this.getFixtureStats(bet.fixtureId || fixture.fixture?.id);
+
         const resolved = this.resolveResult({
           tip: bet.tip,
           homeTeam: bet.homeTeam,
@@ -883,9 +1285,12 @@ export class ResultsCronService {
             foundBy,
             apiStatusShort: statusShort,
             apiStatusLong: statusLong,
+            inferredFinished: finished,
             score: `${homeGoals}x${awayGoals}`,
+            totalGoals,
             stats,
           });
+
           continue;
         }
 
@@ -896,7 +1301,7 @@ export class ResultsCronService {
             fixtureId: fixture.fixture?.id ? Number(fixture.fixture.id) : bet.fixtureId,
             homeScore: homeGoals,
             awayScore: awayGoals,
-            statusShort,
+            statusShort: finished ? "FT" : statusShort,
           } as any,
         });
 
@@ -931,12 +1336,14 @@ export class ResultsCronService {
           foundBy,
           apiStatusShort: statusShort,
           apiStatusLong: statusLong,
+          inferredFinished: finished,
           score: `${homeGoals}x${awayGoals}`,
           totalGoals,
           stats,
         });
       } catch (error: any) {
         stillOpen++;
+
         details.push({
           betId: bet.id,
           fixtureId: bet.fixtureId,
@@ -948,7 +1355,13 @@ export class ResultsCronService {
       }
     }
 
-    await this.telegram.sendSyncSummary({ checked: openBets.length, updatedWon, updatedLost, stillOpen, source });
+    await this.telegram.sendSyncSummary({
+      checked: openBets.length,
+      updatedWon,
+      updatedLost,
+      stillOpen,
+      source,
+    });
 
     return {
       message: "Debug GREEN/RED finalizado",
@@ -967,7 +1380,16 @@ export class ResultsCronService {
   async debugFixturesByDate(date: string) {
     const start = new Date(`${date}T00:00:00.000Z`);
     const end = new Date(`${date}T23:59:59.999Z`);
-    const cached = await this.prisma.cachedFixture.findMany({ where: { date: { gte: start, lte: end } }, orderBy: { date: "asc" } });
-    return { date, cacheLength: cached.length, sample: cached.slice(0, 20).map((item) => item.raw) };
+
+    const cached = await this.prisma.cachedFixture.findMany({
+      where: { date: { gte: start, lte: end } },
+      orderBy: { date: "asc" },
+    });
+
+    return {
+      date,
+      cacheLength: cached.length,
+      sample: cached.slice(0, 20).map((item) => item.raw),
+    };
   }
 }
