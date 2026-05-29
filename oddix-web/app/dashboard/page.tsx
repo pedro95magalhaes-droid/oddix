@@ -74,6 +74,8 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [liveTick, setLiveTick] = useState(0);
 
+  const isPaidPlan = ['PRO', 'VIP', 'Pro', 'Vip', 'pro', 'vip'].includes(String(plan));
+
   const totalGames = games.length;
   const liveGames = games.filter(isGameLive).length;
   const finishedGames = games.filter(isGameFinished).length;
@@ -703,6 +705,12 @@ export default function Dashboard() {
   }
 
   async function analyzeGame(game: any) {
+    if (!isPaidPlan) {
+      alert('Análise IA disponível apenas nos planos PRO e VIP. No plano FREE você pode ver os jogos, mas não a análise completa.');
+      window.location.href = '/plans';
+      return;
+    }
+
     try {
       const fixtureId = game.fixture?.id;
       setAnalyzingId(fixtureId);
@@ -932,7 +940,7 @@ export default function Dashboard() {
           </button>
 
           <button style={styles.vipButton} onClick={() => (window.location.href = '/plans')}>
-            Entrar no VIP
+            Assinar PRO/VIP
           </button>
 
           <button style={styles.logoutButton} onClick={logout}>
@@ -1265,7 +1273,9 @@ export default function Dashboard() {
             <div>
               <h2 style={styles.sectionTitle}>Jogos online</h2>
               <p style={styles.sectionSubtitle}>
-                Escolha um jogo para a IA analisar.
+                {isPaidPlan
+                  ? 'Escolha um jogo para a IA analisar.'
+                  : 'Plano FREE: você vê os jogos, mas a análise IA é liberada no PRO/VIP.'}
               </p>
             </div>
 
@@ -1457,7 +1467,7 @@ export default function Dashboard() {
                         onClick={() => analyzeGame(game)}
                         disabled={analyzingId === fixtureId}
                       >
-                        {analyzingId === fixtureId ? 'Analisando...' : 'Ver análise'}
+                        {!isPaidPlan ? 'Liberar análise' : analyzingId === fixtureId ? 'Analisando...' : 'Ver análise'}
                       </button>
                     </div>
                   </div>

@@ -42,6 +42,10 @@ export default function Plans() {
         <img src="/oddix-logo.png" style={styles.logo} />
 
         <div style={styles.headerActions}>
+          <button style={styles.freeButton} onClick={() => (window.location.href = '/')}>
+            Criar conta FREE
+          </button>
+
           <button style={styles.freeButton} onClick={() => window.open(FREE_GROUP_LINK, '_blank')}>
             Grupo FREE
           </button>
@@ -92,8 +96,8 @@ export default function Plans() {
             'Grupo FREE',
             'Sem análise completa',
           ]}
-          button="Entrar no grupo FREE"
-          onClick={() => window.open(FREE_GROUP_LINK, '_blank')}
+          button="Criar conta grátis"
+          onClick={() => (window.location.href = '/')}
         />
 
         <PlanCard
@@ -115,7 +119,7 @@ export default function Plans() {
 
         <PlanCard
           name="Vip"
-          price="R$57"
+          price="R$29,99"
           period="/ mês"
           description="Acesso máximo para sala premium."
           features={[
@@ -138,8 +142,8 @@ export default function Plans() {
           Clique em <b>Enviar comprovante</b> no WhatsApp. Após conferência, seu plano será ativado.
         </p>
 
-        <button style={styles.activateButton} onClick={() => activatePlan('Vip')}>
-          Já sou VIP / Ativar acesso
+        <button style={styles.activateButton} onClick={() => sendReceipt('PRO/VIP')}>
+          Enviar comprovante no WhatsApp
         </button>
       </section>
     </main>
