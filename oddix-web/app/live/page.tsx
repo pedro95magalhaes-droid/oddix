@@ -73,6 +73,8 @@ export default function LivePage() {
 
   const gamesPerPage = 24;
 
+  const isPaidPlan = ['PRO', 'VIP', 'Pro', 'Vip', 'pro', 'vip'].includes(String(plan));
+
   function getLocalDateKey(date: any) {
     if (!date) return '';
 
@@ -411,6 +413,15 @@ export default function LivePage() {
   }
 
   async function analyzeGame(game: any) {
+    if (!isPaidPlan) {
+      alert(
+        'Análise IA disponível apenas nos planos PRO e VIP. No plano FREE você pode ver os jogos, mas não a análise completa.',
+      );
+
+      window.location.href = '/plans';
+      return;
+    }
+
     try {
       const fixtureId = game.fixture?.id || game.savedBetId;
       setAnalyzingId(fixtureId);
@@ -952,10 +963,12 @@ export default function LivePage() {
       <section style={styles.hero}>
         <span style={styles.liveBadge}>● JOGOS AO VIVO, FUTUROS E FINALIZADOS</span>
 
-        <h1 style={styles.title}>Escolha um jogo para a IA analisar</h1>
+        <h1 style={styles.title}>{isPaidPlan ? 'Escolha um jogo para a IA analisar' : 'Jogos ao vivo liberados no plano FREE'}</h1>
 
         <p style={styles.subtitle}>
-          A lista mostra jogos ao vivo, futuros, finalizados e salvos no Dashboard.
+          {isPaidPlan
+            ? 'A lista mostra jogos ao vivo, futuros, finalizados e salvos no Dashboard.'
+            : 'No plano FREE você acompanha os jogos. Para liberar análise IA, assine PRO ou VIP.'}
         </p>
 
         <div style={styles.heroStats}>
@@ -1159,7 +1172,9 @@ export default function LivePage() {
                     onClick={() => analyzeGame(game)}
                     disabled={analyzingId === fixtureId}
                   >
-                    {analyzingId === fixtureId
+                    {!isPaidPlan
+                      ? '🔒 Liberar análise'
+                      : analyzingId === fixtureId
                       ? 'Analisando...'
                       : saved
                       ? '✅ Analisar novamente'
