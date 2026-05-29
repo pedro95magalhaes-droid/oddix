@@ -326,17 +326,7 @@ export class FootballService {
     const s = String(short || '').toUpperCase();
     const l = String(long || '').toLowerCase();
 
-    return (
-      ['FT', 'AET', 'PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'].includes(s) ||
-      l.includes('finished') ||
-      l.includes('after extra time') ||
-      l.includes('after penalties') ||
-      l.includes('walkover') ||
-      l.includes('cancelled') ||
-      l.includes('canceled') ||
-      l.includes('abandoned') ||
-      l.includes('postponed')
-    );
+    return ['FT', 'AET', 'PEN'].includes(s) || l.includes('finished');
   }
 
   private isLiveStatus(short?: string, long?: string) {
@@ -352,35 +342,6 @@ export class FootballService {
       l.includes('halftime') ||
       l.includes('half-time')
     );
-  }
-
-
-
-  private shouldTreatAsLive(item: any) {
-    const short = String(item?.fixture?.status?.short || '').toUpperCase();
-    const long = String(item?.fixture?.status?.long || '');
-    const elapsed = Number(item?.fixture?.status?.elapsed || 0);
-    const extra = Number(item?.fixture?.status?.extra || 0);
-    const fixtureDate = item?.fixture?.date;
-
-    if (this.isFinishedStatus(short, long)) return false;
-    if (!this.isLiveStatus(short, long)) return false;
-
-    // Evita jogo encerrado preso como 2H/90+ no /football/live.
-    if (short === '2H' && elapsed >= 90) return false;
-    if (short === '2H' && elapsed >= 85 && extra > 0) return false;
-
-    // Segurança: jogo começou há mais de 2 horas, então não deve ficar como ao vivo.
-    if (fixtureDate) {
-      const start = new Date(fixtureDate).getTime();
-
-      if (!Number.isNaN(start)) {
-        const minutesSinceStart = Math.floor((Date.now() - start) / 1000 / 60);
-        if (minutesSinceStart >= 120) return false;
-      }
-    }
-
-    return true;
   }
 
   private normalizeLiveStatus(item: any) {
@@ -756,7 +717,9 @@ export class FootballService {
 
     return cached
       .map((item) => item.raw)
-      .filter((item: any) => this.shouldTreatAsLive(item))
+      .filter((item: any) =>
+        this.isLiveStatus(item?.fixture?.status?.short, item?.fixture?.status?.long),
+      )
       .filter((item: any) =>
         onlyFresh ? this.isCacheFresh(item, this.liveCacheSeconds()) : true,
       )
@@ -777,7 +740,9 @@ export class FootballService {
 
     if (apiFootball.ok && apiFootball.data.length > 0) {
       const live = apiFootball.data
-        .filter((game: any) => this.shouldTreatAsLive(game))
+        .filter((game: any) =>
+          this.isLiveStatus(game?.fixture?.status?.short, game?.fixture?.status?.long),
+        )
         .map((item: any) => this.normalizeLiveStatus(item));
 
       if (live.length > 0) groups.push(live);
@@ -798,7 +763,6 @@ export class FootballService {
 
           const liveFixtures = (response.data?.data || [])
             .map((item: any) => this.mapSportmonksFixture(item))
-            .filter((item: any) => this.shouldTreatAsLive(item))
             .map((item: any) => this.normalizeLiveStatus(item));
 
           if (liveFixtures.length > 0) groups.push(liveFixtures);
@@ -811,7 +775,9 @@ export class FootballService {
 
       if (footballData.ok && footballData.data.length > 0) {
         const live = footballData.data
-          .filter((game: any) => this.shouldTreatAsLive(game))
+          .filter((game: any) =>
+            this.isLiveStatus(game?.fixture?.status?.short, game?.fixture?.status?.long),
+          )
           .map((item: any) => this.normalizeLiveStatus(item));
 
         if (live.length > 0) groups.push(live);
