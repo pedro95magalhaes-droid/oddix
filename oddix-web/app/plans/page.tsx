@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../../services/api';
 
 const PIX_KEY = 'c1efc7a6-ce93-4f21-a0e3-c8f319a8446d';
@@ -9,6 +10,7 @@ const WHATSAPP_SUPPORT = 'https://wa.me/5585921994264';
 
 export default function Plans() {
   const [copied, setCopied] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<'PRO' | 'VIP' | null>(null);
 
   async function copyPix() {
     await navigator.clipboard.writeText(PIX_KEY);
@@ -114,7 +116,7 @@ export default function Plans() {
           ]}
           button="Pagar Pro via PIX"
           highlight
-          onClick={() => sendReceipt('PRO')}
+          onClick={() => setSelectedPlan('PRO')}
         />
 
         <PlanCard
@@ -132,7 +134,7 @@ export default function Plans() {
           ]}
           button="Pagar VIP via PIX"
           vip
-          onClick={() => sendReceipt('VIP')}
+          onClick={() => setSelectedPlan('VIP')}
         />
       </section>
 
@@ -146,6 +148,51 @@ export default function Plans() {
           Enviar comprovante no WhatsApp
         </button>
       </section>
+
+      {selectedPlan && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalBox}>
+            <button style={styles.modalClose} onClick={() => setSelectedPlan(null)}>
+              ×
+            </button>
+
+            <span style={styles.modalBadge}>PAGAMENTO PIX</span>
+
+            <h2 style={styles.modalTitle}>
+              {selectedPlan === 'PRO'
+                ? 'Plano PRO - R$ 19,99'
+                : 'Plano VIP - R$ 29,99'}
+            </h2>
+
+            <p style={styles.modalText}>
+              Escaneie o QR Code ou copie a chave PIX. Depois envie o comprovante no WhatsApp para liberar seu acesso.
+            </p>
+
+            <div style={styles.qrBox}>
+              <QRCodeSVG value={PIX_KEY} size={230} />
+            </div>
+
+            <p style={styles.pixLabel}>Chave PIX aleatória:</p>
+
+            <div style={styles.pixKey}>{PIX_KEY}</div>
+
+            <div style={styles.pixActions}>
+              <button style={styles.greenButtonSmall} onClick={copyPix}>
+                {copied ? 'PIX copiado!' : 'Copiar PIX'}
+              </button>
+
+              <button style={styles.darkButtonSmall} onClick={() => sendReceipt(selectedPlan)}>
+                Enviar comprovante
+              </button>
+
+              <button style={styles.darkButtonSmall} onClick={() => setSelectedPlan(null)}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
@@ -474,5 +521,75 @@ const styles = {
     borderRadius: '16px',
     fontWeight: 'bold',
     cursor: 'pointer',
+  },
+
+  modalOverlay: {
+    position: 'fixed' as const,
+    inset: 0,
+    background: 'rgba(0,0,0,.86)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999,
+    padding: '20px',
+  },
+
+  modalBox: {
+    position: 'relative' as const,
+    width: '100%',
+    maxWidth: '480px',
+    background: 'linear-gradient(145deg,#0b0f14,#000)',
+    border: '1px solid rgba(34,197,94,.55)',
+    borderRadius: '26px',
+    padding: '30px',
+    textAlign: 'center' as const,
+    boxShadow: '0 0 80px rgba(34,197,94,.20)',
+  },
+
+  modalClose: {
+    position: 'absolute' as const,
+    top: '14px',
+    right: '16px',
+    width: '36px',
+    height: '36px',
+    borderRadius: '999px',
+    background: 'rgba(239,68,68,.16)',
+    color: '#ef4444',
+    border: '1px solid rgba(239,68,68,.45)',
+    fontSize: '22px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+  },
+
+  modalBadge: {
+    display: 'inline-block',
+    background: '#22c55e',
+    color: '#000',
+    padding: '7px 13px',
+    borderRadius: '999px',
+    fontWeight: 'bold',
+    fontSize: '11px',
+    marginBottom: '12px',
+  },
+
+  modalTitle: {
+    margin: '8px 0 10px',
+    fontSize: '28px',
+  },
+
+  modalText: {
+    color: '#d4d4d8',
+    lineHeight: 1.5,
+    marginBottom: '18px',
+  },
+
+  qrBox: {
+    background: '#fff',
+    borderRadius: '20px',
+    padding: '18px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: '18px',
   },
 };
