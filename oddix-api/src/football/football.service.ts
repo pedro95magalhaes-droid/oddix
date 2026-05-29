@@ -10,6 +10,7 @@ export class FootballService {
   private sportmonksURL = 'https://api.sportmonks.com/v3/football';
   private footballDataURL = 'https://api.football-data.org/v4';
   private sportsDbURL = 'https://www.thesportsdb.com/api/v1/json';
+  private apiFootballBlockedUntil: Date | null = null;
 
   private getApiFootballKey() {
     return process.env.API_FOOTBALL_KEY || '';
@@ -25,6 +26,57 @@ export class FootballService {
 
   private getSportsDbKey() {
     return process.env.THESPORTSDB_KEY || '123';
+  }
+
+  private liveCacheSeconds() {
+    return Number(process.env.FOOTBALL_LIVE_CACHE_SECONDS || 120);
+  }
+
+  private fixturesCacheMinutes() {
+    return Number(process.env.FOOTBALL_FIXTURES_CACHE_MINUTES || 30);
+  }
+
+  private apiFootballCooldownMinutes() {
+    return Number(process.env.API_FOOTBALL_COOLDOWN_MINUTES || 30);
+  }
+
+  private isApiFootballBlocked() {
+    if (process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === 'true') return true;
+    if (!this.apiFootballBlockedUntil) return false;
+    return this.apiFootballBlockedUntil.getTime() > Date.now();
+  }
+
+  private blockApiFootballTemporarily() {
+    this.apiFootballBlockedUntil = new Date(
+      Date.now() + this.apiFootballCooldownMinutes() * 60 * 1000,
+    );
+  }
+
+  private withCacheStamp(item: any) {
+    return {
+      ...item,
+      __oddixCachedAt: new Date().toISOString(),
+    };
+  }
+
+  private getCacheAgeSeconds(item: any) {
+    const rawDate =
+      item?.__oddixCachedAt ||
+      item?.updatedAt ||
+      item?.createdAt ||
+      item?.cachedAt ||
+      null;
+
+    if (!rawDate) return Number.POSITIVE_INFINITY;
+
+    const date = new Date(rawDate);
+    if (Number.isNaN(date.getTime())) return Number.POSITIVE_INFINITY;
+
+    return Math.floor((Date.now() - date.getTime()) / 1000);
+  }
+
+  private isCacheFresh(item: any, maxAgeSeconds: number) {
+    return this.getCacheAgeSeconds(item) <= maxAgeSeconds;
   }
 
   private now() {
@@ -318,6 +370,8 @@ export class FootballService {
         const fixtureId = String(item?.fixture?.id || '');
         if (!fixtureId) return null;
 
+        const stampedRaw = this.withCacheStamp(item);
+
         return this.prisma.cachedFixture.upsert({
           where: { fixtureId },
           update: {
@@ -335,7 +389,7 @@ export class FootballService {
             statusShort: item.fixture?.status?.short || null,
             statusLong: item.fixture?.status?.long || null,
             elapsed: item.fixture?.status?.elapsed ?? null,
-            raw: item,
+            raw: stampedRaw,
           },
           create: {
             fixtureId,
@@ -353,7 +407,7 @@ export class FootballService {
             statusShort: item.fixture?.status?.short || null,
             statusLong: item.fixture?.status?.long || null,
             elapsed: item.fixture?.status?.elapsed ?? null,
-            raw: item,
+            raw: stampedRaw,
           },
         });
       }),
@@ -372,22 +426,31 @@ export class FootballService {
     return cached.map((item) => item.raw);
   }
 
-  private async getFreshFixturesFromCache(date: string, hours = 12) {
+  private async getFreshFixturesFromCache(date: string, maxAgeMinutes = this.fixturesCacheMinutes()) {
     const cached = await this.getFixturesFromCache(date);
 
     if (!cached.length) return [];
 
-    const hasFinished = cached.some((item: any) =>
+    const maxAgeSeconds = maxAgeMinutes * 60;
+
+    const finished = cached.filter((item: any) =>
       this.isFinishedStatus(item?.fixture?.status?.short, item?.fixture?.status?.long),
     );
 
-    if (hasFinished) return cached;
+    const fresh = cached.filter((item: any) => {
+      const isFinished = this.isFinishedStatus(
+        item?.fixture?.status?.short,
+        item?.fixture?.status?.long,
+      );
 
-    const today = new Date().toISOString().slice(0, 10);
+      if (isFinished) return true;
 
-    if (date !== today) return cached;
+      return this.isCacheFresh(item, maxAgeSeconds);
+    });
 
-    return cached;
+    if (fresh.length) return this.mergeUniqueFixtures([fresh, finished]);
+
+    return [];
   }
 
   private async getFixtureFromCacheById(fixtureId: string) {
@@ -399,8 +462,8 @@ export class FootballService {
   }
 
   async getFixturesFromApiFootball(date: string) {
-    if (process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === 'true') {
-      return { ok: false, data: [], error: 'API-Football desativada temporariamente por limite' };
+    if (this.isApiFootballBlocked()) {
+      return { ok: false, data: [], error: 'API-Football em cooldown temporário por limite/erro' };
     }
 
     const apiKey = this.getApiFootballKey();
@@ -425,7 +488,7 @@ export class FootballService {
       };
     } catch (error: any) {
       if (this.isApiFootballLimitError(error)) {
-        process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT = 'true';
+        this.blockApiFootballTemporarily();
       }
 
       return {
@@ -441,8 +504,8 @@ export class FootballService {
   }
 
   async getLiveFixturesFromApiFootball() {
-    if (process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === 'true') {
-      return { ok: false, data: [], error: 'API-Football desativada temporariamente por limite' };
+    if (this.isApiFootballBlocked()) {
+      return { ok: false, data: [], error: 'API-Football em cooldown temporário por limite/erro' };
     }
 
     const apiKey = this.getApiFootballKey();
@@ -467,7 +530,7 @@ export class FootballService {
       };
     } catch (error: any) {
       if (this.isApiFootballLimitError(error)) {
-        process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT = 'true';
+        this.blockApiFootballTemporarily();
       }
 
       return {
@@ -596,6 +659,12 @@ export class FootballService {
   }
 
   async getFixtures(date: string) {
+    const freshCache = await this.getFreshFixturesFromCache(date, this.fixturesCacheMinutes());
+
+    if (freshCache.length > 0) {
+      return this.mergeUniqueFixtures([freshCache]);
+    }
+
     const apiFootball = await this.getFixturesFromApiFootball(date);
 
     if (apiFootball.ok && apiFootball.data.length > 0) {
@@ -624,16 +693,16 @@ export class FootballService {
       return this.mergeUniqueFixtures([sportsDb.data]);
     }
 
-    const cache = await this.getFreshFixturesFromCache(date, 12);
+    const staleCache = await this.getFixturesFromCache(date);
 
-    if (cache.length > 0) {
-      return this.mergeUniqueFixtures([cache]);
+    if (staleCache.length > 0) {
+      return this.mergeUniqueFixtures([staleCache]);
     }
 
     return [];
   }
 
-  private async getLiveFixturesFromCache() {
+  private async getLiveFixturesFromCache(onlyFresh = true) {
     const now = new Date();
     const start = new Date(now);
     start.setUTCHours(0, 0, 0, 0);
@@ -651,10 +720,19 @@ export class FootballService {
       .filter((item: any) =>
         this.isLiveStatus(item?.fixture?.status?.short, item?.fixture?.status?.long),
       )
+      .filter((item: any) =>
+        onlyFresh ? this.isCacheFresh(item, this.liveCacheSeconds()) : true,
+      )
       .map((item: any) => this.normalizeLiveStatus(item));
   }
 
   async getLiveFixtures() {
+    const freshCacheLive = await this.getLiveFixturesFromCache(true);
+
+    if (freshCacheLive.length > 0) {
+      return this.mergeUniqueFixtures([freshCacheLive]);
+    }
+
     const groups: any[][] = [];
     const today = new Date().toISOString().slice(0, 10);
 
@@ -670,36 +748,40 @@ export class FootballService {
       if (live.length > 0) groups.push(live);
     }
 
-    const sportmonksKey = this.getSportmonksKey();
+    if (groups.length === 0) {
+      const sportmonksKey = this.getSportmonksKey();
 
-    if (sportmonksKey) {
-      try {
-        const response = await axios.get(`${this.sportmonksURL}/livescores/inplay`, {
-          timeout: 10000,
-          params: {
-            api_token: sportmonksKey,
-            include: 'participants;league;league.country;scores;state;periods',
-          },
-        });
+      if (sportmonksKey) {
+        try {
+          const response = await axios.get(`${this.sportmonksURL}/livescores/inplay`, {
+            timeout: 10000,
+            params: {
+              api_token: sportmonksKey,
+              include: 'participants;league;league.country;scores;state;periods',
+            },
+          });
 
-        const liveFixtures = (response.data?.data || [])
-          .map((item: any) => this.mapSportmonksFixture(item))
-          .map((item: any) => this.normalizeLiveStatus(item));
+          const liveFixtures = (response.data?.data || [])
+            .map((item: any) => this.mapSportmonksFixture(item))
+            .map((item: any) => this.normalizeLiveStatus(item));
 
-        if (liveFixtures.length > 0) groups.push(liveFixtures);
-      } catch {}
+          if (liveFixtures.length > 0) groups.push(liveFixtures);
+        } catch {}
+      }
     }
 
-    const footballData = await this.getFixturesFromFootballData(today);
+    if (groups.length === 0) {
+      const footballData = await this.getFixturesFromFootballData(today);
 
-    if (footballData.ok && footballData.data.length > 0) {
-      const live = footballData.data
-        .filter((game: any) =>
-          this.isLiveStatus(game?.fixture?.status?.short, game?.fixture?.status?.long),
-        )
-        .map((item: any) => this.normalizeLiveStatus(item));
+      if (footballData.ok && footballData.data.length > 0) {
+        const live = footballData.data
+          .filter((game: any) =>
+            this.isLiveStatus(game?.fixture?.status?.short, game?.fixture?.status?.long),
+          )
+          .map((item: any) => this.normalizeLiveStatus(item));
 
-      if (live.length > 0) groups.push(live);
+        if (live.length > 0) groups.push(live);
+      }
     }
 
     const mergedLive = this.mergeUniqueFixtures(groups);
@@ -709,10 +791,10 @@ export class FootballService {
       return mergedLive;
     }
 
-    const cacheLive = await this.getLiveFixturesFromCache();
+    const staleCacheLive = await this.getLiveFixturesFromCache(false);
 
-    if (cacheLive.length > 0) {
-      return this.mergeUniqueFixtures([cacheLive]);
+    if (staleCacheLive.length > 0) {
+      return this.mergeUniqueFixtures([staleCacheLive]);
     }
 
     return [];
@@ -720,8 +802,8 @@ export class FootballService {
 
 
   async getFixtureByIdFromApiFootball(fixtureId: string) {
-    if (process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === 'true') {
-      return { ok: false, data: null, error: 'API-Football desativada temporariamente por limite' };
+    if (this.isApiFootballBlocked()) {
+      return { ok: false, data: null, error: 'API-Football em cooldown temporário por limite/erro' };
     }
 
     const apiKey = this.getApiFootballKey();
@@ -745,7 +827,7 @@ export class FootballService {
       };
     } catch (error: any) {
       if (this.isApiFootballLimitError(error)) {
-        process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT = 'true';
+        this.blockApiFootballTemporarily();
       }
 
       return {
@@ -803,6 +885,12 @@ export class FootballService {
   }
 
   async getFixtureById(fixtureId: string) {
+    const cached = await this.getFixtureFromCacheById(fixtureId);
+
+    if (cached && this.isCacheFresh(cached, this.fixturesCacheMinutes() * 60)) {
+      return cached;
+    }
+
     const apiFootball = await this.getFixtureByIdFromApiFootball(fixtureId);
 
     if (apiFootball.ok && apiFootball.data) {
@@ -832,7 +920,6 @@ export class FootballService {
       } catch {}
     }
 
-    const cached = await this.getFixtureFromCacheById(fixtureId);
     if (cached) return cached;
 
     return null;
@@ -947,7 +1034,10 @@ export class FootballService {
       footballDataKeyExists: !!this.getFootballDataKey(),
       sportsDbKeyExists: !!this.getSportsDbKey(),
       apiFootballDisabled: process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === 'true',
-      note: 'API-Football só é consultada no debug se API_FOOTBALL_DEBUG_FORCE=true',
+      apiFootballBlockedUntil: this.apiFootballBlockedUntil?.toISOString() || null,
+      liveCacheSeconds: this.liveCacheSeconds(),
+      fixturesCacheMinutes: this.fixturesCacheMinutes(),
+      note: 'API-Football só é consultada no debug se API_FOOTBALL_DEBUG_FORCE=true. Rotas normais usam cache antes de chamar API.',
 
       cache: {
         responseLength: cache.length,
