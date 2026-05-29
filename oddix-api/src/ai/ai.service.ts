@@ -38,11 +38,19 @@ export class AiService {
       seed,
     });
 
-    const playerProps = await this.oddsService.getPlayerProps({
+    const realOdds = await this.oddsService.getBestOdds({
       homeTeam,
       awayTeam,
       league,
     });
+
+    const playerProps = realOdds.filter((pick: any) =>
+      String(pick.marketKey || '').startsWith('player_'),
+    );
+
+    const gameOdds = realOdds.filter((pick: any) =>
+      !String(pick.marketKey || '').startsWith('player_'),
+    );
 
     const flatMarkets = this.marketsService.getFlatMarkets();
 
@@ -57,8 +65,6 @@ export class AiService {
           marketSeed,
         );
 
-        const odd = this.generateOdd(market.key, confidence, context, marketSeed);
-
         const rawTip = this.generateTip(
           market.key,
           homeTeam,
@@ -68,17 +74,21 @@ export class AiService {
         );
 
         const tip = this.sanitizeTip(rawTip, homeTeam, awayTeam, context);
-
+        const realOdd = this.findRealOddForMarket(gameOdds, market.key, tip);
+        const odd = realOdd?.odd || this.generateOdd(market.key, confidence, context, marketSeed);
         const risk = this.getRisk(confidence, market.key, context);
 
         return {
           key: market.key,
           category: market.category,
           market: market.name,
-          tip,
+          tip: realOdd?.tip || tip,
           odd,
           confidence,
           risk,
+          bookmaker: realOdd?.bookmaker || null,
+          oddsSource: realOdd ? 'the-odds-api' : 'oddix-estimada',
+          isRealOdd: !!realOdd,
           reason: this.generateProfessionalReason(
             market.name,
             homeTeam,
@@ -86,6 +96,7 @@ export class AiService {
             context,
             confidence,
             risk,
+            realOdd,
           ),
         };
       })
@@ -119,6 +130,9 @@ export class AiService {
           ? 'Baixo'
           : 'Médio'
       ) as RiskLevel,
+      bookmaker: prop.bookmaker,
+      oddsSource: 'the-odds-api',
+      isRealOdd: true,
       reason: `Mercado real encontrado na The Odds API via ${prop.bookmaker}. Entrada baseada em linha disponível de player props, sem inventar jogador ou odd.`,
     }));
 
@@ -145,6 +159,12 @@ export class AiService {
       awayTeam,
       league,
       status: 'open',
+      sources: {
+        matchData: game.provider || game.sources?.matchData || 'api-football/sportmonks',
+        odds: finalMarkets.some((market: any) => market.isRealOdd) ? 'the-odds-api' : 'oddix-estimada',
+        realOddsCount: realOdds.length,
+        estimatedOddsCount: finalMarkets.filter((market: any) => !market.isRealOdd).length,
+      },
 
       tip: this.sanitizeTip(best.tip, homeTeam, awayTeam, context),
       odd: best.odd,
@@ -174,6 +194,44 @@ export class AiService {
         multiples,
       }),
     };
+  }
+
+
+  private mapGeneratedMarketToOddsKeys(key: string) {
+    const map: Record<string, string[]> = {
+      resultado_final: ['h2h'],
+      total_gols: ['totals'],
+      ao_vivo: ['totals'],
+      ambas_marcam: ['btts'],
+      handicap_asiatico: ['spreads'],
+      handicap_europeu: ['spreads'],
+    };
+
+    return map[key] || [];
+  }
+
+  private findRealOddForMarket(realOdds: any[], marketKey: string, generatedTip: string) {
+    const allowedKeys = this.mapGeneratedMarketToOddsKeys(marketKey);
+    if (!allowedKeys.length) return null;
+
+    const normalizedTip = this.normalizeText(generatedTip);
+    const candidates = (realOdds || []).filter((odd) => allowedKeys.includes(odd.marketKey));
+
+    if (!candidates.length) return null;
+
+    const exact = candidates.find((odd) => {
+      const tip = this.normalizeText(odd.tip);
+      return tip && (normalizedTip.includes(tip) || tip.includes(normalizedTip));
+    });
+
+    if (exact) return exact;
+
+    const safe = candidates
+      .filter((odd) => Number(odd.odd || 0) >= 1.25)
+      .filter((odd) => Number(odd.odd || 0) <= 2.35)
+      .sort((a, b) => Number(a.odd || 0) - Number(b.odd || 0));
+
+    return safe[0] || candidates[0] || null;
   }
 
   private createSeed(text: string) {
@@ -620,6 +678,7 @@ export class AiService {
     context: any,
     confidence: number,
     risk: RiskLevel,
+    realOdd?: any,
   ) {
     const phase =
       context.gamePhase === 'pré-jogo'
@@ -630,7 +689,11 @@ export class AiService {
       ? ` Placar atual: ${context.homeGoals}x${context.awayGoals}.`
       : '';
 
-    return `Mercado de ${market} selecionado para ${homeTeam} x ${awayTeam} com base no ${phase}, equilíbrio técnico, tendência de gols ${context.goalTrend}/100, escanteios ${context.cornerTrend}/100, cartões ${context.cardTrend}/100 e finalizações ${context.shotTrend}/100.${scoreText} Confiança estimada em ${confidence}% e risco ${risk}.`;
+    const oddsText = realOdd
+      ? ` Odd real encontrada na The Odds API via ${realOdd.bookmaker}.`
+      : ' Odd estimada pela Oddix porque não houve linha real compatível na The Odds API.';
+
+    return `Mercado de ${market} selecionado para ${homeTeam} x ${awayTeam} com base no ${phase}, equilíbrio técnico, tendência de gols ${context.goalTrend}/100, escanteios ${context.cornerTrend}/100, cartões ${context.cardTrend}/100 e finalizações ${context.shotTrend}/100.${scoreText}${oddsText} Confiança estimada em ${confidence}% e risco ${risk}.`;
   }
 
   private generateMultiples(markets: any[], context: any) {
@@ -701,7 +764,7 @@ export class AiService {
     const marketList = bestMarkets
       .map(
         (market, index) =>
-          `${index + 1}. ${market.market}: ${market.tip} | odd ${market.odd} | confiança ${market.confidence}% | risco ${market.risk}`,
+          `${index + 1}. ${market.market}: ${market.tip} | odd ${market.odd} (${market.isRealOdd ? 'real' : 'estimada'}) | confiança ${market.confidence}% | risco ${market.risk}`,
       )
       .join('\n');
 
@@ -721,6 +784,9 @@ ${marketList}
 Múltiplas:
 Conservadora: ${multiples?.conservative?.selections?.map((s: any) => s.tip).join(' + ') || 'Sem múltipla segura'} | odd ${multiples?.conservative?.combinedOdd || '-'}.
 Moderada: ${multiples?.moderate?.selections?.map((s: any) => s.tip).join(' + ') || 'Sem múltipla segura'} | odd ${multiples?.moderate?.combinedOdd || '-'}.
+
+Fontes:
+Dados do jogo: API-Football primeiro, Sportmonks como fallback. Odds: The Odds API quando disponível; caso contrário, odd marcada como estimada.
 
 Gestão:
 Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou usar valor simbólico.`;

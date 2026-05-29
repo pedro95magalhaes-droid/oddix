@@ -596,39 +596,41 @@ export class FootballService {
   }
 
   async getFixtures(date: string) {
-    const cache = await this.getFreshFixturesFromCache(date, 12);
+    const apiFootball = await this.getFixturesFromApiFootball(date);
 
-    if (cache.length > 0) {
-      return cache;
+    if (apiFootball.ok && apiFootball.data.length > 0) {
+      await this.saveFixturesCache(apiFootball.data);
+      return this.mergeUniqueFixtures([apiFootball.data]);
     }
 
     const sportmonks = await this.getFixturesFromSportmonks(date);
+
+    if (sportmonks.ok && sportmonks.data.length > 0) {
+      await this.saveFixturesCache(sportmonks.data);
+      return this.mergeUniqueFixtures([sportmonks.data]);
+    }
+
     const footballData = await this.getFixturesFromFootballData(date);
+
+    if (footballData.ok && footballData.data.length > 0) {
+      await this.saveFixturesCache(footballData.data);
+      return this.mergeUniqueFixtures([footballData.data]);
+    }
+
     const sportsDb = await this.getFixturesFromSportsDb(date);
 
-    let apiFootball = { ok: false, data: [], error: 'Não consultada' } as any;
-
-    const mergedWithoutApi = this.mergeUniqueFixtures([
-      sportmonks.ok ? sportmonks.data : [],
-      footballData.ok ? footballData.data : [],
-      sportsDb.ok ? sportsDb.data : [],
-    ]);
-
-    if (mergedWithoutApi.length === 0) {
-      apiFootball = await this.getFixturesFromApiFootball(date);
+    if (sportsDb.ok && sportsDb.data.length > 0) {
+      await this.saveFixturesCache(sportsDb.data);
+      return this.mergeUniqueFixtures([sportsDb.data]);
     }
 
-    const fixtures = this.mergeUniqueFixtures([
-      mergedWithoutApi,
-      apiFootball.ok ? apiFootball.data : [],
-      cache,
-    ]);
+    const cache = await this.getFreshFixturesFromCache(date, 12);
 
-    if (fixtures.length > 0) {
-      await this.saveFixturesCache(fixtures);
+    if (cache.length > 0) {
+      return this.mergeUniqueFixtures([cache]);
     }
 
-    return fixtures;
+    return [];
   }
 
   private async getLiveFixturesFromCache() {
@@ -716,9 +718,97 @@ export class FootballService {
     return [];
   }
 
+
+  async getFixtureByIdFromApiFootball(fixtureId: string) {
+    if (process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === 'true') {
+      return { ok: false, data: null, error: 'API-Football desativada temporariamente por limite' };
+    }
+
+    const apiKey = this.getApiFootballKey();
+    if (!apiKey) return { ok: false, data: null, error: 'API_FOOTBALL_KEY não encontrada' };
+
+    try {
+      const response = await axios.get(`${this.apiFootballURL}/fixtures`, {
+        timeout: 12000,
+        headers: { 'x-apisports-key': apiKey },
+        params: {
+          id: fixtureId,
+          timezone: 'America/Sao_Paulo',
+        },
+      });
+
+      const item = response.data?.response?.[0];
+      return {
+        ok: !!item,
+        data: item ? this.mapApiFootballFixture(item) : null,
+        error: item ? null : 'Fixture não encontrado na API-Football',
+      };
+    } catch (error: any) {
+      if (this.isApiFootballLimitError(error)) {
+        process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT = 'true';
+      }
+
+      return {
+        ok: false,
+        data: null,
+        error: error?.response?.data?.message || error?.response?.data || error?.message || 'Erro na API-Football por ID',
+      };
+    }
+  }
+
+  private mapApiFootballStatistics(fixtureId: string, items: any[]) {
+    const teams = (items || []).map((item: any) => ({
+      team: item.team || { id: 0, name: '', logo: '' },
+      statistics: (item.statistics || []).map((stat: any) => ({
+        type: stat.type,
+        value: stat.value,
+      })),
+    }));
+
+    return {
+      available: teams.length > 0,
+      simulated: false,
+      fixtureId,
+      source: 'api-football',
+      message: teams.length > 0 ? 'Estatísticas reais da API-Football.' : 'Sem estatísticas reais disponíveis.',
+      teams,
+    };
+  }
+
+  async getStatisticsFromApiFootball(fixtureId: string) {
+    const apiKey = this.getApiFootballKey();
+    if (!apiKey) return { ok: false, data: null, error: 'API_FOOTBALL_KEY não encontrada' };
+
+    try {
+      const response = await axios.get(`${this.apiFootballURL}/fixtures/statistics`, {
+        timeout: 12000,
+        headers: { 'x-apisports-key': apiKey },
+        params: { fixture: fixtureId },
+      });
+
+      const stats = this.mapApiFootballStatistics(fixtureId, response.data?.response || []);
+
+      return {
+        ok: stats.available,
+        data: stats,
+        error: stats.available ? null : 'Sem estatísticas reais na API-Football',
+      };
+    } catch (error: any) {
+      return {
+        ok: false,
+        data: null,
+        error: error?.response?.data?.message || error?.response?.data || error?.message || 'Erro ao buscar estatísticas na API-Football',
+      };
+    }
+  }
+
   async getFixtureById(fixtureId: string) {
-    const cached = await this.getFixtureFromCacheById(fixtureId);
-    if (cached) return cached;
+    const apiFootball = await this.getFixtureByIdFromApiFootball(fixtureId);
+
+    if (apiFootball.ok && apiFootball.data) {
+      await this.saveFixturesCache([apiFootball.data]);
+      return apiFootball.data;
+    }
 
     const sportmonksKey = this.getSportmonksKey();
 
@@ -741,6 +831,9 @@ export class FootballService {
         }
       } catch {}
     }
+
+    const cached = await this.getFixtureFromCacheById(fixtureId);
+    if (cached) return cached;
 
     return null;
   }
@@ -815,7 +908,20 @@ export class FootballService {
   }
 
   async getStatistics(fixtureId: string) {
-    return this.generateFallbackStatistics(fixtureId);
+    const apiFootball = await this.getStatisticsFromApiFootball(fixtureId);
+
+    if (apiFootball.ok && apiFootball.data) {
+      return apiFootball.data;
+    }
+
+    const fallback = this.generateFallbackStatistics(fixtureId);
+
+    return {
+      ...fallback,
+      simulated: true,
+      source: 'oddix-fallback',
+      message: `Estatísticas reais indisponíveis. Usando estimativa temporária. Motivo: ${apiFootball.error || 'sem dados reais'}`,
+    };
   }
 
   async debug(date: string) {
