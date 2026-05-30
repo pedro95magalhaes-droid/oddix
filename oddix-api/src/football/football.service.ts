@@ -108,6 +108,29 @@ export class FootballService {
     }).format(date);
   }
 
+  private normalizeDateKey(date?: string) {
+    const raw = String(date || '').trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const parsed = new Date(`${raw}T12:00:00.000Z`);
+      if (!Number.isNaN(parsed.getTime())) return raw;
+    }
+
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+      const [day, month, year] = raw.split('/');
+      const converted = `${year}-${month}-${day}`;
+      const parsed = new Date(`${converted}T12:00:00.000Z`);
+      if (!Number.isNaN(parsed.getTime())) return converted;
+    }
+
+    const parsed = new Date(raw);
+    if (raw && !Number.isNaN(parsed.getTime())) {
+      return this.brazilDateKey(parsed);
+    }
+
+    return this.brazilDateKey();
+  }
+
   private brazilDayRangeUtc(dateKey: string) {
     const start = new Date(`${dateKey}T03:00:00.000Z`);
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
@@ -474,8 +497,9 @@ export class FootballService {
     );
   }
 
-  private async getFixturesFromCache(date: string) {
-    const { start, end } = this.brazilDayRangeUtc(date);
+  private async getFixturesFromCache(date?: string) {
+    const safeDate = this.normalizeDateKey(date);
+    const { start, end } = this.brazilDayRangeUtc(safeDate);
 
     const cached = await this.prisma.cachedFixture.findMany({
       where: { date: { gte: start, lte: end } },
@@ -805,7 +829,8 @@ export class FootballService {
 
 
   private addDays(date: string, days: number) {
-    const d = new Date(`${date}T12:00:00.000Z`);
+    const safeDate = this.normalizeDateKey(date);
+    const d = new Date(`${safeDate}T12:00:00.000Z`);
     d.setUTCDate(d.getUTCDate() + days);
     return d.toISOString().slice(0, 10);
   }
@@ -831,7 +856,9 @@ export class FootballService {
     return diffMinutes >= minMinutes && diffMinutes <= maxMinutes;
   }
 
-  async getFixtures(date: string) {
+  async getFixtures(date?: string) {
+    date = this.normalizeDateKey(date);
+
     const searchDates = Array.from(
       new Set([this.addDays(date, -1), date, this.addDays(date, 1)]),
     );
@@ -1268,7 +1295,9 @@ export class FootballService {
     };
   }
 
-  async debug(date: string) {
+  async debug(date?: string) {
+    date = this.normalizeDateKey(date);
+
     const cache = await this.getFixturesFromCache(date);
     const broadage = await this.getFixturesFromBroadage(date);
     const broadageLive = await this.getLiveFixturesFromBroadage();
