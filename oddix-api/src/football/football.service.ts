@@ -4,6 +4,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AllScoresService } from './allscores.service';
 import { FlashScoreService } from './flashscore.service';
 import { BroadageService } from './broadage.service';
+import {
+  isOddixDashboardFixtureAllowed,
+  isOddixLeagueAllowed,
+} from './league-filter';
 
 @Injectable()
 export class FootballService {
@@ -42,6 +46,20 @@ export class FootballService {
 
   private fixturesCacheMinutes() {
     return Number(process.env.FOOTBALL_FIXTURES_CACHE_MINUTES || 30);
+  }
+
+  private hideFinishedAfterHours() {
+    return Number(process.env.ODDIX_DASHBOARD_HIDE_FINISHED_AFTER_HOURS || 6);
+  }
+
+  private filterAllowedLeagues(fixtures: any[]) {
+    return (fixtures || []).filter((item: any) => isOddixLeagueAllowed(item));
+  }
+
+  private filterDashboardFixtures(fixtures: any[]) {
+    return (fixtures || []).filter((item: any) =>
+      isOddixDashboardFixtureAllowed(item, this.hideFinishedAfterHours()),
+    );
   }
 
   private apiFootballCooldownMinutes() {
@@ -100,17 +118,75 @@ export class FootballService {
   }
 
   private brazilDateKey(date: Date = new Date()) {
-    return new Intl.DateTimeFormat('en-CA', {
+    const safeDate = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
+
+    const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/Sao_Paulo',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-    }).format(date);
+    }).formatToParts(safeDate);
+
+    const year =
+      parts.find((part) => part.type === 'year')?.value ||
+      String(safeDate.getUTCFullYear());
+
+    const month =
+      parts.find((part) => part.type === 'month')?.value ||
+      String(safeDate.getUTCMonth() + 1).padStart(2, '0');
+
+    const day =
+      parts.find((part) => part.type === 'day')?.value ||
+      String(safeDate.getUTCDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
   }
 
-  private brazilDayRangeUtc(dateKey: string) {
-    const start = new Date(`${dateKey}T03:00:00.000Z`);
+  private normalizeDateKey(date?: string | null) {
+    const raw = String(date || '').trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const parsed = new Date(`${raw}T12:00:00.000Z`);
+      if (!Number.isNaN(parsed.getTime())) return raw;
+    }
+
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+      const [day, month, year] = raw.split('/');
+      const converted = `${year}-${month}-${day}`;
+      const parsed = new Date(`${converted}T12:00:00.000Z`);
+      if (!Number.isNaN(parsed.getTime())) return converted;
+    }
+
+    if (raw) {
+      const parsed = new Date(raw);
+      if (!Number.isNaN(parsed.getTime())) {
+        return this.brazilDateKey(parsed);
+      }
+    }
+
+    return this.brazilDateKey();
+  }
+
+  private brazilDayRangeUtc(dateKey?: string | null) {
+    const safeDateKey = this.normalizeDateKey(dateKey);
+
+    let start = new Date(`${safeDateKey}T03:00:00.000Z`);
+
+    if (Number.isNaN(start.getTime())) {
+      const fallback = this.brazilDateKey();
+      start = new Date(`${fallback}T03:00:00.000Z`);
+    }
+
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+
+    if (Number.isNaN(end.getTime())) {
+      const fallbackStart = new Date(`${this.brazilDateKey()}T03:00:00.000Z`);
+      return {
+        start: fallbackStart,
+        end: new Date(fallbackStart.getTime() + 24 * 60 * 60 * 1000 - 1),
+      };
+    }
+
     return { start, end };
   }
 
@@ -423,6 +499,7 @@ export class FootballService {
   }
 
   private async saveFixturesCache(fixtures: any[]) {
+    fixtures = this.filterAllowedLeagues(fixtures);
     if (!fixtures?.length) return;
 
     await Promise.all(
@@ -436,7 +513,7 @@ export class FootballService {
           where: { fixtureId },
           update: {
             provider: item.provider || 'unknown',
-            date: item.fixture?.date ? new Date(item.fixture.date) : null,
+            date: item.fixture?.date && !Number.isNaN(new Date(item.fixture.date).getTime()) ? new Date(item.fixture.date) : null,
             league: item.league?.name || null,
             country: item.league?.country || null,
             homeTeam: item.teams?.home?.name || '',
@@ -454,7 +531,7 @@ export class FootballService {
           create: {
             fixtureId,
             provider: item.provider || 'unknown',
-            date: item.fixture?.date ? new Date(item.fixture.date) : null,
+            date: item.fixture?.date && !Number.isNaN(new Date(item.fixture.date).getTime()) ? new Date(item.fixture.date) : null,
             league: item.league?.name || null,
             country: item.league?.country || null,
             homeTeam: item.teams?.home?.name || '',
@@ -474,18 +551,30 @@ export class FootballService {
     );
   }
 
-  private async getFixturesFromCache(date: string) {
-    const { start, end } = this.brazilDayRangeUtc(date);
+  private async getFixturesFromCache(date?: string) {
+    const safeDate = this.normalizeDateKey(date);
+    const { start, end } = this.brazilDayRangeUtc(safeDate);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return [];
+    }
 
     const cached = await this.prisma.cachedFixture.findMany({
-      where: { date: { gte: start, lte: end } },
-      orderBy: { date: 'asc' },
+      where: {
+        date: {
+          gte: start,
+          lte: end,
+        },
+      },
+      orderBy: {
+        date: 'asc',
+      },
     });
 
-    return cached.map((item) => item.raw);
+    return this.filterAllowedLeagues(cached.map((item) => item.raw));
   }
 
-  private async getFreshFixturesFromCache(date: string, maxAgeMinutes = this.fixturesCacheMinutes()) {
+  private async getFreshFixturesFromCache(date?: string, maxAgeMinutes = this.fixturesCacheMinutes()) {
     const cached = await this.getFixturesFromCache(date);
 
     if (!cached.length) return [];
@@ -805,7 +894,8 @@ export class FootballService {
 
 
   private addDays(date: string, days: number) {
-    const d = new Date(`${date}T12:00:00.000Z`);
+    const safeDate = this.normalizeDateKey(date);
+    const d = new Date(`${safeDate}T12:00:00.000Z`);
     d.setUTCDate(d.getUTCDate() + days);
     return d.toISOString().slice(0, 10);
   }
@@ -831,7 +921,9 @@ export class FootballService {
     return diffMinutes >= minMinutes && diffMinutes <= maxMinutes;
   }
 
-  async getFixtures(date: string) {
+  async getFixtures(date?: string) {
+    date = this.normalizeDateKey(date);
+
     const searchDates = Array.from(
       new Set([this.addDays(date, -1), date, this.addDays(date, 1)]),
     );
@@ -843,8 +935,10 @@ export class FootballService {
       if (freshCache.length > 0) freshGroups.push(freshCache);
     }
 
-    const freshMerged = this.mergeUniqueFixtures(freshGroups)
-      .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date));
+    const freshMerged = this.filterDashboardFixtures(
+      this.mergeUniqueFixtures(freshGroups)
+        .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date)),
+    );
 
     if (freshMerged.length > 0) {
       return freshMerged;
@@ -875,8 +969,10 @@ export class FootballService {
       if (sportsDb.ok && sportsDb.data.length > 0) providerGroups.push(sportsDb.data);
     }
 
-    const providerMerged = this.mergeUniqueFixtures(providerGroups)
-      .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date));
+    const providerMerged = this.filterDashboardFixtures(
+      this.mergeUniqueFixtures(providerGroups)
+        .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date)),
+    );
 
     if (providerMerged.length > 0) {
       await this.saveFixturesCache(providerMerged);
@@ -890,8 +986,10 @@ export class FootballService {
       if (staleCache.length > 0) staleGroups.push(staleCache);
     }
 
-    return this.mergeUniqueFixtures(staleGroups)
-      .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date));
+    return this.filterDashboardFixtures(
+      this.mergeUniqueFixtures(staleGroups)
+        .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date)),
+    );
   }
 
   private async getLiveFixturesFromCache(onlyFresh = true) {
@@ -904,6 +1002,7 @@ export class FootballService {
 
     return cached
       .map((item) => item.raw)
+      .filter((item: any) => isOddixLeagueAllowed(item))
       .filter((item: any) => this.shouldTreatAsLive(item))
       .filter((item: any) =>
         onlyFresh ? this.isCacheFresh(item, this.liveCacheSeconds()) : true,
@@ -925,6 +1024,7 @@ export class FootballService {
 
     if (broadage.ok && broadage.data.length > 0) {
       const live = broadage.data
+        .filter((game: any) => isOddixLeagueAllowed(game))
         .filter((game: any) => this.shouldTreatAsLive(game))
         .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -936,6 +1036,7 @@ export class FootballService {
 
       if (flashScore.ok && flashScore.data.length > 0) {
         const live = flashScore.data
+          .filter((game: any) => isOddixLeagueAllowed(game))
           .filter((game: any) => this.shouldTreatAsLive(game))
           .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -948,6 +1049,7 @@ export class FootballService {
 
       if (allScores.ok && allScores.data.length > 0) {
         const live = allScores.data
+          .filter((game: any) => isOddixLeagueAllowed(game))
           .filter((game: any) => this.shouldTreatAsLive(game))
           .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -960,6 +1062,7 @@ export class FootballService {
 
       if (apiFootball.ok && apiFootball.data.length > 0) {
         const live = apiFootball.data
+          .filter((game: any) => isOddixLeagueAllowed(game))
           .filter((game: any) => this.shouldTreatAsLive(game))
           .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -982,6 +1085,7 @@ export class FootballService {
 
           const liveFixtures = (response.data?.data || [])
             .map((item: any) => this.mapSportmonksFixture(item))
+            .filter((item: any) => isOddixLeagueAllowed(item))
             .filter((item: any) => this.shouldTreatAsLive(item))
             .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -995,6 +1099,7 @@ export class FootballService {
 
       if (footballData.ok && footballData.data.length > 0) {
         const live = footballData.data
+          .filter((game: any) => isOddixLeagueAllowed(game))
           .filter((game: any) => this.shouldTreatAsLive(game))
           .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -1268,7 +1373,9 @@ export class FootballService {
     };
   }
 
-  async debug(date: string) {
+  async debug(date?: string) {
+    date = this.normalizeDateKey(date);
+
     const cache = await this.getFixturesFromCache(date);
     const broadage = await this.getFixturesFromBroadage(date);
     const broadageLive = await this.getLiveFixturesFromBroadage();
@@ -1317,83 +1424,83 @@ export class FootballService {
       broadage: {
         ok: broadage.ok,
         error: broadage.error,
-        responseLength: broadage.data.length,
-        sample: broadage.data.slice(0, 2),
+        responseLength: this.filterAllowedLeagues(broadage.data).length,
+        sample: this.filterAllowedLeagues(broadage.data).slice(0, 2),
       },
 
       broadageLive: {
         ok: broadageLive.ok,
         error: broadageLive.error,
-        responseLength: broadageLive.data.length,
-        sample: broadageLive.data.slice(0, 3),
+        responseLength: this.filterAllowedLeagues(broadageLive.data).length,
+        sample: this.filterAllowedLeagues(broadageLive.data).slice(0, 3),
       },
 
       sportmonks: {
         ok: sportmonks.ok,
         error: sportmonks.error,
-        responseLength: sportmonks.data.length,
-        sample: sportmonks.data.slice(0, 2),
+        responseLength: this.filterAllowedLeagues(sportmonks.data).length,
+        sample: this.filterAllowedLeagues(sportmonks.data).slice(0, 2),
       },
 
       footballData: {
         ok: footballData.ok,
         error: footballData.error,
-        responseLength: footballData.data.length,
-        sample: footballData.data.slice(0, 2),
+        responseLength: this.filterAllowedLeagues(footballData.data).length,
+        sample: this.filterAllowedLeagues(footballData.data).slice(0, 2),
       },
 
       sportsDb: {
         ok: sportsDb.ok,
         error: sportsDb.error,
-        responseLength: sportsDb.data.length,
-        sample: sportsDb.data.slice(0, 2),
+        responseLength: this.filterAllowedLeagues(sportsDb.data).length,
+        sample: this.filterAllowedLeagues(sportsDb.data).slice(0, 2),
       },
 
       allScores: {
         ok: allScores.ok,
         error: allScores.error,
-        responseLength: allScores.data.length,
-        sample: allScores.data.slice(0, 2),
+        responseLength: this.filterAllowedLeagues(allScores.data).length,
+        sample: this.filterAllowedLeagues(allScores.data).slice(0, 2),
       },
 
       allScoresLive: {
         ok: allScoresLive.ok,
         error: allScoresLive.error,
-        responseLength: allScoresLive.data.length,
-        sample: allScoresLive.data.slice(0, 3),
+        responseLength: this.filterAllowedLeagues(allScoresLive.data).length,
+        sample: this.filterAllowedLeagues(allScoresLive.data).slice(0, 3),
       },
 
       flashScore: {
         ok: flashScore.ok,
         error: flashScore.error,
-        responseLength: flashScore.data.length,
-        sample: flashScore.data.slice(0, 2),
+        responseLength: this.filterAllowedLeagues(flashScore.data).length,
+        sample: this.filterAllowedLeagues(flashScore.data).slice(0, 2),
       },
 
       flashScoreLive: {
         ok: flashScoreLive.ok,
         error: flashScoreLive.error,
-        responseLength: flashScoreLive.data.length,
-        sample: flashScoreLive.data.slice(0, 3),
+        responseLength: this.filterAllowedLeagues(flashScoreLive.data).length,
+        sample: this.filterAllowedLeagues(flashScoreLive.data).slice(0, 3),
       },
 
       apiFootball: {
         ok: apiFootball.ok,
         error: apiFootball.error,
-        responseLength: apiFootball.data.length,
-        sample: apiFootball.data.slice(0, 2),
+        responseLength: this.filterAllowedLeagues(apiFootball.data).length,
+        sample: this.filterAllowedLeagues(apiFootball.data).slice(0, 2),
       },
 
       apiFootballLive: {
         ok: apiFootballLive.ok,
         error: apiFootballLive.error,
-        responseLength: apiFootballLive.data.length,
-        sample: apiFootballLive.data.slice(0, 3),
+        responseLength: this.filterAllowedLeagues(apiFootballLive.data).length,
+        sample: this.filterAllowedLeagues(apiFootballLive.data).slice(0, 3),
       },
 
       live: {
-        responseLength: live.length,
-        sample: live.slice(0, 3),
+        responseLength: this.filterAllowedLeagues(live).length,
+        sample: this.filterAllowedLeagues(live).slice(0, 3),
       },
     };
   }
