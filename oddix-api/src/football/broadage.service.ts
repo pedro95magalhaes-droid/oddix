@@ -67,6 +67,25 @@ export class BroadageService {
     return Number.isFinite(n) ? n : null;
   }
 
+  private parseBroadageDateValue(value: any) {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+
+    // Broadage costuma enviar DD/MM/YYYY HH:mm:ss.
+    const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}:\d{2}(?::\d{2})?))?/);
+    if (br) {
+      const [, dd, mm, yyyy, timeRaw] = br;
+      const time = timeRaw ? (timeRaw.length === 5 ? `${timeRaw}:00` : timeRaw) : '00:00:00';
+      const parsed = new Date(`${yyyy}-${mm}-${dd}T${time}.000Z`);
+      if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+    }
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+
+    return null;
+  }
+
   private parseDate(raw: any, fallbackDate?: string) {
     const dateValue =
       raw?.date ||
@@ -81,10 +100,8 @@ export class BroadageService {
       raw?.scheduledAt ||
       null;
 
-    if (dateValue) {
-      const parsed = new Date(dateValue);
-      if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
-    }
+    const parsedFromProvider = this.parseBroadageDateValue(dateValue);
+    if (parsedFromProvider) return parsedFromProvider;
 
     const timeValue = raw?.time || raw?.matchTime || raw?.kickoffTime || raw?.startTime || '00:00:00';
 
@@ -104,6 +121,34 @@ export class BroadageService {
     const [dd, mm, yyyy] = String(date).split('/');
     if (!dd || !mm || !yyyy) return date;
     return `${yyyy}-${mm}-${dd}`;
+  }
+
+  private dateKeyFromIso(iso: string) {
+    const parsed = new Date(iso);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  private isProviderDateAcceptable(raw: any, fallbackDate?: string) {
+    const fixtureDate = this.parseDate(raw, fallbackDate);
+    const parsed = new Date(fixtureDate);
+    if (Number.isNaN(parsed.getTime())) return false;
+
+    const currentYear = new Date().getUTCFullYear();
+    if (parsed.getUTCFullYear() < currentYear - 1) return false;
+
+    // Para lista diária, se o provider devolver um exemplo antigo ou de outra data, descarta.
+    if (fallbackDate) {
+      const requestedKey = /^\d{4}-\d{2}-\d{2}$/.test(fallbackDate)
+        ? fallbackDate
+        : this.convertBroadageDateToIso(fallbackDate);
+
+      if (/^\d{4}-\d{2}-\d{2}$/.test(requestedKey)) {
+        return this.dateKeyFromIso(fixtureDate) === requestedKey;
+      }
+    }
+
+    return true;
   }
 
   private getStatus(raw: any) {
@@ -172,6 +217,8 @@ export class BroadageService {
   }
 
   private mapFixture(raw: any, fallbackDate?: string) {
+    if (!this.isProviderDateAcceptable(raw, fallbackDate)) return null;
+
     const home = raw?.homeTeam || raw?.home_team || raw?.home || raw?.teamHome || raw?.localTeam || raw?.competitors?.home || raw?.teams?.home || {};
     const away = raw?.awayTeam || raw?.away_team || raw?.away || raw?.teamAway || raw?.visitorTeam || raw?.competitors?.away || raw?.teams?.away || {};
     const league = raw?.tournament || raw?.competition || raw?.league || raw?.season?.tournament || {};
@@ -180,6 +227,7 @@ export class BroadageService {
     const homeScore = this.parseScore(raw?.homeScore ?? raw?.home_score ?? raw?.score?.home ?? raw?.goals?.home ?? home?.score);
     const awayScore = this.parseScore(raw?.awayScore ?? raw?.away_score ?? raw?.score?.away ?? raw?.goals?.away ?? away?.score);
     const status = this.getStatus(raw);
+    const fixtureDate = this.parseDate(raw, fallbackDate);
 
     const fixtureId =
       raw?.id ||
@@ -189,14 +237,14 @@ export class BroadageService {
       raw?.fixture_id ||
       raw?.eventId ||
       raw?.event_id ||
-      `${this.normalizeName(home?.name || home?.displayName)}-${this.normalizeName(away?.name || away?.displayName)}-${this.parseDate(raw, fallbackDate)}`;
+      `${this.normalizeName(home?.name || home?.displayName)}-${this.normalizeName(away?.name || away?.displayName)}-${fixtureDate}`;
 
     return {
       provider: 'broadage',
       fixture: {
         id: Number(String(fixtureId).replace(/\D/g, '').slice(0, 15)) || Math.abs(this.hashCode(String(fixtureId))),
         externalId: String(fixtureId),
-        date: this.parseDate(raw, fallbackDate),
+        date: fixtureDate,
         timestamp: null,
         timezone: 'UTC',
         status,
@@ -269,7 +317,7 @@ export class BroadageService {
     if (!response.ok) return { ok: false, data: [], error: response.error };
 
     const rows = this.findArray(response.data);
-    const data = rows.map((item) => this.mapFixture(item, broadageDate));
+    const data = rows.map((item) => this.mapFixture(item, broadageDate)).filter(Boolean);
 
     return { ok: true, data, error: null };
   }
@@ -291,7 +339,7 @@ export class BroadageService {
       }
 
       const rows = this.findArray(response.data);
-      const data = rows.map((item) => this.mapFixture(item));
+      const data = rows.map((item) => this.mapFixture(item)).filter(Boolean);
       if (data.length > 0) return { ok: true, data, error: null };
     }
 
@@ -317,7 +365,10 @@ export class BroadageService {
       const rows = this.findArray(response.data);
       const raw = rows[0] || response.data?.data || response.data?.match || response.data;
       if (raw && typeof raw === 'object') {
-        return { ok: true, data: this.mapFixture(raw), error: null };
+        const mapped = this.mapFixture(raw);
+        return mapped
+          ? { ok: true, data: mapped, error: null }
+          : { ok: false, data: null, error: 'Fixture Broadage descartado por data antiga/inválida' };
       }
     }
 

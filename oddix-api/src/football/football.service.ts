@@ -53,7 +53,7 @@ export class FootballService {
   }
 
   private hideFinishedAfterHours() {
-    return Number(process.env.ODDIX_DASHBOARD_HIDE_FINISHED_AFTER_HOURS || 6);
+    return Number(process.env.ODDIX_DASHBOARD_HIDE_FINISHED_AFTER_HOURS || 0);
   }
 
   private filterAllowedLeagues(fixtures: any[]) {
@@ -61,9 +61,12 @@ export class FootballService {
   }
 
   private filterDashboardFixtures(fixtures: any[]) {
-    return (fixtures || []).filter((item: any) =>
-      isOddixDashboardFixtureAllowed(item, this.hideFinishedAfterHours()),
-    );
+    const showFinished = process.env.ODDIX_DASHBOARD_SHOW_FINISHED === 'true';
+
+    return (fixtures || []).filter((item: any) => {
+      if (!showFinished && isOddixFinishedFixture(item)) return false;
+      return isOddixDashboardFixtureAllowed(item, this.hideFinishedAfterHours());
+    });
   }
 
   private apiFootballCooldownMinutes() {

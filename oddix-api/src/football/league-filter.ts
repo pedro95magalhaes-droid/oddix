@@ -13,7 +13,7 @@ function normalizeText(value: string) {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[_\-./]/g, ' ')
+    .replace(/[_\-./:]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -65,33 +65,65 @@ const BLOCKED_PATTERNS = [
   /\bsimulated\b/,
   /\bsimulad[oa]\b/,
   /\bfiji\b/,
-  /\bindia 1st league\b/,
   /\bindia\b/,
-  /\biran 1st division\b/,
+  /\bindia 1st league\b/,
+  /\bindian arrows\b/,
+  /\bind arrows\b/,
   /\biran\b/,
-  /\baustralia.*npl.*u\s?20\b/,
+  /\biran 1st division\b/,
+  /\baustralia.*npl\b/,
+  /\baustralia.*victoria premier league\b/,
+  /\baustralia.*tasmania\b/,
+  /\baustralia.*queensland\b/,
+  /\baustralia.*western australia\b/,
+  /\baustralia.*south australia\b/,
+  /\baustralia.*northern nsw\b/,
+  /\bnpl tasmania\b/,
+  /\bnpl nsw\b/,
+  /\bnpl queensland\b/,
+  /\bnpl victoria\b/,
+  /\bnpl western australia\b/,
+  /\bnpl south australia\b/,
+  /\bvictoria premier league\b/,
+  /\btasmania\b/,
+  /\bstate league\b/,
+  /\bregional\b/,
+  /\bliga regional\b/,
+  /\bcounty\b/,
 ];
 
 const PRIORITY_PATTERNS = [
   /\bbrasil(eirao)? serie a\b/,
+  /\bbrasileirao betano\b/,
   /\bbrasil(eirao)? serie b\b/,
   /\bcopa do brasil\b/,
   /\blibertadores\b/,
+  /\bcopa libertadores\b/,
   /\bsul americana\b/,
+  /\bsudamericana\b/,
   /\bchampions league\b/,
+  /\buefa champions\b/,
   /\beuropa league\b/,
   /\bconference league\b/,
   /\bpremier league\b/,
+  /\benglish premier\b/,
   /\bchampionship\b/,
   /\bla liga\b/,
+  /\bspanish la liga\b/,
   /\bsegunda division\b/,
+  /\bla liga 2\b/,
   /\bbundesliga\b/,
+  /\bgerman bundesliga\b/,
   /\bbundesliga 2\b/,
+  /\bgerman bundesliga 2\b/,
   /\bserie a\b/,
+  /\bitalian serie a\b/,
   /\bserie b\b/,
+  /\bitalian serie b\b/,
   /\bligue 1\b/,
   /\bligue 2\b/,
   /\bprimeira liga\b/,
+  /\bportugal.*primeira\b/,
   /\beredivisie\b/,
   /\bmls\b/,
   /\bmajor league soccer\b/,
@@ -104,7 +136,7 @@ const PRIORITY_PATTERNS = [
 
 export function isOddixBlockedLeague(item: OddixFixtureLike) {
   const text = normalizeText(getOddixLeagueText(item));
-  if (!text) return false;
+  if (!text) return true;
   return BLOCKED_PATTERNS.some((pattern) => pattern.test(text));
 }
 
@@ -118,7 +150,9 @@ export function isOddixLeagueAllowed(item: OddixFixtureLike) {
   if (process.env.ODDIX_LEAGUE_FILTER_ENABLED === 'false') return true;
   if (isOddixBlockedLeague(item)) return false;
 
-  const priorityOnly = process.env.ODDIX_PRIORITY_LEAGUES_ONLY === 'true';
+  // Por padrão, o Oddix fica em modo premium para não encher o Dashboard com liga ruim.
+  // Para abrir para todas as ligas não bloqueadas, coloque ODDIX_PRIORITY_LEAGUES_ONLY=false.
+  const priorityOnly = process.env.ODDIX_PRIORITY_LEAGUES_ONLY !== 'false';
   if (priorityOnly) return isOddixPriorityLeague(item);
 
   return true;
