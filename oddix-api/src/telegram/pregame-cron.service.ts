@@ -8,6 +8,13 @@ import { OddixImageService } from "./oddix-image.service";
 
 type PregameStage = "early" | "main" | "final";
 
+type Candidate = {
+  game: any;
+  minutes: number;
+  stage: PregameStage;
+  leagueScore: number;
+};
+
 @Injectable()
 export class PregameCronService {
   private readonly logger = new Logger(PregameCronService.name);
@@ -72,6 +79,88 @@ export class PregameCronService {
       .trim();
   }
 
+  private listFromEnv(envName: string, fallback: string[]) {
+    const raw = String(process.env[envName] || "").trim();
+    if (!raw) return fallback;
+
+    return raw
+      .split(",")
+      .map((item) => this.normalize(item))
+      .filter(Boolean);
+  }
+
+  private priorityWords() {
+    return this.listFromEnv("ODDIX_PREGAME_PRIORITY_WORDS", [
+      "champions",
+      "uefa champions league",
+      "libertadores",
+      "sudamericana",
+      "europa league",
+      "conference league",
+      "premier league",
+      "la liga",
+      "serie a",
+      "bundesliga",
+      "ligue 1",
+      "brasileirao",
+      "brasil serie a",
+      "brazil serie a",
+      "brasil serie b",
+      "brazil serie b",
+      "copa do brasil",
+      "copa argentina",
+      "argentina primera",
+      "portugal",
+      "eredivisie",
+      "mls",
+      "world cup",
+      "euro",
+    ]);
+  }
+
+  private blockedWords() {
+    return this.listFromEnv("ODDIX_PREGAME_BLOCKED_WORDS", [
+      "u23",
+      "u21",
+      "u20",
+      "u19",
+      "u18",
+      "u17",
+      "sub 23",
+      "sub 21",
+      "sub 20",
+      "sub 19",
+      "sub 18",
+      "sub 17",
+      "youth",
+      "junior",
+      "primavera",
+      "women",
+      "woman",
+      "feminino",
+      "feminina",
+      "friendly",
+      "amistoso",
+      "reserves",
+      "reserve",
+      "macao",
+      "macau",
+      "syria",
+      "malawi",
+      "division 3",
+      "division 4",
+      "divisao 3",
+      "divisao 4",
+      "3 liga",
+      "4 liga",
+      "3 cfl",
+      "regionalliga",
+      "segunda b",
+      "relegation group",
+      "rebaixamento",
+    ]);
+  }
+
   private minutesToStart(game: any) {
     const rawDate = game?.fixture?.date;
     if (!rawDate) return Number.POSITIVE_INFINITY;
@@ -103,40 +192,44 @@ export class PregameCronService {
     return scheduled && minutes > 0;
   }
 
-  private leagueScore(game: any) {
+  private leagueText(game: any) {
     const league = this.normalize(game?.league?.name);
     const country = this.normalize(game?.league?.country);
-    const text = `${league} ${country}`;
+    const home = this.normalize(game?.teams?.home?.name);
+    const away = this.normalize(game?.teams?.away?.name);
+    return `${league} ${country} ${home} ${away}`;
+  }
 
-    const elite = [
-      "champions", "libertadores", "sudamericana", "premier league", "la liga",
-      "serie a", "bundesliga", "ligue 1", "brasileirao", "brazil serie a",
-      "brazil serie b", "copa do brasil", "mls", "argentina", "portugal",
-      "eredivisie", "europa league", "conference league", "world cup",
-    ];
+  private leagueScore(game: any) {
+    const text = this.leagueText(game);
+    const blocked = this.blockedWords();
+    const priority = this.priorityWords();
 
-    const bad = [
-      "u20", "u19", "u18", "u17", "youth", "women", "woman", "feminino",
-      "friendly", "amistoso", "macao", "syria", "division 3", "4 liga", "reserve",
-    ];
+    if (blocked.some((word) => text.includes(word))) return -100;
+    if (priority.some((word) => text.includes(word))) return 100;
 
-    if (bad.some((word) => text.includes(word))) return -100;
-    if (elite.some((word) => text.includes(word))) return 100;
     return 10;
   }
 
   private isPriorityGame(game: any) {
     const score = this.leagueScore(game);
+
     if (score >= 100) return true;
-    if (!this.priorityOnly() && score > -100) return true;
-    return false;
+    if (score <= -100) return false;
+
+    return !this.priorityOnly();
   }
 
   private cleanTip(tip: any) {
-    return String(tip || "")
-      .replace(/^ao vivo\s*:\s*/i, "Pré-jogo: ")
-      .replace(/^live\s*:\s*/i, "Pré-jogo: ")
+    const cleaned = String(tip || "")
+      .replace(/^ao vivo\s*:\s*/i, "")
+      .replace(/^live\s*:\s*/i, "")
+      .replace(/^pre jogo\s*:\s*/i, "")
+      .replace(/^pré jogo\s*:\s*/i, "")
+      .replace(/^pré-jogo\s*:\s*/i, "")
       .trim();
+
+    return cleaned ? `Pré-jogo: ${cleaned}` : "Pré-jogo: entrada conservadora";
   }
 
   private qualityAllowed(bet: any) {
@@ -150,8 +243,19 @@ export class PregameCronService {
     if (confidence < this.minConfidence()) return { ok: false, reason: `confiança baixa ${confidence}` };
 
     const normalizedTip = this.normalize(tip);
-    if (normalizedTip.includes("placar correto")) return { ok: false, reason: "placar correto bloqueado" };
-    if (normalizedTip.includes("cartao vermelho")) return { ok: false, reason: "cartão vermelho bloqueado" };
+
+    const blockedMarkets = [
+      "placar correto",
+      "cartao vermelho",
+      "vermelho",
+      "expulsao",
+      "bet builder agressivo",
+      "resultado exato",
+    ];
+
+    if (blockedMarkets.some((word) => normalizedTip.includes(word))) {
+      return { ok: false, reason: `mercado bloqueado: ${tip}` };
+    }
 
     return { ok: true, reason: "ok" };
   }
@@ -168,8 +272,21 @@ export class PregameCronService {
     return !!found;
   }
 
+  private async alreadySentAnyPregame(fixtureId: number) {
+    const found = await this.prisma.bet.findFirst({
+      where: {
+        fixtureId,
+        analysis: { contains: "ODDIX_PREGAME_" },
+      } as any,
+      select: { id: true },
+    });
+
+    return !!found;
+  }
+
   private createFreeMessage(game: any, bet: any, stage: PregameStage) {
     const kickoff = this.formatKickoff(game?.fixture?.date);
+
     return [
       "🔥 *ODDIX FREE | PRÉ-JOGO*",
       "",
@@ -253,6 +370,27 @@ export class PregameCronService {
     };
   }
 
+  private buildCandidates(fixtures: any[]): Candidate[] {
+    return (fixtures || [])
+      .filter((game: any) => this.isPregame(game))
+      .map((game: any) => {
+        const minutes = this.minutesToStart(game);
+        const stage = this.stageFor(minutes);
+        return {
+          game,
+          minutes,
+          stage,
+          leagueScore: this.leagueScore(game),
+        };
+      })
+      .filter((item: any) => item.stage)
+      .filter((item: any) => this.isPriorityGame(item.game))
+      .sort((a: any, b: any) => {
+        if (b.leagueScore !== a.leagueScore) return b.leagueScore - a.leagueScore;
+        return a.minutes - b.minutes;
+      }) as Candidate[];
+  }
+
   @Cron("*/15 * * * *", { timeZone: "America/Fortaleza" })
   async sendPregameTipsAutomatically() {
     if (!this.enabled()) return;
@@ -260,21 +398,7 @@ export class PregameCronService {
     try {
       const date = this.todayKey();
       const fixtures = await this.footballService.getFixtures(date);
-      const candidates = (fixtures || [])
-        .filter((game: any) => this.isPregame(game))
-        .map((game: any) => ({
-          game,
-          minutes: this.minutesToStart(game),
-          stage: this.stageFor(this.minutesToStart(game)),
-          leagueScore: this.leagueScore(game),
-        }))
-        .filter((item: any) => item.stage)
-        .filter((item: any) => this.isPriorityGame(item.game))
-        .sort((a: any, b: any) => {
-          if (b.leagueScore !== a.leagueScore) return b.leagueScore - a.leagueScore;
-          return a.minutes - b.minutes;
-        })
-        .slice(0, this.maxPerRun());
+      const candidates = this.buildCandidates(fixtures).slice(0, this.maxPerRun());
 
       if (!candidates.length) {
         this.logger.log("⏭️ Pré-jogo: nenhum jogo elegível na janela atual.");
@@ -287,7 +411,16 @@ export class PregameCronService {
         const fixtureId = Number(game?.fixture?.id || 0);
 
         if (!fixtureId) continue;
-        if (await this.alreadySent(fixtureId, stage)) continue;
+
+        if (await this.alreadySent(fixtureId, stage)) {
+          this.logger.log(`⏭️ Pré-jogo já enviado para este estágio: fixtureId=${fixtureId} | stage=${stage}`);
+          continue;
+        }
+
+        if (stage !== "final" && await this.alreadySentAnyPregame(fixtureId)) {
+          this.logger.log(`⏭️ Pré-jogo já enviado anteriormente: fixtureId=${fixtureId}`);
+          continue;
+        }
 
         const rawBet = await this.aiService.generateBet(this.pregamePayload(game));
         const bet = {
