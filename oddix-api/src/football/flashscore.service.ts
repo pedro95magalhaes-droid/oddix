@@ -45,7 +45,6 @@ export class FlashScoreService {
       hash = (hash * 31 + raw.charCodeAt(i)) >>> 0;
     }
 
-    // Mantém dentro do range do Int do Prisma/Postgres.
     return 1600000000 + (hash % 400000000);
   }
 
@@ -80,19 +79,6 @@ export class FlashScoreService {
     }
   }
 
-  private readArray(data: any): any[] {
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.data)) return data.data;
-    if (Array.isArray(data?.matches)) return data.matches;
-    if (Array.isArray(data?.events)) return data.events;
-    if (Array.isArray(data?.response)) return data.response;
-    if (Array.isArray(data?.data?.matches)) return data.data.matches;
-    if (Array.isArray(data?.data?.events)) return data.data.events;
-    if (Array.isArray(data?.response?.matches)) return data.response.matches;
-    if (Array.isArray(data?.response?.events)) return data.response.events;
-    return [];
-  }
-
   private read(obj: any, paths: string[], fallback: any = undefined) {
     for (const path of paths) {
       const parts = path.split('.');
@@ -103,8 +89,56 @@ export class FlashScoreService {
     return fallback;
   }
 
+  private readArray(data: any): any[] {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.response)) return data.response;
+    if (Array.isArray(data?.matches)) return data.matches;
+    if (Array.isArray(data?.events)) return data.events;
+    if (Array.isArray(data?.data?.matches)) return data.data.matches;
+    if (Array.isArray(data?.data?.events)) return data.data.events;
+    if (Array.isArray(data?.response?.matches)) return data.response.matches;
+    if (Array.isArray(data?.response?.events)) return data.response.events;
+    return [];
+  }
+
+  /**
+   * FlashScore RapidAPI retorna normalmente assim:
+   * [ { tournament_id, name, country_name, image_path, matches: [ ... ] } ]
+   * Este método abre cada tournament.matches[] e transforma cada match em fixture.
+   */
+  private flattenMatches(data: any): any[] {
+    const rows = this.readArray(data);
+    const flattened: any[] = [];
+
+    for (const row of rows) {
+      const nestedMatches = Array.isArray(row?.matches) ? row.matches : null;
+
+      if (nestedMatches?.length) {
+        for (const match of nestedMatches) {
+          flattened.push({
+            ...match,
+            league: {
+              id: row?.tournament_id || row?.id || row?.league?.id || 0,
+              name: row?.name || row?.league?.name || row?.competition?.name || 'Liga não informada',
+              country: row?.country_name || row?.country?.name || row?.country || '',
+              logo: row?.image_path || row?.league?.logo || row?.competition?.logo || '',
+            },
+            tournament: row,
+          });
+        }
+      } else {
+        flattened.push(row);
+      }
+    }
+
+    return flattened;
+  }
+
   private normalizeStatus(match: any) {
     const statusRaw = String(this.read(match, [
+      'match_status.stage',
+      'match_status.live_time',
       'status.short',
       'status.type',
       'status.name',
@@ -114,28 +148,42 @@ export class FlashScoreService {
       'statusText',
     ], '')).toLowerCase();
 
-    const elapsed = Number(this.read(match, [
+    const isStarted = this.read(match, ['match_status.is_started'], false) === true;
+    const isInProgress = this.read(match, ['match_status.is_in_progress'], false) === true;
+    const isFinished = this.read(match, ['match_status.is_finished'], false) === true;
+    const isPostponed = this.read(match, ['match_status.is_postponed'], false) === true;
+    const isCancelled = this.read(match, ['match_status.is_cancelled'], false) === true;
+
+    const elapsedRaw = this.read(match, [
+      'match_status.live_time',
       'time.minute',
       'minute',
       'gameTime',
       'elapsed',
       'status.elapsed',
-    ], 0));
+    ], 0);
 
-    if (statusRaw.includes('finished') || statusRaw.includes('ended') || statusRaw === 'ft' || statusRaw.includes('after')) {
+    const elapsed = Number(String(elapsedRaw || '').replace(/[^0-9]/g, ''));
+
+    if (isFinished || statusRaw.includes('finished') || statusRaw.includes('ended') || statusRaw === 'ft' || statusRaw.includes('after')) {
       return { long: 'Match Finished', short: 'FT', elapsed: null, extra: null };
     }
 
-    if (statusRaw.includes('postponed')) return { long: 'Postponed', short: 'PST', elapsed: null, extra: null };
-    if (statusRaw.includes('cancel')) return { long: 'Canceled', short: 'CANC', elapsed: null, extra: null };
+    if (isPostponed || statusRaw.includes('postponed')) return { long: 'Postponed', short: 'PST', elapsed: null, extra: null };
+    if (isCancelled || statusRaw.includes('cancel')) return { long: 'Canceled', short: 'CANC', elapsed: null, extra: null };
 
-    if (statusRaw.includes('half') || statusRaw === 'ht') {
-      return { long: 'Halftime', short: 'HT', elapsed: elapsed > 0 ? elapsed : 45, extra: null };
+    if (statusRaw.includes('half time') || statusRaw.includes('halftime') || statusRaw === 'ht') {
+      return { long: 'Halftime', short: 'HT', elapsed: 45, extra: null };
     }
 
-    if (statusRaw.includes('live') || statusRaw.includes('progress') || statusRaw.includes('1st') || statusRaw.includes('2nd') || elapsed > 0) {
+    if (isStarted || isInProgress || statusRaw.includes('live') || statusRaw.includes('progress') || statusRaw.includes('1st') || statusRaw.includes('2nd') || elapsed > 0) {
       const short = elapsed > 45 || statusRaw.includes('2nd') ? '2H' : '1H';
-      return { long: short === '2H' ? 'Second Half' : 'First Half', short, elapsed: elapsed > 0 ? elapsed : null, extra: null };
+      return {
+        long: short === '2H' ? 'Second Half' : 'First Half',
+        short,
+        elapsed: elapsed > 0 ? elapsed : null,
+        extra: null,
+      };
     }
 
     if (statusRaw.includes('scheduled') || statusRaw.includes('not started') || statusRaw === 'ns') {
@@ -146,41 +194,56 @@ export class FlashScoreService {
   }
 
   private readTeam(match: any, side: 'home' | 'away') {
+    const prefix = side;
     const isHome = side === 'home';
-    const prefix = isHome ? 'home' : 'away';
-    const competitorPrefix = isHome ? 'homeTeam' : 'awayTeam';
+    const legacyTeam = isHome ? 'homeTeam' : 'awayTeam';
+    const snakeTeam = isHome ? 'home_team' : 'away_team';
+
+    const rawId = this.read(match, [
+      `${snakeTeam}.team_id`,
+      `${snakeTeam}.id`,
+      `${prefix}.team_id`,
+      `${prefix}.id`,
+      `${legacyTeam}.team_id`,
+      `${legacyTeam}.id`,
+      `${prefix}Competitor.id`,
+    ], 0);
+
+    const name = String(this.read(match, [
+      `${snakeTeam}.name`,
+      `${prefix}.name`,
+      `${legacyTeam}.name`,
+      `${prefix}Competitor.name`,
+      `${prefix}_name`,
+    ], ''));
+
+    const logo = String(this.read(match, [
+      `${snakeTeam}.smaill_image_path`,
+      `${snakeTeam}.small_image_path`,
+      `${snakeTeam}.image_path`,
+      `${snakeTeam}.logo`,
+      `${prefix}.logo`,
+      `${legacyTeam}.logo`,
+      `${prefix}.image`,
+      `${legacyTeam}.image`,
+    ], ''));
 
     return {
-      id: Number(this.read(match, [
-        `${prefix}.id`,
-        `${prefix}Team.id`,
-        `${competitorPrefix}.id`,
-        `${prefix}Competitor.id`,
-      ], 0) || 0),
-      name: String(this.read(match, [
-        `${prefix}.name`,
-        `${prefix}Team.name`,
-        `${competitorPrefix}.name`,
-        `${prefix}Competitor.name`,
-        `${prefix}_name`,
-      ], '')),
-      logo: String(this.read(match, [
-        `${prefix}.logo`,
-        `${prefix}Team.logo`,
-        `${competitorPrefix}.logo`,
-        `${prefix}.image`,
-        `${prefix}Team.image`,
-      ], '')),
+      id: this.stableNumericId(rawId || name),
+      externalId: String(rawId || ''),
+      name,
+      logo,
       winner: null,
     };
   }
 
   private readScore(match: any, side: 'home' | 'away') {
     const value = this.read(match, [
-      `score.${side}`,
       `scores.${side}`,
+      `score.${side}`,
       `${side}Score`,
       `${side}.score`,
+      `${side}_team.score`,
       `${side}Team.score`,
       `${side}Competitor.score`,
     ], null);
@@ -189,7 +252,7 @@ export class FlashScoreService {
   }
 
   mapMatch(match: any) {
-    const rawId = this.read(match, ['id', 'matchId', 'eventId', 'flashscoreId'], '');
+    const rawId = this.read(match, ['match_id', 'id', 'matchId', 'eventId', 'flashscoreId'], '');
     const fixtureId = this.stableNumericId(rawId);
     const status = this.normalizeStatus(match);
     const home = this.readTeam(match, 'home');
@@ -197,14 +260,19 @@ export class FlashScoreService {
     const homeScore = this.readScore(match, 'home');
     const awayScore = this.readScore(match, 'away');
 
-    const date = this.read(match, [
+    const timestamp = Number(this.read(match, ['timestamp', 'time.timestamp'], 0));
+    const dateRaw = this.read(match, [
       'startTime',
       'start_time',
       'startDate',
       'date',
       'eventTime',
       'time.startTime',
-    ], new Date().toISOString());
+    ], null);
+
+    const date = dateRaw || (timestamp > 0 ? new Date(timestamp * 1000).toISOString() : new Date().toISOString());
+
+    const odds = this.read(match, ['odds'], null);
 
     return {
       provider: 'flashscore',
@@ -212,19 +280,31 @@ export class FlashScoreService {
         id: fixtureId,
         externalId: String(rawId || fixtureId),
         date,
-        timestamp: date ? Math.floor(new Date(date).getTime() / 1000) : null,
+        timestamp: timestamp || (date ? Math.floor(new Date(date).getTime() / 1000) : null),
         timezone: this.getTimezone(),
         status,
       },
       league: {
-        id: Number(this.read(match, ['league.id', 'tournament.id', 'competition.id'], 0) || 0),
+        id: this.stableNumericId(this.read(match, ['league.id', 'tournament_id', 'tournament.id', 'competition.id'], 0)),
         name: String(this.read(match, ['league.name', 'tournament.name', 'competition.name', 'competitionDisplayName'], 'Liga não informada')),
-        country: String(this.read(match, ['league.country.name', 'country.name', 'country'], '')),
+        country: String(this.read(match, ['league.country', 'league.country.name', 'country.name', 'country'], '')),
         logo: String(this.read(match, ['league.logo', 'tournament.logo', 'competition.logo'], '')),
       },
       teams: { home, away },
       goals: { home: homeScore, away: awayScore },
       score: { fulltime: { home: homeScore, away: awayScore } },
+      odds: odds
+        ? {
+            source: 'flashscore',
+            bookmaker: 'FlashScore',
+            market: '1X2',
+            options: [
+              { name: '1', odd: Number(odds?.['1'] || 0) || null },
+              { name: 'X', odd: Number(odds?.X || 0) || null },
+              { name: '2', odd: Number(odds?.['2'] || 0) || null },
+            ].filter((item) => item.odd),
+          }
+        : null,
       flashScoreRaw: match,
     };
   }
@@ -237,7 +317,7 @@ export class FlashScoreService {
 
     if (!response.ok || !response.data) return { ok: false, data: [], error: response.error };
 
-    const matches = this.readArray(response.data).map((match) => this.mapMatch(match));
+    const matches = this.flattenMatches(response.data).map((match) => this.mapMatch(match));
     return { ok: true, data: matches, error: null };
   }
 
@@ -250,7 +330,7 @@ export class FlashScoreService {
 
     if (!response.ok || !response.data) return { ok: false, data: [], error: response.error };
 
-    const matches = this.readArray(response.data).map((match) => this.mapMatch(match));
+    const matches = this.flattenMatches(response.data).map((match) => this.mapMatch(match));
     return { ok: true, data: matches, error: null };
   }
 
