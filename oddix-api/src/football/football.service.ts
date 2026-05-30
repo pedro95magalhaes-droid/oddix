@@ -5,7 +5,9 @@ import { AllScoresService } from './allscores.service';
 import { FlashScoreService } from './flashscore.service';
 import { BroadageService } from './broadage.service';
 import {
+  getOddixFixtureDate,
   isOddixDashboardFixtureAllowed,
+  isOddixFinishedFixture,
   isOddixLeagueAllowed,
 } from './league-filter';
 
@@ -23,6 +25,8 @@ export class FootballService {
   private footballDataURL = 'https://api.football-data.org/v4';
   private sportsDbURL = 'https://www.thesportsdb.com/api/v1/json';
   private apiFootballBlockedUntil: Date | null = null;
+  private cacheCleanupRunning = false;
+  private lastCacheCleanupAt = 0;
 
   private getApiFootballKey() {
     return process.env.API_FOOTBALL_KEY || '';
@@ -498,8 +502,31 @@ export class FootballService {
     return item;
   }
 
+  private shouldCacheFixture(item: any) {
+    if (!item) return false;
+    if (!isOddixLeagueAllowed(item)) return false;
+
+    // Por padrão, jogo encerrado/adiado/cancelado não fica no cache do Dashboard.
+    // Se um dia precisar manter finalizados por auditoria, use ODDIX_CACHE_FINISHED_FIXTURES=true.
+    const allowFinishedCache = process.env.ODDIX_CACHE_FINISHED_FIXTURES === 'true';
+    if (!allowFinishedCache && isOddixFinishedFixture(item)) return false;
+
+    const rawDate = getOddixFixtureDate(item);
+    if (!rawDate) return false;
+
+    const parsed = new Date(rawDate);
+    if (Number.isNaN(parsed.getTime())) return false;
+
+    // Evita cache de jogo antigo travado como NS/LIVE por erro de provider.
+    const maxPastHours = Number(process.env.ODDIX_CACHE_MAX_PAST_HOURS || 8);
+    const ageHours = (Date.now() - parsed.getTime()) / 1000 / 60 / 60;
+    if (ageHours > maxPastHours) return false;
+
+    return true;
+  }
+
   private async saveFixturesCache(fixtures: any[]) {
-    fixtures = this.filterAllowedLeagues(fixtures);
+    fixtures = (fixtures || []).filter((item: any) => this.shouldCacheFixture(item));
     if (!fixtures?.length) return;
 
     await Promise.all(
@@ -581,22 +608,18 @@ export class FootballService {
 
     const maxAgeSeconds = maxAgeMinutes * 60;
 
-    const finished = cached.filter((item: any) =>
-      this.isFinishedStatus(item?.fixture?.status?.short, item?.fixture?.status?.long),
-    );
-
     const fresh = cached.filter((item: any) => {
       const isFinished = this.isFinishedStatus(
         item?.fixture?.status?.short,
         item?.fixture?.status?.long,
       );
 
-      if (isFinished) return true;
+      if (isFinished) return false;
 
       return this.isCacheFresh(item, maxAgeSeconds);
     });
 
-    if (fresh.length) return this.mergeUniqueFixtures([fresh, finished]);
+    if (fresh.length) return this.mergeUniqueFixtures([fresh]);
 
     return [];
   }
@@ -607,6 +630,120 @@ export class FootballService {
     });
 
     return cached?.raw || null;
+  }
+
+  private shouldDeleteCachedFixture(record: any) {
+    const raw = record?.raw || {};
+
+    const fixtureLike = {
+      ...raw,
+      league: raw?.league || raw?.liga || {
+        name: record?.league || '',
+        country: record?.country || '',
+      },
+      fixture: raw?.fixture || raw?.jogo || {
+        date: record?.date || null,
+        status: {
+          short: record?.statusShort || '',
+          long: record?.statusLong || '',
+        },
+      },
+    };
+
+    if (!isOddixLeagueAllowed(fixtureLike)) return true;
+    if (isOddixFinishedFixture(fixtureLike)) return true;
+
+    const rawDate = getOddixFixtureDate(fixtureLike) || record?.date;
+    if (!rawDate) return true;
+
+    const parsed = new Date(rawDate);
+    if (Number.isNaN(parsed.getTime())) return true;
+
+    const maxPastHours = Number(process.env.ODDIX_CACHE_MAX_PAST_HOURS || 8);
+    const ageHours = (Date.now() - parsed.getTime()) / 1000 / 60 / 60;
+
+    return ageHours > maxPastHours;
+  }
+
+  async cleanupDashboardCache(force = false) {
+    const now = Date.now();
+    const intervalMs = Number(process.env.ODDIX_CACHE_CLEANUP_INTERVAL_SECONDS || 60) * 1000;
+
+    if (!force && this.lastCacheCleanupAt && now - this.lastCacheCleanupAt < intervalMs) {
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Limpeza recente. Aguardando intervalo.',
+        checked: 0,
+        deleted: 0,
+      };
+    }
+
+    if (this.cacheCleanupRunning) {
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Limpeza já em execução.',
+        checked: 0,
+        deleted: 0,
+      };
+    }
+
+    this.cacheCleanupRunning = true;
+
+    try {
+      const cached = await this.prisma.cachedFixture.findMany({
+        select: {
+          fixtureId: true,
+          provider: true,
+          date: true,
+          league: true,
+          country: true,
+          statusShort: true,
+          statusLong: true,
+          raw: true,
+        },
+      });
+
+      const idsToDelete = cached
+        .filter((record: any) => this.shouldDeleteCachedFixture(record))
+        .map((record: any) => String(record.fixtureId))
+        .filter(Boolean);
+
+      let deleted = 0;
+
+      if (idsToDelete.length > 0) {
+        const result = await this.prisma.cachedFixture.deleteMany({
+          where: {
+            fixtureId: { in: idsToDelete },
+          },
+        });
+
+        deleted = result.count || 0;
+      }
+
+      this.lastCacheCleanupAt = now;
+
+      return {
+        success: true,
+        skipped: false,
+        checked: cached.length,
+        deleted,
+        message: 'Cache do Dashboard limpo. Jogos encerrados, antigos e ligas ruins foram removidos.',
+      };
+    } finally {
+      this.cacheCleanupRunning = false;
+    }
+  }
+
+  async clearAllFixturesCache() {
+    const result = await this.prisma.cachedFixture.deleteMany({});
+
+    return {
+      success: true,
+      deleted: result.count || 0,
+      message: 'Cache de jogos limpo totalmente.',
+    };
   }
 
 
@@ -922,6 +1059,8 @@ export class FootballService {
   }
 
   async getFixtures(date?: string) {
+    await this.cleanupDashboardCache(false);
+
     date = this.normalizeDateKey(date);
 
     const searchDates = Array.from(
@@ -1011,6 +1150,8 @@ export class FootballService {
   }
 
   async getLiveFixtures() {
+    await this.cleanupDashboardCache(false);
+
     const freshCacheLive = await this.getLiveFixturesFromCache(true);
 
     if (freshCacheLive.length > 0) {
@@ -1374,6 +1515,8 @@ export class FootballService {
   }
 
   async debug(date?: string) {
+    await this.cleanupDashboardCache(false);
+
     date = this.normalizeDateKey(date);
 
     const cache = await this.getFixturesFromCache(date);
