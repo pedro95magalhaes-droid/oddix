@@ -3,11 +3,13 @@ import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { AllScoresService } from './allscores.service';
 import { FlashScoreService } from './flashscore.service';
+import { BroadageService } from './broadage.service';
 
 @Injectable()
 export class FootballService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly broadageService: BroadageService,
     private readonly allScoresService: AllScoresService,
     private readonly flashScoreService: FlashScoreService,
   ) {}
@@ -518,6 +520,39 @@ export class FootballService {
     return cached?.raw || null;
   }
 
+
+  async getFixturesFromBroadage(date: string) {
+    try {
+      return await this.broadageService.getScheduledFixtures(date);
+    } catch (error: any) {
+      return { ok: false, data: [], error: error?.message || 'Erro na Broadage Soccer Data' };
+    }
+  }
+
+  async getLiveFixturesFromBroadage() {
+    try {
+      return await this.broadageService.getLiveFixtures();
+    } catch (error: any) {
+      return { ok: false, data: [], error: error?.message || 'Erro na Broadage Soccer Data Live' };
+    }
+  }
+
+  async getFixtureByIdFromBroadage(fixtureId: string) {
+    try {
+      return await this.broadageService.getFixtureById(fixtureId);
+    } catch (error: any) {
+      return { ok: false, data: null, error: error?.message || 'Erro na Broadage por ID' };
+    }
+  }
+
+  async getStatisticsFromBroadage(fixtureId: string) {
+    try {
+      return await this.broadageService.getStatistics(fixtureId);
+    } catch (error: any) {
+      return { ok: false, data: null, error: error?.message || 'Erro nas estatísticas Broadage' };
+    }
+  }
+
   async getFixturesFromApiFootball(date: string) {
     if (this.isApiFootballBlocked()) {
       return { ok: false, data: [], error: 'API-Football em cooldown temporário por limite/erro' };
@@ -818,14 +853,17 @@ export class FootballService {
     const providerGroups: any[][] = [];
 
     for (const currentDate of searchDates) {
-      const apiFootball = await this.getFixturesFromApiFootball(currentDate);
-      if (apiFootball.ok && apiFootball.data.length > 0) providerGroups.push(apiFootball.data);
+      const broadage = await this.getFixturesFromBroadage(currentDate);
+      if (broadage.ok && broadage.data.length > 0) providerGroups.push(broadage.data);
+
+      const flashScore = await this.getFixturesFromFlashScore(currentDate);
+      if (flashScore.ok && flashScore.data.length > 0) providerGroups.push(flashScore.data);
 
       const allScores = await this.getFixturesFromAllScores(currentDate);
       if (allScores.ok && allScores.data.length > 0) providerGroups.push(allScores.data);
 
-      const flashScore = await this.getFixturesFromFlashScore(currentDate);
-      if (flashScore.ok && flashScore.data.length > 0) providerGroups.push(flashScore.data);
+      const apiFootball = await this.getFixturesFromApiFootball(currentDate);
+      if (apiFootball.ok && apiFootball.data.length > 0) providerGroups.push(apiFootball.data);
 
       const sportmonks = await this.getFixturesFromSportmonks(currentDate);
       if (sportmonks.ok && sportmonks.data.length > 0) providerGroups.push(sportmonks.data);
@@ -883,14 +921,26 @@ export class FootballService {
     const groups: any[][] = [];
     const today = this.brazilDateKey();
 
-    const apiFootball = await this.getLiveFixturesFromApiFootball();
+    const broadage = await this.getLiveFixturesFromBroadage();
 
-    if (apiFootball.ok && apiFootball.data.length > 0) {
-      const live = apiFootball.data
+    if (broadage.ok && broadage.data.length > 0) {
+      const live = broadage.data
         .filter((game: any) => this.shouldTreatAsLive(game))
         .map((item: any) => this.normalizeLiveStatus(item));
 
       if (live.length > 0) groups.push(live);
+    }
+
+    if (groups.length === 0) {
+      const flashScore = await this.getLiveFixturesFromFlashScore();
+
+      if (flashScore.ok && flashScore.data.length > 0) {
+        const live = flashScore.data
+          .filter((game: any) => this.shouldTreatAsLive(game))
+          .map((item: any) => this.normalizeLiveStatus(item));
+
+        if (live.length > 0) groups.push(live);
+      }
     }
 
     if (groups.length === 0) {
@@ -906,10 +956,10 @@ export class FootballService {
     }
 
     if (groups.length === 0) {
-      const flashScore = await this.getLiveFixturesFromFlashScore();
+      const apiFootball = await this.getLiveFixturesFromApiFootball();
 
-      if (flashScore.ok && flashScore.data.length > 0) {
-        const live = flashScore.data
+      if (apiFootball.ok && apiFootball.data.length > 0) {
+        const live = apiFootball.data
           .filter((game: any) => this.shouldTreatAsLive(game))
           .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -1051,14 +1101,13 @@ export class FootballService {
     /**
      * IMPORTANTE PARA GREEN/RED:
      * Para aposta aberta, não podemos confiar primeiro em cache antigo.
-     * Aqui a API-Football é consultada antes do cache para evitar jogo FT aparecendo como LIVE.
-     * Se a API estiver sem chave/limite, aí sim usamos Sportmonks e depois cache como fallback.
+     * A Broadage é consultada primeiro; depois AllScores e API-Football como fallback.
      */
-    const apiFootball = await this.getFixtureByIdFromApiFootball(fixtureId);
+    const broadage = await this.getFixtureByIdFromBroadage(fixtureId);
 
-    if (apiFootball.ok && apiFootball.data) {
-      await this.saveFixturesCache([apiFootball.data]);
-      return apiFootball.data;
+    if (broadage.ok && broadage.data) {
+      await this.saveFixturesCache([broadage.data]);
+      return broadage.data;
     }
 
     const allScores = await this.getFixtureByIdFromAllScores(fixtureId);
@@ -1066,6 +1115,13 @@ export class FootballService {
     if (allScores.ok && allScores.data) {
       await this.saveFixturesCache([allScores.data]);
       return allScores.data;
+    }
+
+    const apiFootball = await this.getFixtureByIdFromApiFootball(fixtureId);
+
+    if (apiFootball.ok && apiFootball.data) {
+      await this.saveFixturesCache([apiFootball.data]);
+      return apiFootball.data;
     }
 
     const sportmonksKey = this.getSportmonksKey();
@@ -1184,16 +1240,22 @@ export class FootballService {
   }
 
   async getStatistics(fixtureId: string) {
-    const apiFootball = await this.getStatisticsFromApiFootball(fixtureId);
+    const broadage = await this.getStatisticsFromBroadage(fixtureId);
 
-    if (apiFootball.ok && apiFootball.data) {
-      return apiFootball.data;
+    if (broadage.ok && broadage.data) {
+      return broadage.data;
     }
 
     const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
 
     if (flashScore.ok && flashScore.data) {
       return flashScore.data;
+    }
+
+    const apiFootball = await this.getStatisticsFromApiFootball(fixtureId);
+
+    if (apiFootball.ok && apiFootball.data) {
+      return apiFootball.data;
     }
 
     const fallback = this.generateFallbackStatistics(fixtureId);
@@ -1208,6 +1270,8 @@ export class FootballService {
 
   async debug(date: string) {
     const cache = await this.getFixturesFromCache(date);
+    const broadage = await this.getFixturesFromBroadage(date);
+    const broadageLive = await this.getLiveFixturesFromBroadage();
     const sportmonks = await this.getFixturesFromSportmonks(date);
     const footballData = await this.getFixturesFromFootballData(date);
     const sportsDb = await this.getFixturesFromSportsDb(date);
@@ -1228,6 +1292,9 @@ export class FootballService {
 
     return {
       date,
+      broadageEnabled: this.broadageService.isEnabled(),
+      broadageKeyExists: this.broadageService.hasKey(),
+      broadageBaseUrl: this.broadageService.getBaseUrl(),
       apiFootballKeyExists: !!this.getApiFootballKey(),
       sportmonksKeyExists: !!this.getSportmonksKey(),
       footballDataKeyExists: !!this.getFootballDataKey(),
@@ -1240,11 +1307,25 @@ export class FootballService {
       apiFootballBlockedUntil: this.apiFootballBlockedUntil?.toISOString() || null,
       liveCacheSeconds: this.liveCacheSeconds(),
       fixturesCacheMinutes: this.fixturesCacheMinutes(),
-      note: 'API-Football só é consultada no debug se API_FOOTBALL_DEBUG_FORCE=true. Rotas normais usam cache antes de chamar API. Fallback: API-Football > AllScores > FlashScore > Sportmonks > FootballData > TheSportsDB.',
+      note: 'API-Football só é consultada no debug se API_FOOTBALL_DEBUG_FORCE=true. Rotas normais usam cache antes de chamar API. Fallback: Broadage > FlashScore > AllScores > API-Football > Sportmonks > FootballData > TheSportsDB.',
 
       cache: {
         responseLength: cache.length,
         sample: cache.slice(0, 2),
+      },
+
+      broadage: {
+        ok: broadage.ok,
+        error: broadage.error,
+        responseLength: broadage.data.length,
+        sample: broadage.data.slice(0, 2),
+      },
+
+      broadageLive: {
+        ok: broadageLive.ok,
+        error: broadageLive.error,
+        responseLength: broadageLive.data.length,
+        sample: broadageLive.data.slice(0, 3),
       },
 
       sportmonks: {
