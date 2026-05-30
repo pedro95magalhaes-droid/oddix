@@ -281,9 +281,9 @@ export default function Dashboard() {
     if (isFinishedStatus(status)) return false;
     if (!isLiveStatus(status)) return false;
 
-    // Segurança contra jogos fantasmas da API: 2º tempo em 90+ não é mais tratado como ao vivo.
-    if (status === "2H" && elapsed >= 90) return false;
-    if (status === "2H" && elapsed >= 85 && extra > 0) return false;
+    // Segurança contra jogos fantasmas da API: qualquer status com 90+ não é mais tratado como ao vivo.
+    if (elapsed >= 90) return false;
+    if (elapsed >= 85 && extra > 0) return false;
 
     return true;
   }
@@ -299,8 +299,8 @@ export default function Dashboard() {
     const extra = Number(game.fixture?.status?.extra || 0);
 
     if (isFinishedStatus(status)) return true;
-    if (status === "2H" && elapsed >= 90) return true;
-    if (status === "2H" && elapsed >= 85 && extra > 0) return true;
+    if (elapsed >= 90) return true;
+    if (elapsed >= 85 && extra > 0) return true;
 
     return false;
   }
@@ -664,7 +664,14 @@ export default function Dashboard() {
           return result.value?.data || [];
         })
         .map(normalizeGame)
-        .filter(Boolean);
+        .filter(Boolean)
+        .filter((game: any) => {
+          const today = dateKey(new Date());
+          const gameDate = getGameDateKey(game.fixture?.date);
+          // Dashboard principal não deve mostrar próxima semana nem jogo antigo.
+          return isGameLive(game) || gameDate === today;
+        })
+        .filter((game: any) => !isFinishedStatus(getStatusShort(game)) || getGameDateKey(game.fixture?.date) === dateKey(new Date()));
 
       const map = new Map<string, any>();
       const apiFixtureIds = new Set<number>();
@@ -676,8 +683,10 @@ export default function Dashboard() {
         if (!id) return;
         if (isCanceledStatus(getStatusShort(game))) return;
 
-        // Não deixar jogo antigo/finalizado poluir o Dashboard.
+        // Não deixar jogo antigo/finalizado/futuro poluir o Dashboard principal.
+        if (isGameFinished(game)) return;
         if (isPastGameNotToday(game) && !isGameLive(game)) return;
+        if (!isGameLive(game) && getGameDateKey(game.fixture?.date) !== dateKey(new Date())) return;
 
         apiFixtureIds.add(id);
 
@@ -793,11 +802,15 @@ export default function Dashboard() {
       });
 
       setGames((current) => {
-        if (!ordered.length && current.length > 0) {
-          return current;
+        if (!ordered.length) {
+          return [];
         }
 
-        const merged = mergeStableGames(current, ordered);
+        const merged = mergeStableGames([], ordered).filter((game: any) => {
+          const today = dateKey(new Date());
+          const gameDate = getGameDateKey(game.fixture?.date);
+          return !isGameFinished(game) && (isGameLive(game) || gameDate === today);
+        });
 
         return merged.sort((a: any, b: any) => {
           const liveA = isGameLive(a) ? 1 : 0;

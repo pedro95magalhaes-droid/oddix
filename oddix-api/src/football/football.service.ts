@@ -97,6 +97,21 @@ export class FootballService {
     return new Date(Date.now() - hours * 60 * 60 * 1000);
   }
 
+  private brazilDateKey(date: Date = new Date()) {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date);
+  }
+
+  private brazilDayRangeUtc(dateKey: string) {
+    const start = new Date(`${dateKey}T03:00:00.000Z`);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+    return { start, end };
+  }
+
   private isApiFootballLimitError(error: any) {
     const msg = JSON.stringify(error?.response?.data || error?.message || '').toLowerCase();
 
@@ -371,16 +386,16 @@ export class FootballService {
     if (this.isFinishedStatus(short, long)) return false;
     if (!this.isLiveStatus(short, long)) return false;
 
-    // Proteção contra jogo fantasma: API/cache preso em 2H 90+
-    if (short === '2H' && elapsed >= 90) return false;
-    if (short === '2H' && elapsed >= 85 && extra > 0) return false;
+    // Nunca tratar 90+ como ao vivo. Algumas APIs mandam LIVE/IN_PLAY com elapsed 90, 93, 94 etc.
+    if (elapsed >= 90) return false;
+    if (elapsed >= 85 && extra > 0) return false;
 
-    // Segurança por horário real: jogo começou há 2h ou mais.
+    // Evita jogo fantasma/travado no cache: se começou há 115min ou mais, não é novo live.
     if (fixtureDate) {
       const start = new Date(fixtureDate).getTime();
       if (!Number.isNaN(start)) {
         const minutesSinceStart = Math.floor((Date.now() - start) / 1000 / 60);
-        if (minutesSinceStart >= 120) return false;
+        if (minutesSinceStart >= 115) return false;
       }
     }
 
@@ -458,8 +473,7 @@ export class FootballService {
   }
 
   private async getFixturesFromCache(date: string) {
-    const start = new Date(`${date}T00:00:00.000Z`);
-    const end = new Date(`${date}T23:59:59.999Z`);
+    const { start, end } = this.brazilDayRangeUtc(date);
 
     const cached = await this.prisma.cachedFixture.findMany({
       where: { date: { gte: start, lte: end } },
@@ -813,12 +827,7 @@ export class FootballService {
   }
 
   private async getLiveFixturesFromCache(onlyFresh = true) {
-    const now = new Date();
-    const start = new Date(now);
-    start.setUTCHours(0, 0, 0, 0);
-
-    const end = new Date(now);
-    end.setUTCHours(23, 59, 59, 999);
+    const { start, end } = this.brazilDayRangeUtc(this.brazilDateKey());
 
     const cached = await this.prisma.cachedFixture.findMany({
       where: { date: { gte: start, lte: end } },
@@ -842,7 +851,7 @@ export class FootballService {
     }
 
     const groups: any[][] = [];
-    const today = new Date().toISOString().slice(0, 10);
+    const today = this.brazilDateKey();
 
     const apiFootball = await this.getLiveFixturesFromApiFootball();
 
@@ -920,12 +929,7 @@ export class FootballService {
       return mergedLive;
     }
 
-    const staleCacheLive = await this.getLiveFixturesFromCache(false);
-
-    if (staleCacheLive.length > 0) {
-      return this.mergeUniqueFixtures([staleCacheLive]);
-    }
-
+    // Não usar cache velho como live. Cache antigo é a maior causa de palpite em jogo já finalizado.
     return [];
   }
 

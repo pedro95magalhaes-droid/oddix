@@ -90,7 +90,27 @@ export class ResultsCronService {
   private isFixtureActuallyLive(game: any) {
     const short = String(game?.fixture?.status?.short || "").toUpperCase();
     const long = String(game?.fixture?.status?.long || "").toLowerCase();
-    return ["1H", "HT", "2H", "ET", "BT", "P", "LIVE", "IN_PLAY"].includes(short) || long.includes("live") || long.includes("in play");
+    const elapsed = Number(game?.fixture?.status?.elapsed || 0);
+    const extra = Number(game?.fixture?.status?.extra || 0);
+    const fixtureDate = game?.fixture?.date;
+
+    if (["FT", "AET", "PEN", "AWD", "WO", "CANC", "ABD", "PST"].includes(short)) return false;
+    if (long.includes("finished") || long.includes("final") || long.includes("postponed") || long.includes("cancel")) return false;
+
+    // Para NOVO PALPITE, não entra em jogo 85+ nem jogo com acréscimo.
+    if (elapsed >= 85) return false;
+    if (extra && elapsed >= 80) return false;
+
+    // Evita jogo travado no cache ou API desatualizada.
+    if (fixtureDate) {
+      const start = new Date(fixtureDate).getTime();
+      if (!Number.isNaN(start)) {
+        const minutesSinceStart = Math.floor((Date.now() - start) / 1000 / 60);
+        if (minutesSinceStart >= 110) return false;
+      }
+    }
+
+    return ["1H", "HT", "2H", "LIVE", "IN_PLAY"].includes(short) || long.includes("live") || long.includes("in play");
   }
 
   isFinished(statusShort: string, statusLong: string) {
