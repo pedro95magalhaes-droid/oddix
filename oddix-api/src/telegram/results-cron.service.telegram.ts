@@ -366,9 +366,17 @@ export class ResultsCronService {
 
     if (!bet?.tip) return { ok: false, reason: "sem tip" };
     if (!Number.isFinite(odd) || odd < this.minOdd()) return { ok: false, reason: `odd abaixo de ${this.minOdd()}` };
-    if (odd > this.maxOdd()) return { ok: false, reason: `odd acima de ${this.maxOdd()}` };
     if (!Number.isFinite(confidence) || confidence < this.minConfidence()) {
       return { ok: false, reason: `confiança abaixo de ${this.minConfidence()}%` };
+    }
+
+    // Regra Oddix Confidence Engine:
+    // odd acima do teto padrão só é liberada quando a IA classifica como ELITE/ABSURDO.
+    if (odd > this.maxOdd() && confidence < 90) {
+      return { ok: false, reason: `odd acima de ${this.maxOdd()} exige confiança 90+` };
+    }
+    if (odd > 2.3 && confidence < 95) {
+      return { ok: false, reason: "odd acima de 2.30 exige nível ABSURDO" };
     }
     if (this.isBlockedMarket(bet.tip, market)) return { ok: false, reason: "mercado agressivo bloqueado" };
 
@@ -426,18 +434,31 @@ export class ResultsCronService {
   }
 
   private createVipTipMessage(bet: any) {
+    const level = bet.engineLevel || bet.sources?.engineLevel || (Number(bet.confidence || 0) >= 95 ? "ABSURDO" : Number(bet.confidence || 0) >= 90 ? "ELITE" : Number(bet.confidence || 0) >= 85 ? "FORTE" : "BOM");
+    const score = bet.engineScore || bet.confidence;
+    const category = bet.engineCategory || (Number(bet.odd || 0) >= 2.2 ? "BOOST" : "SAFE");
+    const dominance = bet.dominanceHome !== undefined && bet.dominanceAway !== undefined
+      ? `📊 Dominância IA: *${bet.dominanceHome}% x ${bet.dominanceAway}%*`
+      : "";
+
     return [
-      "🔥 *ODDIX VIP | ENTRADA VALIDADA*",
+      `🔥 *ODDIX LIVE AI | ${level}*`,
       "",
       `⚽ *${bet.homeTeam} x ${bet.awayTeam}*`,
       `🏆 ${bet.league}`,
       "",
+      dominance,
+      `🏷️ Categoria: *${category}*`,
+      `🎯 Score IA: *${score}/100*`,
+      "",
       `✅ Entrada: *${bet.tip}*`,
       `📈 Odd alvo: *${bet.odd}*`,
+      `🧠 Confiança: *${bet.confidence}%*`,
+      `⚠️ Risco: *${bet.risk || "Médio"}*`,
       "",
-      "🤖 Entrada aprovada pela IA dentro dos filtros de valor.",
-      "💵 Gestão: 0.5 a 1 unidade.",
-    ].join("\n");
+      "🚨 A IA encontrou valor real dentro dos filtros do Oddix.",
+      "💵 Gestão: 0.5 a 1 unidade. Sem emoção, só método.",
+    ].filter(Boolean).join("\n");
   }
 
   private async sendDirectText(group: GroupType, text: string) {

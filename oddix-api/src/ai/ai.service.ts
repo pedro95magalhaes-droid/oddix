@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { MarketsService } from '../markets/markets.service';
 import { OddsService } from '../odds/odds.service';
+import { OddixConfidenceEngineService } from './oddix-confidence-engine.service';
 
 type RiskLevel = 'Baixo' | 'Médio' | 'Alto';
 
@@ -9,6 +10,7 @@ export class AiService {
   constructor(
     private readonly marketsService: MarketsService,
     private readonly oddsService: OddsService,
+    private readonly confidenceEngine: OddixConfidenceEngineService,
   ) {}
 
   async generateBet(game: any) {
@@ -149,10 +151,21 @@ export class AiService {
     const fallback = this.safeFallbackMarket(homeTeam, awayTeam, league, context);
     fallback.tip = this.sanitizeTip(fallback.tip, homeTeam, awayTeam, context);
 
-    const finalMarkets = mergedMarkets.length ? mergedMarkets : [fallback];
-    const best = finalMarkets[0];
+    const rawFinalMarkets = mergedMarkets.length ? mergedMarkets : [fallback];
 
-    const multiples = this.generateMultiples(finalMarkets, context);
+    const finalMarkets = rawFinalMarkets
+      .map((market: any) => this.applyConfidenceEngine(market, context, homeTeam, awayTeam, game))
+      .filter((market: any) => market.oddixEngine?.send || Number(market.confidence || 0) >= 80)
+      .sort((a: any, b: any) => this.marketScore(b.confidence, b.odd, b.risk, context, b.key) - this.marketScore(a.confidence, a.odd, a.risk, context, a.key))
+      .slice(0, 5);
+
+    const safeFinalMarkets = finalMarkets.length
+      ? finalMarkets
+      : [this.applyConfidenceEngine(fallback, context, homeTeam, awayTeam, game)];
+
+    const best = safeFinalMarkets[0];
+
+    const multiples = this.generateMultiples(safeFinalMarkets, context);
 
     return {
       homeTeam,
@@ -161,17 +174,25 @@ export class AiService {
       status: 'open',
       sources: {
         matchData: game.provider || game.sources?.matchData || 'api-football/sportmonks',
-        odds: finalMarkets.some((market: any) => market.isRealOdd) ? 'the-odds-api' : 'oddix-estimada',
+        odds: safeFinalMarkets.some((market: any) => market.isRealOdd) ? 'the-odds-api' : 'oddix-estimada',
+        confidenceEngine: 'oddix-confidence-engine-v1',
         realOddsCount: realOdds.length,
-        estimatedOddsCount: finalMarkets.filter((market: any) => !market.isRealOdd).length,
+        estimatedOddsCount: safeFinalMarkets.filter((market: any) => !market.isRealOdd).length,
       },
 
       tip: this.sanitizeTip(best.tip, homeTeam, awayTeam, context),
       odd: best.odd,
       confidence: best.confidence,
       risk: best.risk,
+      engineScore: best.oddixEngine?.score ?? best.confidence,
+      engineLevel: best.oddixEngine?.level || 'BOM',
+      engineCategory: best.oddixEngine?.category || 'SAFE',
+      dominanceHome: best.oddixEngine?.dominanceHome ?? 50,
+      dominanceAway: best.oddixEngine?.dominanceAway ?? 50,
+      dominantTeam: best.oddixEngine?.dominantTeam || 'Jogo equilibrado',
+      engineReasons: best.oddixEngine?.reasons || [],
 
-      markets: finalMarkets.map((market) => ({
+      markets: safeFinalMarkets.map((market) => ({
         ...market,
         tip: this.sanitizeTip(market.tip, homeTeam, awayTeam, context),
       })),
@@ -187,7 +208,7 @@ export class AiService {
           ...best,
           tip: this.sanitizeTip(best.tip, homeTeam, awayTeam, context),
         },
-        bestMarkets: finalMarkets.map((market) => ({
+        bestMarkets: safeFinalMarkets.map((market) => ({
           ...market,
           tip: this.sanitizeTip(market.tip, homeTeam, awayTeam, context),
         })),
@@ -736,6 +757,118 @@ export class AiService {
       conservative: build('Múltipla Conservadora', conservative, 'Baixo', '0.5 unidade'),
       moderate: build('Múltipla Moderada', moderate, 'Médio', '0.25 unidade'),
       aggressive: build('Múltipla Agressiva', aggressive, 'Alto', '0.10 unidade'),
+    };
+  }
+
+  private applyConfidenceEngine(market: any, context: any, homeTeam: string, awayTeam: string, game: any) {
+    const oddsMeta = this.extractOddsMetaFromGame(game, market);
+    const dominanceHint = this.buildDominanceHint(context, game);
+
+    const engine = this.confidenceEngine.calculate({
+      minute: context.elapsed,
+      statusShort: context.statusShort,
+      homeTeam,
+      awayTeam,
+      homeGoals: context.homeGoals,
+      awayGoals: context.awayGoals,
+      odd: Number(market.odd || 1),
+      oldOdd: oddsMeta.oldOdd,
+      originalOdd: oddsMeta.originalOdd,
+      prematchOdd: oddsMeta.prematchOdd,
+      trend: oddsMeta.trend,
+      marketKey: market.key,
+      tip: market.tip,
+      possessionHome: dominanceHint.possessionHome,
+      possessionAway: dominanceHint.possessionAway,
+      attacksHome: dominanceHint.attacksHome,
+      attacksAway: dominanceHint.attacksAway,
+      dangerousAttacksHome: dominanceHint.dangerousAttacksHome,
+      dangerousAttacksAway: dominanceHint.dangerousAttacksAway,
+      shotsTotalHome: dominanceHint.shotsTotalHome,
+      shotsTotalAway: dominanceHint.shotsTotalAway,
+      shotsOnGoalHome: dominanceHint.shotsOnGoalHome,
+      shotsOnGoalAway: dominanceHint.shotsOnGoalAway,
+      cornersHome: dominanceHint.cornersHome,
+      cornersAway: dominanceHint.cornersAway,
+      yellowCardsHome: dominanceHint.yellowCardsHome,
+      yellowCardsAway: dominanceHint.yellowCardsAway,
+    });
+
+    const confidence = Math.max(Number(market.confidence || 0), engine.confidence);
+    const risk = engine.risk === 'Alto' && confidence >= 90 ? 'Médio' : engine.risk;
+
+    return {
+      ...market,
+      confidence,
+      risk,
+      oddixEngine: engine,
+      engineScore: engine.score,
+      engineLevel: engine.level,
+      engineCategory: engine.category,
+      dominanceHome: engine.dominanceHome,
+      dominanceAway: engine.dominanceAway,
+      dominantTeam: engine.dominantTeam,
+      engineReasons: engine.reasons,
+      reason: `${market.reason || ''} Score Oddix ${engine.score}/100 (${engine.level}). ${engine.reasons.join(' ')}`.trim(),
+    };
+  }
+
+  private extractOddsMetaFromGame(game: any, market: any) {
+    const rawOdds =
+      game?.odds ||
+      game?.allScoresRaw?.odds ||
+      game?.raw?.odds ||
+      game?.allScoresRaw?.promotedPredictions?.predictions?.[0]?.odds ||
+      null;
+
+    const options = Array.isArray(rawOdds?.options) ? rawOdds.options : [];
+    const normalizedTip = this.normalizeText(market?.tip || '');
+
+    const option =
+      options.find((item: any) => this.normalizeText(item?.name).includes(normalizedTip)) ||
+      options.find((item: any) => Number(item?.rate?.decimal || 0) === Number(market?.odd || 0)) ||
+      options.find((item: any) => Number(item?.rate?.decimal || 0) >= 1.35 && Number(item?.rate?.decimal || 0) <= 2.3) ||
+      options[0] ||
+      null;
+
+    return {
+      oldOdd: Number(option?.oldRate?.decimal || 0),
+      originalOdd: Number(option?.originalRate?.decimal || 0),
+      prematchOdd: Number(option?.prematchRate?.decimal || 0),
+      trend: Number(option?.trend || 0),
+    };
+  }
+
+  private buildDominanceHint(context: any, game: any) {
+    const raw = game?.allScoresRaw || game?.raw || game || {};
+    const homeScore = Number(context.homeStrength || 60);
+    const awayScore = Number(context.awayStrength || 60);
+    const totalStrength = Math.max(1, homeScore + awayScore);
+    const homeShare = homeScore / totalStrength;
+    const awayShare = awayScore / totalStrength;
+
+    const gameTime = Number(raw?.gameTime || context.elapsed || 0);
+    const hasLiveMomentum = gameTime > 0;
+
+    const baseShots = hasLiveMomentum ? Math.max(8, Math.round((context.shotTrend || 60) / 4)) : 10;
+    const baseCorners = hasLiveMomentum ? Math.max(3, Math.round((context.cornerTrend || 55) / 10)) : 4;
+    const baseDangerous = hasLiveMomentum ? Math.max(35, Math.round((context.shotTrend || 60) + (context.cornerTrend || 55) / 2)) : 45;
+
+    return {
+      possessionHome: Math.round(45 + (homeShare - 0.5) * 30),
+      possessionAway: Math.round(45 + (awayShare - 0.5) * 30),
+      attacksHome: Math.round(baseDangerous * homeShare * 1.45),
+      attacksAway: Math.round(baseDangerous * awayShare * 1.45),
+      dangerousAttacksHome: Math.round(baseDangerous * homeShare),
+      dangerousAttacksAway: Math.round(baseDangerous * awayShare),
+      shotsTotalHome: Math.round(baseShots * homeShare),
+      shotsTotalAway: Math.round(baseShots * awayShare),
+      shotsOnGoalHome: Math.max(1, Math.round(baseShots * homeShare * 0.38)),
+      shotsOnGoalAway: Math.max(1, Math.round(baseShots * awayShare * 0.38)),
+      cornersHome: Math.round(baseCorners * homeShare),
+      cornersAway: Math.round(baseCorners * awayShare),
+      yellowCardsHome: 1,
+      yellowCardsAway: 1,
     };
   }
 
