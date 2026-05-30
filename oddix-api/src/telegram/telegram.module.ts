@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { TelegramService } from "./telegram.service";
 import { ResultsCronService } from "./results-cron.service.telegram";
+import { PregameCronService } from "./pregame-cron.service";
 import { OddixImageService } from "./oddix-image.service";
 import { OddixHumanMessageService } from "./oddix-human-message.service";
 import { ResultsCronController } from "./results-cron.controller";
@@ -26,9 +27,10 @@ import { OddsModule } from "../odds/odds.module";
   providers: [
     TelegramService,
     ResultsCronService,
+    PregameCronService,
     OddixImageService,
     OddixHumanMessageService,
   ],
-  exports: [TelegramService, ResultsCronService],
+  exports: [TelegramService, ResultsCronService, PregameCronService],
 })
 export class TelegramModule {}

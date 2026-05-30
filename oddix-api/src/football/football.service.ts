@@ -112,32 +112,6 @@ export class FootballService {
     return { start, end };
   }
 
-  private addDays(dateKey: string, days: number) {
-    const date = new Date(`${dateKey}T12:00:00.000Z`);
-    date.setUTCDate(date.getUTCDate() + days);
-    return date.toISOString().slice(0, 10);
-  }
-
-  private fixtureBelongsToBrazilDate(item: any, targetDate: string) {
-    const rawDate = item?.fixture?.date || item?.jogo?.data || item?.date || null;
-    if (!rawDate) return false;
-
-    const parsed = new Date(rawDate);
-    if (Number.isNaN(parsed.getTime())) return false;
-
-    return this.brazilDateKey(parsed) === targetDate;
-  }
-
-  private isFutureOrTodayBrazil(item: any) {
-    const rawDate = item?.fixture?.date || item?.jogo?.data || item?.date || null;
-    if (!rawDate) return false;
-
-    const parsed = new Date(rawDate);
-    if (Number.isNaN(parsed.getTime())) return false;
-
-    return this.brazilDateKey(parsed) >= this.brazilDateKey();
-  }
-
   private isApiFootballLimitError(error: any) {
     const msg = JSON.stringify(error?.response?.data || error?.message || '').toLowerCase();
 
@@ -794,57 +768,92 @@ export class FootballService {
     });
   }
 
-  async getFixtures(date: string) {
-    const targetDate = date || this.brazilDateKey();
-    const searchDates = [
-      this.addDays(targetDate, -1),
-      targetDate,
-      this.addDays(targetDate, 1),
-    ];
 
-    const groups: any[][] = [];
+  private addDays(date: string, days: number) {
+    const d = new Date(`${date}T12:00:00.000Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+
+  private fixtureBelongsToBrazilDate(item: any, targetDate: string) {
+    const rawDate = item?.fixture?.date || item?.jogo?.data || item?.fixture?.data;
+    if (!rawDate) return false;
+
+    const parsed = new Date(rawDate);
+    if (Number.isNaN(parsed.getTime())) return false;
+
+    return this.brazilDateKey(parsed) === targetDate;
+  }
+
+  private fixtureStartsInFuture(item: any, minMinutes = -30, maxMinutes = 24 * 60) {
+    const rawDate = item?.fixture?.date || item?.jogo?.data || item?.fixture?.data;
+    if (!rawDate) return false;
+
+    const parsed = new Date(rawDate).getTime();
+    if (Number.isNaN(parsed)) return false;
+
+    const diffMinutes = Math.floor((parsed - Date.now()) / 1000 / 60);
+    return diffMinutes >= minMinutes && diffMinutes <= maxMinutes;
+  }
+
+  async getFixtures(date: string) {
+    const searchDates = Array.from(
+      new Set([this.addDays(date, -1), date, this.addDays(date, 1)]),
+    );
+
+    const freshGroups: any[][] = [];
 
     for (const currentDate of searchDates) {
       const freshCache = await this.getFreshFixturesFromCache(currentDate, this.fixturesCacheMinutes());
-      if (freshCache.length > 0) groups.push(freshCache);
+      if (freshCache.length > 0) freshGroups.push(freshCache);
     }
+
+    const freshMerged = this.mergeUniqueFixtures(freshGroups)
+      .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date));
+
+    if (freshMerged.length > 0) {
+      return freshMerged;
+    }
+
+    const providerGroups: any[][] = [];
 
     for (const currentDate of searchDates) {
       const apiFootball = await this.getFixturesFromApiFootball(currentDate);
-      if (apiFootball.ok && apiFootball.data.length > 0) groups.push(apiFootball.data);
+      if (apiFootball.ok && apiFootball.data.length > 0) providerGroups.push(apiFootball.data);
 
       const allScores = await this.getFixturesFromAllScores(currentDate);
-      if (allScores.ok && allScores.data.length > 0) groups.push(allScores.data);
+      if (allScores.ok && allScores.data.length > 0) providerGroups.push(allScores.data);
 
       const flashScore = await this.getFixturesFromFlashScore(currentDate);
-      if (flashScore.ok && flashScore.data.length > 0) groups.push(flashScore.data);
+      if (flashScore.ok && flashScore.data.length > 0) providerGroups.push(flashScore.data);
 
       const sportmonks = await this.getFixturesFromSportmonks(currentDate);
-      if (sportmonks.ok && sportmonks.data.length > 0) groups.push(sportmonks.data);
+      if (sportmonks.ok && sportmonks.data.length > 0) providerGroups.push(sportmonks.data);
 
       const footballData = await this.getFixturesFromFootballData(currentDate);
-      if (footballData.ok && footballData.data.length > 0) groups.push(footballData.data);
+      if (footballData.ok && footballData.data.length > 0) providerGroups.push(footballData.data);
 
       const sportsDb = await this.getFixturesFromSportsDb(currentDate);
-      if (sportsDb.ok && sportsDb.data.length > 0) groups.push(sportsDb.data);
+      if (sportsDb.ok && sportsDb.data.length > 0) providerGroups.push(sportsDb.data);
     }
 
-    const merged = this.mergeUniqueFixtures(groups)
-      .filter((fixture: any) => this.fixtureBelongsToBrazilDate(fixture, targetDate));
+    const providerMerged = this.mergeUniqueFixtures(providerGroups)
+      .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date));
 
-    if (merged.length > 0) {
-      await this.saveFixturesCache(merged);
-      return merged;
+    if (providerMerged.length > 0) {
+      await this.saveFixturesCache(providerMerged);
+      return providerMerged;
     }
 
     const staleGroups: any[][] = [];
+
     for (const currentDate of searchDates) {
       const staleCache = await this.getFixturesFromCache(currentDate);
       if (staleCache.length > 0) staleGroups.push(staleCache);
     }
 
     return this.mergeUniqueFixtures(staleGroups)
-      .filter((fixture: any) => this.fixtureBelongsToBrazilDate(fixture, targetDate));
+      .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date));
   }
 
   private async getLiveFixturesFromCache(onlyFresh = true) {
