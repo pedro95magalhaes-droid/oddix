@@ -435,4 +435,55 @@ export class BroadageService {
         .filter((stat: any) => stat.type),
     })).filter((team: any) => team.statistics.length > 0);
   }
+
+
+  async getTournaments() {
+    const paths = [
+      '/tournament/list',
+      '/tournaments',
+      '/tournament/all',
+      '/league/list',
+      '/leagues',
+    ];
+
+    const errors: any[] = [];
+
+    for (const path of paths) {
+      const response = await this.request(path);
+
+      if (!response.ok) {
+        errors.push({ path, error: response.error });
+        continue;
+      }
+
+      const rows = this.findArray(response.data);
+
+      if (rows.length > 0) {
+        return {
+          ok: true,
+          path,
+          data: rows,
+          error: null,
+        };
+      }
+
+      if (response.data && typeof response.data === 'object') {
+        return {
+          ok: true,
+          path,
+          data: response.data,
+          error: null,
+        };
+      }
+    }
+
+    return {
+      ok: false,
+      path: null,
+      data: [],
+      error: errors[0]?.error || 'Endpoint de torneios Broadage ainda não confirmado',
+      errors,
+    };
+  }
+
 }

@@ -1650,4 +1650,145 @@ export class FootballService {
       },
     };
   }
+
+
+  private normalizeDebugText(value: any) {
+    return String(value || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  }
+
+  async testBroadageLeagues(date?: string) {
+    const safeDate = this.normalizeDateKey(date);
+    const result = await this.getFixturesFromBroadage(safeDate);
+
+    const games = (result.data || []).map((game: any) => {
+      const leagueName =
+        game?.league?.name ||
+        game?.liga?.nome ||
+        game?.broadageRaw?.tournament?.name ||
+        game?.broadageRaw?.torneio?.nome ||
+        'Liga não informada';
+
+      const country =
+        game?.league?.country ||
+        game?.liga?.país ||
+        game?.liga?.pais ||
+        game?.broadageRaw?.countryName ||
+        game?.broadageRaw?.country_name ||
+        '';
+
+      return {
+        provider: game?.provider || 'broadage',
+        league: leagueName,
+        country,
+        allowedByOddixFilter: isOddixLeagueAllowed(game),
+        allowedOnDashboard: isOddixDashboardFixtureAllowed(game, this.hideFinishedAfterHours()),
+        home:
+          game?.teams?.home?.name ||
+          game?.times?.casa?.nome ||
+          game?.broadageRaw?.homeTeam?.name ||
+          game?.broadageRaw?.timeCasa?.nome ||
+          '',
+        away:
+          game?.teams?.away?.name ||
+          game?.times?.fora?.nome ||
+          game?.broadageRaw?.awayTeam?.name ||
+          game?.broadageRaw?.timeFora?.nome ||
+          '',
+        fixtureDate: game?.fixture?.date || game?.jogo?.data || null,
+        rawDate: game?.broadageRaw?.date || game?.broadageRaw?.data || null,
+        status: game?.fixture?.status || game?.jogo?.status || null,
+      };
+    });
+
+    const uniqueLeagues = Array.from(
+      new Set(games.map((game: any) => game.league).filter(Boolean)),
+    ).sort();
+
+    const allowedLeagues = Array.from(
+      new Set(
+        games
+          .filter((game: any) => game.allowedByOddixFilter)
+          .map((game: any) => game.league)
+          .filter(Boolean),
+      ),
+    ).sort();
+
+    const dashboardLeagues = Array.from(
+      new Set(
+        games
+          .filter((game: any) => game.allowedOnDashboard)
+          .map((game: any) => game.league)
+          .filter(Boolean),
+      ),
+    ).sort();
+
+    return {
+      date: safeDate,
+      ok: result.ok,
+      error: result.error,
+      totalGamesFromBroadage: result.data?.length || 0,
+      totalAllowedByOddixFilter: games.filter((game: any) => game.allowedByOddixFilter).length,
+      totalAllowedOnDashboard: games.filter((game: any) => game.allowedOnDashboard).length,
+      leaguesFound: uniqueLeagues,
+      allowedLeagues,
+      dashboardLeagues,
+      sample: games.slice(0, 50),
+    };
+  }
+
+  async getBroadageTournaments(search?: string) {
+    const result = await this.broadageService.getTournaments();
+    const q = this.normalizeDebugText(search || '');
+
+    const rows = Array.isArray(result.data) ? result.data : [];
+
+    const tournaments = rows.map((item: any) => {
+      const name =
+        item?.name ||
+        item?.nome ||
+        item?.tournamentName ||
+        item?.leagueName ||
+        item?.competitionName ||
+        item?.displayName ||
+        '';
+
+      const country =
+        item?.country?.name ||
+        item?.countryName ||
+        item?.country_name ||
+        item?.country ||
+        item?.pais ||
+        item?.país ||
+        '';
+
+      return {
+        id: item?.id || item?.tournamentId || item?.leagueId || item?.competitionId || null,
+        name,
+        country,
+        raw: item,
+      };
+    }).filter((item: any) => item.name || item.country);
+
+    const filtered = q
+      ? tournaments.filter((item: any) => {
+          const text = this.normalizeDebugText(`${item.name} ${item.country}`);
+          return text.includes(q);
+        })
+      : tournaments;
+
+    return {
+      ok: result.ok,
+      endpointUsed: result.path || null,
+      error: result.error,
+      search: search || null,
+      total: tournaments.length,
+      returned: filtered.length,
+      sample: filtered.slice(0, 100),
+    };
+  }
+
 }

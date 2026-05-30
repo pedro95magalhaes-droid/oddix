@@ -48,6 +48,25 @@ export class FootballController {
     return this.footballService.clearAllFixturesCache();
   }
 
+
+  /**
+   * Diagnóstico da Broadage por data.
+   * Mostra quais ligas e jogos a Broadage retorna antes do filtro principal.
+   */
+  @Get('broadage/test')
+  async testBroadage(@Query('date') date?: string) {
+    return this.footballService.testBroadageLeagues(date);
+  }
+
+  /**
+   * Diagnóstico dos torneios disponíveis na Broadage.
+   * Útil para confirmar cobertura: Brasileirão, Libertadores, Premier League etc.
+   */
+  @Get('broadage/tournaments')
+  async broadageTournaments(@Query('q') q?: string) {
+    return this.footballService.getBroadageTournaments(q);
+  }
+
   @Get('fixture/:fixtureId')
   async getFixtureById(@Param('fixtureId') fixtureId: string) {
     return this.footballService.getFixtureById(fixtureId);
