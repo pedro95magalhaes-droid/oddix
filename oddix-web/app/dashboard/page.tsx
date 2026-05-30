@@ -40,7 +40,110 @@ function formatDateTime(date: any) {
 }
 
 function getStatusShort(game: any) {
-  return game.fixture?.status?.short || "";
+  return (
+    game?.fixture?.status?.short ||
+    game?.fixture?.status?.curto ||
+    game?.jogo?.status?.short ||
+    game?.jogo?.status?.curto ||
+    ""
+  );
+}
+
+function safeScoreValue(value: any) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(String(value).replace(/[^0-9.-]/g, ""));
+  if (!Number.isFinite(parsed)) return null;
+  // Evita bug tipo placar 93x94 vindo de campo errado/ID/minuto.
+  if (parsed < 0 || parsed > 30) return null;
+  return parsed;
+}
+
+function normalizeGame(game: any) {
+  if (!game) return game;
+
+  const fixture = game.fixture || game.jogo || {};
+  const status = fixture.status || {};
+  const league = game.league || game.liga || {};
+  const teams = game.teams || game.times || {};
+  const home = teams.home || teams.casa || {};
+  const away = teams.away || teams.fora || teams.visitante || {};
+  const goals = game.goals || game.gols || {};
+  const score = game.score || game.placar || {};
+
+  const homeGoals = safeScoreValue(
+    goals.home ??
+      goals.casa ??
+      score?.fulltime?.home ??
+      score?.fulltime?.casa ??
+      score?.["tempo integral"]?.home ??
+      score?.["tempo integral"]?.casa ??
+      game?.allScoresRaw?.homeCompetitor?.score,
+  );
+
+  const awayGoals = safeScoreValue(
+    goals.away ??
+      goals.fora ??
+      goals.visitante ??
+      score?.fulltime?.away ??
+      score?.fulltime?.fora ??
+      score?.["tempo integral"]?.away ??
+      score?.["tempo integral"]?.fora ??
+      score?.["tempo integral"]?.visitante ??
+      game?.allScoresRaw?.awayCompetitor?.score,
+  );
+
+  return {
+    ...game,
+    provider: game.provider || game.provedor || "api-football",
+    fixture: {
+      ...fixture,
+      id: fixture.id,
+      date: fixture.date || fixture.data,
+      timestamp: fixture.timestamp || fixture["carimbo de data/hora"],
+      timezone: fixture.timezone || fixture["fuso horário"] || fixture.fuso,
+      status: {
+        ...status,
+        short: status.short || status.curto || "",
+        long: status.long || "",
+        elapsed: Number(status.elapsed ?? status.decorrido ?? status["tempo decorrido"] ?? 0),
+        extra: status.extra ?? status.prorrogacao ?? status.prorrogação ?? null,
+      },
+    },
+    league: {
+      ...league,
+      id: league.id || 0,
+      name: league.name || league.nome || "Liga",
+      country: league.country || league.país || league.pais || "",
+      logo: league.logo || league.logotipo || "",
+    },
+    teams: {
+      home: {
+        ...home,
+        id: home.id || 0,
+        name: home.name || home.nome || "Casa",
+        logo: home.logo || home.logotipo || "",
+        winner: home.winner ?? home.vencedor ?? null,
+      },
+      away: {
+        ...away,
+        id: away.id || 0,
+        name: away.name || away.nome || "Fora",
+        logo: away.logo || away.logotipo || "",
+        winner: away.winner ?? away.vencedor ?? null,
+      },
+    },
+    goals: {
+      home: homeGoals ?? 0,
+      away: awayGoals ?? 0,
+    },
+    score: {
+      ...score,
+      fulltime: {
+        home: homeGoals ?? 0,
+        away: awayGoals ?? 0,
+      },
+    },
+  };
 }
 
 function isLiveStatus(status: string) {
@@ -99,9 +202,9 @@ export default function Dashboard() {
       const gameDate = getGameDateKey(game.fixture?.date);
 
       const matchStatus =
-        (statusFilter === "all" && !finished) ||
+        statusFilter === "all" ||
         (statusFilter === "live" && live) ||
-        (statusFilter === "today" && gameDate === today && !finished) ||
+        (statusFilter === "today" && gameDate === today) ||
         (statusFilter === "future" && !live && !finished) ||
         (statusFilter === "finished" && finished);
 
@@ -146,59 +249,24 @@ export default function Dashboard() {
   }
 
   function getScore(game: any) {
-    const home =
-      game.goals?.home ??
-      game.score?.fulltime?.home ??
-      game.score?.halftime?.home ??
-      null;
+    const normalized = normalizeGame(game);
 
-    const away =
-      game.goals?.away ??
-      game.score?.fulltime?.away ??
-      game.score?.halftime?.away ??
-      null;
+    const home = safeScoreValue(
+      normalized?.goals?.home ??
+        normalized?.score?.fulltime?.home ??
+        normalized?.score?.halftime?.home,
+    );
+
+    const away = safeScoreValue(
+      normalized?.goals?.away ??
+        normalized?.score?.fulltime?.away ??
+        normalized?.score?.halftime?.away,
+    );
 
     return {
-      home: home === null || home === undefined ? "-" : Number(home),
-      away: away === null || away === undefined ? "-" : Number(away),
+      home: home === null || home === undefined ? "-" : home,
+      away: away === null || away === undefined ? "-" : away,
     };
-  }
-
-  function getFixtureMinutesSinceStart(game: any) {
-    const fixtureDate = game.fixture?.date;
-
-    if (!fixtureDate) return 0;
-
-    const start = new Date(fixtureDate).getTime();
-
-    if (Number.isNaN(start)) return 0;
-
-    return Math.floor((Date.now() - start) / 1000 / 60);
-  }
-
-  function getEffectiveElapsedMinute(game: any) {
-    const statusShort = String(getStatusShort(game) || "").toUpperCase();
-    const apiElapsed = Number(game.fixture?.status?.elapsed || 0);
-    const timestamp = Number(game.fixture?.timestamp || 0);
-
-    if (statusShort === "HT") return 45;
-
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const dateSeconds = game.fixture?.date
-      ? Math.floor(new Date(game.fixture.date).getTime() / 1000)
-      : 0;
-
-    if (timestamp && apiElapsed) {
-      const apiGameTimeSeconds = timestamp + apiElapsed * 60;
-      const diffMinutes = Math.floor((nowSeconds - apiGameTimeSeconds) / 60);
-      return apiElapsed + Math.max(0, diffMinutes);
-    }
-
-    if (dateSeconds && ["1H", "2H", "LIVE", "IN_PLAY"].includes(statusShort)) {
-      return Math.max(apiElapsed, Math.floor((nowSeconds - dateSeconds) / 60));
-    }
-
-    return apiElapsed;
   }
 
   function isGameLive(game: any) {
@@ -207,24 +275,17 @@ export default function Dashboard() {
     }
 
     const status = String(getStatusShort(game) || "").toUpperCase();
-    const elapsed = getEffectiveElapsedMinute(game);
-    const minutesSinceStart = getFixtureMinutesSinceStart(game);
+    const elapsed = Number(game.fixture?.status?.elapsed || 0);
+    const extra = Number(game.fixture?.status?.extra || 0);
 
     if (isFinishedStatus(status)) return false;
+    if (!isLiveStatus(status)) return false;
 
-    if (["1H", "HT"].includes(status)) {
-      return minutesSinceStart < 85;
-    }
+    // Segurança contra jogos fantasmas da API: 2º tempo em 90+ não é mais tratado como ao vivo.
+    if (status === "2H" && elapsed >= 90) return false;
+    if (status === "2H" && elapsed >= 85 && extra > 0) return false;
 
-    if (status === "2H") {
-      return elapsed < 90 && minutesSinceStart < 120;
-    }
-
-    if (["LIVE", "IN_PLAY"].includes(status)) {
-      return elapsed < 90 && minutesSinceStart < 120;
-    }
-
-    return false;
+    return true;
   }
 
   function isGameFinished(game: any) {
@@ -234,13 +295,12 @@ export default function Dashboard() {
     }
 
     const status = String(getStatusShort(game) || "").toUpperCase();
-    const elapsed = getEffectiveElapsedMinute(game);
-    const minutesSinceStart = getFixtureMinutesSinceStart(game);
+    const elapsed = Number(game.fixture?.status?.elapsed || 0);
+    const extra = Number(game.fixture?.status?.extra || 0);
 
     if (isFinishedStatus(status)) return true;
     if (status === "2H" && elapsed >= 90) return true;
-    if (["2H", "LIVE", "IN_PLAY"].includes(status) && minutesSinceStart >= 120) return true;
-    if (["1H", "HT"].includes(status) && minutesSinceStart >= 85) return true;
+    if (status === "2H" && elapsed >= 85 && extra > 0) return true;
 
     return false;
   }
@@ -254,20 +314,37 @@ export default function Dashboard() {
   function getLiveElapsedMinute(game: any) {
     liveTick;
 
-    const statusShort = String(getStatusShort(game) || "").toUpperCase();
+    const statusShort = getStatusShort(game);
     const apiElapsed = Number(game.fixture?.status?.elapsed || 0);
+    const timestamp = Number(game.fixture?.timestamp || 0);
 
     if (statusShort === "HT") return 45;
 
     if (!isGameLive(game)) return apiElapsed;
 
-    const calculated = getEffectiveElapsedMinute(game);
+    if (!apiElapsed) return apiElapsed;
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const dateSeconds = game.fixture?.date
+      ? Math.floor(new Date(game.fixture.date).getTime() / 1000)
+      : 0;
+    const baseTimestamp = timestamp || dateSeconds;
+
+    if (!baseTimestamp) return apiElapsed;
+
+    const apiGameTimeSeconds = timestamp
+      ? timestamp + apiElapsed * 60
+      : baseTimestamp;
+    const diffMinutes = Math.floor((nowSeconds - apiGameTimeSeconds) / 60);
+    const calculated = timestamp
+      ? apiElapsed + Math.max(0, diffMinutes)
+      : Math.max(apiElapsed, diffMinutes);
 
     if (["ET", "BT", "P"].includes(statusShort)) {
       return Math.min(calculated, 120);
     }
 
-    return Math.min(calculated, 89);
+    return Math.min(calculated, 90);
   }
 
   function getLiveExtraMinute(game: any) {
@@ -556,13 +633,9 @@ export default function Dashboard() {
     try {
       if (games.length === 0) setLoading(true);
 
-      // Dashboard não deve puxar jogos antigos como "Jogos online".
-      // Histórico de WON/LOST fica na página de histórico; aqui usamos hoje + próximos dias.
-      const dates = Array.from({ length: 8 }).map((_, index) => {
-        const date = new Date();
-        date.setDate(date.getDate() + index);
-        return dateKey(date);
-      });
+      // Dashboard principal: somente LIVE + jogos de HOJE.
+      // Jogos de próxima semana não entram aqui para não poluir a operação ao vivo.
+      const dates = [dateKey(new Date())];
 
       const responses = await Promise.allSettled([
         api.get("/football/live"),
@@ -584,10 +657,14 @@ export default function Dashboard() {
         (bet: any) => String(bet.status || "").toLowerCase() === "open",
       );
 
-      const apiGames = responses.slice(0, -1).flatMap((result: any) => {
-        if (result.status !== "fulfilled") return [];
-        return result.value?.data || [];
-      });
+      const apiGames = responses
+        .slice(0, -1)
+        .flatMap((result: any) => {
+          if (result.status !== "fulfilled") return [];
+          return result.value?.data || [];
+        })
+        .map(normalizeGame)
+        .filter(Boolean);
 
       const map = new Map<string, any>();
       const apiFixtureIds = new Set<number>();
@@ -640,8 +717,10 @@ export default function Dashboard() {
       fixtureByIdResponses.forEach((result: any, index: number) => {
         const bet = missingSavedBets[index];
 
-        if (result.status === "fulfilled" && result.value?.data?.fixture?.id) {
-          const apiGame = result.value.data;
+        if (result.status === "fulfilled" && result.value?.data) {
+          const apiGame = normalizeGame(result.value.data);
+
+          if (!apiGame?.fixture?.id) return;
           const fixtureId = Number(apiGame.fixture?.id);
 
           apiFixtureIds.add(fixtureId);
@@ -690,21 +769,7 @@ export default function Dashboard() {
         }
       });
 
-      const cleanGames = Array.from(map.values()).filter((game: any) => {
-        const finished = isGameFinished(game);
-        const live = isGameLive(game);
-        const today = getGameDateKey(game.fixture?.date) === dateKey(new Date());
-
-        // Não manter jogos velhos/fantasmas na lista principal.
-        if (!today && finished) return false;
-
-        // Se a API marcou 2H mas nosso cálculo diz que passou de 90, deixa apenas em Finalizados.
-        if (finished && statusFilter !== "finished") return true;
-
-        return live || !finished || statusFilter === "finished";
-      });
-
-      const ordered = cleanGames.sort((a: any, b: any) => {
+      const ordered = Array.from(map.values()).sort((a: any, b: any) => {
         const liveA = isGameLive(a) ? 1 : 0;
         const liveB = isGameLive(b) ? 1 : 0;
 
@@ -727,9 +792,14 @@ export default function Dashboard() {
         return dateA - dateB;
       });
 
-      setGames(() => {
-        // Importante: não mesclar com estado antigo, porque isso mantinha jogos fantasmas 90+ no Dashboard.
-        return ordered.sort((a: any, b: any) => {
+      setGames((current) => {
+        if (!ordered.length && current.length > 0) {
+          return current;
+        }
+
+        const merged = mergeStableGames(current, ordered);
+
+        return merged.sort((a: any, b: any) => {
           const liveA = isGameLive(a) ? 1 : 0;
           const liveB = isGameLive(b) ? 1 : 0;
 
@@ -786,7 +856,9 @@ export default function Dashboard() {
     }
   }
 
-  async function analyzeGame(game: any) {
+  async function analyzeGame(rawGame: any) {
+    const game = normalizeGame(rawGame);
+
     if (!isPaidPlan) {
       alert(
         "Análise IA disponível apenas nos planos PRO e VIP. No plano FREE você pode ver os jogos, mas não a análise completa.",
