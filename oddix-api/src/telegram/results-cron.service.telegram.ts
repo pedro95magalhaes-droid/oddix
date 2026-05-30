@@ -209,7 +209,9 @@ export class ResultsCronService {
       const value = metric.metricValue;
 
       if (value === null || value === undefined) {
-        return finished ? { result: "open", reason: "unknown_market", ...metric, line } : { result: "open", reason: "not_finished", ...metric, line };
+        return finished
+      ? { result: "open", reason: "unknown_market", metricName: metric.metricName, metricValue: undefined, line }
+    : { result: "open", reason: "not_finished", metricName: metric.metricName, metricValue: undefined, line };
       }
 
       if (isOver && value > line) {
