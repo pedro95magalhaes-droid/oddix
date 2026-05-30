@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { AllScoresService } from './allscores.service';
+import { FlashScoreService } from './flashscore.service';
 
 @Injectable()
 export class FootballService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly allScoresService: AllScoresService,
+    private readonly flashScoreService: FlashScoreService,
   ) {}
 
   private apiFootballURL = 'https://v3.football.api-sports.io';
@@ -610,6 +612,23 @@ export class FootballService {
     }
   }
 
+
+  async getFixturesFromFlashScore(date: string) {
+    try {
+      return await this.flashScoreService.getFixtures(date);
+    } catch (error: any) {
+      return { ok: false, data: [], error: error?.message || 'Erro na FlashScore' };
+    }
+  }
+
+  async getLiveFixturesFromFlashScore() {
+    try {
+      return await this.flashScoreService.getLiveFixtures();
+    } catch (error: any) {
+      return { ok: false, data: [], error: error?.message || 'Erro na FlashScore Live' };
+    }
+  }
+
   async getFixtureByIdFromAllScores(fixtureId: string) {
     try {
       return await this.allScoresService.getGameDetails(fixtureId);
@@ -756,6 +775,13 @@ export class FootballService {
       return this.mergeUniqueFixtures([allScores.data]);
     }
 
+    const flashScore = await this.getFixturesFromFlashScore(date);
+
+    if (flashScore.ok && flashScore.data.length > 0) {
+      await this.saveFixturesCache(flashScore.data);
+      return this.mergeUniqueFixtures([flashScore.data]);
+    }
+
     const sportmonks = await this.getFixturesFromSportmonks(date);
 
     if (sportmonks.ok && sportmonks.data.length > 0) {
@@ -833,6 +859,18 @@ export class FootballService {
 
       if (allScores.ok && allScores.data.length > 0) {
         const live = allScores.data
+          .filter((game: any) => this.shouldTreatAsLive(game))
+          .map((item: any) => this.normalizeLiveStatus(item));
+
+        if (live.length > 0) groups.push(live);
+      }
+    }
+
+    if (groups.length === 0) {
+      const flashScore = await this.getLiveFixturesFromFlashScore();
+
+      if (flashScore.ok && flashScore.data.length > 0) {
+        const live = flashScore.data
           .filter((game: any) => this.shouldTreatAsLive(game))
           .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -1091,11 +1129,37 @@ export class FootballService {
     };
   }
 
+  async getStatisticsFromFlashScore(fixtureId: string) {
+    const cachedRaw = await this.getFixtureFromCacheById(fixtureId);
+    const cached = cachedRaw as any;
+    const externalId = cached?.fixture?.externalId || cached?.flashScoreRaw?.id || cached?.fixture?.id;
+
+    if (!externalId || cached?.provider !== 'flashscore') {
+      return { ok: false, data: null, error: 'Fixture não é FlashScore ou não possui externalId' };
+    }
+
+    try {
+      const response = await this.flashScoreService.getStats(String(externalId));
+      if (!response.ok || !response.data) return { ok: false, data: null, error: response.error || 'Sem stats FlashScore' };
+
+      const stats = this.flashScoreService.mapStatsToOddix(fixtureId, response.data);
+      return { ok: stats.available, data: stats, error: stats.available ? null : 'Sem estatísticas reais na FlashScore' };
+    } catch (error: any) {
+      return { ok: false, data: null, error: error?.message || 'Erro ao buscar stats FlashScore' };
+    }
+  }
+
   async getStatistics(fixtureId: string) {
     const apiFootball = await this.getStatisticsFromApiFootball(fixtureId);
 
     if (apiFootball.ok && apiFootball.data) {
       return apiFootball.data;
+    }
+
+    const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
+
+    if (flashScore.ok && flashScore.data) {
+      return flashScore.data;
     }
 
     const fallback = this.generateFallbackStatistics(fixtureId);
@@ -1104,7 +1168,7 @@ export class FootballService {
       ...fallback,
       simulated: true,
       source: 'oddix-fallback',
-      message: `Estatísticas reais indisponíveis. Usando estimativa temporária. Motivo: ${apiFootball.error || 'sem dados reais'}`,
+      message: `Estatísticas reais indisponíveis. Usando estimativa temporária. Motivo: ${apiFootball.error || flashScore.error || 'sem dados reais'}`,
     };
   }
 
@@ -1115,6 +1179,8 @@ export class FootballService {
     const sportsDb = await this.getFixturesFromSportsDb(date);
     const allScores = await this.getFixturesFromAllScores(date);
     const allScoresLive = await this.getLiveFixturesFromAllScores(date);
+    const flashScore = await this.getFixturesFromFlashScore(date);
+    const flashScoreLive = await this.getLiveFixturesFromFlashScore();
 
     let apiFootball = { ok: false, data: [], error: 'Poupada no debug' } as any;
     let apiFootballLive = { ok: false, data: [], error: 'Poupada no debug' } as any;
@@ -1134,11 +1200,13 @@ export class FootballService {
       sportsDbKeyExists: !!this.getSportsDbKey(),
       allScoresEnabled: this.allScoresService.isEnabled(),
       allScoresKeyExists: this.allScoresService.hasKey(),
+      flashScoreEnabled: this.flashScoreService.isEnabled(),
+      flashScoreKeyExists: this.flashScoreService.hasKey(),
       apiFootballDisabled: process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === 'true',
       apiFootballBlockedUntil: this.apiFootballBlockedUntil?.toISOString() || null,
       liveCacheSeconds: this.liveCacheSeconds(),
       fixturesCacheMinutes: this.fixturesCacheMinutes(),
-      note: 'API-Football só é consultada no debug se API_FOOTBALL_DEBUG_FORCE=true. Rotas normais usam cache antes de chamar API.',
+      note: 'API-Football só é consultada no debug se API_FOOTBALL_DEBUG_FORCE=true. Rotas normais usam cache antes de chamar API. Fallback: API-Football > AllScores > FlashScore > Sportmonks > FootballData > TheSportsDB.',
 
       cache: {
         responseLength: cache.length,
@@ -1178,6 +1246,20 @@ export class FootballService {
         error: allScoresLive.error,
         responseLength: allScoresLive.data.length,
         sample: allScoresLive.data.slice(0, 3),
+      },
+
+      flashScore: {
+        ok: flashScore.ok,
+        error: flashScore.error,
+        responseLength: flashScore.data.length,
+        sample: flashScore.data.slice(0, 2),
+      },
+
+      flashScoreLive: {
+        ok: flashScoreLive.ok,
+        error: flashScoreLive.error,
+        responseLength: flashScoreLive.data.length,
+        sample: flashScoreLive.data.slice(0, 3),
       },
 
       apiFootball: {
