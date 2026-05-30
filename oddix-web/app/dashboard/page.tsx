@@ -40,13 +40,17 @@ function formatDateTime(date: any) {
 }
 
 function getStatusShort(game: any) {
-  return (
+  const raw = String(
     game?.fixture?.status?.short ||
-    game?.fixture?.status?.curto ||
-    game?.jogo?.status?.short ||
-    game?.jogo?.status?.curto ||
-    ""
-  );
+      game?.fixture?.status?.curto ||
+      game?.jogo?.status?.short ||
+      game?.jogo?.status?.curto ||
+      "",
+  ).toUpperCase();
+
+  if (raw === "1T") return "1H";
+  if (raw === "2T") return "2H";
+  return raw;
 }
 
 function safeScoreValue(value: any) {
@@ -103,7 +107,12 @@ function normalizeGame(game: any) {
       timezone: fixture.timezone || fixture["fuso horário"] || fixture.fuso,
       status: {
         ...status,
-        short: status.short || status.curto || "",
+        short: (() => {
+          const raw = String(status.short || status.curto || "").toUpperCase();
+          if (raw === "1T") return "1H";
+          if (raw === "2T") return "2H";
+          return raw;
+        })(),
         long: status.long || "",
         elapsed: Number(status.elapsed ?? status.decorrido ?? status["tempo decorrido"] ?? 0),
         extra: status.extra ?? status.prorrogacao ?? status.prorrogação ?? null,
@@ -147,7 +156,7 @@ function normalizeGame(game: any) {
 }
 
 function isLiveStatus(status: string) {
-  return ["1H", "2H", "HT", "ET", "BT", "P", "LIVE", "SUSP", "INT"].includes(
+  return ["1H", "2H", "2T", "HT", "ET", "BT", "P", "LIVE", "SUSP", "INT"].includes(
     String(status || "").toUpperCase(),
   );
 }
@@ -281,7 +290,7 @@ export default function Dashboard() {
     if (isFinishedStatus(status)) return false;
     if (!isLiveStatus(status)) return false;
 
-    // Segurança contra jogos fantasmas da API: qualquer status com 90+ não é mais tratado como ao vivo.
+    // Segurança contra jogos fantasmas da API: 90' ou acréscimos não ficam mais como ao vivo.
     if (elapsed >= 90) return false;
     if (elapsed >= 85 && extra > 0) return false;
 
@@ -309,6 +318,29 @@ export default function Dashboard() {
     const gameDate = getGameDateKey(game.fixture?.date);
     const today = dateKey(new Date());
     return !!gameDate && gameDate < today;
+  }
+
+
+  function isFutureGameBeyondToday(game: any) {
+    const gameDate = getGameDateKey(game.fixture?.date);
+    const today = dateKey(new Date());
+    return !!gameDate && gameDate > today;
+  }
+
+  function isGameAllowedOnDashboard(game: any) {
+    const gameDate = getGameDateKey(game.fixture?.date);
+    const today = dateKey(new Date());
+
+    if (!gameDate) return false;
+    if (isCanceledStatus(getStatusShort(game))) return false;
+
+    // Dashboard principal não carrega jogos antigos nem próximos dias.
+    if (gameDate !== today) return false;
+
+    // Jogo salvo antigo em aberto não deve ficar preso na tela principal.
+    if (game.source === "saved" && !isGameLive(game)) return false;
+
+    return true;
   }
 
   function getLiveElapsedMinute(game: any) {
@@ -653,9 +685,12 @@ export default function Dashboard() {
 
       // Somente apostas OPEN entram na lista principal do Dashboard.
       // WON/LOST não devem aparecer como jogos online; ficam para Histórico/Finalizados.
-      const openSavedBets = currentSavedBets.filter(
-        (bet: any) => String(bet.status || "").toLowerCase() === "open",
-      );
+      const todayKey = dateKey(new Date());
+      const openSavedBets = currentSavedBets.filter((bet: any) => {
+        if (String(bet.status || "").toLowerCase() !== "open") return false;
+        const betDate = getGameDateKey(bet.gameDate || bet.createdAt);
+        return betDate === todayKey;
+      });
 
       const apiGames = responses
         .slice(0, -1)
@@ -664,14 +699,7 @@ export default function Dashboard() {
           return result.value?.data || [];
         })
         .map(normalizeGame)
-        .filter(Boolean)
-        .filter((game: any) => {
-          const today = dateKey(new Date());
-          const gameDate = getGameDateKey(game.fixture?.date);
-          // Dashboard principal não deve mostrar próxima semana nem jogo antigo.
-          return isGameLive(game) || gameDate === today;
-        })
-        .filter((game: any) => !isFinishedStatus(getStatusShort(game)) || getGameDateKey(game.fixture?.date) === dateKey(new Date()));
+        .filter(Boolean);
 
       const map = new Map<string, any>();
       const apiFixtureIds = new Set<number>();
@@ -681,12 +709,7 @@ export default function Dashboard() {
         const id = Number(game.fixture?.id);
 
         if (!id) return;
-        if (isCanceledStatus(getStatusShort(game))) return;
-
-        // Não deixar jogo antigo/finalizado/futuro poluir o Dashboard principal.
-        if (isGameFinished(game)) return;
-        if (isPastGameNotToday(game) && !isGameLive(game)) return;
-        if (!isGameLive(game) && getGameDateKey(game.fixture?.date) !== dateKey(new Date())) return;
+        if (!isGameAllowedOnDashboard(game)) return;
 
         apiFixtureIds.add(id);
 
@@ -730,6 +753,7 @@ export default function Dashboard() {
           const apiGame = normalizeGame(result.value.data);
 
           if (!apiGame?.fixture?.id) return;
+          if (!isGameAllowedOnDashboard(apiGame)) return;
           const fixtureId = Number(apiGame.fixture?.id);
 
           apiFixtureIds.add(fixtureId);
@@ -801,42 +825,10 @@ export default function Dashboard() {
         return dateA - dateB;
       });
 
-      setGames((current) => {
-        if (!ordered.length) {
-          return [];
-        }
-
-        const merged = mergeStableGames([], ordered).filter((game: any) => {
-          const today = dateKey(new Date());
-          const gameDate = getGameDateKey(game.fixture?.date);
-          return !isGameFinished(game) && (isGameLive(game) || gameDate === today);
-        });
-
-        return merged.sort((a: any, b: any) => {
-          const liveA = isGameLive(a) ? 1 : 0;
-          const liveB = isGameLive(b) ? 1 : 0;
-
-          if (liveA !== liveB) return liveB - liveA;
-
-          const today = dateKey(new Date());
-          const todayA = getGameDateKey(a.fixture?.date) === today ? 1 : 0;
-          const todayB = getGameDateKey(b.fixture?.date) === today ? 1 : 0;
-
-          if (todayA !== todayB) return todayB - todayA;
-
-          const finishedA = isGameFinished(a) ? 1 : 0;
-          const finishedB = isGameFinished(b) ? 1 : 0;
-
-          if (finishedA !== finishedB) return finishedA - finishedB;
-
-          const dateA = new Date(a.fixture?.date || 0).getTime();
-          const dateB = new Date(b.fixture?.date || 0).getTime();
-
-          return dateA - dateB;
-        });
-      });
+      const cleanOrdered = ordered.filter(isGameAllowedOnDashboard);
+      setGames(cleanOrdered);
     } catch {
-      setGames((current) => current);
+      setGames([]);
     } finally {
       setLoading(false);
     }
