@@ -4,10 +4,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AllScoresService } from './allscores.service';
 import { FlashScoreService } from './flashscore.service';
 import { BroadageService } from './broadage.service';
-import {
-  isOddixDashboardFixtureAllowed,
-  isOddixLeagueAllowed,
-} from './league-filter';
 
 @Injectable()
 export class FootballService {
@@ -46,20 +42,6 @@ export class FootballService {
 
   private fixturesCacheMinutes() {
     return Number(process.env.FOOTBALL_FIXTURES_CACHE_MINUTES || 30);
-  }
-
-  private hideFinishedAfterHours() {
-    return Number(process.env.ODDIX_DASHBOARD_HIDE_FINISHED_AFTER_HOURS || 6);
-  }
-
-  private filterAllowedLeagues(fixtures: any[]) {
-    return (fixtures || []).filter((item: any) => isOddixLeagueAllowed(item));
-  }
-
-  private filterDashboardFixtures(fixtures: any[]) {
-    return (fixtures || []).filter((item: any) =>
-      isOddixDashboardFixtureAllowed(item, this.hideFinishedAfterHours()),
-    );
   }
 
   private apiFootballCooldownMinutes() {
@@ -118,56 +100,17 @@ export class FootballService {
   }
 
   private brazilDateKey(date: Date = new Date()) {
-    const safeDate = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
-
-    const parts = new Intl.DateTimeFormat('en-US', {
+    return new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Sao_Paulo',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-    }).formatToParts(safeDate);
-
-    const year = parts.find((part) => part.type === 'year')?.value || String(safeDate.getUTCFullYear());
-    const month = parts.find((part) => part.type === 'month')?.value || String(safeDate.getUTCMonth() + 1).padStart(2, '0');
-    const day = parts.find((part) => part.type === 'day')?.value || String(safeDate.getUTCDate()).padStart(2, '0');
-
-    return `${year}-${month}-${day}`;
+    }).format(date);
   }
 
-  private normalizeDateKey(date?: string) {
-    const raw = String(date || '').trim();
-
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-      const parsed = new Date(`${raw}T12:00:00.000Z`);
-      if (!Number.isNaN(parsed.getTime())) return raw;
-    }
-
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
-      const [day, month, year] = raw.split('/');
-      const converted = `${year}-${month}-${day}`;
-      const parsed = new Date(`${converted}T12:00:00.000Z`);
-      if (!Number.isNaN(parsed.getTime())) return converted;
-    }
-
-    const parsed = new Date(raw);
-    if (raw && !Number.isNaN(parsed.getTime())) {
-      return this.brazilDateKey(parsed);
-    }
-
-    return this.brazilDateKey();
-  }
-
-  private brazilDayRangeUtc(dateKey?: string) {
-    const safeDateKey = this.normalizeDateKey(dateKey);
-    let start = new Date(`${safeDateKey}T03:00:00.000Z`);
-
-    if (Number.isNaN(start.getTime())) {
-      const today = this.brazilDateKey();
-      start = new Date(`${today}T03:00:00.000Z`);
-    }
-
+  private brazilDayRangeUtc(dateKey: string) {
+    const start = new Date(`${dateKey}T03:00:00.000Z`);
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
-
     return { start, end };
   }
 
@@ -480,7 +423,6 @@ export class FootballService {
   }
 
   private async saveFixturesCache(fixtures: any[]) {
-    fixtures = this.filterAllowedLeagues(fixtures);
     if (!fixtures?.length) return;
 
     await Promise.all(
@@ -532,16 +474,15 @@ export class FootballService {
     );
   }
 
-  private async getFixturesFromCache(date?: string) {
-    const safeDate = this.normalizeDateKey(date);
-    const { start, end } = this.brazilDayRangeUtc(safeDate);
+  private async getFixturesFromCache(date: string) {
+    const { start, end } = this.brazilDayRangeUtc(date);
 
     const cached = await this.prisma.cachedFixture.findMany({
       where: { date: { gte: start, lte: end } },
       orderBy: { date: 'asc' },
     });
 
-    return this.filterAllowedLeagues(cached.map((item) => item.raw));
+    return cached.map((item) => item.raw);
   }
 
   private async getFreshFixturesFromCache(date: string, maxAgeMinutes = this.fixturesCacheMinutes()) {
@@ -864,8 +805,7 @@ export class FootballService {
 
 
   private addDays(date: string, days: number) {
-    const safeDate = this.normalizeDateKey(date);
-    const d = new Date(`${safeDate}T12:00:00.000Z`);
+    const d = new Date(`${date}T12:00:00.000Z`);
     d.setUTCDate(d.getUTCDate() + days);
     return d.toISOString().slice(0, 10);
   }
@@ -891,9 +831,7 @@ export class FootballService {
     return diffMinutes >= minMinutes && diffMinutes <= maxMinutes;
   }
 
-  async getFixtures(date?: string) {
-    date = this.normalizeDateKey(date);
-
+  async getFixtures(date: string) {
     const searchDates = Array.from(
       new Set([this.addDays(date, -1), date, this.addDays(date, 1)]),
     );
@@ -905,10 +843,8 @@ export class FootballService {
       if (freshCache.length > 0) freshGroups.push(freshCache);
     }
 
-    const freshMerged = this.filterDashboardFixtures(
-      this.mergeUniqueFixtures(freshGroups)
-        .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date)),
-    );
+    const freshMerged = this.mergeUniqueFixtures(freshGroups)
+      .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date));
 
     if (freshMerged.length > 0) {
       return freshMerged;
@@ -939,10 +875,8 @@ export class FootballService {
       if (sportsDb.ok && sportsDb.data.length > 0) providerGroups.push(sportsDb.data);
     }
 
-    const providerMerged = this.filterDashboardFixtures(
-      this.mergeUniqueFixtures(providerGroups)
-        .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date)),
-    );
+    const providerMerged = this.mergeUniqueFixtures(providerGroups)
+      .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date));
 
     if (providerMerged.length > 0) {
       await this.saveFixturesCache(providerMerged);
@@ -956,10 +890,8 @@ export class FootballService {
       if (staleCache.length > 0) staleGroups.push(staleCache);
     }
 
-    return this.filterDashboardFixtures(
-      this.mergeUniqueFixtures(staleGroups)
-        .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date)),
-    );
+    return this.mergeUniqueFixtures(staleGroups)
+      .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date));
   }
 
   private async getLiveFixturesFromCache(onlyFresh = true) {
@@ -972,7 +904,6 @@ export class FootballService {
 
     return cached
       .map((item) => item.raw)
-      .filter((item: any) => isOddixLeagueAllowed(item))
       .filter((item: any) => this.shouldTreatAsLive(item))
       .filter((item: any) =>
         onlyFresh ? this.isCacheFresh(item, this.liveCacheSeconds()) : true,
@@ -994,7 +925,6 @@ export class FootballService {
 
     if (broadage.ok && broadage.data.length > 0) {
       const live = broadage.data
-        .filter((game: any) => isOddixLeagueAllowed(game))
         .filter((game: any) => this.shouldTreatAsLive(game))
         .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -1006,7 +936,6 @@ export class FootballService {
 
       if (flashScore.ok && flashScore.data.length > 0) {
         const live = flashScore.data
-          .filter((game: any) => isOddixLeagueAllowed(game))
           .filter((game: any) => this.shouldTreatAsLive(game))
           .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -1019,7 +948,6 @@ export class FootballService {
 
       if (allScores.ok && allScores.data.length > 0) {
         const live = allScores.data
-          .filter((game: any) => isOddixLeagueAllowed(game))
           .filter((game: any) => this.shouldTreatAsLive(game))
           .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -1032,7 +960,6 @@ export class FootballService {
 
       if (apiFootball.ok && apiFootball.data.length > 0) {
         const live = apiFootball.data
-          .filter((game: any) => isOddixLeagueAllowed(game))
           .filter((game: any) => this.shouldTreatAsLive(game))
           .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -1055,7 +982,6 @@ export class FootballService {
 
           const liveFixtures = (response.data?.data || [])
             .map((item: any) => this.mapSportmonksFixture(item))
-            .filter((item: any) => isOddixLeagueAllowed(item))
             .filter((item: any) => this.shouldTreatAsLive(item))
             .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -1069,7 +995,6 @@ export class FootballService {
 
       if (footballData.ok && footballData.data.length > 0) {
         const live = footballData.data
-          .filter((game: any) => isOddixLeagueAllowed(game))
           .filter((game: any) => this.shouldTreatAsLive(game))
           .map((item: any) => this.normalizeLiveStatus(item));
 
@@ -1343,9 +1268,7 @@ export class FootballService {
     };
   }
 
-  async debug(date?: string) {
-    date = this.normalizeDateKey(date);
-
+  async debug(date: string) {
     const cache = await this.getFixturesFromCache(date);
     const broadage = await this.getFixturesFromBroadage(date);
     const broadageLive = await this.getLiveFixturesFromBroadage();
