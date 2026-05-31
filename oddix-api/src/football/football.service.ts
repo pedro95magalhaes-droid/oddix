@@ -1044,37 +1044,176 @@ export class FootballService {
   }
 
   private normalizeName(name: string) {
-    return String(name || '')
+    let value = String(name || '')
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]/g, '');
+      .replace(/[\u0300-\u036f]/g, '');
+
+    // Normaliza diferenças comuns entre FlashScore e AllScores.
+    value = value
+      .replace(/&/g, ' and ')
+      .replace(/\bii\b/g, ' 2 ')
+      .replace(/\biii\b/g, ' 3 ')
+      .replace(/\biv\b/g, ' 4 ')
+      .replace(/\bsub\s*20\b/g, ' u20 ')
+      .replace(/\bsub\s*21\b/g, ' u21 ')
+      .replace(/\bsub\s*23\b/g, ' u23 ')
+      .replace(/\bfc\b/g, ' ')
+      .replace(/\bsc\b/g, ' ')
+      .replace(/\bec\b/g, ' ')
+      .replace(/\bac\b/g, ' ')
+      .replace(/\bafc\b/g, ' ')
+      .replace(/\bclub\b/g, ' ')
+      .replace(/\bclube\b/g, ' ')
+      .replace(/\bde\b/g, ' ')
+      .replace(/\bdo\b/g, ' ')
+      .replace(/\bda\b/g, ' ')
+      .replace(/\bthe\b/g, ' ')
+      .replace(/\bwomen\b/g, ' fem ')
+      .replace(/\bfeminino\b/g, ' fem ')
+      .replace(/\bf\b/g, ' fem ')
+      .replace(/\bu-?(\d{2})\b/g, ' u$1 ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return value.replace(/[^a-z0-9]/g, '');
+  }
+
+  private getFixtureObject(item: any) {
+    return item?.fixture || item?.jogo || item?.partida || {};
+  }
+
+  private getLeagueObject(item: any) {
+    return item?.league || item?.liga || item?.competition || {};
+  }
+
+  private getTeamsObject(item: any) {
+    return item?.teams || item?.times || item?.equipes || {};
+  }
+
+  private getHomeTeam(item: any) {
+    const teams = this.getTeamsObject(item);
+    return teams?.home || teams?.casa || teams?.mandante || {};
+  }
+
+  private getAwayTeam(item: any) {
+    const teams = this.getTeamsObject(item);
+    return teams?.away || teams?.fora || teams?.visitante || {};
+  }
+
+  private getTeamName(team: any) {
+    return String(team?.name || team?.nome || team?.teamName || '').trim();
+  }
+
+  private getFixtureDateValue(item: any) {
+    const fixture = this.getFixtureObject(item);
+    return fixture?.date || fixture?.data || fixture?.utcDate || null;
+  }
+
+  private getFixtureTimestamp(item: any) {
+    const fixture = this.getFixtureObject(item);
+    const timestamp = Number(
+      fixture?.timestamp ||
+        fixture?.carimboDeDataHora ||
+        fixture?.['carimbo de data/hora'] ||
+        fixture?.['carimbo de datahora'] ||
+        0,
+    );
+
+    if (Number.isFinite(timestamp) && timestamp > 0) return timestamp;
+
+    const rawDate = this.getFixtureDateValue(item);
+    if (!rawDate) return 0;
+
+    const parsed = new Date(rawDate).getTime();
+    if (Number.isNaN(parsed)) return 0;
+
+    return Math.floor(parsed / 1000);
   }
 
   private fixtureKey(item: any) {
-    const date = String(item?.fixture?.date || '').slice(0, 10);
-    const home = this.normalizeName(item?.teams?.home?.name || '');
-    const away = this.normalizeName(item?.teams?.away?.name || '');
+    const timestamp = this.getFixtureTimestamp(item);
+    const date = timestamp
+      ? this.brazilDateKey(new Date(timestamp * 1000))
+      : String(this.getFixtureDateValue(item) || '').slice(0, 10);
+
+    // Agrupa jogos no mesmo horário aproximado para deduplicar APIs diferentes.
+    const timeBucket = timestamp ? Math.floor(timestamp / (15 * 60)) : 0;
+
+    const home = this.normalizeName(this.getTeamName(this.getHomeTeam(item)));
+    const away = this.normalizeName(this.getTeamName(this.getAwayTeam(item)));
+
+    if (!date || !home || !away) return '';
+
+    return `${date}-${timeBucket}-${home}-${away}`;
+  }
+
+  private fixtureLooseKey(item: any) {
+    const timestamp = this.getFixtureTimestamp(item);
+    const date = timestamp
+      ? this.brazilDateKey(new Date(timestamp * 1000))
+      : String(this.getFixtureDateValue(item) || '').slice(0, 10);
+
+    const home = this.normalizeName(this.getTeamName(this.getHomeTeam(item)));
+    const away = this.normalizeName(this.getTeamName(this.getAwayTeam(item)));
+
+    if (!date || !home || !away) return '';
+
+    // Chave sem horário para casos onde uma API manda UTC e outra manda -03:00.
     return `${date}-${home}-${away}`;
+  }
+
+  private fixtureQualityScore(item: any) {
+    const provider = String(item?.provider || item?.provedor || '').toLowerCase();
+    const fixture = this.getFixtureObject(item);
+    const league = this.getLeagueObject(item);
+    const home = this.getHomeTeam(item);
+    const away = this.getAwayTeam(item);
+
+    let score = 0;
+
+    if (provider.includes('flashscore')) score += 50;
+    if (provider.includes('sports-betting')) score += 45;
+    if (provider.includes('allscores')) score += 30;
+    if (provider.includes('api-football')) score += 25;
+
+    if (item?.odds) score += 20;
+    if (home?.logo) score += 8;
+    if (away?.logo) score += 8;
+    if (league?.logo) score += 4;
+    if (fixture?.externalId) score += 6;
+    if (fixture?.status?.elapsed || fixture?.status?.['tempo decorrido']) score += 4;
+
+    return score;
+  }
+
+  private shouldReplaceFixture(current: any, incoming: any) {
+    return this.fixtureQualityScore(incoming) > this.fixtureQualityScore(current);
   }
 
   private mergeUniqueFixtures(groups: any[][]) {
     const map = new Map<string, any>();
+    const looseToKey = new Map<string, string>();
 
     for (const group of groups) {
       for (const item of group || []) {
         const key = this.fixtureKey(item);
-        if (!key || key.includes('--')) continue;
+        const looseKey = this.fixtureLooseKey(item);
+        if (!key && !looseKey) continue;
 
-        if (!map.has(key)) {
-          map.set(key, item);
+        const finalKey = (looseKey && looseToKey.get(looseKey)) || key || looseKey;
+        if (looseKey && !looseToKey.has(looseKey)) looseToKey.set(looseKey, finalKey);
+
+        const current = map.get(finalKey);
+        if (!current || this.shouldReplaceFixture(current, item)) {
+          map.set(finalKey, item);
         }
       }
     }
 
     return Array.from(map.values()).sort((a: any, b: any) => {
-      const da = new Date(a?.fixture?.date || 0).getTime();
-      const db = new Date(b?.fixture?.date || 0).getTime();
+      const da = this.getFixtureTimestamp(a) || new Date(this.getFixtureDateValue(a) || 0).getTime() / 1000;
+      const db = this.getFixtureTimestamp(b) || new Date(this.getFixtureDateValue(b) || 0).getTime() / 1000;
       return da - db;
     });
   }
