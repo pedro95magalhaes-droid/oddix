@@ -13,7 +13,7 @@ function normalizeText(value: string) {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[_\-./:]/g, ' ')
+    .replace(/[_\-./]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -43,7 +43,7 @@ export function getOddixLeagueText(item: OddixFixtureLike) {
   );
 }
 
-const BLOCKED_PATTERNS = [
+const HARD_BLOCKED_PATTERNS = [
   /\bu\s?\d{2}\b/,
   /\bsub\s?\d{2}\b/,
   /\bunder\s?\d{2}\b/,
@@ -66,64 +66,39 @@ const BLOCKED_PATTERNS = [
   /\bsimulad[oa]\b/,
   /\bfiji\b/,
   /\bindia\b/,
-  /\bindia 1st league\b/,
-  /\bindian arrows\b/,
-  /\bind arrows\b/,
   /\biran\b/,
-  /\biran 1st division\b/,
   /\baustralia.*npl\b/,
   /\baustralia.*victoria premier league\b/,
-  /\baustralia.*tasmania\b/,
-  /\baustralia.*queensland\b/,
-  /\baustralia.*western australia\b/,
-  /\baustralia.*south australia\b/,
-  /\baustralia.*northern nsw\b/,
-  /\bnpl tasmania\b/,
-  /\bnpl nsw\b/,
-  /\bnpl queensland\b/,
-  /\bnpl victoria\b/,
-  /\bnpl western australia\b/,
-  /\bnpl south australia\b/,
-  /\bvictoria premier league\b/,
-  /\btasmania\b/,
-  /\bstate league\b/,
-  /\bregional\b/,
-  /\bliga regional\b/,
-  /\bcounty\b/,
+  /\bpoland.*iii liga\b/,
+  /\biii liga\b/,
+  /\biv liga\b/,
+  /\b3rd division\b/,
+  /\bthird division\b/,
+  /\bquarta\b/,
+  /\bterceira\b/,
 ];
 
-const PRIORITY_PATTERNS = [
+const PREMIUM_PATTERNS = [
   /\bbrasil(eirao)? serie a\b/,
-  /\bbrasileirao betano\b/,
   /\bbrasil(eirao)? serie b\b/,
   /\bcopa do brasil\b/,
   /\blibertadores\b/,
-  /\bcopa libertadores\b/,
   /\bsul americana\b/,
   /\bsudamericana\b/,
   /\bchampions league\b/,
-  /\buefa champions\b/,
   /\beuropa league\b/,
   /\bconference league\b/,
   /\bpremier league\b/,
-  /\benglish premier\b/,
   /\bchampionship\b/,
   /\bla liga\b/,
-  /\bspanish la liga\b/,
   /\bsegunda division\b/,
-  /\bla liga 2\b/,
   /\bbundesliga\b/,
-  /\bgerman bundesliga\b/,
   /\bbundesliga 2\b/,
-  /\bgerman bundesliga 2\b/,
   /\bserie a\b/,
-  /\bitalian serie a\b/,
   /\bserie b\b/,
-  /\bitalian serie b\b/,
   /\bligue 1\b/,
   /\bligue 2\b/,
   /\bprimeira liga\b/,
-  /\bportugal.*primeira\b/,
   /\beredivisie\b/,
   /\bmls\b/,
   /\bmajor league soccer\b/,
@@ -134,26 +109,71 @@ const PRIORITY_PATTERNS = [
   /\bconcacaf\b/,
 ];
 
+const SAFE_SECONDARY_PATTERNS = [
+  /\bequador\b/,
+  /\becuador\b/,
+  /\bliga pro\b/,
+  /\bbolivia\b/,
+  /\bbolivia.*division profesional\b/,
+  /\bchile\b/,
+  /\bprimera chile\b/,
+  /\bcolombia\b/,
+  /\buruguay\b/,
+  /\bparaguay\b/,
+  /\bperu\b/,
+  /\bvenezuela\b/,
+  /\bbelgium\b/,
+  /\bbelgica\b/,
+  /\bpro league\b/,
+  /\bscotland\b/,
+  /\bescocia\b/,
+  /\bsuper lig\b/,
+  /\bturkey\b/,
+  /\bturquia\b/,
+  /\bswitzerland\b/,
+  /\bsuica\b/,
+  /\baustria\b/,
+  /\bdenmark\b/,
+  /\bdinamarca\b/,
+  /\bnorway\b/,
+  /\bnoruega\b/,
+  /\bsweden\b/,
+  /\bsuecia\b/,
+  /\bjapan\b/,
+  /\bj league\b/,
+  /\bsouth korea\b/,
+  /\bk league\b/,
+];
+
 export function isOddixBlockedLeague(item: OddixFixtureLike) {
   const text = normalizeText(getOddixLeagueText(item));
-  if (!text) return true;
-  return BLOCKED_PATTERNS.some((pattern) => pattern.test(text));
+  if (!text) return false;
+  return HARD_BLOCKED_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 export function isOddixPriorityLeague(item: OddixFixtureLike) {
   const text = normalizeText(getOddixLeagueText(item));
   if (!text) return false;
-  return PRIORITY_PATTERNS.some((pattern) => pattern.test(text));
+  return PREMIUM_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+export function isOddixSafeSecondaryLeague(item: OddixFixtureLike) {
+  const text = normalizeText(getOddixLeagueText(item));
+  if (!text) return false;
+  return SAFE_SECONDARY_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 export function isOddixLeagueAllowed(item: OddixFixtureLike) {
   if (process.env.ODDIX_LEAGUE_FILTER_ENABLED === 'false') return true;
   if (isOddixBlockedLeague(item)) return false;
 
-  // Por padrão, o Oddix fica em modo premium para não encher o Dashboard com liga ruim.
-  // Para abrir para todas as ligas não bloqueadas, coloque ODDIX_PRIORITY_LEAGUES_ONLY=false.
-  const priorityOnly = process.env.ODDIX_PRIORITY_LEAGUES_ONLY !== 'false';
+  const priorityOnly = process.env.ODDIX_PRIORITY_LEAGUES_ONLY === 'true';
   if (priorityOnly) return isOddixPriorityLeague(item);
+
+  const safeOnly = process.env.ODDIX_SAFE_LEAGUES_ONLY !== 'false';
+  if (safeOnly) {
+    return isOddixPriorityLeague(item) || isOddixSafeSecondaryLeague(item);
+  }
 
   return true;
 }
@@ -183,14 +203,16 @@ export function isOddixFinishedFixture(item: OddixFixtureLike) {
     long.includes('partida finalizada') ||
     long.includes('cancel') ||
     long.includes('postpon') ||
-    long.includes('adiad')
+    long.includes('adiad') ||
+    long.includes('abandon')
   );
 }
 
-export function isOddixDashboardFixtureAllowed(item: OddixFixtureLike, hideFinishedAfterHours = 6) {
+export function isOddixDashboardFixtureAllowed(item: OddixFixtureLike, hideFinishedAfterHours = 0) {
   if (!isOddixLeagueAllowed(item)) return false;
 
-  if (!isOddixFinishedFixture(item)) return true;
+  // Dashboard não mostra FT/PST/CANC. Esses jogos saem do sistema.
+  if (isOddixFinishedFixture(item)) return false;
 
   const rawDate = getOddixFixtureDate(item);
   if (!rawDate) return false;
@@ -198,6 +220,9 @@ export function isOddixDashboardFixtureAllowed(item: OddixFixtureLike, hideFinis
   const fixtureTime = new Date(rawDate).getTime();
   if (Number.isNaN(fixtureTime)) return false;
 
-  const ageHours = (Date.now() - fixtureTime) / 1000 / 60 / 60;
-  return ageHours <= hideFinishedAfterHours;
+  // Não deixa entrar jogo antigo travado.
+  const maxPastHours = Number(process.env.ODDIX_DASHBOARD_MAX_PAST_HOURS || 2);
+  const minDate = Date.now() - maxPastHours * 60 * 60 * 1000;
+
+  return fixtureTime >= minDate;
 }

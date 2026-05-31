@@ -8,7 +8,7 @@ import { AllScoresService } from './allscores.service';
 import { Bet365DataService } from './bet365data.service';
 import { OddsPapiService } from './oddspapi.service';
 import { FlashScoreService } from './flashscore.service';
-import { BroadageService } from './broadage.service';
+import { SportScoreService } from './sportscore.service';
 
 @Module({
   imports: [PrismaModule],
@@ -18,7 +18,7 @@ import { BroadageService } from './broadage.service';
   providers: [
     FootballService,
 
-    BroadageService,
+    SportScoreService,
 
     AllScoresService,
     FlashScoreService,
@@ -30,7 +30,7 @@ import { BroadageService } from './broadage.service';
   exports: [
     FootballService,
 
-    BroadageService,
+    SportScoreService,
 
     AllScoresService,
     FlashScoreService,

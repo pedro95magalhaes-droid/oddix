@@ -50,22 +50,14 @@ export class FootballController {
 
 
   /**
-   * Diagnóstico da Broadage por data.
-   * Mostra quais ligas e jogos a Broadage retorna antes do filtro principal.
+   * Diagnóstico rápido da SportScore.
+   * Mostra jogos por data e jogos ao vivo já filtrados pelo Oddix.
    */
-  @Get('broadage/test')
-  async testBroadage(@Query('date') date?: string) {
-    return this.footballService.testBroadageLeagues(date);
+  @Get('sportscore/debug')
+  async sportScoreDebug(@Query('date') date?: string) {
+    return this.footballService.debug(date);
   }
 
-  /**
-   * Diagnóstico dos torneios disponíveis na Broadage.
-   * Útil para confirmar cobertura: Brasileirão, Libertadores, Premier League etc.
-   */
-  @Get('broadage/tournaments')
-  async broadageTournaments(@Query('q') q?: string) {
-    return this.footballService.getBroadageTournaments(q);
-  }
 
   @Get('fixture/:fixtureId')
   async getFixtureById(@Param('fixtureId') fixtureId: string) {
