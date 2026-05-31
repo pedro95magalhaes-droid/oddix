@@ -1215,6 +1215,17 @@ export class FootballService {
     const groups: any[][] = [];
     const today = this.brazilDateKey();
 
+    /**
+     * IMPORTANTE:
+     * Aqui o Oddix NÃO deve usar fallback em cascata para live.
+     * O correto é SOMAR os providers disponíveis e depois deduplicar.
+     *
+     * Exemplo:
+     * FlashScore Live = 5 jogos
+     * AllScores Live = 6 jogos
+     * Resultado final = união limpa dos dois, sem duplicados.
+     */
+
     const sportScore = await this.getLiveFixturesFromSportScore();
 
     if (sportScore.ok && sportScore.data.length > 0) {
@@ -1226,33 +1237,29 @@ export class FootballService {
       if (live.length > 0) groups.push(live);
     }
 
-    if (groups.length === 0) {
-      const flashScore = await this.getLiveFixturesFromFlashScore();
+    const flashScore = await this.getLiveFixturesFromFlashScore();
 
-      if (flashScore.ok && flashScore.data.length > 0) {
-        const live = flashScore.data
-          .filter((game: any) => isOddixLeagueAllowed(game))
-          .filter((game: any) => this.shouldTreatAsLive(game))
-          .map((item: any) => this.normalizeLiveStatus(item));
+    if (flashScore.ok && flashScore.data.length > 0) {
+      const live = flashScore.data
+        .filter((game: any) => isOddixLeagueAllowed(game))
+        .filter((game: any) => this.shouldTreatAsLive(game))
+        .map((item: any) => this.normalizeLiveStatus(item));
 
-        if (live.length > 0) groups.push(live);
-      }
+      if (live.length > 0) groups.push(live);
     }
 
-    if (groups.length === 0) {
-      const allScores = await this.getLiveFixturesFromAllScores(today);
+    const allScores = await this.getLiveFixturesFromAllScores(today);
 
-      if (allScores.ok && allScores.data.length > 0) {
-        const live = allScores.data
-          .filter((game: any) => isOddixLeagueAllowed(game))
-          .filter((game: any) => this.shouldTreatAsLive(game))
-          .map((item: any) => this.normalizeLiveStatus(item));
+    if (allScores.ok && allScores.data.length > 0) {
+      const live = allScores.data
+        .filter((game: any) => isOddixLeagueAllowed(game))
+        .filter((game: any) => this.shouldTreatAsLive(game))
+        .map((item: any) => this.normalizeLiveStatus(item));
 
-        if (live.length > 0) groups.push(live);
-      }
+      if (live.length > 0) groups.push(live);
     }
 
-    if (groups.length === 0 && this.shouldUseApiFootballFallback()) {
+    if (this.shouldUseApiFootballFallback()) {
       const apiFootball = await this.getLiveFixturesFromApiFootball();
 
       if (apiFootball.ok && apiFootball.data.length > 0) {
@@ -1265,41 +1272,37 @@ export class FootballService {
       }
     }
 
-    if (groups.length === 0) {
-      const sportmonksKey = this.getSportmonksKey();
+    const sportmonksKey = this.getSportmonksKey();
 
-      if (sportmonksKey) {
-        try {
-          const response = await axios.get(`${this.sportmonksURL}/livescores/inplay`, {
-            timeout: 10000,
-            params: {
-              api_token: sportmonksKey,
-              include: 'participants;league;league.country;scores;state;periods',
-            },
-          });
+    if (sportmonksKey) {
+      try {
+        const response = await axios.get(`${this.sportmonksURL}/livescores/inplay`, {
+          timeout: 10000,
+          params: {
+            api_token: sportmonksKey,
+            include: 'participants;league;league.country;scores;state;periods',
+          },
+        });
 
-          const liveFixtures = (response.data?.data || [])
-            .map((item: any) => this.mapSportmonksFixture(item))
-            .filter((item: any) => isOddixLeagueAllowed(item))
-            .filter((item: any) => this.shouldTreatAsLive(item))
-            .map((item: any) => this.normalizeLiveStatus(item));
-
-          if (liveFixtures.length > 0) groups.push(liveFixtures);
-        } catch {}
-      }
-    }
-
-    if (groups.length === 0) {
-      const footballData = await this.getFixturesFromFootballData(today);
-
-      if (footballData.ok && footballData.data.length > 0) {
-        const live = footballData.data
-          .filter((game: any) => isOddixLeagueAllowed(game))
-          .filter((game: any) => this.shouldTreatAsLive(game))
+        const liveFixtures = (response.data?.data || [])
+          .map((item: any) => this.mapSportmonksFixture(item))
+          .filter((item: any) => isOddixLeagueAllowed(item))
+          .filter((item: any) => this.shouldTreatAsLive(item))
           .map((item: any) => this.normalizeLiveStatus(item));
 
-        if (live.length > 0) groups.push(live);
-      }
+        if (liveFixtures.length > 0) groups.push(liveFixtures);
+      } catch {}
+    }
+
+    const footballData = await this.getFixturesFromFootballData(today);
+
+    if (footballData.ok && footballData.data.length > 0) {
+      const live = footballData.data
+        .filter((game: any) => isOddixLeagueAllowed(game))
+        .filter((game: any) => this.shouldTreatAsLive(game))
+        .map((item: any) => this.normalizeLiveStatus(item));
+
+      if (live.length > 0) groups.push(live);
     }
 
     const mergedLive = this.compactFixtures(this.mergeUniqueFixtures(groups));
