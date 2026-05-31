@@ -96,6 +96,48 @@ export class FootballService {
     };
   }
 
+
+  private stripRawProviderData<T = any>(input: T): T {
+    if (Array.isArray(input)) {
+      return input.map((item) => this.stripRawProviderData(item)) as T;
+    }
+
+    if (!input || typeof input !== 'object') {
+      return input;
+    }
+
+    const rawKeysToRemove = new Set([
+      'flashScoreRaw',
+      'sportScoreRaw',
+      'allScoresRaw',
+      'apiFootballRaw',
+      'broadageRaw',
+      'sportsDbRaw',
+      'footballDataRaw',
+      'sportmonksRaw',
+      'rawData',
+      'rawResponse',
+    ]);
+
+    const output: any = Array.isArray(input) ? [] : {};
+
+    for (const [key, value] of Object.entries(input as any)) {
+      if (rawKeysToRemove.has(key)) continue;
+
+      // Segurança extra para providers que mudam o nome do campo bruto.
+      const normalizedKey = key.toLowerCase();
+      if (normalizedKey.endsWith('raw') || normalizedKey.includes('raw_')) continue;
+
+      output[key] = value;
+    }
+
+    return output as T;
+  }
+
+  private compactFixtures(fixtures: any[]) {
+    return (fixtures || []).map((item) => this.stripRawProviderData(item));
+  }
+
   private getCacheAgeSeconds(item: any) {
     const rawDate =
       item?.__oddixCachedAt ||
@@ -541,7 +583,8 @@ export class FootballService {
         const fixtureId = String(item?.fixture?.id || '');
         if (!fixtureId) return null;
 
-        const stampedRaw = this.withCacheStamp(item);
+        const cleanItem = this.stripRawProviderData(item);
+        const stampedRaw = this.withCacheStamp(cleanItem);
 
         return this.prisma.cachedFixture.upsert({
           where: { fixtureId },
@@ -605,7 +648,7 @@ export class FootballService {
       },
     });
 
-    return this.filterAllowedLeagues(cached.map((item) => item.raw));
+    return this.filterAllowedLeagues(cached.map((item) => this.stripRawProviderData(item.raw)));
   }
 
   private async getFreshFixturesFromCache(date?: string, maxAgeMinutes = this.fixturesCacheMinutes()) {
@@ -636,7 +679,7 @@ export class FootballService {
       where: { fixtureId: String(fixtureId) },
     });
 
-    return cached?.raw || null;
+    return cached?.raw ? this.stripRawProviderData(cached.raw) : null;
   }
 
   private shouldDeleteCachedFixture(record: any) {
@@ -1087,7 +1130,7 @@ export class FootballService {
     );
 
     if (freshMerged.length > 0) {
-      return freshMerged;
+      return this.compactFixtures(freshMerged);
     }
 
     const providerGroups: any[][] = [];
@@ -1124,7 +1167,7 @@ export class FootballService {
 
     if (providerMerged.length > 0) {
       await this.saveFixturesCache(providerMerged);
-      return providerMerged;
+      return this.compactFixtures(providerMerged);
     }
 
     const staleGroups: any[][] = [];
@@ -1134,9 +1177,11 @@ export class FootballService {
       if (staleCache.length > 0) staleGroups.push(staleCache);
     }
 
-    return this.filterDashboardFixtures(
-      this.mergeUniqueFixtures(staleGroups)
-        .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date)),
+    return this.compactFixtures(
+      this.filterDashboardFixtures(
+        this.mergeUniqueFixtures(staleGroups)
+          .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date)),
+      ),
     );
   }
 
@@ -1149,7 +1194,7 @@ export class FootballService {
     });
 
     return cached
-      .map((item) => item.raw)
+      .map((item) => this.stripRawProviderData(item.raw))
       .filter((item: any) => isOddixLeagueAllowed(item))
       .filter((item: any) => this.shouldTreatAsLive(item))
       .filter((item: any) =>
@@ -1164,7 +1209,7 @@ export class FootballService {
     const freshCacheLive = await this.getLiveFixturesFromCache(true);
 
     if (freshCacheLive.length > 0) {
-      return this.mergeUniqueFixtures([freshCacheLive]);
+      return this.compactFixtures(this.mergeUniqueFixtures([freshCacheLive]));
     }
 
     const groups: any[][] = [];
@@ -1257,7 +1302,7 @@ export class FootballService {
       }
     }
 
-    const mergedLive = this.mergeUniqueFixtures(groups);
+    const mergedLive = this.compactFixtures(this.mergeUniqueFixtures(groups));
 
     if (mergedLive.length > 0) {
       await this.saveFixturesCache(mergedLive);
@@ -1577,89 +1622,89 @@ export class FootballService {
 
       cache: {
         responseLength: cache.length,
-        sample: cache.slice(0, 2),
+        sample: this.compactFixtures(cache.slice(0, 2)),
       },
 
       sportScore: {
         ok: sportScore.ok,
         error: sportScore.error,
         responseLength: this.filterAllowedLeagues(sportScore.data).length,
-        sample: this.filterAllowedLeagues(sportScore.data).slice(0, 3),
+        sample: this.compactFixtures(this.filterAllowedLeagues(sportScore.data).slice(0, 3)),
       },
 
       sportScoreLive: {
         ok: sportScoreLive.ok,
         error: sportScoreLive.error,
         responseLength: this.filterAllowedLeagues(sportScoreLive.data).length,
-        sample: this.filterAllowedLeagues(sportScoreLive.data).slice(0, 3),
+        sample: this.compactFixtures(this.filterAllowedLeagues(sportScoreLive.data).slice(0, 3)),
       },
 
       flashScore: {
         ok: flashScore.ok,
         error: flashScore.error,
         responseLength: this.filterAllowedLeagues(flashScore.data).length,
-        sample: this.filterAllowedLeagues(flashScore.data).slice(0, 2),
+        sample: this.compactFixtures(this.filterAllowedLeagues(flashScore.data).slice(0, 2)),
       },
 
       flashScoreLive: {
         ok: flashScoreLive.ok,
         error: flashScoreLive.error,
         responseLength: this.filterAllowedLeagues(flashScoreLive.data).length,
-        sample: this.filterAllowedLeagues(flashScoreLive.data).slice(0, 3),
+        sample: this.compactFixtures(this.filterAllowedLeagues(flashScoreLive.data).slice(0, 3)),
       },
 
       allScores: {
         ok: allScores.ok,
         error: allScores.error,
         responseLength: this.filterAllowedLeagues(allScores.data).length,
-        sample: this.filterAllowedLeagues(allScores.data).slice(0, 2),
+        sample: this.compactFixtures(this.filterAllowedLeagues(allScores.data).slice(0, 2)),
       },
 
       allScoresLive: {
         ok: allScoresLive.ok,
         error: allScoresLive.error,
         responseLength: this.filterAllowedLeagues(allScoresLive.data).length,
-        sample: this.filterAllowedLeagues(allScoresLive.data).slice(0, 3),
+        sample: this.compactFixtures(this.filterAllowedLeagues(allScoresLive.data).slice(0, 3)),
       },
 
       sportsDb: {
         ok: sportsDb.ok,
         error: sportsDb.error,
         responseLength: this.filterAllowedLeagues(sportsDb.data).length,
-        sample: this.filterAllowedLeagues(sportsDb.data).slice(0, 2),
+        sample: this.compactFixtures(this.filterAllowedLeagues(sportsDb.data).slice(0, 2)),
       },
 
       apiFootball: {
         ok: apiFootball.ok,
         error: apiFootball.error,
         responseLength: this.filterAllowedLeagues(apiFootball.data).length,
-        sample: this.filterAllowedLeagues(apiFootball.data).slice(0, 2),
+        sample: this.compactFixtures(this.filterAllowedLeagues(apiFootball.data).slice(0, 2)),
       },
 
       apiFootballLive: {
         ok: apiFootballLive.ok,
         error: apiFootballLive.error,
         responseLength: this.filterAllowedLeagues(apiFootballLive.data).length,
-        sample: this.filterAllowedLeagues(apiFootballLive.data).slice(0, 3),
+        sample: this.compactFixtures(this.filterAllowedLeagues(apiFootballLive.data).slice(0, 3)),
       },
 
       sportmonks: {
         ok: sportmonks.ok,
         error: sportmonks.error,
         responseLength: this.filterAllowedLeagues(sportmonks.data).length,
-        sample: this.filterAllowedLeagues(sportmonks.data).slice(0, 2),
+        sample: this.compactFixtures(this.filterAllowedLeagues(sportmonks.data).slice(0, 2)),
       },
 
       footballData: {
         ok: footballData.ok,
         error: footballData.error,
         responseLength: this.filterAllowedLeagues(footballData.data).length,
-        sample: this.filterAllowedLeagues(footballData.data).slice(0, 2),
+        sample: this.compactFixtures(this.filterAllowedLeagues(footballData.data).slice(0, 2)),
       },
 
       live: {
         responseLength: this.filterAllowedLeagues(live).length,
-        sample: this.filterAllowedLeagues(live).slice(0, 3),
+        sample: this.compactFixtures(this.filterAllowedLeagues(live).slice(0, 3)),
       },
     };
   }
