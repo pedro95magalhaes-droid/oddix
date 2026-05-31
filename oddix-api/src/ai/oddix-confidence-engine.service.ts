@@ -13,7 +13,7 @@ type ConfidenceInput = {
   oldOdd?: number | null;
   originalOdd?: number | null;
   prematchOdd?: number | null;
-  trend?: string | null;
+  trend?: string | number | null;
   marketKey?: string;
   tip?: string;
   possessionHome?: number | null;
