@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../services/api";
 
 const FREE_GROUP_LINK = "https://chat.whatsapp.com/JQuwv77T1b8J6KMlXCEeRb";
@@ -187,6 +187,10 @@ export default function Dashboard() {
   const [analyzingId, setAnalyzingId] = useState<number | string | null>(null);
   const [saving, setSaving] = useState(false);
   const [liveTick, setLiveTick] = useState(0);
+
+  // Mantém os cards estáveis na tela e evita refresh visual pesado.
+  const gamesRef = useRef<any[]>([]);
+  const refreshingRef = useRef(false);
 
   const isPaidPlan = ["PRO", "VIP", "Pro", "Vip", "pro", "vip"].includes(
     String(plan),
@@ -661,9 +665,18 @@ export default function Dashboard() {
     return Array.from(map.values());
   }
 
-  async function loadGames() {
+  async function loadGames(forceLoading = false) {
+    if (refreshingRef.current) return;
+
+    const firstLoad = gamesRef.current.length === 0;
+    const shouldShowLoading = firstLoad || forceLoading;
+
     try {
-      if (games.length === 0) setLoading(true);
+      refreshingRef.current = true;
+
+      if (shouldShowLoading) {
+        setLoading(true);
+      }
 
       // Dashboard principal: somente LIVE + jogos de HOJE.
       // Jogos de próxima semana não entram aqui para não poluir a operação ao vivo.
@@ -826,11 +839,45 @@ export default function Dashboard() {
       });
 
       const cleanOrdered = ordered.filter(isGameAllowedOnDashboard);
-      setGames(cleanOrdered);
+
+      setGames((currentGames) => {
+        const mergedGames = currentGames.length
+          ? mergeStableGames(currentGames, cleanOrdered)
+          : cleanOrdered;
+
+        const filteredMergedGames = mergedGames
+          .filter(isGameAllowedOnDashboard)
+          .sort((a: any, b: any) => {
+            const liveA = isGameLive(a) ? 1 : 0;
+            const liveB = isGameLive(b) ? 1 : 0;
+
+            if (liveA !== liveB) return liveB - liveA;
+
+            const finishedA = isGameFinished(a) ? 1 : 0;
+            const finishedB = isGameFinished(b) ? 1 : 0;
+
+            if (finishedA !== finishedB) return finishedA - finishedB;
+
+            const dateA = new Date(a.fixture?.date || 0).getTime();
+            const dateB = new Date(b.fixture?.date || 0).getTime();
+
+            return dateA - dateB;
+          });
+
+        gamesRef.current = filteredMergedGames;
+        return filteredMergedGames;
+      });
     } catch {
-      setGames([]);
+      if (firstLoad) {
+        gamesRef.current = [];
+        setGames([]);
+      }
     } finally {
-      setLoading(false);
+      refreshingRef.current = false;
+
+      if (shouldShowLoading) {
+        setLoading(false);
+      }
     }
   }
 
@@ -1023,10 +1070,12 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
+    // Refresh silencioso: busca placar/novos jogos por trás sem limpar a tela.
+    // O relógio/minuto do jogo já atualiza localmente a cada segundo pelo liveTick.
     const interval = setInterval(() => {
-      loadGames();
+      loadGames(false);
       loadStats();
-    }, 120000);
+    }, 600000);
 
     return () => clearInterval(interval);
   }, []);
@@ -1531,7 +1580,7 @@ export default function Dashboard() {
             <button
               style={styles.refreshButton}
               onClick={() => {
-                loadGames();
+                loadGames(false);
                 loadSavedBets();
                 loadStats();
               }}
