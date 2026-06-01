@@ -1306,7 +1306,7 @@ export class FootballService {
      */
     const futureDays = Math.max(
       1,
-      Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 7),
+      Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 2),
     );
 
     const searchDates = Array.from(
