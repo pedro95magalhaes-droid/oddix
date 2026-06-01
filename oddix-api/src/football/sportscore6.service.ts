@@ -30,6 +30,10 @@ export class SportScore6Service {
     return Number(process.env.SPORTSCORE6_TIMEOUT_MS || 15000);
   }
 
+  private getLimit() {
+    return Number(process.env.SPORTSCORE6_LIMIT || 100);
+  }
+
   private headers() {
     return {
       'Content-Type': 'application/json',
@@ -40,11 +44,19 @@ export class SportScore6Service {
 
   private async request(path: string, params: Record<string, any> = {}) {
     if (!this.isEnabled()) {
-      return { ok: false, data: null, error: 'SportScore6 desativada. Defina SPORTSCORE6_ENABLED=true no .env' };
+      return {
+        ok: false,
+        data: null,
+        error: 'SportScore6 desativada. Defina SPORTSCORE6_ENABLED=true no .env',
+      };
     }
 
     if (!this.hasKey()) {
-      return { ok: false, data: null, error: 'SPORTSCORE6_RAPIDAPI_KEY não encontrada no .env' };
+      return {
+        ok: false,
+        data: null,
+        error: 'SPORTSCORE6_RAPIDAPI_KEY não encontrada no .env',
+      };
     }
 
     try {
@@ -66,17 +78,6 @@ export class SportScore6Service {
           `Erro SportScore6 em ${path}`,
       };
     }
-  }
-
-  private normalizeDate(date?: string) {
-    const raw = String(date || '').trim();
-
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-
-    const parsed = raw ? new Date(raw) : new Date();
-    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
-
-    return new Date().toISOString().slice(0, 10);
   }
 
   private extractRows(payload: any) {
@@ -101,7 +102,6 @@ export class SportScore6Service {
       hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
     }
 
-    // Mantém dentro de inteiro seguro e evita 0.
     return Number(hash || 1);
   }
 
@@ -124,9 +124,18 @@ export class SportScore6Service {
     }
 
     if (status === 'live' || statusText.includes('1st half') || statusText.includes('2nd half')) {
-      if (statusText.includes('1st half')) return { long: 'In Play', short: '1H', elapsed: liveMinute || 20, extra: null };
-      if (statusText.includes('2nd half')) return { long: 'In Play', short: '2H', elapsed: liveMinute || 60, extra: null };
-      if (statusText.includes('half')) return { long: 'Halftime', short: 'HT', elapsed: 45, extra: null };
+      if (statusText.includes('1st half')) {
+        return { long: 'In Play', short: '1H', elapsed: liveMinute || 20, extra: null };
+      }
+
+      if (statusText.includes('2nd half')) {
+        return { long: 'In Play', short: '2H', elapsed: liveMinute || 60, extra: null };
+      }
+
+      if (statusText.includes('half')) {
+        return { long: 'Halftime', short: 'HT', elapsed: 45, extra: null };
+      }
+
       return { long: 'In Play', short: 'LIVE', elapsed: liveMinute || null, extra: null };
     }
 
@@ -170,12 +179,24 @@ export class SportScore6Service {
 
     const teams = [
       {
-        team: { id: 0, name: match?.home || 'Casa', logo: match?.home_logo || '' },
-        statistics: homeStats.filter((item) => item.value !== null && item.value !== undefined),
+        team: {
+          id: 0,
+          name: match?.home || 'Casa',
+          logo: match?.home_logo || '',
+        },
+        statistics: homeStats.filter(
+          (item) => item.value !== null && item.value !== undefined,
+        ),
       },
       {
-        team: { id: 0, name: match?.away || 'Fora', logo: match?.away_logo || '' },
-        statistics: awayStats.filter((item) => item.value !== null && item.value !== undefined),
+        team: {
+          id: 0,
+          name: match?.away || 'Fora',
+          logo: match?.away_logo || '',
+        },
+        statistics: awayStats.filter(
+          (item) => item.value !== null && item.value !== undefined,
+        ),
       },
     ].filter((team) => team.statistics.length > 0);
 
@@ -184,7 +205,10 @@ export class SportScore6Service {
       simulated: false,
       fixtureId,
       source: 'sportscore6',
-      message: teams.length > 0 ? 'Estatísticas reais da SportScore6.' : 'Sem estatísticas reais disponíveis na SportScore6.',
+      message:
+        teams.length > 0
+          ? 'Estatísticas reais da SportScore6.'
+          : 'Sem estatísticas reais disponíveis na SportScore6.',
       teams,
       raw: stats,
     };
@@ -193,10 +217,21 @@ export class SportScore6Service {
   private mapMatch(match: any) {
     const slug = this.extractSlugFromUrl(match?.url);
     const trackerId = match?.tracker?.id || '';
-    const stableId = this.makeNumericId(trackerId || slug || `${match?.home}-${match?.away}-${match?.time}`);
+    const stableId = this.makeNumericId(
+      trackerId || slug || `${match?.home}-${match?.away}-${match?.time}`,
+    );
+
     const status = this.normalizeStatus(match);
-    const homeScore = match?.home_score === null || match?.home_score === undefined ? null : Number(match.home_score);
-    const awayScore = match?.away_score === null || match?.away_score === undefined ? null : Number(match.away_score);
+
+    const homeScore =
+      match?.home_score === null || match?.home_score === undefined
+        ? null
+        : Number(match.home_score);
+
+    const awayScore =
+      match?.away_score === null || match?.away_score === undefined
+        ? null
+        : Number(match.away_score);
 
     return {
       provider: 'sportscore6',
@@ -231,9 +266,15 @@ export class SportScore6Service {
           winner: homeScore !== null && awayScore !== null ? awayScore > homeScore : null,
         },
       },
-      goals: { home: homeScore, away: awayScore },
+      goals: {
+        home: homeScore,
+        away: awayScore,
+      },
       score: {
-        fulltime: { home: homeScore, away: awayScore },
+        fulltime: {
+          home: homeScore,
+          away: awayScore,
+        },
         halftime: {
           home: match?.home_ht_score ?? null,
           away: match?.away_ht_score ?? null,
@@ -252,20 +293,31 @@ export class SportScore6Service {
   }
 
   async getFixtures(date?: string) {
-    // A API SportScore6 retorna a lista global do dia/agenda pelo sport.
-    // O parâmetro date fica aqui para manter compatibilidade com FootballService.
-    this.normalizeDate(date);
+    const response = await this.request('/api/widget/matches/', {
+      sport: 'football',
+      limit: this.getLimit(),
+    });
 
-    const response = await this.request('/api/widget/matches/', { sport: 'football' });
-    if (!response.ok) return { ok: false, data: [], error: response.error };
+    if (!response.ok) {
+      return { ok: false, data: [], error: response.error };
+    }
 
-    const data = this.extractRows(response.data).map((match: any) => this.mapMatch(match));
+    const data = this.extractRows(response.data).map((match: any) =>
+      this.mapMatch(match),
+    );
+
     return { ok: true, data, error: null };
   }
 
   async getLiveFixtures() {
-    const response = await this.request('/api/widget/matches/', { sport: 'football' });
-    if (!response.ok) return { ok: false, data: [], error: response.error };
+    const response = await this.request('/api/widget/matches/', {
+      sport: 'football',
+      limit: this.getLimit(),
+    });
+
+    if (!response.ok) {
+      return { ok: false, data: [], error: response.error };
+    }
 
     const data = this.extractRows(response.data)
       .filter((match: any) => String(match?.status || '').toLowerCase() === 'live')
@@ -276,27 +328,50 @@ export class SportScore6Service {
 
   async getFixtureBySlug(slug: string) {
     const safeSlug = String(slug || '').trim();
-    if (!safeSlug) return { ok: false, data: null, error: 'Slug da partida não informado para SportScore6' };
+
+    if (!safeSlug) {
+      return {
+        ok: false,
+        data: null,
+        error: 'Slug da partida não informado para SportScore6',
+      };
+    }
 
     const response = await this.request('/api/widget/match/', {
       sport: 'football',
       slug: safeSlug,
     });
 
-    if (!response.ok) return { ok: false, data: null, error: response.error };
-
-    const match = response.data?.match || response.data?.data || response.data;
-    if (!match || typeof match !== 'object') {
-      return { ok: false, data: null, error: 'Partida não encontrada na SportScore6' };
+    if (!response.ok) {
+      return { ok: false, data: null, error: response.error };
     }
 
-    return { ok: true, data: this.mapMatch(match), error: null };
+    const match = response.data?.match || response.data?.data || response.data;
+
+    if (!match || typeof match !== 'object') {
+      return {
+        ok: false,
+        data: null,
+        error: 'Partida não encontrada na SportScore6',
+      };
+    }
+
+    return {
+      ok: true,
+      data: this.mapMatch(match),
+      error: null,
+    };
   }
 
   async getStatistics(slug: string) {
     const response = await this.getFixtureBySlug(slug);
+
     if (!response.ok || !response.data) {
-      return { ok: false, data: null, error: response.error || 'Sem partida para estatísticas SportScore6' };
+      return {
+        ok: false,
+        data: null,
+        error: response.error || 'Sem partida para estatísticas SportScore6',
+      };
     }
 
     const fixture = response.data as any;
@@ -311,15 +386,28 @@ export class SportScore6Service {
 
   async getTracker(trackerId: string) {
     const safeId = String(trackerId || '').trim();
-    if (!safeId) return { ok: false, data: null, error: 'Tracker ID não informado para SportScore6' };
+
+    if (!safeId) {
+      return {
+        ok: false,
+        data: null,
+        error: 'Tracker ID não informado para SportScore6',
+      };
+    }
 
     const response = await this.request('/api/widget/tracker/', {
       sport: 'football',
       id: safeId,
     });
 
-    if (!response.ok) return { ok: false, data: null, error: response.error };
+    if (!response.ok) {
+      return { ok: false, data: null, error: response.error };
+    }
 
-    return { ok: true, data: response.data, error: null };
+    return {
+      ok: true,
+      data: response.data,
+      error: null,
+    };
   }
 }
