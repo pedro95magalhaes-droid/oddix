@@ -5,8 +5,26 @@ import { FootballService } from './football.service';
 export class FootballController {
   constructor(private readonly footballService: FootballService) {}
 
+  /**
+   * Compatibilidade: permite testar direto /football.
+   */
+  @Get()
+  async getRootFixtures(@Query('date') date?: string) {
+    return this.footballService.getFixtures(date);
+  }
+
   @Get('fixtures')
   async getFixtures(@Query('date') date?: string) {
+    return this.footballService.getFixtures(date);
+  }
+
+  @Get('today')
+  async getTodayFixtures(@Query('date') date?: string) {
+    return this.footballService.getFixtures(date);
+  }
+
+  @Get('dashboard')
+  async getDashboardFixtures(@Query('date') date?: string) {
     return this.footballService.getFixtures(date);
   }
 
@@ -31,8 +49,7 @@ export class FootballController {
   }
 
   /**
-   * Rota definitiva para limpar o Dashboard sem apagar tudo:
-   * remove jogos encerrados/adiados/cancelados, jogos antigos e ligas ruins.
+   * Remove jogos encerrados/adiados/cancelados, jogos antigos e ligas ruins do cache.
    */
   @Get('cache/cleanup')
   async cleanupCache() {
@@ -40,24 +57,20 @@ export class FootballController {
   }
 
   /**
-   * Rota de emergência: apaga todo o cache de jogos.
-   * Use quando o banco já estiver contaminado por dados antigos.
+   * Apaga todo o cache de jogos.
    */
   @Get('cache/clear')
   async clearCache() {
     return this.footballService.clearAllFixturesCache();
   }
 
-
   /**
-   * Diagnóstico rápido da SportScore.
-   * Mostra jogos por data e jogos ao vivo já filtrados pelo Oddix.
+   * Diagnóstico rápido da SportScore/SportScore6/FlashScore.
    */
   @Get('sportscore/debug')
   async sportScoreDebug(@Query('date') date?: string) {
     return this.footballService.debug(date);
   }
-
 
   @Get('fixture/:fixtureId')
   async getFixtureById(@Param('fixtureId') fixtureId: string) {
