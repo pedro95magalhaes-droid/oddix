@@ -7,9 +7,12 @@ import { SportScoreService } from './sportscore.service';
 import { SportScore6Service } from './sportscore6.service';
 import {
   getOddixFixtureDate,
+  getOddixFixtureQualityLabel,
+  getOddixFixtureQualityScore,
   isOddixDashboardFixtureAllowed,
   isOddixFinishedFixture,
   isOddixLeagueAllowed,
+  isOddixPriorityLeague,
 } from './league-filter';
 
 @Injectable()
@@ -137,8 +140,30 @@ export class FootballService {
     return output as T;
   }
 
+  private enrichFixtureForOddix(item: any) {
+    const cleanItem: any = this.stripRawProviderData(item);
+
+    return {
+      ...cleanItem,
+      oddix: {
+        ...(cleanItem?.oddix || {}),
+        leagueAllowed: isOddixLeagueAllowed(cleanItem),
+        priorityLeague: isOddixPriorityLeague(cleanItem),
+        qualityScore: getOddixFixtureQualityScore(cleanItem),
+        qualityLabel: getOddixFixtureQualityLabel(cleanItem),
+      },
+    };
+  }
+
   private compactFixtures(fixtures: any[]) {
-    return (fixtures || []).map((item) => this.stripRawProviderData(item));
+    return (fixtures || [])
+      .map((item) => this.enrichFixtureForOddix(item))
+      .sort((a: any, b: any) => {
+        const dateA = this.getFixtureTimestamp(a) || 0;
+        const dateB = this.getFixtureTimestamp(b) || 0;
+        if (dateA !== dateB) return dateA - dateB;
+        return Number(b?.oddix?.qualityScore || 0) - Number(a?.oddix?.qualityScore || 0);
+      });
   }
 
   private getCacheAgeSeconds(item: any) {
@@ -1227,6 +1252,8 @@ export class FootballService {
     if (league?.logo) score += 4;
     if (fixture?.externalId) score += 6;
     if (fixture?.status?.elapsed || fixture?.status?.['tempo decorrido']) score += 4;
+
+    score += Math.round(getOddixFixtureQualityScore(item) / 5);
 
     return score;
   }

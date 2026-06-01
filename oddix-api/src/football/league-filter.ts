@@ -272,11 +272,79 @@ export function isOddixLeagueAllowed(item: OddixFixtureLike) {
   if (process.env.ODDIX_LEAGUE_FILTER_ENABLED === 'false') return true;
   if (isOddixBlockedLeague(item)) return false;
 
-  const premiumOnly = process.env.ODDIX_PRIORITY_LEAGUES_ONLY === 'true';
-  if (premiumOnly) return isOddixPriorityLeague(item);
+  /**
+   * Regra definitiva do Oddix:
+   * - O filtro de liga NÃO decide mais se o jogo é bom ou ruim.
+   * - Ele apenas bloqueia lixo claro: base, feminino, reservas, amistosos,
+   *   eSoccer, simulado e ligas muito fake quando ativado.
+   * - A qualidade agora é feita por score/ranking, sem esconder jogo válido.
+   *
+   * O antigo ODDIX_PRIORITY_LEAGUES_ONLY ficou perigoso porque cortava muitos
+   * jogos bons. Se algum dia quiser modo extremamente fechado, use:
+   * ODDIX_STRICT_PRIORITY_ONLY=true
+   */
+  const strictPriorityOnly = process.env.ODDIX_STRICT_PRIORITY_ONLY === 'true';
+  if (strictPriorityOnly) return isOddixPriorityLeague(item);
 
-  // Modo recomendado: bloqueia só lixo claro e libera o restante.
   return true;
+}
+
+
+export function getOddixFixtureQualityScore(item: OddixFixtureLike) {
+  if (!isOddixLeagueAllowed(item)) return 0;
+
+  const leagueText = normalizeText(getOddixLeagueText(item));
+  const teamsText = normalizeText(getOddixTeamsText(item));
+  const fullText = normalizeText(getOddixFullSearchText(item));
+  const provider = normalizeText(item?.provider || item?.provedor || '');
+
+  let score = 45;
+
+  if (isOddixPriorityLeague(item)) score += 35;
+
+  // Providers com logo/odds tendem a ser melhores para card, dashboard e IA.
+  if (provider.includes('flashscore')) score += 10;
+  if (provider.includes('sportscore6')) score += 8;
+  if (provider.includes('allscores')) score += 4;
+  if (provider.includes('api football')) score += 4;
+
+  const hasOdds = !!item?.odds || !!item?.odd;
+  if (hasOdds) score += 8;
+
+  const league = item?.league || item?.liga || {};
+  const teams = item?.teams || item?.times || {};
+  const home = teams?.home || teams?.casa || teams?.mandante || {};
+  const away = teams?.away || teams?.fora || teams?.visitante || {};
+
+  if (league?.logo || league?.logotipo) score += 3;
+  if (home?.logo && away?.logo) score += 5;
+
+  // Países e torneios bons para análise comercial/usuário brasileiro.
+  if (/(brazil|brasil|argentina|chile|uruguay|uruguai|paraguay|paraguai|ecuador|colombia|peru|mexico|usa|united states)/.test(leagueText)) {
+    score += 10;
+  }
+
+  // Copas e ligas oficiais costumam ter mais mercado e melhor leitura.
+  if (/(cup|copa|liga|league|serie|division|primera|premier|championship|brasileirao|brasileiro)/.test(leagueText)) {
+    score += 5;
+  }
+
+  // Penaliza lixo leve sem bloquear o dashboard inteiro.
+  if (LOW_QUALITY_PATTERNS.some((pattern) => pattern.test(fullText))) score -= 25;
+  if (/\b(ii|b)\b/.test(teamsText) || /\b2\b/.test(teamsText)) score -= 8;
+  if (/\bdivision 3\b|\bserie d\b|\bliga 2\b/.test(leagueText)) score -= 4;
+  if (/\bunknown\b|\bdesconhecido\b|\bliga nao informada\b/.test(leagueText)) score -= 15;
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+export function getOddixFixtureQualityLabel(item: OddixFixtureLike) {
+  const score = getOddixFixtureQualityScore(item);
+  if (score >= 80) return 'premium';
+  if (score >= 65) return 'boa';
+  if (score >= 45) return 'normal';
+  if (score > 0) return 'fraca';
+  return 'bloqueada';
 }
 
 export function getOddixFixtureDate(item: OddixFixtureLike) {
