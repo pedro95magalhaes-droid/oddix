@@ -96,6 +96,10 @@ export function getOddixFullSearchText(item: OddixFixtureLike) {
   return pickText(getOddixLeagueText(item), getOddixTeamsText(item));
 }
 
+/**
+ * Bloqueio duro: só lixo claro.
+ * Mantemos feminino bloqueado, como pedido.
+ */
 const HARD_BLOCKED_PATTERNS = [
   /\bu\s?\d{2}\b/,
   /\bsub\s?\d{2}\b/,
@@ -126,122 +130,90 @@ const HARD_BLOCKED_PATTERNS = [
   /\bnext pro\b/,
   /\bdevelopment league\b/,
   /\breserve league\b/,
-  /\bregional\b/,
-  /\bregionalliga\b/,
-  /\bpromotion\b/,
-  /\bplay\s?off(s)?\b/,
-  /\bplay offs\b/,
-  /\btercera\b/,
-  /\btercera rfef\b/,
-  /\bsegunda rfef\b/,
-  /\bdivision\s?2\b/,
-  /\bdivision\s?3\b/,
-  /\bdivision\s?4\b/,
-  /\bsegunda division\b/,
-  /\bsegunda divisao\b/,
-  /\bliga\s?2\b/,
-  /\bliga\s?3\b/,
-  /\bliga\s?4\b/,
-  /\bserie\s?c\b/,
-  /\bserie\s?d\b/,
-  /\bprimera\s?b\b/,
-  /\bprimera\s?c\b/,
-  /\bprimera nacional\b/,
-  /\bnb\s?iii\b/,
-  /\biii\b/,
-  /\biii liga\b/,
-  /\biv liga\b/,
-  /\b3rd division\b/,
-  /\bthird division\b/,
-  /\bquarta\b/,
-  /\bterceira\b/,
-  /\blandesliga\b/,
-  /\boberliga\b/,
-  /\bcounty\b/,
-  /\bdistrict\b/,
-  /\bhungary\b/,
-  /\bhungria\b/,
-  /\bperu\b/,
-  /\biceland\b/,
-  /\bislandia\b/,
-  /\bnorway\b/,
-  /\bnoruega\b/,
-  /\bsierra leone\b/,
-  /\bmali\b/,
-  /\biraq\b/,
-  /\biraqi\b/,
-  /\bsvenska cupen\b/,
-  /\bcupen\b/,
-  /\bportugal amateur\b/,
-  /\bbosnia\b/,
-  /\bromania\b/,
-  /\bfiji\b/,
-  /\bindia\b/,
-  /\biran\b/,
 ];
 
 const PREMIUM_PATTERNS = [
   /\bbrasil(eirao)? serie a\b/,
+  /\bbrazilian serie a\b/,
   /\bbrazil serie a\b/,
-  /\bbrasileirao a\b/,
   /\bbrasileirao serie a\b/,
-  /\bserie a brazil\b/,
   /\bbrasil(eirao)? serie b\b/,
+  /\bbrazilian serie b\b/,
   /\bbrazil serie b\b/,
-  /\bbrasileirao b\b/,
   /\bbrasileirao serie b\b/,
-  /\bserie b brazil\b/,
   /\bcopa do brasil\b/,
   /\blibertadores\b/,
   /\bconmebol libertadores\b/,
   /\bsul americana\b/,
   /\bsudamericana\b/,
   /\bconmebol sudamericana\b/,
+
   /\buefa champions league\b/,
   /\bchampions league\b/,
   /\buefa europa league\b/,
   /\beuropa league\b/,
   /\buefa conference league\b/,
   /\bconference league\b/,
-  /\bengland premier league\b/,
+
   /\bpremier league\b/,
   /\bengland championship\b/,
-  /\bspain la liga\b/,
   /\bla liga\b/,
   /\blaliga\b/,
-  /\bgermany bundesliga\b/,
   /\bbundesliga\b/,
-  /\bgerman bundesliga 2\b/,
-  /\bbundesliga 2\b/,
   /\b2 bundesliga\b/,
-  /\bitaly serie a\b/,
   /\bserie a italy\b/,
-  /\bitalia serie a\b/,
-  /\bitaly serie b\b/,
+  /\bitaly serie a\b/,
   /\bserie b italy\b/,
-  /\bitalia serie b\b/,
-  /\bfrance ligue 1\b/,
+  /\bitaly serie b\b/,
   /\bligue 1\b/,
-  /\bportugal primeira liga\b/,
   /\bprimeira liga\b/,
-  /\bnetherlands eredivisie\b/,
   /\beredivisie\b/,
+
   /\bmajor league soccer\b/,
   /\busa mls\b/,
   /\bmls\b/,
+  /\bliga mx\b/,
   /\bargentina primera division\b/,
   /\bargentina liga profesional\b/,
   /\bliga profesional argentina\b/,
-  /\bmexico liga mx\b/,
-  /\bliga mx\b/,
 ];
 
 const SAFE_SECONDARY_PATTERNS = [
-  /\buruguay.*intermediate\b/,
-  /\buruguayan championship.*intermediate\b/,
-  /\bcampeonato uruguaio.*intermediario\b/,
+  /\bchile\b/,
+  /\bchi liga\b/,
+  /\bchilean\b/,
+  /\buruguay\b/,
+  /\buruguayan\b/,
+  /\bcolombia\b/,
+  /\bcolombian\b/,
+  /\becuador\b/,
+  /\becuadorian\b/,
+  /\bperu primera\b/,
+  /\bparaguay\b/,
+  /\bbolivian primera\b/,
+  /\bcosta rica\b/,
+  /\baustria bundesliga\b/,
+  /\bswitzerland\b/,
+  /\bswiss\b/,
+  /\bbelgium\b/,
+  /\bbelgian\b/,
+  /\bdenmark\b/,
+  /\bdanish\b/,
+  /\bsweden allsvenskan\b/,
+  /\bnorway eliteserien\b/,
+  /\bjapan j1\b/,
+  /\bj league\b/,
+  /\bkorea k league\b/,
+  /\bchina super league\b/,
+  /\bsaudi pro league\b/,
+  /\bturkey super lig\b/,
+  /\bgreece super league\b/,
+  /\bpoland ekstraklasa\b/,
+  /\bcroatia hnl\b/,
+  /\bserbia superliga\b/,
+  /\bromania super liga\b/,
+  /\baustralia a league\b/,
   /\bcanadian premier league\b/,
-  /\bcanada canadian premier league\b/,
 ];
 
 export function isOddixBlockedLeague(item: OddixFixtureLike) {
@@ -254,7 +226,6 @@ export function isOddixPriorityLeague(item: OddixFixtureLike) {
   const text = normalizeText(getOddixLeagueText(item));
   if (!text) return false;
 
-  if (text.includes('premier division') && !text.includes('premier league')) return false;
   if (text.includes('mls next pro') || text.includes('next pro')) return false;
   if (/\(\s*w\s*\)/.test(text) || text.includes('women') || text.includes('feminino')) return false;
 
@@ -272,7 +243,7 @@ export function isOddixLeagueAllowed(item: OddixFixtureLike) {
   if (process.env.ODDIX_LEAGUE_FILTER_ENABLED === 'false') return true;
   if (isOddixBlockedLeague(item)) return false;
 
-  const premiumOnly = process.env.ODDIX_PRIORITY_LEAGUES_ONLY !== 'false';
+  const premiumOnly = process.env.ODDIX_PRIORITY_LEAGUES_ONLY === 'true';
 
   if (isOddixPriorityLeague(item)) return true;
   if (!premiumOnly && isOddixSafeSecondaryLeague(item)) return true;
@@ -328,7 +299,8 @@ export function isOddixDashboardFixtureAllowed(
   const maxPastHours = Number(process.env.ODDIX_DASHBOARD_MAX_PAST_HOURS || 2);
   const minDate = Date.now() - maxPastHours * 60 * 60 * 1000;
 
-  const maxFutureDays = Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 2);
+  // Agora aceita jogos futuros para pré-jogo/dashboard.
+  const maxFutureDays = Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 7);
   const maxDate = Date.now() + maxFutureDays * 24 * 60 * 60 * 1000;
 
   return fixtureTime >= minDate && fixtureTime <= maxDate;
