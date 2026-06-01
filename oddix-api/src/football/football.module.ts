@@ -9,6 +9,7 @@ import { Bet365DataService } from './bet365data.service';
 import { OddsPapiService } from './oddspapi.service';
 import { FlashScoreService } from './flashscore.service';
 import { SportScoreService } from './sportscore.service';
+import { SportScore6Service } from './sportscore6.service';
 
 @Module({
   imports: [PrismaModule],
@@ -19,6 +20,7 @@ import { SportScoreService } from './sportscore.service';
     FootballService,
 
     SportScoreService,
+    SportScore6Service,
 
     AllScoresService,
     FlashScoreService,
@@ -31,6 +33,7 @@ import { SportScoreService } from './sportscore.service';
     FootballService,
 
     SportScoreService,
+    SportScore6Service,
 
     AllScoresService,
     FlashScoreService,

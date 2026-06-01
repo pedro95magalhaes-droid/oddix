@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AllScoresService } from './allscores.service';
 import { FlashScoreService } from './flashscore.service';
 import { SportScoreService } from './sportscore.service';
+import { SportScore6Service } from './sportscore6.service';
 import {
   getOddixFixtureDate,
   isOddixDashboardFixtureAllowed,
@@ -16,6 +17,7 @@ export class FootballService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly sportScoreService: SportScoreService,
+    private readonly sportScore6Service: SportScore6Service,
     private readonly allScoresService: AllScoresService,
     private readonly flashScoreService: FlashScoreService,
   ) {}
@@ -109,6 +111,7 @@ export class FootballService {
     const rawKeysToRemove = new Set([
       'flashScoreRaw',
       'sportScoreRaw',
+      'sportScore6Raw',
       'allScoresRaw',
       'apiFootballRaw',
       'broadageRaw',
@@ -797,6 +800,46 @@ export class FootballService {
   }
 
 
+  async getFixturesFromSportScore6(date?: string) {
+    try {
+      return await this.sportScore6Service.getFixtures(date);
+    } catch (error: any) {
+      return { ok: false, data: [], error: error?.message || 'Erro na SportScore6' };
+    }
+  }
+
+  async getLiveFixturesFromSportScore6() {
+    try {
+      return await this.sportScore6Service.getLiveFixtures();
+    } catch (error: any) {
+      return { ok: false, data: [], error: error?.message || 'Erro na SportScore6 Live' };
+    }
+  }
+
+  async getFixtureBySlugFromSportScore6(slug: string) {
+    try {
+      return await this.sportScore6Service.getFixtureBySlug(slug);
+    } catch (error: any) {
+      return { ok: false, data: null, error: error?.message || 'Erro na SportScore6 por slug' };
+    }
+  }
+
+  async getStatisticsFromSportScore6(fixtureId: string) {
+    try {
+      const cached: any = await this.getFixtureFromCacheById(fixtureId);
+      const slug = cached?.fixture?.externalId || cached?.sportScore6Raw?.slug || cached?.sportScore6Raw?.urlSlug || null;
+
+      if (!slug) {
+        return { ok: false, data: null, error: 'SportScore6 precisa do slug salvo no cache para buscar estatísticas' };
+      }
+
+      return await this.sportScore6Service.getStatistics(slug);
+    } catch (error: any) {
+      return { ok: false, data: null, error: error?.message || 'Erro nas estatísticas SportScore6' };
+    }
+  }
+
+
   async getFixturesFromSportScore(date: string) {
     try {
       return await this.sportScoreService.getFixtures(date);
@@ -1172,6 +1215,7 @@ export class FootballService {
 
     let score = 0;
 
+    if (provider.includes('sportscore6')) score += 65;
     if (provider.includes('flashscore')) score += 50;
     if (provider.includes('sports-betting')) score += 45;
     if (provider.includes('allscores')) score += 30;
@@ -1275,6 +1319,9 @@ export class FootballService {
     const providerGroups: any[][] = [];
 
     for (const currentDate of searchDates) {
+      const sportScore6 = await this.getFixturesFromSportScore6(currentDate);
+      if (sportScore6.ok && sportScore6.data.length > 0) providerGroups.push(sportScore6.data);
+
       const sportScore = await this.getFixturesFromSportScore(currentDate);
       if (sportScore.ok && sportScore.data.length > 0) providerGroups.push(sportScore.data);
 
@@ -1364,6 +1411,17 @@ export class FootballService {
      * AllScores Live = 6 jogos
      * Resultado final = união limpa dos dois, sem duplicados.
      */
+
+    const sportScore6 = await this.getLiveFixturesFromSportScore6();
+
+    if (sportScore6.ok && sportScore6.data.length > 0) {
+      const live = sportScore6.data
+        .filter((game: any) => isOddixLeagueAllowed(game))
+        .filter((game: any) => this.shouldTreatAsLive(game))
+        .map((item: any) => this.normalizeLiveStatus(item));
+
+      if (live.length > 0) groups.push(live);
+    }
 
     const sportScore = await this.getLiveFixturesFromSportScore();
 
@@ -1545,6 +1603,17 @@ export class FootballService {
      * Para aposta aberta, não confiar primeiro em cache antigo.
      * SportScore é a fonte principal; API-Football só entra se API_FOOTBALL_ENABLE_FALLBACK=true.
      */
+    const cachedSportScore6: any = await this.getFixtureFromCacheById(fixtureId);
+
+    if (cachedSportScore6?.provider === 'sportscore6' && cachedSportScore6?.fixture?.externalId) {
+      const sportScore6 = await this.getFixtureBySlugFromSportScore6(String(cachedSportScore6.fixture.externalId));
+
+      if (sportScore6.ok && sportScore6.data) {
+        await this.saveFixturesCache([sportScore6.data]);
+        return sportScore6.data;
+      }
+    }
+
     const sportScore = await this.getFixtureByIdFromSportScore(fixtureId);
 
     if (sportScore.ok && sportScore.data) {
@@ -1684,6 +1753,12 @@ export class FootballService {
   }
 
   async getStatistics(fixtureId: string) {
+    const sportScore6 = await this.getStatisticsFromSportScore6(fixtureId);
+
+    if (sportScore6.ok && sportScore6.data) {
+      return sportScore6.data;
+    }
+
     const sportScore = await this.getStatisticsFromSportScore(fixtureId);
 
     if (sportScore.ok && sportScore.data) {
@@ -1722,6 +1797,8 @@ export class FootballService {
     date = this.normalizeDateKey(date);
 
     const cache = await this.getFixturesFromCache(date);
+    const sportScore6 = await this.getFixturesFromSportScore6(date);
+    const sportScore6Live = await this.getLiveFixturesFromSportScore6();
     const sportScore = await this.getFixturesFromSportScore(date);
     const sportScoreLive = await this.getLiveFixturesFromSportScore();
     const sportmonks = await this.getFixturesFromSportmonks(date);
@@ -1744,6 +1821,9 @@ export class FootballService {
 
     return {
       date,
+      sportScore6Enabled: this.sportScore6Service.isEnabled(),
+      sportScore6KeyExists: this.sportScore6Service.hasKey(),
+      sportScore6BaseUrl: this.sportScore6Service.getBaseUrl(),
       sportScoreEnabled: this.sportScoreService.isEnabled(),
       sportScoreKeyExists: this.sportScoreService.hasKey(),
       sportScoreBaseUrl: this.sportScoreService.getBaseUrl(),
@@ -1760,11 +1840,25 @@ export class FootballService {
       apiFootballBlockedUntil: this.apiFootballBlockedUntil?.toISOString() || null,
       liveCacheSeconds: this.liveCacheSeconds(),
       fixturesCacheMinutes: this.fixturesCacheMinutes(),
-      note: 'API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem: SportScore > FlashScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData.',
+      note: 'API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem: SportScore6 > SportScore > FlashScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData.',
 
       cache: {
         responseLength: cache.length,
         sample: this.compactFixtures(cache.slice(0, 2)),
+      },
+
+      sportScore6: {
+        ok: sportScore6.ok,
+        error: sportScore6.error,
+        responseLength: this.filterAllowedLeagues(sportScore6.data).length,
+        sample: this.compactFixtures(this.filterAllowedLeagues(sportScore6.data).slice(0, 3)),
+      },
+
+      sportScore6Live: {
+        ok: sportScore6Live.ok,
+        error: sportScore6Live.error,
+        responseLength: this.filterAllowedLeagues(sportScore6Live.data).length,
+        sample: this.compactFixtures(this.filterAllowedLeagues(sportScore6Live.data).slice(0, 3)),
       },
 
       sportScore: {
