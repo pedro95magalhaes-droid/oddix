@@ -1296,20 +1296,39 @@ export class FootballService {
 
     date = this.normalizeDateKey(date);
 
+    /**
+     * O Dashboard/Pré-jogo precisa enxergar jogos futuros.
+     * Antes o Oddix buscava ontem/hoje/amanhã, mas depois filtrava tudo de volta
+     * para apenas a data base. Isso deixava poucos jogos na tela.
+     *
+     * Agora buscamos ontem + hoje + próximos N dias e deixamos
+     * isOddixDashboardFixtureAllowed controlar o intervalo final.
+     */
+    const futureDays = Math.max(
+      1,
+      Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 7),
+    );
+
     const searchDates = Array.from(
-      new Set([this.addDays(date, -1), date, this.addDays(date, 1)]),
+      new Set(
+        Array.from({ length: futureDays + 2 }, (_, index) =>
+          this.addDays(date, index - 1),
+        ),
+      ),
     );
 
     const freshGroups: any[][] = [];
 
     for (const currentDate of searchDates) {
-      const freshCache = await this.getFreshFixturesFromCache(currentDate, this.fixturesCacheMinutes());
+      const freshCache = await this.getFreshFixturesFromCache(
+        currentDate,
+        this.fixturesCacheMinutes(),
+      );
       if (freshCache.length > 0) freshGroups.push(freshCache);
     }
 
     const freshMerged = this.filterDashboardFixtures(
-      this.mergeUniqueFixtures(freshGroups)
-        .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date)),
+      this.mergeUniqueFixtures(freshGroups),
     );
 
     if (freshMerged.length > 0) {
@@ -1318,10 +1337,16 @@ export class FootballService {
 
     const providerGroups: any[][] = [];
 
-    for (const currentDate of searchDates) {
-      const sportScore6 = await this.getFixturesFromSportScore6(currentDate);
-      if (sportScore6.ok && sportScore6.data.length > 0) providerGroups.push(sportScore6.data);
+    /**
+     * SportScore6 não aceita data nesse endpoint; ela retorna a lista global/agenda.
+     * Chamamos apenas uma vez para não gastar requisições duplicadas.
+     */
+    const sportScore6 = await this.getFixturesFromSportScore6(date);
+    if (sportScore6.ok && sportScore6.data.length > 0) {
+      providerGroups.push(sportScore6.data);
+    }
 
+    for (const currentDate of searchDates) {
       const sportScore = await this.getFixturesFromSportScore(currentDate);
       if (sportScore.ok && sportScore.data.length > 0) providerGroups.push(sportScore.data);
 
@@ -1347,8 +1372,7 @@ export class FootballService {
     }
 
     const providerMerged = this.filterDashboardFixtures(
-      this.mergeUniqueFixtures(providerGroups)
-        .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date)),
+      this.mergeUniqueFixtures(providerGroups),
     );
 
     if (providerMerged.length > 0) {
@@ -1364,10 +1388,7 @@ export class FootballService {
     }
 
     return this.compactFixtures(
-      this.filterDashboardFixtures(
-        this.mergeUniqueFixtures(staleGroups)
-          .filter((item: any) => this.fixtureBelongsToBrazilDate(item, date)),
-      ),
+      this.filterDashboardFixtures(this.mergeUniqueFixtures(staleGroups)),
     );
   }
 
