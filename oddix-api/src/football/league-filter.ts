@@ -133,49 +133,2199 @@ const HARD_BLOCKED_PATTERNS = [
 ];
 
 const PREMIUM_PATTERNS = [
-  /\bbrasil(eirao)? serie a\b/,
-  /\bbrazilian serie a\b/,
-  /\bbrazil serie a\b/,
-  /\bbrasileirao serie a\b/,
-  /\bbrasil(eirao)? serie b\b/,
-  /\bbrazilian serie b\b/,
-  /\bbrazil serie b\b/,
-  /\bbrasileirao serie b\b/,
-  /\bcopa do brasil\b/,
-  /\blibertadores\b/,
-  /\bconmebol libertadores\b/,
-  /\bsul americana\b/,
-  /\bsudamericana\b/,
-  /\bconmebol sudamericana\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
 
-  /\buefa champions league\b/,
-  /\bchampions league\b/,
-  /\buefa europa league\b/,
-  /\beuropa league\b/,
-  /\buefa conference league\b/,
-  /\bconference league\b/,
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
 
-  /\bpremier league\b/,
-  /\bengland championship\b/,
-  /\bla liga\b/,
-  /\blaliga\b/,
-  /\bbundesliga\b/,
-  /\b2 bundesliga\b/,
-  /\bserie a italy\b/,
-  /\bitaly serie a\b/,
-  /\bserie b italy\b/,
-  /\bitaly serie b\b/,
-  /\bligue 1\b/,
-  /\bprimeira liga\b/,
-  /\beredivisie\b/,
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
 
-  /\bmajor league soccer\b/,
-  /\busa mls\b/,
-  /\bmls\b/,
-  /\bliga mx\b/,
-  /\bargentina primera division\b/,
-  /\bargentina liga profesional\b/,
-  /\bliga profesional argentina\b/,
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
+    // Estaduais / Regionais Brasil
+  /\bcampeonato paulista\b/,
+  /\bpaulista\b/,
+
+  /\bcampeonato carioca\b/,
+  /\bcarioca\b/,
+
+  /\bcampeonato mineiro\b/,
+  /\bmineiro\b/,
+
+  /\bcampeonato gaucho\b/,
+  /\bgaucho\b/,
+
+  /\bcampeonato paranaense\b/,
+  /\bparanaense\b/,
+
+  /\bcampeonato pernambucano\b/,
+  /\bpernambucano\b/,
+
+  /\bcampeonato cearense\b/,
+  /\bcearense\b/,
+
+  /\bcampeonato baiano\b/,
+  /\bbaiano\b/,
+
+  /\bcampeonato goiano\b/,
+  /\bgoiano\b/,
+
+  /\bcampeonato catarinense\b/,
+  /\bcatarinense\b/,
+
+  /\bcampeonato potiguar\b/,
+  /\bpotiguar\b/,
+
+  /\bcampeonato paraense\b/,
+  /\bparaense\b/,
+
+  /\bcampeonato alagoano\b/,
+  /\balagoano\b/,
+
+  /\bcampeonato sergipano\b/,
+  /\bsergipano\b/,
+
+  /\bcampeonato maranhense\b/,
+  /\bmaranhense\b/,
+
+  /\bcampeonato mato grossense\b/,
+  /\bmato grossense\b/,
+
+  /\bcampeonato brasiliense\b/,
+  /\bbrasiliense\b/,
 ];
 
 const SAFE_SECONDARY_PATTERNS = [
@@ -214,6 +2364,8 @@ const SAFE_SECONDARY_PATTERNS = [
   /\bromania super liga\b/,
   /\baustralia a league\b/,
   /\bcanadian premier league\b/,
+  /\bbrazil\b/,
+  /\bbrasil\b/,
 ];
 
 export function isOddixBlockedLeague(item: OddixFixtureLike) {
