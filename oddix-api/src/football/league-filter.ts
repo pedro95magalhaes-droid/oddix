@@ -2326,6 +2326,34 @@ const PREMIUM_PATTERNS = [
 
   /\bcampeonato brasiliense\b/,
   /\bbrasiliense\b/,
+  /\buefa champions league\b/,
+  /\bchampions league\b/,
+  /\buefa europa league\b/,
+  /\beuropa league\b/,
+  /\buefa conference league\b/,
+  /\bconference league\b/,
+
+  /\bengland premier league\b/,
+  /\bpremier league\b/,
+  /\bengland championship\b/,
+  /\bchampionship\b/,
+
+  /\bspain la liga\b/,
+  /\bla liga\b/,
+  /\blaliga\b/,
+
+  /\bgermany bundesliga\b/,
+  /\bbundesliga\b/,
+  /\bgerman bundesliga 2\b/,
+  /\bbundesliga 2\b/,
+  /\b2 bundesliga\b/,
+
+  /\bitaly serie a\b/,
+  /\bserie a italy\b/,
+  /\bitalia serie a\b/,
+  /\bitaly serie b\b/,
+  /\bserie b italy\b/,
+  /\bitalia serie b\b/,
 ];
 
 const SAFE_SECONDARY_PATTERNS = [
