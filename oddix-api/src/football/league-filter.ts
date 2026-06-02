@@ -25,6 +25,7 @@ function normalizeTeamName(value: any) {
     .replace(/\bsc\b/g, '')
     .replace(/\bec\b/g, '')
     .replace(/\bac\b/g, '')
+    .replace(/\bafc\b/g, '')
     .replace(/\bclub\b/g, '')
     .replace(/\bclube\b/g, '')
     .replace(/\b2\b/g, 'ii')
@@ -40,9 +41,19 @@ function getRawObject(item: OddixFixtureLike) {
     item?.allScoresRaw ||
     item?.apiFootballRaw ||
     item?.broadageRaw ||
+    item?.sportsDbRaw ||
+    item?.footballDataRaw ||
+    item?.fotmobRaw ||
     item?.raw ||
     {}
   );
+}
+
+function getObjectValue(obj: any, ...keys: string[]) {
+  for (const key of keys) {
+    if (obj && obj[key] !== undefined && obj[key] !== null) return obj[key];
+  }
+  return '';
 }
 
 export function getOddixLeagueText(item: OddixFixtureLike) {
@@ -54,43 +65,28 @@ export function getOddixLeagueText(item: OddixFixtureLike) {
   const tournament = raw?.tournament || raw?.torneio || raw?.competition || raw?.competicao || {};
 
   return pickText(
-    league?.name,
-    league?.nome,
-    league?.country,
-    league?.pais,
-    league?.país,
+    getObjectValue(league, 'name', 'nome', 'leagueName'),
+    getObjectValue(league, 'country', 'pais', 'país', 'ccode'),
     league?.slug,
-    section?.name,
-    section?.nome,
-    section?.country,
-    section?.pais,
-    section?.país,
+    getObjectValue(section, 'name', 'nome'),
+    getObjectValue(section, 'country', 'pais', 'país', 'ccode'),
     section?.slug,
-    challenge?.name,
-    challenge?.nome,
-    challenge?.country,
-    challenge?.pais,
-    challenge?.país,
+    getObjectValue(challenge, 'name', 'nome'),
+    getObjectValue(challenge, 'country', 'pais', 'país', 'ccode'),
     challenge?.slug,
-    country?.name,
-    country?.nome,
+    getObjectValue(country, 'name', 'nome', 'code', 'ccode'),
     raw?.competition,
     raw?.competition_name,
     raw?.competitionName,
+    raw?.leagueName,
     raw?.country,
     raw?.country_name,
     raw?.countryName,
-    tournament?.name,
-    tournament?.nome,
-    tournament?.countryName,
-    tournament?.country_name,
-    tournament?.country,
-    tournament?.pais,
-    tournament?.país,
-    raw?.league?.name,
-    raw?.league?.nome,
-    raw?.liga?.name,
-    raw?.liga?.nome,
+    raw?.ccode,
+    getObjectValue(tournament, 'name', 'nome'),
+    getObjectValue(tournament, 'countryName', 'country_name', 'country', 'pais', 'país', 'ccode'),
+    getObjectValue(raw?.league || {}, 'name', 'nome', 'leagueName'),
+    getObjectValue(raw?.liga || {}, 'name', 'nome'),
   );
 }
 
@@ -101,10 +97,8 @@ export function getOddixTeamsText(item: OddixFixtureLike) {
   const raw = getRawObject(item);
 
   return pickText(
-    home?.name,
-    home?.nome,
-    away?.name,
-    away?.nome,
+    getObjectValue(home, 'name', 'nome', 'longName', 'shortName'),
+    getObjectValue(away, 'name', 'nome', 'longName', 'shortName'),
     item?.home,
     item?.away,
     item?.homeTeam,
@@ -158,7 +152,65 @@ const HARD_BLOCKED_PATTERNS = [
   /\breserve league\b/,
 ];
 
+const HARD_LOW_LEAGUE_PATTERNS = [
+  /\bprimera b metropolitana\b/,
+  /\bprimera b\b/,
+  /\bprimera c\b/,
+  /\bprimera d\b/,
+  /\bregionalliga\b/,
+  /\boberliga\b/,
+  /\b4a liga\b/,
+  /\b4 liga\b/,
+  /\bquarta liga\b/,
+  /\bleague two\b/,
+  /\busl league two\b/,
+  /\bstate league\b/,
+  /\bvictoria premier league 2\b/,
+  /\bqueensland premier league\b/,
+  /\bcfa member\b/,
+  /\bmember champions\b/,
+  /\bsegunda classe\b/,
+  /\bsegunda division b\b/,
+  /\bthird league\b/,
+  /\bdivision 3\b/,
+  /\bserie d\b/,
+  /\bliga 3\b/,
+  /\bykkonen\b/,
+  /\bazadegan\b/,
+  /\bdivision di honor\b/,
+  /\bqualification\b/,
+];
+
+const WEAK_COUNTRY_PATTERNS = [
+  /\bsudan\b/,
+  /\bsudao\b/,
+  /\bsudão\b/,
+  /\bsenegal\b/,
+  /\beth[ií]opia\b/,
+  /\betiopia\b/,
+  /\betiópia\b/,
+  /\bdr congo\b/,
+  /\brd congo\b/,
+  /\bcongo\b/,
+  /\blibya\b/,
+  /\blibia\b/,
+  /\blíbia\b/,
+  /\birn\b/,
+  /\biran\b/,
+  /\bira\b/,
+  /\biraq\b/,
+  /\biraque\b/,
+  /\birã\b/,
+  /\bfinland\b/,
+  /\bfinlandia\b/,
+  /\bfinlândia\b/,
+  /\bvietnam\b/,
+  /\baruba\b/,
+  /\bsierra leone\b/,
+];
+
 const LOW_QUALITY_PATTERNS = [
+  ...HARD_LOW_LEAGUE_PATTERNS,
   /\buniversity\b/,
   /\bfutsal\b/,
   /\bbeach soccer\b/,
@@ -166,55 +218,79 @@ const LOW_QUALITY_PATTERNS = [
   /\bbupati\b/,
   /\bbeilu cup\b/,
   /\bteam\s+[a-z0-9]{4,}\b/,
-  /\bregionalliga\b/,
-  /\boberliga\b/,
-  /\bsegunda division b\b/,
-  /\bthird league\b/,
-  /\bdivision 3\b/,
-  /\bserie d\b/,
-  /\bliga 3\b/,
-  /\bleague two\b/,
-  /\busl league two\b/,
-  /\bprimera b metropolitana\b/,
-  /\bstate league 1\b/,
-  /\bqualification\b/,
 ];
 
-const EXPLICIT_PRIORITY_SCORES: Array<[RegExp, number]> = [
-  [/\bchampions league\b/, 100],
-  [/\blibertadores\b/, 99],
-  [/\bpremier league\b/, 98],
-  [/\bla liga\b|\blaliga\b/, 97],
-  [/\bserie a\b/, 96],
-  [/\bbundesliga\b/, 95],
-  [/\bligue 1\b/, 94],
-  [/\beuropa league\b/, 93],
-  [/\bconference league\b/, 91],
-  [/\bbrasileirao\b|\bbrasileiro serie a\b|\bbrasil serie a\b|\bbrazil serie a\b/, 92],
-  [/\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b|\bserie b\b/, 90],
-  [/\bsudamericana\b|\bsul americana\b/, 88],
-  [/\bcopa do brasil\b/, 88],
-  [/\bcopa do nordeste\b/, 84],
-  [/\bpaulista\b|\bcarioca\b|\bmineiro\b|\bgaucho\b|\bparanaense\b|\bpernambucano\b|\bcearense\b|\bbaiano\b|\bgoiano\b|\bcatarinense\b/, 82],
-  [/\bargentina\b|\bprimera division\b/, 82],
-  [/\bliga mx\b|\bmexico\b/, 84],
-  [/\bmls\b/, 83],
-  [/\bchampionship\b/, 82],
-  [/\bere(divisie|divisie)\b/, 82],
-  [/\bprimeira liga\b/, 82],
-  [/\bj league\b|\bj1\b/, 80],
-  [/\bk league\b/, 80],
-  [/\bsaudi pro league\b/, 79],
-  [/\bsuper lig\b|\bturkey\b/, 79],
-  [/\bchile\b|\buruguay\b|\buruguai\b|\bparaguay\b|\bparaguai\b|\becuador\b|\bcolombia\b|\bperu\b|\bbolivia\b/, 78],
-  [/\bworld cup\b|\bclub world cup\b|\bnations league\b|\beuro\b|\brecopa\b/, 90],
-];
+function has(patterns: RegExp[], text: string) {
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+function providerText(item: OddixFixtureLike) {
+  return normalizeText(item?.provider || item?.provedor || '');
+}
+
+function getProviderScore(item: OddixFixtureLike) {
+  const provider = providerText(item);
+
+  if (provider.includes('fotmob')) return 6;
+  if (provider.includes('flashscore')) return 5;
+  if (provider.includes('sportscore6')) return 3;
+  if (provider.includes('api football')) return 2;
+  if (provider.includes('allscores')) return -3;
+  if (provider.includes('thesportsdb')) return -4;
+
+  return 0;
+}
 
 function explicitLeagueScore(item: OddixFixtureLike) {
   const text = normalizeText(getOddixLeagueText(item));
   if (!text) return 0;
 
-  for (const [pattern, score] of EXPLICIT_PRIORITY_SCORES) {
+  if (has(HARD_LOW_LEAGUE_PATTERNS, text)) return 0;
+  if (has(WEAK_COUNTRY_PATTERNS, text)) return 0;
+
+  const rules: Array<[RegExp, number]> = [
+    [/\buefa champions league\b|\bchampions league\b.*\buefa\b/, 100],
+    [/\bcopa libertadores\b|\blibertadores\b/, 99],
+    [/\buefa europa league\b|\beuropa league\b/, 94],
+    [/\buefa conference league\b|\bconference league\b/, 91],
+    [/\bsudamericana\b|\bsul americana\b/, 89],
+    [/\bcopa do brasil\b/, 88],
+    [/\bcopa do nordeste\b/, 82],
+
+    [/\bbrasileirao serie a\b|\bbrasileirao a\b|\bbrasileiro serie a\b|\bbrasil serie a\b|\bbrazil serie a\b/, 93],
+    [/\bbrasileirao serie b\b|\bbrasileirao b\b|\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b/, 88],
+    [/\bpaulista\b|\bcarioca\b|\bmineiro\b|\bgaucho\b|\bparanaense\b|\bpernambucano\b|\bcearense\b|\bbaiano\b|\bgoiano\b|\bcatarinense\b|\bpotiguar\b|\bparaense\b|\balagoano\b|\bsergipano\b|\bmaranhense\b|\bbrasiliense\b/, 76],
+
+    [/\bengland\b.*\bpremier league\b|\binglaterra\b.*\bpremier league\b|\bepl\b/, 98],
+    [/\bengland\b.*\bchampionship\b|\binglaterra\b.*\bchampionship\b|\befl championship\b/, 84],
+    [/\bspain\b.*\bla liga\b|\bespanha\b.*\bla liga\b|\blaliga\b/, 97],
+    [/\bspain\b.*\bsegunda\b|\bespanha\b.*\bsegunda\b|\bla liga 2\b|\blaliga 2\b/, 82],
+    [/\bitaly\b.*\bserie a\b|\bitalia\b.*\bserie a\b|\bit[aá]lia\b.*\bserie a\b/, 96],
+    [/\bitaly\b.*\bserie b\b|\bitalia\b.*\bserie b\b|\bit[aá]lia\b.*\bserie b\b/, 82],
+    [/\bgermany\b.*\bbundesliga\b|\balemanha\b.*\bbundesliga\b|\bbundesliga\b/, 95],
+    [/\bgermany\b.*\b2 bundesliga\b|\balemanha\b.*\b2 bundesliga\b|\b2 bundesliga\b|\bbundesliga 2\b/, 84],
+    [/\bfrance\b.*\bligue 1\b|\bfranca\b.*\bligue 1\b|\bfrança\b.*\bligue 1\b|\bligue 1\b.*\bfrance\b/, 94],
+    [/\bfrance\b.*\bligue 2\b|\bfranca\b.*\bligue 2\b|\bfrança\b.*\bligue 2\b/, 78],
+    [/\bportugal\b.*\bprimeira liga\b|\bprimeira liga\b.*\bportugal\b|\bliga portugal\b/, 84],
+    [/\bnetherlands\b.*\beredivisie\b|\bholanda\b.*\beredivisie\b|\beredivisie\b/, 83],
+
+    [/\bargentina primera division\b|\bprimera division argentina\b|\bliga profesional\b|\bargentina\b.*\bliga profesional\b/, 84],
+    [/\bcopa argentina\b/, 80],
+    [/\bliga mx\b|\bmexico\b.*\bliga mx\b|\bmexico\b.*\bprimera\b/, 84],
+    [/\busa\b.*\bmls\b|\beua\b.*\bmls\b|\bmajor league soccer\b|\bmls\b/, 82],
+    [/\busl championship\b|\busa\b.*\busl championship\b|\beua\b.*\busl championship\b/, 76],
+    [/\bcolombia\b.*\bprimera\b|\bcolombia\b.*\bcopa colombia\b/, 76],
+    [/\bequador\b.*\bserie a\b|\becuador\b.*\bserie a\b|\bligapro serie a\b/, 76],
+    [/\bchile\b.*\bprimera\b|\buruguay\b.*\bprimera\b|\bparaguay\b.*\bprimera\b|\bparaguai\b.*\bprimera\b|\bperu\b.*\bprimera\b|\bbolivia\b.*\bprimera\b/, 76],
+
+    [/\bjapan\b.*\bj1\b|\bjapao\b.*\bj1\b|\bjapão\b.*\bj1\b|\bj league\b|\bj1 league\b/, 78],
+    [/\bkorea\b.*\bk league\b|\bcoreia\b.*\bk league\b|\bk league\b/, 78],
+    [/\bsaudi pro league\b/, 77],
+    [/\bturkey\b.*\bsuper lig\b|\bturquia\b.*\bsuper lig\b|\bsuper lig\b/, 77],
+    [/\bworld cup\b|\bclub world cup\b|\bfifa club world cup\b|\bnations league\b|\beuro\b|\brecopa\b/, 90],
+  ];
+
+  for (const [pattern, score] of rules) {
     if (pattern.test(text)) return score;
   }
 
@@ -222,27 +298,25 @@ function explicitLeagueScore(item: OddixFixtureLike) {
 }
 
 export function isOddixBlockedLeague(item: OddixFixtureLike) {
-  const text = normalizeText(getOddixFullSearchText(item));
-  if (!text) return false;
+  const fullText = normalizeText(getOddixFullSearchText(item));
+  if (!fullText) return false;
 
-  if (HARD_BLOCKED_PATTERNS.some((pattern) => pattern.test(text))) return true;
+  if (has(HARD_BLOCKED_PATTERNS, fullText)) return true;
 
   const blockLowQuality = process.env.ODDIX_BLOCK_LOW_QUALITY_LEAGUES === 'true';
-  if (blockLowQuality && LOW_QUALITY_PATTERNS.some((pattern) => pattern.test(text))) return true;
+  if (blockLowQuality && has(LOW_QUALITY_PATTERNS, fullText)) return true;
 
   return false;
 }
 
 export function isOddixPriorityLeague(item: OddixFixtureLike) {
   if (isOddixBlockedLeague(item)) return false;
-  return explicitLeagueScore(item) >= 78;
+  return explicitLeagueScore(item) >= 76;
 }
 
 export function isOddixSafeSecondaryLeague(item: OddixFixtureLike) {
-  const text = normalizeText(getOddixLeagueText(item));
-  if (!text) return false;
   if (isOddixBlockedLeague(item)) return false;
-  return getOddixFixtureQualityScore(item) >= Number(process.env.ODDIX_MIN_SECONDARY_SCORE || 60);
+  return getOddixFixtureQualityScore(item) >= Number(process.env.ODDIX_MIN_SECONDARY_SCORE || 65);
 }
 
 export function isOddixLeagueAllowed(item: OddixFixtureLike) {
@@ -261,45 +335,44 @@ export function getOddixFixtureQualityScore(item: OddixFixtureLike) {
   const leagueText = normalizeText(getOddixLeagueText(item));
   const teamsText = normalizeText(getOddixTeamsText(item));
   const fullText = normalizeText(getOddixFullSearchText(item));
-  const provider = normalizeText(item?.provider || item?.provedor || '');
 
-  let score = explicitLeagueScore(item) || 42;
+  const explicitScore = explicitLeagueScore(item);
+  let score = explicitScore || 42;
 
-  if (provider.includes('flashscore')) score += 8;
-  if (provider.includes('sportscore6')) score += 6;
-  if (provider.includes('api football')) score += 4;
-  if (provider.includes('allscores')) score -= 2;
+  score += getProviderScore(item);
 
   const hasOdds = !!item?.odds || !!item?.odd;
-  if (hasOdds) score += 6;
+  if (hasOdds && explicitScore >= 70) score += 5;
+  if (hasOdds && explicitScore < 70) score += 2;
 
   const league = item?.league || item?.liga || {};
   const teams = item?.teams || item?.times || {};
   const home = teams?.home || teams?.casa || teams?.mandante || {};
   const away = teams?.away || teams?.fora || teams?.visitante || {};
 
-  if (league?.logo || league?.logotipo) score += 2;
-  if (home?.logo && away?.logo) score += 4;
+  if ((league?.logo || league?.logotipo) && explicitScore >= 70) score += 2;
+  if ((home?.logo || home?.logotipo) && (away?.logo || away?.logotipo) && explicitScore >= 70) score += 3;
 
-  if (/(brazil|brasil|argentina|chile|uruguay|uruguai|paraguay|paraguai|ecuador|colombia|peru|mexico|usa|united states)/.test(leagueText)) {
-    score += 4;
-  }
-
-  if (/(cup|copa|liga|league|serie|division|primera|premier|championship|brasileirao|brasileiro)/.test(leagueText)) {
-    score += 2;
-  }
-
-  if (LOW_QUALITY_PATTERNS.some((pattern) => pattern.test(fullText))) score -= 22;
-  if (/\b(ii|b)\b/.test(teamsText) || /\b2\b/.test(teamsText)) score -= 8;
-  if (/\bdivision 3\b|\bserie d\b|\bliga 3\b|\bleague two\b/.test(leagueText)) score -= 14;
+  if (has(HARD_LOW_LEAGUE_PATTERNS, fullText)) score -= 35;
+  if (has(WEAK_COUNTRY_PATTERNS, fullText) && explicitScore === 0) score -= 18;
+  if (/\b(ii|b)\b/.test(teamsText) || /\b2\b/.test(teamsText)) score -= 10;
   if (/\bunknown\b|\bdesconhecido\b|\bliga nao informada\b/.test(leagueText)) score -= 18;
+
+  if (
+    explicitScore === 0 &&
+    /\bpremier league\b|\bligue 1\b|\bserie a\b|\bchampionship\b|\bprimera\b|\bdivision\b/.test(leagueText)
+  ) {
+    score = Math.min(score, 58);
+  }
+
+  if (explicitScore === 0) score = Math.min(score, 60);
 
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 export function getOddixFixtureQualityLabel(item: OddixFixtureLike) {
   const score = getOddixFixtureQualityScore(item);
-  if (score >= 85) return 'premium';
+  if (score >= 90) return 'premium';
   if (score >= 75) return 'boa';
   if (score >= 60) return 'normal';
   if (score > 0) return 'fraca';
@@ -307,7 +380,7 @@ export function getOddixFixtureQualityLabel(item: OddixFixtureLike) {
 }
 
 export function getOddixFixtureDate(item: OddixFixtureLike) {
-  const fixture = item?.fixture || item?.jogo || item?.partida || {};
+  const fixture = item?.fixture || item?.jogo || item?.partida || item?.disputa || {};
   return (
     fixture?.date ||
     fixture?.data ||
@@ -321,7 +394,14 @@ export function getOddixFixtureDate(item: OddixFixtureLike) {
 }
 
 export function isOddixFinishedFixture(item: OddixFixtureLike) {
-  const status = item?.fixture?.status || item?.jogo?.status || item?.partida?.status || item?.status || {};
+  const status =
+    item?.fixture?.status ||
+    item?.jogo?.status ||
+    item?.partida?.status ||
+    item?.disputa?.status ||
+    item?.status ||
+    {};
+
   const short = String(status?.short || status?.curto || status?.shortName || '').toUpperCase();
   const long = normalizeText(
     status?.long ||
@@ -352,7 +432,7 @@ export function isOddixFinishedFixture(item: OddixFixtureLike) {
 export function isOddixDashboardFixtureAllowed(item: OddixFixtureLike, hideFinishedAfterHours = 0) {
   if (!isOddixLeagueAllowed(item)) return false;
 
-  const minScore = Number(process.env.ODDIX_DASHBOARD_MIN_SCORE || 70);
+  const minScore = Number(process.env.ODDIX_DASHBOARD_MIN_SCORE || 75);
   if (getOddixFixtureQualityScore(item) < minScore) return false;
 
   const showFinished = process.env.ODDIX_DASHBOARD_SHOW_FINISHED === 'true';
