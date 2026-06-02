@@ -187,6 +187,17 @@ export class ResultsCronService {
     return ["FT", "AET", "PEN", "AWD", "WO"].includes(short) || long.includes("match finished") || long.includes("finished");
   }
 
+  private allowLiveGreen() {
+    return String(process.env.ODDIX_ALLOW_LIVE_GREEN || "false").toLowerCase() === "true";
+  }
+
+  private sameTipKey(value: any) {
+    return this.normalize(value)
+      .replace(/\b(ao vivo|pre jogo|pré jogo|entrada|palpite)\b/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   private isCanceled(statusShort: string, statusLong: string) {
     const short = String(statusShort || "").toUpperCase();
     const long = this.normalize(statusLong);
@@ -303,6 +314,10 @@ export class ResultsCronService {
       }
 
       if (isOver && value > line) {
+        if (!finished && !this.allowLiveGreen()) {
+          return { result: "open", reason: "not_finished", metricName: metric.metricName, metricValue: value, line };
+        }
+
         return { result: "won", reason: finished ? "green_final" : "green_live", metricName: metric.metricName, metricValue: value, line };
       }
 
@@ -318,7 +333,13 @@ export class ResultsCronService {
     }
 
     if (tip.includes("ambas equipes marcam sim") || tip.includes("ambas marcam sim") || tip.includes("btts sim")) {
-      if (homeGoals > 0 && awayGoals > 0) return { result: "won", reason: finished ? "green_final" : "green_live", metricName: "Placar", metricValue: totalGoals };
+      if (homeGoals > 0 && awayGoals > 0) {
+        if (!finished && !this.allowLiveGreen()) {
+          return { result: "open", reason: "not_finished", metricName: "Placar", metricValue: totalGoals };
+        }
+
+        return { result: "won", reason: finished ? "green_final" : "green_live", metricName: "Placar", metricValue: totalGoals };
+      }
       return finished ? { result: "lost", reason: "red_final", metricName: "Placar", metricValue: totalGoals } : { result: "open", reason: "not_finished", metricName: "Placar", metricValue: totalGoals };
     }
 
@@ -506,6 +527,21 @@ export class ResultsCronService {
 
         if (!quality.ok) {
           this.logger.log(`⏭️ Palpite recusado fixtureId=${fixtureId}: ${quality.reason}`);
+          continue;
+        }
+
+        const duplicatedSameMarket = await this.prisma.bet.findFirst({
+          where: {
+            homeTeam: bet.homeTeam,
+            awayTeam: bet.awayTeam,
+            tip: bet.tip,
+            createdAt: { gte: new Date(Date.now() - 12 * 60 * 60 * 1000) },
+          },
+          select: { id: true },
+        });
+
+        if (duplicatedSameMarket) {
+          this.logger.log(`⏭️ Palpite repetido por jogo + mercado nas últimas 12h: ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip}`);
           continue;
         }
 
@@ -817,6 +853,24 @@ export class ResultsCronService {
         const statusLong = fixture.fixture?.status?.long || "";
         const finished = this.isFinished(statusShort, statusLong);
         const canceled = this.isCanceled(statusShort, statusLong);
+
+        if (!finished && !canceled) {
+          const fixtureDateForValidation = fixture?.fixture?.date || bet.gameDate;
+          const minutesUntilValidation = this.minutesUntilGame(fixtureDateForValidation);
+
+          if (minutesUntilValidation !== null && minutesUntilValidation > 5) {
+            stillOpen++;
+            details.push({
+              ...baseDetail,
+              result: "open",
+              reason: `Jogo futuro. Faltam ${minutesUntilValidation}min. GREEN/RED bloqueado.`,
+              foundBy,
+              apiStatusShort: statusShort,
+              apiStatusLong: statusLong,
+            });
+            continue;
+          }
+        }
         const { homeGoals, awayGoals, totalGoals } = this.getGoals(fixture);
         const statTotals = this.extractStatTotals(stats);
 

@@ -10,7 +10,7 @@ import FreeLockModal from "../../components/oddix/FreeLockModal";
 
 const FREE_GROUP_LINK = "https://chat.whatsapp.com/JQuwv77T1b8J6KMlXCEeRb";
 
-type TabKey = "highlights" | "live" | "pregame" | "smart" | "boost" | "greens";
+type TabKey = "highlights" | "live" | "pregame" | "smart" | "boost" | "playerprops" | "greens";
 
 function logoFallback(name: string, bg = "111827", color = "ffffff") {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "Time")}&background=${bg}&color=${color}&bold=true`;
@@ -442,6 +442,64 @@ function getGameByTip(tip: any, games: any[]) {
   });
 }
 
+
+function isPlayerPropTip(tip: any) {
+  const key = String(tip?.key || tip?.marketKey || tip?.raw?.key || tip?.raw?.marketKey || "").toLowerCase();
+  const category = String(tip?.category || tip?.raw?.category || "").toLowerCase();
+  const market = String(tip?.market || tip?.marketName || tip?.raw?.market || "").toLowerCase();
+  const text = String(tip?.tip || tip?.selection || "").toLowerCase();
+
+  return (
+    key.startsWith("player_") ||
+    category.includes("player") ||
+    market.includes("player") ||
+    market.includes("jogador") ||
+    text.includes("chute no gol") ||
+    text.includes("finalização") ||
+    text.includes("finalizacao") ||
+    text.includes("assistência") ||
+    text.includes("assistencia")
+  );
+}
+
+function extractPlayerPropsFromTips(tips: any[]) {
+  const props: any[] = [];
+
+  for (const tip of tips || []) {
+    if (Array.isArray(tip?.playerProps)) {
+      tip.playerProps.forEach((item: any) => props.push({ ...item, game: tip.game, fixtureId: tip.fixtureId, league: tip.league }));
+    }
+
+    if (Array.isArray(tip?.markets)) {
+      tip.markets.filter(isPlayerPropTip).forEach((item: any) => props.push({ ...item, game: tip.game, fixtureId: tip.fixtureId, league: tip.league }));
+    }
+
+    if (Array.isArray(tip?.raw?.playerProps)) {
+      tip.raw.playerProps.forEach((item: any) => props.push({ ...item, game: tip.game, fixtureId: tip.fixtureId, league: tip.league }));
+    }
+
+    if (Array.isArray(tip?.raw?.markets)) {
+      tip.raw.markets.filter(isPlayerPropTip).forEach((item: any) => props.push({ ...item, game: tip.game, fixtureId: tip.fixtureId, league: tip.league }));
+    }
+
+    if (isPlayerPropTip(tip)) {
+      props.push(tip);
+    }
+  }
+
+  const seen = new Set<string>();
+
+  return props
+    .filter((item) => {
+      const key = `${item.fixtureId || ""}-${item.tip || item.selection || ""}-${item.odd || ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => safeNumber(b.confidence, 0) - safeNumber(a.confidence, 0))
+    .slice(0, 20);
+}
+
 export default function Dashboard() {
   const [games, setGames] = useState<any[]>([]);
   const [smartTips, setSmartTips] = useState<any[]>([]);
@@ -487,6 +545,10 @@ export default function Dashboard() {
 
   const displayedSmartTips = smartTips.length ? smartTips : localTips;
 
+  const playerPropsTips = useMemo(() => {
+    return extractPlayerPropsFromTips(displayedSmartTips);
+  }, [displayedSmartTips]);
+
   const filteredGames = useMemo(() => {
     const q = search.toLowerCase().trim();
 
@@ -498,6 +560,7 @@ export default function Dashboard() {
         if (activeTab === "pregame" && (isGameLive(game) || isGameFinished(game))) return false;
         if (activeTab === "highlights" && safeNumber(game?.oddix?.qualityScore, 0) < 60) return false;
         if (activeTab === "smart" && safeNumber(game?.oddix?.qualityScore, 0) < 55) return false;
+        if (activeTab === "playerprops" && safeNumber(game?.oddix?.qualityScore, 0) < 55) return false;
         if (activeTab === "greens" && !isGameFinished(game)) return false;
 
         if (!q) return true;
@@ -516,7 +579,7 @@ export default function Dashboard() {
 
         return searchTerms.some((term) => haystack.includes(term));
       })
-      .slice(0, activeTab === "highlights" ? 40 : 80);
+      .slice(0, activeTab === "highlights" ? 160 : 220);
   }, [games, leagueFilter, search, activeTab]);
 
   async function loadAll(showLoading = false) {
@@ -524,9 +587,14 @@ export default function Dashboard() {
       if (showLoading) setLoading(true);
       setRefreshing(true);
 
+      const tomorrow = dateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
+      const afterTomorrow = dateKey(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
+
       const responses = await Promise.allSettled([
         api.get("/football/live"),
         api.get(`/football/fixtures?date=${today}`),
+        api.get(`/football/fixtures?date=${tomorrow}`),
+        api.get(`/football/fixtures?date=${afterTomorrow}`),
         api.get("/football/odds/smart"),
         api.get("/bets"),
         api.get("/favorite"),
@@ -534,13 +602,15 @@ export default function Dashboard() {
       ]);
 
       const live = responses[0].status === "fulfilled" ? responses[0].value?.data || [] : [];
-      const fixtures = responses[1].status === "fulfilled" ? responses[1].value?.data || [] : [];
-      const smart = responses[2].status === "fulfilled" ? responses[2].value?.data || [] : [];
-      const bets = responses[3].status === "fulfilled" ? responses[3].value?.data || [] : [];
-      const favs = responses[4].status === "fulfilled" ? responses[4].value?.data || [] : [];
-      const statsData = responses[5].status === "fulfilled" ? responses[5].value?.data : null;
+      const fixturesToday = responses[1].status === "fulfilled" ? responses[1].value?.data || [] : [];
+      const fixturesTomorrow = responses[2].status === "fulfilled" ? responses[2].value?.data || [] : [];
+      const fixturesAfterTomorrow = responses[3].status === "fulfilled" ? responses[3].value?.data || [] : [];
+      const smart = responses[4].status === "fulfilled" ? responses[4].value?.data || [] : [];
+      const bets = responses[5].status === "fulfilled" ? responses[5].value?.data || [] : [];
+      const favs = responses[6].status === "fulfilled" ? responses[6].value?.data || [] : [];
+      const statsData = responses[7].status === "fulfilled" ? responses[7].value?.data : null;
 
-      const merged = mergeGames([live, fixtures]);
+      const merged = mergeGames([live, fixturesToday, fixturesTomorrow, fixturesAfterTomorrow]);
       setGames(merged);
       setSavedBets(Array.isArray(bets) ? bets : []);
       setFavorites(Array.isArray(favs) ? favs : []);
@@ -796,6 +866,13 @@ export default function Dashboard() {
       return;
     }
 
+    if (action === "playerprops") {
+      setActiveTab("playerprops");
+      setLeagueFilter("all");
+      setSearch("");
+      return;
+    }
+
     if (action === "greens") {
       setActiveTab("greens");
       setLeagueFilter("all");
@@ -897,6 +974,7 @@ export default function Dashboard() {
           { label: "🔴 Ao Vivo", action: "live" },
           { label: "🤖 IA Premium", action: "smart" },
           { label: "🔥 Combinadas", action: "boost" },
+          { label: "⚽ Player Props", action: "playerprops" },
           { label: "📈 Greens", action: "greens" },
           { label: "💰 Odds", action: "odds" },
           { label: "🏆 Brasileirão", action: "brasil" },
@@ -1061,6 +1139,7 @@ export default function Dashboard() {
             { key: "pregame", label: "Começa em breve" },
             { key: "smart", label: "IA Premium" },
             { key: "boost", label: "Combinadas" },
+            { key: "playerprops", label: "Player Props" },
             { key: "greens", label: "Greens" },
           ].map((tab) => (
             <button
@@ -1109,7 +1188,17 @@ export default function Dashboard() {
             <BoostSection boost={boost} games={games} onAnalyze={openMatchDetail} />
           )}
 
-          {activeTab !== "smart" && activeTab !== "boost" && (
+          {activeTab === "playerprops" && (
+            <PlayerPropsSection
+              props={playerPropsTips}
+              games={games}
+              isPaidPlan={isPaidPlan}
+              onUpgrade={() => (window.location.href = "/plans")}
+              onAnalyze={openMatchDetail}
+            />
+          )}
+
+          {activeTab !== "smart" && activeTab !== "boost" && activeTab !== "playerprops" && (
             <>
               <div style={styles.sectionHeader}>
                 <div>
@@ -1161,6 +1250,7 @@ function getTabTitle(tab: TabKey) {
     pregame: "Começa em breve",
     smart: "IA Premium",
     boost: "Combinadas Oddix",
+    playerprops: "Player Props IA",
     greens: "Finalizados / Greens",
   };
   return map[tab];
@@ -1819,6 +1909,81 @@ function SmartTipsSection({ tips, games, liveTick = 0, onAnalyze }: any) {
           );
         })}
       </div>
+    </section>
+  );
+}
+
+
+function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: any) {
+  const safeProps = Array.isArray(props) ? props : [];
+
+  return (
+    <section>
+      <div style={styles.boostHero}>
+        <div>
+          <span style={styles.sectionKicker}>PLAYER PROPS IA</span>
+          <h2>Mercados de jogador com odds reais</h2>
+          <p>
+            A Oddix só mostra Player Props quando encontra mercado real vindo das odds.
+            Sem escalação ou sem linha real, não inventamos jogador.
+          </p>
+        </div>
+
+        {!isPaidPlan && (
+          <button style={styles.vipFullButton} onClick={onUpgrade}>
+            🔒 Liberar PRO/VIP
+          </button>
+        )}
+      </div>
+
+      {safeProps.length ? (
+        <div style={styles.smartList}>
+          {safeProps.map((prop: any, index: number) => {
+            const game = getGameByTip(prop, games);
+
+            return (
+              <div key={`${prop.fixtureId || index}-${prop.tip || prop.selection}`} style={styles.smartRow}>
+                <span style={styles.smartRank}>{index + 1}</span>
+
+                <div style={styles.smartInfo}>
+                  <strong>{prop.game || "Player Prop"}</strong>
+                  <small>{prop.league || prop.bookmaker || "Mercado real"}</small>
+                </div>
+
+                <div style={styles.smartPick}>
+                  <strong>{prop.tip || prop.selection || prop.market || "Mercado de jogador"}</strong>
+                  <small>{prop.market || prop.marketName || "Player Props"}</small>
+                </div>
+
+                <div style={styles.smartNumbers}>
+                  <span>Odd {prop.odd || "-"}</span>
+                  <span>{prop.confidence || "-"}%</span>
+                  <span>{prop.risk || "Médio"}</span>
+                </div>
+
+                <button
+                  style={styles.rowButton}
+                  onClick={() => {
+                    if (!isPaidPlan) {
+                      onUpgrade();
+                      return;
+                    }
+
+                    if (game) onAnalyze(game);
+                  }}
+                >
+                  {isPaidPlan ? "Ver jogo" : "Liberar"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={styles.emptyBox}>
+          Nenhum Player Prop real encontrado agora. Quando a Odds API retornar chutes no gol,
+          finalizações ou assistência de jogador, eles aparecem aqui automaticamente.
+        </div>
+      )}
     </section>
   );
 }

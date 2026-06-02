@@ -50,15 +50,15 @@ export class FootballService {
   }
 
   private liveCacheSeconds() {
-    return Number(process.env.FOOTBALL_LIVE_CACHE_SECONDS || 120);
+    return Number(process.env.FOOTBALL_LIVE_CACHE_SECONDS || 45);
   }
 
   private fixturesCacheMinutes() {
-    return Number(process.env.FOOTBALL_FIXTURES_CACHE_MINUTES || 30);
+    return Number(process.env.FOOTBALL_FIXTURES_CACHE_MINUTES || 180);
   }
 
   private hideFinishedAfterHours() {
-    return Number(process.env.ODDIX_DASHBOARD_HIDE_FINISHED_AFTER_HOURS || 0);
+    return Number(process.env.ODDIX_DASHBOARD_HIDE_FINISHED_AFTER_HOURS || 2);
   }
 
   private filterAllowedLeagues(fixtures: any[]) {
@@ -595,7 +595,7 @@ export class FootballService {
     if (Number.isNaN(parsed.getTime())) return false;
 
     // Evita cache de jogo antigo travado como NS/LIVE por erro de provider.
-    const maxPastHours = Number(process.env.ODDIX_CACHE_MAX_PAST_HOURS || 8);
+    const maxPastHours = Number(process.env.ODDIX_CACHE_MAX_PAST_HOURS || 24);
     const ageHours = (Date.now() - parsed.getTime()) / 1000 / 60 / 60;
     if (ageHours > maxPastHours) return false;
 
@@ -664,11 +664,18 @@ export class FootballService {
       return [];
     }
 
+    const todayKey = this.brazilDateKey();
+    const maxFutureDays = Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 2);
+    const rangeEnd =
+      safeDate === todayKey
+        ? new Date(end.getTime() + Math.max(0, maxFutureDays) * 24 * 60 * 60 * 1000)
+        : end;
+
     const cached = await this.prisma.cachedFixture.findMany({
       where: {
         date: {
           gte: start,
-          lte: end,
+          lte: rangeEnd,
         },
       },
       orderBy: {
@@ -737,7 +744,7 @@ export class FootballService {
     const parsed = new Date(rawDate);
     if (Number.isNaN(parsed.getTime())) return true;
 
-    const maxPastHours = Number(process.env.ODDIX_CACHE_MAX_PAST_HOURS || 8);
+    const maxPastHours = Number(process.env.ODDIX_CACHE_MAX_PAST_HOURS || 24);
     const ageHours = (Date.now() - parsed.getTime()) / 1000 / 60 / 60;
 
     return ageHours > maxPastHours;

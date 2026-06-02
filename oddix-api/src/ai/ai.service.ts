@@ -113,7 +113,14 @@ export class AiService {
       })
       .slice(0, 5);
 
-    const playerPropMarkets = playerProps.map((prop: any, index: number) => ({
+    const playerPropMarkets = playerProps
+      .filter((prop: any) => {
+        const key = String(prop.marketKey || "");
+        if (key === "player_goal_scorer_anytime" && process.env.ODDIX_ALLOW_ANYTIME_SCORER !== "true") return false;
+        return ["player_shots_on_target", "player_shots", "player_assists", "player_goal_scorer_anytime"].includes(key);
+      })
+      .filter((prop: any) => Number(prop.odd || 0) >= 1.25 && Number(prop.odd || 0) <= 2.35)
+      .map((prop: any, index: number) => ({
       key: prop.marketKey,
       category: 'Player Props',
       market: prop.marketName,
@@ -177,6 +184,7 @@ export class AiService {
         odds: safeFinalMarkets.some((market: any) => market.isRealOdd) ? 'the-odds-api' : 'oddix-estimada',
         confidenceEngine: 'oddix-confidence-engine-v1',
         realOddsCount: realOdds.length,
+        playerPropsCount: playerPropMarkets.length,
         estimatedOddsCount: safeFinalMarkets.filter((market: any) => !market.isRealOdd).length,
       },
 
@@ -196,6 +204,14 @@ export class AiService {
         ...market,
         tip: this.sanitizeTip(market.tip, homeTeam, awayTeam, context),
       })),
+
+      playerProps: playerPropMarkets
+        .filter((market: any) => market.isRealOdd)
+        .slice(0, 8)
+        .map((market: any) => ({
+          ...market,
+          tip: this.sanitizeTip(market.tip, homeTeam, awayTeam, context),
+        })),
 
       multiples,
 
