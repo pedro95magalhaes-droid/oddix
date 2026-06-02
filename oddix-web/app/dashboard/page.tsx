@@ -289,56 +289,154 @@ function bestOddFromGame(game: any) {
   return Math.min(...valid.filter((odd: number) => odd >= 1.2)) || valid[0];
 }
 
+const DASHBOARD_MIN_SCORE = Number(process.env.NEXT_PUBLIC_ODDIX_DASHBOARD_MIN_SCORE || 70);
+
+const ODDIX_MARKET_ROTATION = [
+  "total_goals_over_safe",
+  "double_chance",
+  "btts_safe",
+  "asian_handicap",
+  "corners_safe",
+  "total_goals_under_live",
+];
+
+function seededHash(text: string) {
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) {
+    hash = (hash << 5) - hash + text.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function marketAlreadyUsedKey(tip: any) {
+  return String(tip?.tip || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\d+(?:[.,]\d+)?/g, "x")
+    .replace(/\b(casa|fora|time|jogo|ao vivo|pre jogo|pré jogo)\b/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function smartLocalTip(game: any) {
   const quality = safeNumber(game?.oddix?.qualityScore, 50);
   const live = isGameLive(game);
   const score = getScore(game);
   const totalGoals = safeNumber(score.home, 0) + safeNumber(score.away, 0);
   const elapsed = safeNumber(game?.fixture?.status?.elapsed, 0);
-  const odd = bestOddFromGame(game) || (quality >= 80 ? 1.55 : 1.45);
+  const odd = bestOddFromGame(game) || (quality >= 85 ? 1.62 : quality >= 75 ? 1.55 : 1.45);
+  const homeTeam = game?.teams?.home?.name || "Casa";
+  const awayTeam = game?.teams?.away?.name || "Fora";
+  const seed = seededHash(`${game?.fixture?.id || ""}-${homeTeam}-${awayTeam}-${game?.league?.name || ""}`);
+  const rotationKey = ODDIX_MARKET_ROTATION[seed % ODDIX_MARKET_ROTATION.length];
 
-  let tip = "Under 4.5 gols";
-  let market = "Total de Gols";
-  let confidence = Math.min(92, Math.max(60, quality));
-  let risk = quality >= 80 ? "Baixo" : quality >= 68 ? "Médio/Baixo" : "Médio";
-
-  if (!live) {
-    if (quality >= 80) {
-      tip = "Over 1.5 gols";
-      confidence = Math.min(90, quality - 4);
-    } else if (quality >= 68) {
-      tip = "Under 3.5 gols";
-      confidence = Math.min(84, quality + 2);
-    }
-  }
+  let market = "Oddix Boost";
+  let tip = "Over 1.5 gols";
+  let confidence = Math.min(91, Math.max(68, quality));
+  let risk = quality >= 85 ? "Baixo" : quality >= 75 ? "Médio/Baixo" : "Médio";
 
   if (live) {
-    if (elapsed <= 25 && totalGoals === 0) {
+    if (elapsed < 15) {
+      market = "Ao Vivo Protegido";
+      tip = "Aguardar minuto 15+ para entrada";
+      confidence = Math.max(66, quality - 8);
+      risk = "Médio";
+    } else if (elapsed <= 35 && totalGoals === 0) {
+      market = "Total de Gols";
       tip = "Over 0.5 gols no jogo";
-      confidence = Math.min(86, quality + 4);
+      confidence = Math.min(87, quality + 3);
     } else if (elapsed >= 55 && totalGoals >= 2) {
+      market = "Total de Gols";
       tip = "Under 5.5 gols";
-      confidence = Math.min(88, quality + 3);
-    } else if (elapsed >= 30 && totalGoals <= 1) {
-      tip = "Under 4.5 gols";
-      confidence = Math.min(87, quality + 2);
+      confidence = Math.min(88, quality + 2);
+    } else if (elapsed >= 35 && totalGoals <= 1) {
+      market = "Dupla Chance";
+      tip = "Dupla chance do time dominante";
+      confidence = Math.min(84, quality);
+    } else {
+      market = "Total de Gols";
+      tip = totalGoals >= 2 ? "Under 5.5 gols" : "Over 1.5 gols";
+      confidence = Math.min(85, quality);
+    }
+  } else {
+    switch (rotationKey) {
+      case "double_chance":
+        market = "Dupla Chance";
+        tip = quality >= 82 ? `${homeTeam} ou empate` : "Dupla chance mais segura";
+        confidence = Math.min(88, quality + 1);
+        break;
+      case "btts_safe":
+        market = "Ambas Marcam";
+        tip = "Ambas marcam - Sim";
+        confidence = Math.min(84, quality - 2);
+        risk = "Médio";
+        break;
+      case "asian_handicap":
+        market = "Handicap";
+        tip = `${homeTeam} +1.5 handicap`;
+        confidence = Math.min(86, quality);
+        break;
+      case "corners_safe":
+        market = "Escanteios";
+        tip = "Over 6.5 escanteios";
+        confidence = Math.min(82, quality - 4);
+        risk = "Médio";
+        break;
+      case "total_goals_under_live":
+        market = "Total de Gols";
+        tip = "Under 3.5 gols";
+        confidence = Math.min(84, quality - 1);
+        break;
+      default:
+        market = "Total de Gols";
+        tip = "Over 1.5 gols";
+        confidence = Math.min(89, quality + 1);
+        break;
     }
   }
 
   return {
     fixtureId: game?.fixture?.id,
-    game: `${game?.teams?.home?.name} x ${game?.teams?.away?.name}`,
-    homeTeam: game?.teams?.home?.name,
-    awayTeam: game?.teams?.away?.name,
+    game: `${homeTeam} x ${awayTeam}`,
+    homeTeam,
+    awayTeam,
     league: game?.league?.name,
     market,
     tip,
     odd: Number(odd).toFixed(2),
     confidence,
     risk,
-    source: "Oddix IA Local",
+    source: "Oddix Boost V2 Local",
     qualityScore: quality,
   };
+}
+
+function dedupeSmartTips(tips: any[]) {
+  const usedGames = new Set<string>();
+  const usedMarkets = new Map<string, number>();
+  const output: any[] = [];
+
+  for (const tip of tips || []) {
+    const gameKey = String(tip?.fixtureId || tip?.game || "").toLowerCase();
+    const marketKey = marketAlreadyUsedKey(tip);
+    const confidence = safeNumber(tip?.confidence, 0);
+    const quality = safeNumber(tip?.qualityScore, 0);
+
+    if (!gameKey || confidence < 65 || quality < DASHBOARD_MIN_SCORE) continue;
+    if (usedGames.has(gameKey)) continue;
+
+    const currentMarketCount = usedMarkets.get(marketKey) || 0;
+    if (marketKey && currentMarketCount >= 2) continue;
+
+    usedGames.add(gameKey);
+    usedMarkets.set(marketKey, currentMarketCount + 1);
+    output.push(tip);
+  }
+
+  return output;
 }
 
 function normalizeSmartTip(raw: any, game?: any) {
@@ -535,15 +633,18 @@ export default function Dashboard() {
   const topGames = useMemo(() => {
     return [...games]
       .filter((game) => !isGameFinished(game))
+      .filter((game) => safeNumber(game?.oddix?.qualityScore, 0) >= DASHBOARD_MIN_SCORE)
       .sort((a, b) => safeNumber(b?.oddix?.qualityScore, 0) - safeNumber(a?.oddix?.qualityScore, 0))
-      .slice(0, 10);
+      .slice(0, 12);
   }, [games]);
 
   const localTips = useMemo(() => {
-    return topGames.map((game) => smartLocalTip(game));
+    return dedupeSmartTips(topGames.map((game) => smartLocalTip(game)));
   }, [topGames]);
 
-  const displayedSmartTips = smartTips.length ? smartTips : localTips;
+  const displayedSmartTips = useMemo(() => {
+    return dedupeSmartTips(smartTips.length ? smartTips : localTips).slice(0, 12);
+  }, [smartTips, localTips]);
 
   const playerPropsTips = useMemo(() => {
     return extractPlayerPropsFromTips(displayedSmartTips);
@@ -558,9 +659,9 @@ export default function Dashboard() {
 
         if (activeTab === "live" && !isGameLive(game)) return false;
         if (activeTab === "pregame" && (isGameLive(game) || isGameFinished(game))) return false;
-        if (activeTab === "highlights" && safeNumber(game?.oddix?.qualityScore, 0) < 60) return false;
-        if (activeTab === "smart" && safeNumber(game?.oddix?.qualityScore, 0) < 55) return false;
-        if (activeTab === "playerprops" && safeNumber(game?.oddix?.qualityScore, 0) < 55) return false;
+        if (activeTab === "highlights" && safeNumber(game?.oddix?.qualityScore, 0) < DASHBOARD_MIN_SCORE) return false;
+        if (activeTab === "smart" && safeNumber(game?.oddix?.qualityScore, 0) < DASHBOARD_MIN_SCORE) return false;
+        if (activeTab === "playerprops" && safeNumber(game?.oddix?.qualityScore, 0) < DASHBOARD_MIN_SCORE) return false;
         if (activeTab === "greens" && !isGameFinished(game)) return false;
 
         if (!q) return true;
@@ -624,7 +725,7 @@ export default function Dashboard() {
             ? smart
             : [];
 
-      setSmartTips(smartArray.map((tip: any) => normalizeSmartTip(tip, getGameByTip(tip, merged))).slice(0, 12));
+      setSmartTips(dedupeSmartTips(smartArray.map((tip: any) => normalizeSmartTip(tip, getGameByTip(tip, merged)))).slice(0, 12));
     } catch {
       setGames([]);
       setSmartTips([]);

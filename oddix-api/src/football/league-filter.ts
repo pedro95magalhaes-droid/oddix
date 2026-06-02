@@ -122,11 +122,6 @@ export function getOddixFullSearchText(item: OddixFixtureLike) {
   return pickText(getOddixLeagueText(item), getOddixTeamsText(item));
 }
 
-/**
- * Bloqueio duro: só remove lixo claro.
- * Assim o Dashboard volta a ter volume, sem deixar passar U17/U19/U20/U21/U23,
- * feminino, reservas, amistosos, eSoccer e simulados.
- */
 const HARD_BLOCKED_PATTERNS = [
   /\bu\s?\d{2}\b/,
   /\bu-\s?\d{2}\b/,
@@ -163,10 +158,6 @@ const HARD_BLOCKED_PATTERNS = [
   /\breserve league\b/,
 ];
 
-/**
- * Bloqueio opcional para ligas muito fracas. Só liga se quiser limpar bastante:
- * ODDIX_BLOCK_LOW_QUALITY_LEAGUES=true
- */
 const LOW_QUALITY_PATTERNS = [
   /\buniversity\b/,
   /\bfutsal\b/,
@@ -175,70 +166,60 @@ const LOW_QUALITY_PATTERNS = [
   /\bbupati\b/,
   /\bbeilu cup\b/,
   /\bteam\s+[a-z0-9]{4,}\b/,
+  /\bregionalliga\b/,
+  /\boberliga\b/,
+  /\bsegunda division b\b/,
+  /\bthird league\b/,
+  /\bdivision 3\b/,
+  /\bserie d\b/,
+  /\bliga 3\b/,
+  /\bleague two\b/,
+  /\busl league two\b/,
+  /\bprimera b metropolitana\b/,
+  /\bstate league 1\b/,
+  /\bqualification\b/,
 ];
 
-const PRIORITY_PATTERNS = [
-  /\bchampions league\b/,
-  /\beuropa league\b/,
-  /\bconference league\b/,
-  /\blibertadores\b/,
-  /\bsudamericana\b/,
-  /\brecopa\b/,
-  /\bworld cup\b/,
-  /\bclub world cup\b/,
-  /\bnations league\b/,
-  /\beuro\b/,
-  /\bpremier league\b/,
-  /\bchampionship\b/,
-  /\bla liga\b/,
-  /\blaliga\b/,
-  /\bbundesliga\b/,
-  /\bserie a\b/,
-  /\bserie b\b/,
-  /\bligue 1\b/,
-  /\bere(divisie|divisie)\b/,
-  /\bprimeira liga\b/,
-  /\bbrasileirao\b/,
-  /\bbrasileiro\b/,
-  /\bbrazil serie\b/,
-  /\bbrasil serie\b/,
-  /\bcopa do brasil\b/,
-  /\bcopa do nordeste\b/,
-  /\bpaulista\b/,
-  /\bcarioca\b/,
-  /\bmineiro\b/,
-  /\bgaucho\b/,
-  /\bparanaense\b/,
-  /\bpernambucano\b/,
-  /\bcearense\b/,
-  /\bbaiano\b/,
-  /\bgoiano\b/,
-  /\bcatarinense\b/,
-  /\bpotiguar\b/,
-  /\bparaense\b/,
-  /\balagoano\b/,
-  /\bsergipano\b/,
-  /\bmaranhense\b/,
-  /\bmato grossense\b/,
-  /\bbrasiliense\b/,
-  /\bargentina\b/,
-  /\bchile\b/,
-  /\buruguay\b/,
-  /\bparaguay\b/,
-  /\becuador\b/,
-  /\bcolombia\b/,
-  /\bperu\b/,
-  /\bbolivia\b/,
-  /\bmexico\b/,
-  /\bliga mx\b/,
-  /\bmls\b/,
-  /\bj league\b/,
-  /\bj1\b/,
-  /\bk league\b/,
-  /\bsaudi pro league\b/,
-  /\bturkey\b/,
-  /\bsuper lig\b/,
+const EXPLICIT_PRIORITY_SCORES: Array<[RegExp, number]> = [
+  [/\bchampions league\b/, 100],
+  [/\blibertadores\b/, 99],
+  [/\bpremier league\b/, 98],
+  [/\bla liga\b|\blaliga\b/, 97],
+  [/\bserie a\b/, 96],
+  [/\bbundesliga\b/, 95],
+  [/\bligue 1\b/, 94],
+  [/\beuropa league\b/, 93],
+  [/\bconference league\b/, 91],
+  [/\bbrasileirao\b|\bbrasileiro serie a\b|\bbrasil serie a\b|\bbrazil serie a\b/, 92],
+  [/\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b|\bserie b\b/, 90],
+  [/\bsudamericana\b|\bsul americana\b/, 88],
+  [/\bcopa do brasil\b/, 88],
+  [/\bcopa do nordeste\b/, 84],
+  [/\bpaulista\b|\bcarioca\b|\bmineiro\b|\bgaucho\b|\bparanaense\b|\bpernambucano\b|\bcearense\b|\bbaiano\b|\bgoiano\b|\bcatarinense\b/, 82],
+  [/\bargentina\b|\bprimera division\b/, 82],
+  [/\bliga mx\b|\bmexico\b/, 84],
+  [/\bmls\b/, 83],
+  [/\bchampionship\b/, 82],
+  [/\bere(divisie|divisie)\b/, 82],
+  [/\bprimeira liga\b/, 82],
+  [/\bj league\b|\bj1\b/, 80],
+  [/\bk league\b/, 80],
+  [/\bsaudi pro league\b/, 79],
+  [/\bsuper lig\b|\bturkey\b/, 79],
+  [/\bchile\b|\buruguay\b|\buruguai\b|\bparaguay\b|\bparaguai\b|\becuador\b|\bcolombia\b|\bperu\b|\bbolivia\b/, 78],
+  [/\bworld cup\b|\bclub world cup\b|\bnations league\b|\beuro\b|\brecopa\b/, 90],
 ];
+
+function explicitLeagueScore(item: OddixFixtureLike) {
+  const text = normalizeText(getOddixLeagueText(item));
+  if (!text) return 0;
+
+  for (const [pattern, score] of EXPLICIT_PRIORITY_SCORES) {
+    if (pattern.test(text)) return score;
+  }
+
+  return 0;
+}
 
 export function isOddixBlockedLeague(item: OddixFixtureLike) {
   const text = normalizeText(getOddixFullSearchText(item));
@@ -247,48 +228,32 @@ export function isOddixBlockedLeague(item: OddixFixtureLike) {
   if (HARD_BLOCKED_PATTERNS.some((pattern) => pattern.test(text))) return true;
 
   const blockLowQuality = process.env.ODDIX_BLOCK_LOW_QUALITY_LEAGUES === 'true';
-  if (blockLowQuality && LOW_QUALITY_PATTERNS.some((pattern) => pattern.test(text))) {
-    return true;
-  }
+  if (blockLowQuality && LOW_QUALITY_PATTERNS.some((pattern) => pattern.test(text))) return true;
 
   return false;
 }
 
 export function isOddixPriorityLeague(item: OddixFixtureLike) {
-  const text = normalizeText(getOddixLeagueText(item));
-  if (!text) return false;
   if (isOddixBlockedLeague(item)) return false;
-  return PRIORITY_PATTERNS.some((pattern) => pattern.test(text));
+  return explicitLeagueScore(item) >= 78;
 }
 
 export function isOddixSafeSecondaryLeague(item: OddixFixtureLike) {
   const text = normalizeText(getOddixLeagueText(item));
   if (!text) return false;
   if (isOddixBlockedLeague(item)) return false;
-  return true;
+  return getOddixFixtureQualityScore(item) >= Number(process.env.ODDIX_MIN_SECONDARY_SCORE || 60);
 }
 
 export function isOddixLeagueAllowed(item: OddixFixtureLike) {
   if (process.env.ODDIX_LEAGUE_FILTER_ENABLED === 'false') return true;
   if (isOddixBlockedLeague(item)) return false;
 
-  /**
-   * Regra definitiva do Oddix:
-   * - O filtro de liga NÃO decide mais se o jogo é bom ou ruim.
-   * - Ele apenas bloqueia lixo claro: base, feminino, reservas, amistosos,
-   *   eSoccer, simulado e ligas muito fake quando ativado.
-   * - A qualidade agora é feita por score/ranking, sem esconder jogo válido.
-   *
-   * O antigo ODDIX_PRIORITY_LEAGUES_ONLY ficou perigoso porque cortava muitos
-   * jogos bons. Se algum dia quiser modo extremamente fechado, use:
-   * ODDIX_STRICT_PRIORITY_ONLY=true
-   */
   const strictPriorityOnly = process.env.ODDIX_STRICT_PRIORITY_ONLY === 'true';
   if (strictPriorityOnly) return isOddixPriorityLeague(item);
 
   return true;
 }
-
 
 export function getOddixFixtureQualityScore(item: OddixFixtureLike) {
   if (!isOddixLeagueAllowed(item)) return 0;
@@ -298,51 +263,45 @@ export function getOddixFixtureQualityScore(item: OddixFixtureLike) {
   const fullText = normalizeText(getOddixFullSearchText(item));
   const provider = normalizeText(item?.provider || item?.provedor || '');
 
-  let score = 45;
+  let score = explicitLeagueScore(item) || 42;
 
-  if (isOddixPriorityLeague(item)) score += 35;
-
-  // Providers com logo/odds tendem a ser melhores para card, dashboard e IA.
-  if (provider.includes('flashscore')) score += 10;
-  if (provider.includes('sportscore6')) score += 8;
-  if (provider.includes('allscores')) score += 4;
+  if (provider.includes('flashscore')) score += 8;
+  if (provider.includes('sportscore6')) score += 6;
   if (provider.includes('api football')) score += 4;
+  if (provider.includes('allscores')) score -= 2;
 
   const hasOdds = !!item?.odds || !!item?.odd;
-  if (hasOdds) score += 8;
+  if (hasOdds) score += 6;
 
   const league = item?.league || item?.liga || {};
   const teams = item?.teams || item?.times || {};
   const home = teams?.home || teams?.casa || teams?.mandante || {};
   const away = teams?.away || teams?.fora || teams?.visitante || {};
 
-  if (league?.logo || league?.logotipo) score += 3;
-  if (home?.logo && away?.logo) score += 5;
+  if (league?.logo || league?.logotipo) score += 2;
+  if (home?.logo && away?.logo) score += 4;
 
-  // Países e torneios bons para análise comercial/usuário brasileiro.
   if (/(brazil|brasil|argentina|chile|uruguay|uruguai|paraguay|paraguai|ecuador|colombia|peru|mexico|usa|united states)/.test(leagueText)) {
-    score += 10;
+    score += 4;
   }
 
-  // Copas e ligas oficiais costumam ter mais mercado e melhor leitura.
   if (/(cup|copa|liga|league|serie|division|primera|premier|championship|brasileirao|brasileiro)/.test(leagueText)) {
-    score += 5;
+    score += 2;
   }
 
-  // Penaliza lixo leve sem bloquear o dashboard inteiro.
-  if (LOW_QUALITY_PATTERNS.some((pattern) => pattern.test(fullText))) score -= 25;
+  if (LOW_QUALITY_PATTERNS.some((pattern) => pattern.test(fullText))) score -= 22;
   if (/\b(ii|b)\b/.test(teamsText) || /\b2\b/.test(teamsText)) score -= 8;
-  if (/\bdivision 3\b|\bserie d\b|\bliga 2\b/.test(leagueText)) score -= 4;
-  if (/\bunknown\b|\bdesconhecido\b|\bliga nao informada\b/.test(leagueText)) score -= 15;
+  if (/\bdivision 3\b|\bserie d\b|\bliga 3\b|\bleague two\b/.test(leagueText)) score -= 14;
+  if (/\bunknown\b|\bdesconhecido\b|\bliga nao informada\b/.test(leagueText)) score -= 18;
 
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 export function getOddixFixtureQualityLabel(item: OddixFixtureLike) {
   const score = getOddixFixtureQualityScore(item);
-  if (score >= 80) return 'premium';
-  if (score >= 65) return 'boa';
-  if (score >= 45) return 'normal';
+  if (score >= 85) return 'premium';
+  if (score >= 75) return 'boa';
+  if (score >= 60) return 'normal';
   if (score > 0) return 'fraca';
   return 'bloqueada';
 }
@@ -390,11 +349,11 @@ export function isOddixFinishedFixture(item: OddixFixtureLike) {
   );
 }
 
-export function isOddixDashboardFixtureAllowed(
-  item: OddixFixtureLike,
-  hideFinishedAfterHours = 0,
-) {
+export function isOddixDashboardFixtureAllowed(item: OddixFixtureLike, hideFinishedAfterHours = 0) {
   if (!isOddixLeagueAllowed(item)) return false;
+
+  const minScore = Number(process.env.ODDIX_DASHBOARD_MIN_SCORE || 70);
+  if (getOddixFixtureQualityScore(item) < minScore) return false;
 
   const showFinished = process.env.ODDIX_DASHBOARD_SHOW_FINISHED === 'true';
   const isFinished = isOddixFinishedFixture(item);

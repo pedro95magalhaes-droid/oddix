@@ -2,11 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { MarketsService } from '../markets/markets.service';
 import { OddsService } from '../odds/odds.service';
 import { OddixConfidenceEngineService } from './oddix-confidence-engine.service';
+import { OddixBoostV2Service } from './oddix-boost-v2.service';
 
 type RiskLevel = 'Baixo' | 'Médio' | 'Alto';
 
 @Injectable()
 export class AiService {
+  private readonly oddixBoostV2 = new OddixBoostV2Service();
+
   constructor(
     private readonly marketsService: MarketsService,
     private readonly oddsService: OddsService,
@@ -160,11 +163,19 @@ export class AiService {
 
     const rawFinalMarkets = mergedMarkets.length ? mergedMarkets : [fallback];
 
-    const finalMarkets = rawFinalMarkets
-      .map((market: any) => this.applyConfidenceEngine(market, context, homeTeam, awayTeam, game))
-      .filter((market: any) => market.oddixEngine?.send || Number(market.confidence || 0) >= 80)
-      .sort((a: any, b: any) => this.marketScore(b.confidence, b.odd, b.risk, context, b.key) - this.marketScore(a.confidence, a.odd, a.risk, context, a.key))
-      .slice(0, 5);
+    const finalMarkets = this.oddixBoostV2.selectBestMarkets(
+      rawFinalMarkets
+        .map((market: any) => this.applyConfidenceEngine(market, context, homeTeam, awayTeam, game))
+        .filter((market: any) => market.oddixEngine?.send || Number(market.confidence || 0) >= 80),
+      {
+        isLive: context.isLive,
+        elapsed: context.elapsed,
+        totalGoals: context.totalGoals,
+        league,
+        seed,
+      },
+      5,
+    );
 
     const safeFinalMarkets = finalMarkets.length
       ? finalMarkets
