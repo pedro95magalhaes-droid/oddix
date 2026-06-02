@@ -1,90 +1,82 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { api } from "../../services/api";
 
 const FREE_GROUP_LINK = "https://chat.whatsapp.com/JQuwv77T1b8J6KMlXCEeRb";
 
+type TabKey = "highlights" | "live" | "pregame" | "smart" | "boost" | "greens";
+
 function logoFallback(name: string, bg = "111827", color = "ffffff") {
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(
-    name || "Time",
-  )}&background=${bg}&color=${color}&bold=true`;
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "Time")}&background=${bg}&color=${color}&bold=true`;
 }
 
 function dateKey(date: Date) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
+  return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Fortaleza",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  });
-
-  return formatter.format(date);
+  }).format(date);
 }
 
 function formatDateTime(date: any) {
   if (!date) return "-";
-
   const parsed = new Date(date);
-
   if (Number.isNaN(parsed.getTime())) return "-";
-
   return parsed.toLocaleString("pt-BR", {
     timeZone: "America/Fortaleza",
     day: "2-digit",
     month: "2-digit",
-    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
 }
 
-function getStatusShort(game: any) {
-  const raw = String(
-    game?.fixture?.status?.short ||
-      game?.fixture?.status?.curto ||
-      game?.jogo?.status?.short ||
-      game?.jogo?.status?.curto ||
-      "",
-  ).toUpperCase();
+function safeNumber(value: any, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
 
+function safeScore(value: any) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(String(value).replace(/[^0-9.-]/g, ""));
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed < 0 || parsed > 30) return null;
+  return parsed;
+}
+
+function normalizeStatusShort(status: any) {
+  const raw = String(status?.short || status?.curto || status?.shortName || "").toUpperCase();
   if (raw === "1T") return "1H";
   if (raw === "2T") return "2H";
   return raw;
 }
 
-function safeScoreValue(value: any) {
-  if (value === null || value === undefined || value === "") return null;
-  const parsed = Number(String(value).replace(/[^0-9.-]/g, ""));
-  if (!Number.isFinite(parsed)) return null;
-  // Evita bug tipo placar 93x94 vindo de campo errado/ID/minuto.
-  if (parsed < 0 || parsed > 30) return null;
-  return parsed;
-}
-
 function normalizeGame(game: any) {
-  if (!game) return game;
+  if (!game) return null;
 
-  const fixture = game.fixture || game.jogo || {};
+  const fixture = game.fixture || game.jogo || game.partida || {};
   const status = fixture.status || {};
-  const league = game.league || game.liga || {};
+  const league = game.league || game.liga || game.competition || {};
   const teams = game.teams || game.times || {};
-  const home = teams.home || teams.casa || {};
+  const home = teams.home || teams.casa || teams.mandante || {};
   const away = teams.away || teams.fora || teams.visitante || {};
   const goals = game.goals || game.gols || {};
   const score = game.score || game.placar || {};
+  const oddix = game.oddix || {};
 
-  const homeGoals = safeScoreValue(
+  const homeGoals = safeScore(
     goals.home ??
       goals.casa ??
       score?.fulltime?.home ??
       score?.fulltime?.casa ??
       score?.["tempo integral"]?.home ??
-      score?.["tempo integral"]?.casa ??
-      game?.allScoresRaw?.homeCompetitor?.score,
+      score?.["tempo integral"]?.casa,
   );
 
-  const awayGoals = safeScoreValue(
+  const awayGoals = safeScore(
     goals.away ??
       goals.fora ??
       goals.visitante ??
@@ -92,37 +84,34 @@ function normalizeGame(game: any) {
       score?.fulltime?.fora ??
       score?.["tempo integral"]?.away ??
       score?.["tempo integral"]?.fora ??
-      score?.["tempo integral"]?.visitante ??
-      game?.allScoresRaw?.awayCompetitor?.score,
+      score?.["tempo integral"]?.visitante,
   );
 
-  return {
+  const normalized = {
     ...game,
-    provider: game.provider || game.provedor || "api-football",
+    provider: game.provider || game.provedor || "unknown",
     fixture: {
       ...fixture,
       id: fixture.id,
+      externalId: fixture.externalId,
       date: fixture.date || fixture.data,
-      timestamp: fixture.timestamp || fixture["carimbo de data/hora"],
-      timezone: fixture.timezone || fixture["fuso horário"] || fixture.fuso,
+      timestamp: fixture.timestamp || fixture.carimboDeDataHora || fixture["carimbo de data/hora"],
+      timezone: fixture.timezone || fixture.fuso || fixture["fuso horário"] || "America/Sao_Paulo",
       status: {
         ...status,
-        short: (() => {
-          const raw = String(status.short || status.curto || "").toUpperCase();
-          if (raw === "1T") return "1H";
-          if (raw === "2T") return "2H";
-          return raw;
-        })(),
-        long: status.long || "",
-        elapsed: Number(status.elapsed ?? status.decorrido ?? status["tempo decorrido"] ?? 0),
+        short: normalizeStatusShort(status),
+        long: status.long || status.longo || status.name || status.nome || "",
+        elapsed: safeNumber(status.elapsed ?? status.decorrido ?? status.tempoDecorrido ?? status["tempo decorrido"], 0),
         extra: status.extra ?? status.prorrogacao ?? status.prorrogação ?? null,
       },
+      liveClockLoadedAt: Date.now(),
+      liveClockBaseElapsed: safeNumber(status.elapsed ?? status.decorrido ?? status.tempoDecorrido ?? status["tempo decorrido"], 0),
     },
     league: {
       ...league,
       id: league.id || 0,
       name: league.name || league.nome || "Liga",
-      country: league.country || league.país || league.pais || "",
+      country: league.country || league.pais || league.país || "",
       logo: league.logo || league.logotipo || "",
     },
     teams: {
@@ -142,779 +131,517 @@ function normalizeGame(game: any) {
       },
     },
     goals: {
-      home: homeGoals ?? 0,
-      away: awayGoals ?? 0,
+      home: homeGoals,
+      away: awayGoals,
     },
     score: {
       ...score,
       fulltime: {
-        home: homeGoals ?? 0,
-        away: awayGoals ?? 0,
+        home: homeGoals,
+        away: awayGoals,
       },
     },
+    oddix: {
+      leagueAllowed: oddix.leagueAllowed ?? oddix.ligaPermitida ?? true,
+      priorityLeague: oddix.priorityLeague ?? oddix.ligaPrioridade ?? false,
+      qualityScore: safeNumber(oddix.qualityScore ?? oddix.pontuaçãoDeQualidade ?? oddix.pontuacaoQualidade, 50),
+      qualityLabel: oddix.qualityLabel || oddix.rótuloDeQualidade || oddix.rotuloQualidade || "normal",
+    },
   };
+
+  return normalized;
+}
+
+function getStatusShort(game: any) {
+  return normalizeStatusShort(game?.fixture?.status || game?.jogo?.status || {});
 }
 
 function isLiveStatus(status: string) {
-  return ["1H", "2H", "2T", "HT", "ET", "BT", "P", "LIVE", "SUSP", "INT"].includes(
-    String(status || "").toUpperCase(),
-  );
+  return ["1H", "2H", "HT", "ET", "BT", "P", "LIVE", "SUSP", "INT"].includes(String(status || "").toUpperCase());
 }
 
 function isFinishedStatus(status: string) {
-  return ["FT", "AET", "PEN", "AWD", "WO"].includes(
-    String(status || "").toUpperCase(),
-  );
+  return ["FT", "AET", "PEN", "AWD", "WO", "CANC", "ABD", "PST"].includes(String(status || "").toUpperCase());
 }
 
-function isCanceledStatus(status: string) {
-  return ["CANC", "ABD", "AWD", "WO", "PST"].includes(status);
+function isGameLive(game: any) {
+  const status = getStatusShort(game);
+  const elapsed = safeNumber(game?.fixture?.status?.elapsed, 0);
+  const extra = safeNumber(game?.fixture?.status?.extra, 0);
+
+  if (isFinishedStatus(status)) return false;
+  if (!isLiveStatus(status)) return false;
+  if (elapsed >= 90) return false;
+  if (elapsed >= 85 && extra > 0) return false;
+
+  return true;
+}
+
+function isGameFinished(game: any) {
+  const status = getStatusShort(game);
+  const elapsed = safeNumber(game?.fixture?.status?.elapsed, 0);
+  const extra = safeNumber(game?.fixture?.status?.extra, 0);
+
+  if (isFinishedStatus(status)) return true;
+  if (elapsed >= 90) return true;
+  if (elapsed >= 85 && extra > 0) return true;
+  return false;
+}
+
+function gameDateKey(game: any) {
+  const raw = game?.fixture?.date;
+  if (!raw) return "";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return dateKey(parsed);
+}
+
+function getLiveClockParts(game: any, tick = 0) {
+  tick;
+
+  const status = getStatusShort(game);
+  const apiElapsed = safeNumber(game?.fixture?.status?.elapsed, 0);
+  const baseElapsed = safeNumber(game?.fixture?.liveClockBaseElapsed, apiElapsed);
+  const loadedAt = safeNumber(game?.fixture?.liveClockLoadedAt, Date.now());
+  const extra = safeNumber(game?.fixture?.status?.extra, 0);
+  const rawLive = isLiveStatus(status) && !isFinishedStatus(status);
+
+  if (status === "HT") {
+    return { minute: 45, second: 0, extra, running: false };
+  }
+
+  if (!rawLive || apiElapsed >= 90 || (apiElapsed >= 85 && extra > 0)) {
+    return { minute: apiElapsed, second: 0, extra, running: false };
+  }
+
+  const secondsSinceLoad = Math.max(0, Math.floor((Date.now() - loadedAt) / 1000));
+  const totalSeconds = Math.max(0, baseElapsed * 60 + secondsSinceLoad);
+
+  let minute = Math.floor(totalSeconds / 60);
+  let second = totalSeconds % 60;
+
+  if (["ET", "BT", "P"].includes(status)) {
+    minute = Math.min(minute, 120);
+  } else {
+    minute = Math.min(minute, 90);
+  }
+
+  if (extra && minute >= 90) {
+    minute = 90 + extra;
+    second = 0;
+  }
+
+  return { minute, second, extra, running: true };
+}
+
+function getLiveElapsedMinute(game: any, tick = 0) {
+  return getLiveClockParts(game, tick).minute;
+}
+
+function gameTimeLabel(game: any, tick = 0) {
+  const status = getStatusShort(game);
+
+  if (status === "HT") return "Intervalo";
+
+  if (isGameLive(game)) {
+    const clock = getLiveClockParts(game, tick);
+
+    if (!clock.minute) return "Ao vivo";
+
+    const secondLabel = String(clock.second).padStart(2, "0");
+
+    if (clock.minute >= 90 && clock.extra) {
+      return `90+${clock.extra}'`;
+    }
+
+    return `${clock.minute}:${secondLabel}`;
+  }
+
+  if (isGameFinished(game)) return "FT";
+
+  return formatDateTime(game?.fixture?.date);
+}
+
+function getScore(game: any) {
+  const home = safeScore(game?.goals?.home ?? game?.score?.fulltime?.home);
+  const away = safeScore(game?.goals?.away ?? game?.score?.fulltime?.away);
+  return {
+    home: home === null ? "-" : home,
+    away: away === null ? "-" : away,
+  };
+}
+
+function getOddsOptions(game: any) {
+  const options = game?.odds?.options || game?.odds?.opções || [];
+  return Array.isArray(options) ? options : [];
+}
+
+function bestOddFromGame(game: any) {
+  const options = getOddsOptions(game);
+  const valid = options
+    .map((item: any) => Number(item?.odd ?? item?.ímpar))
+    .filter((odd: number) => Number.isFinite(odd) && odd > 1);
+  if (!valid.length) return null;
+  return Math.min(...valid.filter((odd: number) => odd >= 1.2)) || valid[0];
+}
+
+function smartLocalTip(game: any) {
+  const quality = safeNumber(game?.oddix?.qualityScore, 50);
+  const live = isGameLive(game);
+  const score = getScore(game);
+  const totalGoals = safeNumber(score.home, 0) + safeNumber(score.away, 0);
+  const elapsed = safeNumber(game?.fixture?.status?.elapsed, 0);
+  const odd = bestOddFromGame(game) || (quality >= 80 ? 1.55 : 1.45);
+
+  let tip = "Under 4.5 gols";
+  let market = "Total de Gols";
+  let confidence = Math.min(92, Math.max(60, quality));
+  let risk = quality >= 80 ? "Baixo" : quality >= 68 ? "Médio/Baixo" : "Médio";
+
+  if (!live) {
+    if (quality >= 80) {
+      tip = "Over 1.5 gols";
+      confidence = Math.min(90, quality - 4);
+    } else if (quality >= 68) {
+      tip = "Under 3.5 gols";
+      confidence = Math.min(84, quality + 2);
+    }
+  }
+
+  if (live) {
+    if (elapsed <= 25 && totalGoals === 0) {
+      tip = "Over 0.5 gols no jogo";
+      confidence = Math.min(86, quality + 4);
+    } else if (elapsed >= 55 && totalGoals >= 2) {
+      tip = "Under 5.5 gols";
+      confidence = Math.min(88, quality + 3);
+    } else if (elapsed >= 30 && totalGoals <= 1) {
+      tip = "Under 4.5 gols";
+      confidence = Math.min(87, quality + 2);
+    }
+  }
+
+  return {
+    fixtureId: game?.fixture?.id,
+    game: `${game?.teams?.home?.name} x ${game?.teams?.away?.name}`,
+    homeTeam: game?.teams?.home?.name,
+    awayTeam: game?.teams?.away?.name,
+    league: game?.league?.name,
+    market,
+    tip,
+    odd: Number(odd).toFixed(2),
+    confidence,
+    risk,
+    source: "Oddix IA Local",
+    qualityScore: quality,
+  };
+}
+
+function normalizeSmartTip(raw: any, game?: any) {
+  const base = raw?.fixture ? normalizeGame(raw) : game;
+  return {
+    fixtureId: raw?.fixtureId || raw?.fixture?.id || base?.fixture?.id,
+    game:
+      raw?.game ||
+      raw?.match ||
+      `${raw?.homeTeam || base?.teams?.home?.name || "Casa"} x ${raw?.awayTeam || base?.teams?.away?.name || "Fora"}`,
+    homeTeam: raw?.homeTeam || base?.teams?.home?.name,
+    awayTeam: raw?.awayTeam || base?.teams?.away?.name,
+    league: raw?.league || base?.league?.name,
+    market: raw?.market || raw?.mercado || "Mercado IA",
+    tip: raw?.tip || raw?.palpite || raw?.selection || "Entrada protegida",
+    odd: raw?.odd || raw?.odds || "-",
+    confidence: safeNumber(raw?.confidence || raw?.confiança || raw?.confianca, base?.oddix?.qualityScore || 70),
+    risk: raw?.risk || raw?.risco || "Médio",
+    source: raw?.source || "Odds API",
+    qualityScore: safeNumber(raw?.qualityScore || base?.oddix?.qualityScore, 60),
+    raw,
+  };
+}
+
+function normalizeName(value: any) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\b(fc|sc|ec|afc|cf|club|clube|u20|u21|u23|women|woman|w)\b/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stableGameKey(game: any) {
+  const id = game?.fixture?.id;
+  if (id) return `fixture-${id}`;
+  return `${gameDateKey(game)}-${normalizeName(game?.teams?.home?.name)}-${normalizeName(game?.teams?.away?.name)}`;
+}
+
+function mergeGames(groups: any[][]) {
+  const map = new Map<string, any>();
+
+  groups.flat().forEach((raw) => {
+    const game = normalizeGame(raw);
+    if (!game) return;
+    const key = stableGameKey(game);
+    if (!key) return;
+
+    const current = map.get(key);
+    if (!current) {
+      map.set(key, game);
+      return;
+    }
+
+    const currentScore = safeNumber(current?.oddix?.qualityScore, 0) + (current?.odds ? 20 : 0);
+    const incomingScore = safeNumber(game?.oddix?.qualityScore, 0) + (game?.odds ? 20 : 0);
+    if (incomingScore >= currentScore) map.set(key, game);
+  });
+
+  return Array.from(map.values()).sort((a: any, b: any) => {
+    const liveA = isGameLive(a) ? 1 : 0;
+    const liveB = isGameLive(b) ? 1 : 0;
+    if (liveA !== liveB) return liveB - liveA;
+
+    const qa = safeNumber(a?.oddix?.qualityScore, 0);
+    const qb = safeNumber(b?.oddix?.qualityScore, 0);
+    if (qa !== qb) return qb - qa;
+
+    return new Date(a?.fixture?.date || 0).getTime() - new Date(b?.fixture?.date || 0).getTime();
+  });
+}
+
+function getStatusLabel(game: any, tick = 0) {
+  if (isGameLive(game)) return `● Ao vivo ${gameTimeLabel(game, tick)}`;
+  if (isGameFinished(game)) return "Finalizado";
+  return "Começa em breve";
+}
+
+function qualityBadge(score: number) {
+  if (score >= 85) return "Premium";
+  if (score >= 70) return "Boa";
+  if (score >= 55) return "Normal";
+  return "Baixa";
+}
+
+function getGameByTip(tip: any, games: any[]) {
+  const fixtureId = String(tip?.fixtureId || "");
+  if (fixtureId) {
+    const byId = games.find((game) => String(game?.fixture?.id) === fixtureId);
+    if (byId) return byId;
+  }
+
+  const home = normalizeName(tip?.homeTeam || tip?.game?.split(" x ")?.[0]);
+  const away = normalizeName(tip?.awayTeam || tip?.game?.split(" x ")?.[1]);
+  return games.find((game) => {
+    const gh = normalizeName(game?.teams?.home?.name);
+    const ga = normalizeName(game?.teams?.away?.name);
+    return gh.includes(home) || home.includes(gh) || ga.includes(away) || away.includes(ga);
+  });
 }
 
 export default function Dashboard() {
   const [games, setGames] = useState<any[]>([]);
+  const [smartTips, setSmartTips] = useState<any[]>([]);
   const [savedBets, setSavedBets] = useState<any[]>([]);
   const [favorites, setFavorites] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [plan, setPlan] = useState("Free");
   const [role, setRole] = useState("USER");
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState<TabKey>("highlights");
   const [leagueFilter, setLeagueFilter] = useState("all");
-  const [searchTeam, setSearchTeam] = useState("");
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedAnalysis, setSelectedAnalysis] = useState<any>(null);
+  const [selectedMatchDetail, setSelectedMatchDetail] = useState<any>(null);
   const [selectedStats, setSelectedStats] = useState<any>(null);
-  const [analyzingId, setAnalyzingId] = useState<number | string | null>(null);
+  const [analyzingId, setAnalyzingId] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [liveTick, setLiveTick] = useState(0);
 
-  // Mantém os cards estáveis na tela e evita refresh visual pesado.
-  const gamesRef = useRef<any[]>([]);
-  const refreshingRef = useRef(false);
-
-  const isPaidPlan = ["PRO", "VIP", "Pro", "Vip", "pro", "vip"].includes(
-    String(plan),
-  );
-
-  const totalGames = games.length;
-  const liveGames = games.filter(isGameLive).length;
-  const finishedGames = games.filter(isGameFinished).length;
-  const futureGames = games.filter(
-    (game) => !isGameLive(game) && !isGameFinished(game),
-  ).length;
-
-  const leagues = Array.from(
-    new Set(games.map((game) => game.league?.name)),
-  ).filter(Boolean);
-
-  const filteredGames = games
-    .filter((game) => {
-      const live = isGameLive(game);
-      const finished = isGameFinished(game);
-      const today = dateKey(new Date());
-      const gameDate = getGameDateKey(game.fixture?.date);
-
-      const matchStatus =
-        statusFilter === "all" ||
-        (statusFilter === "live" && live) ||
-        (statusFilter === "today" && gameDate === today) ||
-        (statusFilter === "future" && !live && !finished) ||
-        (statusFilter === "finished" && finished);
-
-      const matchLeague =
-        leagueFilter === "all" || game.league?.name === leagueFilter;
-
-      const search = searchTeam.toLowerCase().trim();
-
-      const matchTeam =
-        !search ||
-        game.teams?.home?.name?.toLowerCase().includes(search) ||
-        game.teams?.away?.name?.toLowerCase().includes(search) ||
-        game.league?.name?.toLowerCase().includes(search);
-
-      return matchStatus && matchLeague && matchTeam;
-    })
-    .sort((a, b) => {
-      const liveA = isGameLive(a) ? 1 : 0;
-      const liveB = isGameLive(b) ? 1 : 0;
-
-      if (liveA !== liveB) return liveB - liveA;
-
-      const finishedA = isGameFinished(a) ? 1 : 0;
-      const finishedB = isGameFinished(b) ? 1 : 0;
-
-      if (finishedA !== finishedB) return finishedA - finishedB;
-
-      const dateA = new Date(a.fixture?.date || 0).getTime();
-      const dateB = new Date(b.fixture?.date || 0).getTime();
-
-      return dateA - dateB;
-    });
-
-  function getGameDateKey(date: any) {
-    if (!date) return "";
-
-    const parsed = new Date(date);
-
-    if (Number.isNaN(parsed.getTime())) return "";
-
-    return dateKey(parsed);
-  }
-
-  function getScore(game: any) {
-    const normalized = normalizeGame(game);
-
-    const home = safeScoreValue(
-      normalized?.goals?.home ??
-        normalized?.score?.fulltime?.home ??
-        normalized?.score?.halftime?.home,
-    );
-
-    const away = safeScoreValue(
-      normalized?.goals?.away ??
-        normalized?.score?.fulltime?.away ??
-        normalized?.score?.halftime?.away,
-    );
-
-    return {
-      home: home === null || home === undefined ? "-" : home,
-      away: away === null || away === undefined ? "-" : away,
-    };
-  }
-
-  function isGameLive(game: any) {
-    if (game.source === "saved") {
-      return String(game.savedStatus || "").toLowerCase() === "open";
-    }
-
-    const status = String(getStatusShort(game) || "").toUpperCase();
-    const elapsed = Number(game.fixture?.status?.elapsed || 0);
-    const extra = Number(game.fixture?.status?.extra || 0);
-
-    if (isFinishedStatus(status)) return false;
-    if (!isLiveStatus(status)) return false;
-
-    // Segurança contra jogos fantasmas da API: 90' ou acréscimos não ficam mais como ao vivo.
-    if (elapsed >= 90) return false;
-    if (elapsed >= 85 && extra > 0) return false;
-
-    return true;
-  }
-
-  function isGameFinished(game: any) {
-    if (game.source === "saved") {
-      const status = String(game.savedStatus || "").toLowerCase();
-      return status === "won" || status === "lost";
-    }
-
-    const status = String(getStatusShort(game) || "").toUpperCase();
-    const elapsed = Number(game.fixture?.status?.elapsed || 0);
-    const extra = Number(game.fixture?.status?.extra || 0);
-
-    if (isFinishedStatus(status)) return true;
-    if (elapsed >= 90) return true;
-    if (elapsed >= 85 && extra > 0) return true;
-
-    return false;
-  }
-
-  function isPastGameNotToday(game: any) {
-    const gameDate = getGameDateKey(game.fixture?.date);
-    const today = dateKey(new Date());
-    return !!gameDate && gameDate < today;
-  }
-
-
-  function isFutureGameBeyondToday(game: any) {
-    const gameDate = getGameDateKey(game.fixture?.date);
-    const today = dateKey(new Date());
-    return !!gameDate && gameDate > today;
-  }
-
-  function isGameAllowedOnDashboard(game: any) {
-    const gameDate = getGameDateKey(game.fixture?.date);
-    const today = dateKey(new Date());
-
-    if (!gameDate) return false;
-    if (isCanceledStatus(getStatusShort(game))) return false;
-
-    // Dashboard principal não carrega jogos antigos nem próximos dias.
-    if (gameDate !== today) return false;
-
-    // Jogo salvo antigo em aberto não deve ficar preso na tela principal.
-    if (game.source === "saved" && !isGameLive(game)) return false;
-
-    return true;
-  }
-
-  function getLiveElapsedMinute(game: any) {
-    liveTick;
-
-    const statusShort = getStatusShort(game);
-    const apiElapsed = Number(game.fixture?.status?.elapsed || 0);
-    const timestamp = Number(game.fixture?.timestamp || 0);
-
-    if (statusShort === "HT") return 45;
-
-    if (!isGameLive(game)) return apiElapsed;
-
-    if (!apiElapsed) return apiElapsed;
-
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const dateSeconds = game.fixture?.date
-      ? Math.floor(new Date(game.fixture.date).getTime() / 1000)
-      : 0;
-    const baseTimestamp = timestamp || dateSeconds;
-
-    if (!baseTimestamp) return apiElapsed;
-
-    const apiGameTimeSeconds = timestamp
-      ? timestamp + apiElapsed * 60
-      : baseTimestamp;
-    const diffMinutes = Math.floor((nowSeconds - apiGameTimeSeconds) / 60);
-    const calculated = timestamp
-      ? apiElapsed + Math.max(0, diffMinutes)
-      : Math.max(apiElapsed, diffMinutes);
-
-    if (["ET", "BT", "P"].includes(statusShort)) {
-      return Math.min(calculated, 120);
-    }
-
-    return Math.min(calculated, 90);
-  }
-
-  function getLiveExtraMinute(game: any) {
-    liveTick;
-
-    const elapsed = getLiveElapsedMinute(game);
-    const apiExtra = Number(game.fixture?.status?.extra || 0);
-
-    if (elapsed > 90) return elapsed - 90;
-
-    return apiExtra;
-  }
-
-  function getGameTimeText(game: any) {
-    liveTick;
-
-    const statusShort = getStatusShort(game);
-    const statusLong = game.fixture?.status?.long;
-
-    if (statusShort === "HT") return "Intervalo";
-
-    if (isGameLive(game)) {
-      const elapsed = getLiveElapsedMinute(game);
-      const extra = getLiveExtraMinute(game);
-
-      if (elapsed) {
-        if (extra && elapsed >= 90) return `90+${extra}'`;
-        return `${elapsed}'`;
-      }
-
-      return statusLong || "Ao vivo";
-    }
-
-    if (isGameFinished(game)) return "FT";
-
-    return formatDateTime(game.fixture?.date);
-  }
-
-  function getGameStatusLabel(game: any) {
-    if (isGameLive(game)) return `🔴 Ao vivo ${getGameTimeText(game)}`;
-    if (isGameFinished(game)) return "🏁 Finalizado";
-    return "⏳ Futuro";
-  }
-
-  function getTimelinePercent(game: any) {
-    if (isGameFinished(game)) return 100;
-
-    const elapsed = getLiveElapsedMinute(game);
-
-    if (elapsed > 0) {
-      return Math.min(100, Math.max(3, Math.round((elapsed / 90) * 100)));
-    }
-
-    return 3;
-  }
-
-  function isSavedGame(game: any) {
-    if (game.source === "saved" || game.savedBetId) return true;
-
-    const fixtureId = Number(game.fixture?.id);
-
-    return savedBets.some((bet) => Number(bet.fixtureId) === fixtureId);
-  }
-
-  function getSavedBetId(game: any) {
-    if (game.savedBetId) return game.savedBetId;
-
-    const fixtureId = Number(game.fixture?.id);
-    const found = savedBets.find((bet) => Number(bet.fixtureId) === fixtureId);
-
-    return found?.id;
-  }
-
-  function normalizeTeamName(name: any) {
-    return String(name || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\b(fc|sc|ec|afc|cf|club|women|woman|w|u20|u21|u23|rs)\b/g, "")
-      .replace(/[^a-z0-9\s]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  function teamMatchScore(a: any, b: any) {
-    const nameA = normalizeTeamName(a);
-    const nameB = normalizeTeamName(b);
-
-    if (!nameA || !nameB) return 0;
-    if (nameA === nameB) return 100;
-    if (nameA.includes(nameB) || nameB.includes(nameA)) return 90;
-
-    const wordsA = nameA.split(" ").filter((word) => word.length >= 3);
-    const wordsB = nameB.split(" ").filter((word) => word.length >= 3);
-
-    if (!wordsA.length || !wordsB.length) return 0;
-
-    let common = 0;
-
-    wordsA.forEach((wordA) => {
-      if (
-        wordsB.some(
-          (wordB) =>
-            wordA === wordB || wordA.includes(wordB) || wordB.includes(wordA),
-        )
-      ) {
-        common++;
-      }
-    });
-
-    return Math.round((common / Math.max(wordsA.length, wordsB.length)) * 100);
-  }
-
-  function findApiGameForSavedBet(bet: any, apiGames: any[]) {
-    const betDate = bet.gameDate ? getGameDateKey(bet.gameDate) : "";
-
-    let bestGame = null;
-    let bestScore = 0;
-
-    apiGames.forEach((game) => {
-      const gameDate = getGameDateKey(game.fixture?.date);
-
-      const sameDate = !betDate || !gameDate || betDate === gameDate;
-
-      if (!sameDate) return;
-
-      const normalScore =
-        teamMatchScore(game.teams?.home?.name, bet.homeTeam) +
-        teamMatchScore(game.teams?.away?.name, bet.awayTeam);
-
-      const reversedScore =
-        teamMatchScore(game.teams?.home?.name, bet.awayTeam) +
-        teamMatchScore(game.teams?.away?.name, bet.homeTeam);
-
-      const score = Math.max(normalScore, reversedScore);
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestGame = game;
-      }
-    });
-
-    return bestScore >= 120 ? bestGame : null;
-  }
-
-  function savedBetToGame(bet: any) {
-    return {
-      source: "saved",
-      savedBetId: bet.id,
-      savedStatus: bet.status,
-      provider: bet.provider || "saved",
-      fixture: {
-        id: bet.fixtureId || bet.id,
-        date: bet.gameDate || bet.createdAt,
-        status: {
-          short:
-            bet.statusShort ||
-            (bet.status === "won" || bet.status === "lost"
-              ? "FT"
-              : "SAVED_OPEN"),
-          long:
-            bet.status === "won"
-              ? "Palpite ganho"
-              : bet.status === "lost"
-                ? "Palpite perdido"
-                : "Palpite em aberto",
-          elapsed: bet.elapsed || null,
-          extra: null,
-        },
-      },
-      league: {
-        id: 0,
-        name: bet.league || "Liga salva",
-        country: "Salvo",
-        logo: bet.leagueLogo || "",
-      },
-      teams: {
-        home: {
-          id: 0,
-          name: bet.homeTeam || "Casa",
-          logo: bet.homeLogo || "",
-        },
-        away: {
-          id: 0,
-          name: bet.awayTeam || "Fora",
-          logo: bet.awayLogo || "",
-        },
-      },
-      goals: {
-        home: bet.homeScore ?? null,
-        away: bet.awayScore ?? null,
-      },
-      score: {
-        fulltime: {
-          home: bet.homeScore ?? null,
-          away: bet.awayScore ?? null,
-        },
-        halftime: {
-          home: null,
-          away: null,
-        },
-      },
-      bet,
-    };
-  }
-
-  function stableGameKey(game: any) {
-    const fixtureId = Number(game?.fixture?.id || 0);
-
-    if (fixtureId) return `fixture-${fixtureId}`;
-
-    const home = normalizeTeamName(game?.teams?.home?.name || "");
-    const away = normalizeTeamName(game?.teams?.away?.name || "");
-    const date = getGameDateKey(game?.fixture?.date || "");
-
-    return `teams-${date}-${home}-${away}`;
-  }
-
-  function mergeStableGames(previousGames: any[], nextGames: any[]) {
-    const map = new Map<string, any>();
-
-    previousGames.forEach((game: any) => {
-      const key = stableGameKey(game);
-      if (key) map.set(key, game);
-    });
-
-    nextGames.forEach((game: any) => {
-      const key = stableGameKey(game);
-      if (!key) return;
-
-      const oldGame = map.get(key);
-
-      if (!oldGame) {
-        map.set(key, game);
-        return;
-      }
-
-      map.set(key, {
-        ...oldGame,
-        ...game,
-        fixture: {
-          ...oldGame.fixture,
-          ...game.fixture,
-          status: {
-            ...oldGame.fixture?.status,
-            ...game.fixture?.status,
-          },
-        },
-        goals: {
-          ...oldGame.goals,
-          ...game.goals,
-        },
-        score: {
-          ...oldGame.score,
-          ...game.score,
-          fulltime: {
-            ...oldGame.score?.fulltime,
-            ...game.score?.fulltime,
-          },
-          halftime: {
-            ...oldGame.score?.halftime,
-            ...game.score?.halftime,
-          },
-        },
-        teams: {
-          home: {
-            ...oldGame.teams?.home,
-            ...game.teams?.home,
-          },
-          away: {
-            ...oldGame.teams?.away,
-            ...game.teams?.away,
-          },
-        },
-        league: {
-          ...oldGame.league,
-          ...game.league,
-        },
-      });
-    });
-
-    return Array.from(map.values());
-  }
-
-  async function loadGames(forceLoading = false) {
-    if (refreshingRef.current) return;
-
-    const firstLoad = gamesRef.current.length === 0;
-    const shouldShowLoading = firstLoad || forceLoading;
-
+  const isPaidPlan = ["PRO", "VIP", "Pro", "Vip", "pro", "vip"].includes(String(plan));
+  const today = dateKey(new Date());
+
+  const liveGames = useMemo(() => games.filter(isGameLive), [games]);
+  const futureGames = useMemo(() => games.filter((game) => !isGameLive(game) && !isGameFinished(game)), [games]);
+  const finishedGames = useMemo(() => games.filter(isGameFinished), [games]);
+
+  const leagues = useMemo(() => {
+    return Array.from(new Set(games.map((game) => game?.league?.name).filter(Boolean))).sort();
+  }, [games]);
+
+  const topGames = useMemo(() => {
+    return [...games]
+      .filter((game) => !isGameFinished(game))
+      .sort((a, b) => safeNumber(b?.oddix?.qualityScore, 0) - safeNumber(a?.oddix?.qualityScore, 0))
+      .slice(0, 10);
+  }, [games]);
+
+  const localTips = useMemo(() => {
+    return topGames.map((game) => smartLocalTip(game));
+  }, [topGames]);
+
+  const displayedSmartTips = smartTips.length ? smartTips : localTips;
+
+  const filteredGames = useMemo(() => {
+    const q = search.toLowerCase().trim();
+
+    return games
+      .filter((game) => {
+        if (leagueFilter !== "all" && game?.league?.name !== leagueFilter) return false;
+
+        if (activeTab === "live" && !isGameLive(game)) return false;
+        if (activeTab === "pregame" && (isGameLive(game) || isGameFinished(game))) return false;
+        if (activeTab === "highlights" && safeNumber(game?.oddix?.qualityScore, 0) < 60) return false;
+        if (activeTab === "smart" && safeNumber(game?.oddix?.qualityScore, 0) < 55) return false;
+        if (activeTab === "greens" && !isGameFinished(game)) return false;
+
+        if (!q) return true;
+
+        const haystack = [
+          game?.teams?.home?.name,
+          game?.teams?.away?.name,
+          game?.league?.name,
+          game?.league?.country,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        const searchTerms = q.split(" ").map((term) => term.trim()).filter(Boolean);
+
+        return searchTerms.some((term) => haystack.includes(term));
+      })
+      .slice(0, activeTab === "highlights" ? 40 : 80);
+  }, [games, leagueFilter, search, activeTab]);
+
+  async function loadAll(showLoading = false) {
     try {
-      refreshingRef.current = true;
-
-      if (shouldShowLoading) {
-        setLoading(true);
-      }
-
-      // Dashboard principal: somente LIVE + jogos de HOJE.
-      // Jogos de próxima semana não entram aqui para não poluir a operação ao vivo.
-      const dates = [dateKey(new Date())];
+      if (showLoading) setLoading(true);
+      setRefreshing(true);
 
       const responses = await Promise.allSettled([
         api.get("/football/live"),
-        ...dates.map((date) => api.get(`/football/fixtures?date=${date}`)),
+        api.get(`/football/fixtures?date=${today}`),
+        api.get("/football/odds/smart"),
         api.get("/bets"),
+        api.get("/favorite"),
+        api.get("/stats"),
       ]);
 
-      const betsResponse = responses[responses.length - 1] as any;
-      const currentSavedBets =
-        betsResponse?.status === "fulfilled"
-          ? betsResponse.value?.data || []
-          : [];
+      const live = responses[0].status === "fulfilled" ? responses[0].value?.data || [] : [];
+      const fixtures = responses[1].status === "fulfilled" ? responses[1].value?.data || [] : [];
+      const smart = responses[2].status === "fulfilled" ? responses[2].value?.data || [] : [];
+      const bets = responses[3].status === "fulfilled" ? responses[3].value?.data || [] : [];
+      const favs = responses[4].status === "fulfilled" ? responses[4].value?.data || [] : [];
+      const statsData = responses[5].status === "fulfilled" ? responses[5].value?.data : null;
 
-      setSavedBets(currentSavedBets);
+      const merged = mergeGames([live, fixtures]);
+      setGames(merged);
+      setSavedBets(Array.isArray(bets) ? bets : []);
+      setFavorites(Array.isArray(favs) ? favs : []);
+      setStats(statsData);
 
-      // Somente apostas OPEN entram na lista principal do Dashboard.
-      // WON/LOST não devem aparecer como jogos online; ficam para Histórico/Finalizados.
-      const todayKey = dateKey(new Date());
-      const openSavedBets = currentSavedBets.filter((bet: any) => {
-        if (String(bet.status || "").toLowerCase() !== "open") return false;
-        const betDate = getGameDateKey(bet.gameDate || bet.createdAt);
-        return betDate === todayKey;
-      });
+      const smartArray = Array.isArray(smart?.tips)
+        ? smart.tips
+        : Array.isArray(smart?.data)
+          ? smart.data
+          : Array.isArray(smart)
+            ? smart
+            : [];
 
-      const apiGames = responses
-        .slice(0, -1)
-        .flatMap((result: any) => {
-          if (result.status !== "fulfilled") return [];
-          return result.value?.data || [];
-        })
-        .map(normalizeGame)
-        .filter(Boolean);
-
-      const map = new Map<string, any>();
-      const apiFixtureIds = new Set<number>();
-      const apiGamesDeduped: any[] = [];
-
-      apiGames.forEach((game: any) => {
-        const id = Number(game.fixture?.id);
-
-        if (!id) return;
-        if (!isGameAllowedOnDashboard(game)) return;
-
-        apiFixtureIds.add(id);
-
-        const key = `api-${id}`;
-        const existing = map.get(key);
-
-        if (!existing) {
-          map.set(key, game);
-          apiGamesDeduped.push(game);
-          return;
-        }
-
-        if (isGameLive(game)) {
-          map.set(key, game);
-          return;
-        }
-
-        const existingDate = new Date(existing.fixture?.date || 0).getTime();
-        const currentDate = new Date(game.fixture?.date || 0).getTime();
-
-        if (currentDate >= existingDate) {
-          map.set(key, game);
-        }
-      });
-
-      const missingSavedBets = openSavedBets.filter((bet: any) => {
-        const fixtureId = Number(bet.fixtureId);
-        return fixtureId && !apiFixtureIds.has(fixtureId);
-      });
-
-      const fixtureByIdResponses = await Promise.allSettled(
-        missingSavedBets.map((bet: any) =>
-          api.get(`/football/fixture/${bet.fixtureId}`),
-        ),
-      );
-
-      fixtureByIdResponses.forEach((result: any, index: number) => {
-        const bet = missingSavedBets[index];
-
-        if (result.status === "fulfilled" && result.value?.data) {
-          const apiGame = normalizeGame(result.value.data);
-
-          if (!apiGame?.fixture?.id) return;
-          if (!isGameAllowedOnDashboard(apiGame)) return;
-          const fixtureId = Number(apiGame.fixture?.id);
-
-          apiFixtureIds.add(fixtureId);
-          map.set(`api-${fixtureId}`, apiGame);
-          return;
-        }
-
-        const matchedApiGame: any = findApiGameForSavedBet(
-          bet,
-          apiGamesDeduped,
-        );
-
-        if (matchedApiGame?.fixture?.id) {
-          const fixtureId = Number(matchedApiGame.fixture.id);
-
-          apiFixtureIds.add(fixtureId);
-          map.set(`api-${fixtureId}`, matchedApiGame);
-          return;
-        }
-
-        map.set(`saved-${bet.id}`, savedBetToGame(bet));
-      });
-
-      openSavedBets.forEach((bet: any) => {
-        const fixtureId = Number(bet.fixtureId);
-
-        if (fixtureId && apiFixtureIds.has(fixtureId)) {
-          return;
-        }
-
-        const matchedApiGame: any = findApiGameForSavedBet(
-          bet,
-          apiGamesDeduped,
-        );
-
-        if (matchedApiGame?.fixture?.id) {
-          const matchedFixtureId = Number(matchedApiGame.fixture.id);
-
-          apiFixtureIds.add(matchedFixtureId);
-          map.set(`api-${matchedFixtureId}`, matchedApiGame);
-          return;
-        }
-
-        if (!fixtureId) {
-          map.set(`saved-${bet.id}`, savedBetToGame(bet));
-        }
-      });
-
-      const ordered = Array.from(map.values()).sort((a: any, b: any) => {
-        const liveA = isGameLive(a) ? 1 : 0;
-        const liveB = isGameLive(b) ? 1 : 0;
-
-        if (liveA !== liveB) return liveB - liveA;
-
-        const today = dateKey(new Date());
-        const todayA = getGameDateKey(a.fixture?.date) === today ? 1 : 0;
-        const todayB = getGameDateKey(b.fixture?.date) === today ? 1 : 0;
-
-        if (todayA !== todayB) return todayB - todayA;
-
-        const finishedA = isGameFinished(a) ? 1 : 0;
-        const finishedB = isGameFinished(b) ? 1 : 0;
-
-        if (finishedA !== finishedB) return finishedA - finishedB;
-
-        const dateA = new Date(a.fixture?.date || 0).getTime();
-        const dateB = new Date(b.fixture?.date || 0).getTime();
-
-        return dateA - dateB;
-      });
-
-      const cleanOrdered = ordered.filter(isGameAllowedOnDashboard);
-
-      setGames((currentGames) => {
-        const mergedGames = currentGames.length
-          ? mergeStableGames(currentGames, cleanOrdered)
-          : cleanOrdered;
-
-        const filteredMergedGames = mergedGames
-          .filter(isGameAllowedOnDashboard)
-          .sort((a: any, b: any) => {
-            const liveA = isGameLive(a) ? 1 : 0;
-            const liveB = isGameLive(b) ? 1 : 0;
-
-            if (liveA !== liveB) return liveB - liveA;
-
-            const finishedA = isGameFinished(a) ? 1 : 0;
-            const finishedB = isGameFinished(b) ? 1 : 0;
-
-            if (finishedA !== finishedB) return finishedA - finishedB;
-
-            const dateA = new Date(a.fixture?.date || 0).getTime();
-            const dateB = new Date(b.fixture?.date || 0).getTime();
-
-            return dateA - dateB;
-          });
-
-        gamesRef.current = filteredMergedGames;
-        return filteredMergedGames;
-      });
+      setSmartTips(smartArray.map((tip: any) => normalizeSmartTip(tip, getGameByTip(tip, merged))).slice(0, 12));
     } catch {
-      if (firstLoad) {
-        gamesRef.current = [];
-        setGames([]);
-      }
+      setGames([]);
+      setSmartTips([]);
     } finally {
-      refreshingRef.current = false;
-
-      if (shouldShowLoading) {
-        setLoading(false);
-      }
+      setLoading(false);
+      setRefreshing(false);
     }
   }
 
-  async function loadSavedBets() {
+  async function loadUser() {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      window.location.href = "/";
+      return;
+    }
+
     try {
-      const response = await api.get("/bets");
-      setSavedBets(response.data || []);
+      const response = await api.get("/auth/me");
+      setPlan(response.data?.plan || "Free");
+      setRole(response.data?.role || "USER");
+      await loadAll(true);
     } catch {
-      setSavedBets([]);
+      localStorage.removeItem("token");
+      window.location.href = "/";
     }
   }
 
-  async function loadFavorites() {
-    try {
-      const response = await api.get("/favorite");
-      setFavorites(response.data || []);
-    } catch {
-      setFavorites([]);
-    }
-  }
+  useEffect(() => {
+    loadUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  async function loadStats() {
-    try {
-      const response = await api.get("/stats");
-      setStats(response.data);
-    } catch {
-      setStats(null);
-    }
-  }
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLiveTick((current) => current + 1);
+    }, 1000);
 
-  async function analyzeGame(rawGame: any) {
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => loadAll(false), 30000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today]);
+
+  async function openMatchDetail(rawGame: any) {
     const game = normalizeGame(rawGame);
+    if (!game) return;
+
+    setSelectedMatchDetail({
+      game,
+      stats: null,
+      loadingStats: true,
+    });
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    try {
+      const fixtureId = game.fixture?.id;
+
+      if (!fixtureId) {
+        setSelectedMatchDetail({
+          game,
+          stats: null,
+          loadingStats: false,
+        });
+        return;
+      }
+
+      const statsResponse = await api.get(`/football/statistics/${fixtureId}`);
+
+      setSelectedMatchDetail({
+        game,
+        stats: statsResponse.data || null,
+        loadingStats: false,
+      });
+    } catch {
+      setSelectedMatchDetail({
+        game,
+        stats: null,
+        loadingStats: false,
+      });
+    }
+  }
+
+  async function analyzeGame(rawGame: any, smartTip?: any) {
+    const game = normalizeGame(rawGame);
+    if (!game) return;
 
     if (!isPaidPlan) {
-      alert(
-        "Análise IA disponível apenas nos planos PRO e VIP. No plano FREE você pode ver os jogos, mas não a análise completa.",
-      );
+      alert("Análise IA completa disponível apenas no PRO/VIP.");
       window.location.href = "/plans";
       return;
     }
@@ -931,33 +658,38 @@ export default function Dashboard() {
           awayTeam: game.teams?.away?.name,
           league: game.league?.name,
           leagueName: game.league?.name,
+          smartTip: smartTip || null,
           teams: game.teams,
           fixture: game.fixture,
           goals: game.goals,
-          score: game.score || getScore(game),
+          score: game.score,
           status: game.fixture?.status,
+          oddix: game.oddix,
         }),
-        fixtureId
-          ? api.get(`/football/statistics/${fixtureId}`)
-          : Promise.resolve({ data: null }),
+        fixtureId ? api.get(`/football/statistics/${fixtureId}`) : Promise.resolve({ data: null }),
       ]);
 
-      if (aiResponse.status !== "fulfilled") {
-        alert("Erro ao analisar jogo.");
-        return;
-      }
+      const ai = aiResponse.status === "fulfilled" ? aiResponse.value?.data : null;
+      const statsData = statsResponse.status === "fulfilled" ? statsResponse.value?.data : null;
+      const fallbackAi = smartTip || smartLocalTip(game);
 
-      const stats =
-        statsResponse.status === "fulfilled" ? statsResponse.value?.data : null;
-
-      setSelectedStats(stats);
-
+      setSelectedStats(statsData);
       setSelectedAnalysis({
         game,
-        ai: aiResponse.value.data,
-        stats,
+        ai: {
+          tip: ai?.tip || fallbackAi.tip,
+          odd: ai?.odd || fallbackAi.odd,
+          confidence: ai?.confidence || fallbackAi.confidence,
+          risk: ai?.risk || fallbackAi.risk,
+          analysis:
+            ai?.analysis ||
+            `Entrada sugerida pela Oddix usando qualidade do jogo (${game.oddix?.qualityScore}) e mercado disponível.`,
+          markets: ai?.markets || [fallbackAi],
+          multiples: ai?.multiples || null,
+        },
+        smartTip: fallbackAi,
         saved: isSavedGame(game),
-        savedBetId: getSavedBetId(game) || null,
+        savedBetId: getSavedBetId(game),
       });
 
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -968,23 +700,31 @@ export default function Dashboard() {
     }
   }
 
+  function isSavedGame(game: any) {
+    const id = String(game?.fixture?.id || "");
+    return savedBets.some((bet) => String(bet?.fixtureId || "") === id);
+  }
+
+  function getSavedBetId(game: any) {
+    const id = String(game?.fixture?.id || "");
+    return savedBets.find((bet) => String(bet?.fixtureId || "") === id)?.id;
+  }
+
   async function saveAnalysisToDashboard() {
     if (!selectedAnalysis) return;
 
     try {
       setSaving(true);
-
       const game = selectedAnalysis.game;
       const ai = selectedAnalysis.ai;
       const score = getScore(game);
-      const fixtureId = Number(game.fixture?.id);
 
-      if (isSavedGame(game)) {
+      if (selectedAnalysis.saved || isSavedGame(game)) {
         alert("Esse jogo já foi salvo.");
         return;
       }
 
-      const payload = {
+      const created = await api.post("/admin/bets", {
         homeTeam: game.teams?.home?.name || "",
         awayTeam: game.teams?.away?.name || "",
         league: game.league?.name || "",
@@ -992,40 +732,24 @@ export default function Dashboard() {
         odd: Number(ai.odd || 0),
         confidence: Number(ai.confidence || 0),
         status: "open",
-
         homeLogo: game.teams?.home?.logo || "",
         awayLogo: game.teams?.away?.logo || "",
         leagueLogo: game.league?.logo || "",
-
-        fixtureId: fixtureId ? String(fixtureId) : "",
+        fixtureId: game.fixture?.id ? String(game.fixture.id) : "",
         gameDate: game.fixture?.date || "",
-
         homeScore: score.home === "-" ? null : Number(score.home),
         awayScore: score.away === "-" ? null : Number(score.away),
         statusShort: game.fixture?.status?.short || "",
-        elapsed:
-          game.fixture?.status?.elapsed === null ||
-          game.fixture?.status?.elapsed === undefined
-            ? null
-            : Number(game.fixture?.status?.elapsed),
-        provider: game.provider || "api-football",
-
+        elapsed: game.fixture?.status?.elapsed ?? null,
+        provider: game.provider || "unknown",
         markets: ai.markets || [],
         multiples: ai.multiples || null,
         analysis: ai.analysis || "",
         risk: ai.risk || "Médio",
-      };
-
-      const created = await api.post("/admin/bets", payload);
-
-      await loadSavedBets();
-
-      setSelectedAnalysis({
-        ...selectedAnalysis,
-        saved: true,
-        savedBetId: created.data?.id,
       });
 
+      await loadAll(false);
+      setSelectedAnalysis({ ...selectedAnalysis, saved: true, savedBetId: created.data?.id });
       alert("Análise salva com sucesso.");
     } catch {
       alert("Erro ao salvar análise.");
@@ -1034,2019 +758,2244 @@ export default function Dashboard() {
     }
   }
 
-  function getStatValue(stats: any, teamIndex: number, type: string) {
-    const team = stats?.teams?.[teamIndex];
-
-    if (!team) return "-";
-
-    const found = team.statistics?.find((item: any) => item.type === type);
-
-    return found?.value === null || found?.value === undefined
-      ? "-"
-      : found.value;
-  }
-
-  function getStatsTeamName(stats: any, index: number, fallback: string) {
-    return stats?.teams?.[index]?.team?.name || fallback;
-  }
-
-  function clearFilters() {
-    setStatusFilter("all");
-    setLeagueFilter("all");
-    setSearchTeam("");
-  }
-
   function logout() {
     localStorage.removeItem("token");
     window.location.href = "/";
   }
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveTick((current) => current + 1);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    // Refresh silencioso: busca placar/novos jogos por trás sem limpar a tela.
-    // O relógio/minuto do jogo já atualiza localmente a cada segundo pelo liveTick.
-    const interval = setInterval(() => {
-      loadGames(false);
-      loadStats();
-    }, 600000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      window.location.href = "/";
+  function openSportsButton(action: string) {
+    if (action === "dashboard") {
+      setActiveTab("highlights");
+      setLeagueFilter("all");
+      setSearch("");
       return;
     }
 
-    async function loadUser() {
-      try {
-        const response = await api.get("/auth/me");
-
-        setPlan(response.data.plan || "Free");
-        setRole(response.data.role || "USER");
-
-        await Promise.all([
-          loadGames(),
-          loadSavedBets(),
-          loadFavorites(),
-          loadStats(),
-        ]);
-      } catch {
-        localStorage.removeItem("token");
-        window.location.href = "/";
-      }
+    if (action === "live") {
+      setActiveTab("live");
+      setLeagueFilter("all");
+      setSearch("");
+      return;
     }
 
-    loadUser();
-  }, []);
+    if (action === "smart") {
+      setActiveTab("smart");
+      setLeagueFilter("all");
+      setSearch("");
+      return;
+    }
+
+    if (action === "boost") {
+      setActiveTab("boost");
+      setLeagueFilter("all");
+      setSearch("");
+      return;
+    }
+
+    if (action === "greens") {
+      setActiveTab("greens");
+      setLeagueFilter("all");
+      setSearch("");
+      return;
+    }
+
+    if (action === "odds") {
+      setActiveTab("smart");
+      setLeagueFilter("all");
+      setSearch("");
+      return;
+    }
+
+    if (action === "brasil") {
+      setActiveTab("highlights");
+      setLeagueFilter("all");
+      setSearch("brasil");
+      return;
+    }
+
+    if (action === "sulamericanos") {
+      setActiveTab("highlights");
+      setLeagueFilter("all");
+      setSearch("argentina chile uruguay paraguay colombia ecuador peru bolivia brasil");
+      return;
+    }
+  }
+
+  function buildBoost() {
+    const picks = displayedSmartTips
+      .filter((tip) => safeNumber(tip.confidence, 0) >= 70)
+      .slice(0, 3);
+
+    const combinedOdd = picks.reduce((acc, item) => acc * safeNumber(item.odd, 1.35), 1);
+    const confidence = picks.length
+      ? Math.round(picks.reduce((acc, item) => acc + safeNumber(item.confidence, 70), 0) / picks.length)
+      : 0;
+
+    return { picks, combinedOdd: combinedOdd.toFixed(2), confidence };
+  }
+
+  const boost = buildBoost();
 
   return (
     <main style={styles.page}>
-      <div style={styles.overlay} />
-
-      <header style={styles.header}>
-        <div style={styles.logoBox}>
-          <img src="/oddix-logo.png" style={styles.logo} />
+      <header style={styles.topHeader}>
+        <div style={styles.brand} onClick={() => (window.location.href = "/dashboard")}>
+          <img
+            src="/logo-oddix-horizontal.png"
+            alt="ODDIX TIPSTER IA"
+            style={styles.brandLogo}
+          />
         </div>
 
-        <nav style={styles.nav}>
-          <span>🔥 Ao Vivo</span>
-          <span>📊 Mercado</span>
-          <span>🤖 IA</span>
-
-          <span style={styles.planBadge}>Plano: {plan}</span>
-
-          <button
-            style={styles.liveNavButton}
-            onClick={() => (window.location.href = "/live")}
-          >
-            Ao Vivo
-          </button>
-
-          {role === "ADMIN" && (
-            <button
-              style={styles.adminButton}
-              onClick={() => (window.location.href = "/admin")}
-            >
-              Admin
-            </button>
-          )}
-
-          <button
-            style={styles.historyButton}
-            onClick={() => (window.location.href = "/history")}
-          >
-            Histórico
-          </button>
-
-          <button
-            style={styles.favoriteNavButton}
-            onClick={() => (window.location.href = "/favorites")}
-          >
-            Favoritos
-          </button>
-
-          <button
-            style={styles.freeGroupButton}
-            onClick={() => window.open(FREE_GROUP_LINK, "_blank")}
-          >
-            Grupo FREE
-          </button>
-
-          <button
-            style={styles.vipButton}
-            onClick={() => (window.location.href = "/plans")}
-          >
-            Assinar PRO/VIP
-          </button>
-
-          <button style={styles.logoutButton} onClick={logout}>
-            Sair
-          </button>
-        </nav>
+        <div style={styles.headerActions}>
+          <button style={styles.headerPill}>Plano {plan}</button>
+          <button style={styles.headerButton} onClick={() => openSportsButton("live")}>Ao vivo</button>
+          
+          
+          <button style={styles.vipButton} onClick={() => (window.location.href = "/plans")}>Assinar VIP</button>
+          <button style={styles.logoutButton} onClick={logout}>Sair</button>
+        </div>
       </header>
 
-      {selectedAnalysis &&
-        (() => {
-          const game = selectedAnalysis.game;
-          const score = getScore(game);
+      <section style={styles.sportsRail}>
+        {[
+          { label: "⚽ Futebol", action: "dashboard" },
+          { label: "🔴 Ao Vivo", action: "live" },
+          { label: "🤖 IA Premium", action: "smart" },
+          { label: "🔥 Combinadas", action: "boost" },
+          { label: "📈 Greens", action: "greens" },
+          { label: "💰 Odds", action: "odds" },
+          { label: "🏆 Brasileirão", action: "brasil" },
+          { label: "🌎 Sul-Americanos", action: "sulamericanos" },
+          ...(role === "ADMIN" ? [{ label: "⚙️ Admin", action: "admin" }] : []),
+        ].map((item) => (
+          <button
+            key={item.label}
+            style={styles.sportItem}
+            onClick={() => {
+              if (item.action === "admin") {
+                window.location.href = "/admin";
+                return;
+              }
 
-          return (
-            <section style={styles.analysisPanel}>
-              <div style={styles.analysisTop}>
-                <div>
-                  <span
-                    style={
-                      isGameLive(game)
-                        ? styles.liveAnalysisBadge
-                        : styles.futureAnalysisBadge
-                    }
-                  >
-                    {getGameStatusLabel(game)}
-                  </span>
+              openSportsButton(item.action);
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </section>
 
-                  <h2 style={styles.analysisTitle}>
-                    {game.teams?.home?.name} x {game.teams?.away?.name}
-                  </h2>
+      {selectedMatchDetail && (
+        <MatchDetailPanel
+          data={{ ...selectedMatchDetail, liveTick }}
+          onClose={() => setSelectedMatchDetail(null)}
+          onAnalyze={(game: any) => analyzeGame(game)}
+        />
+      )}
 
-                  <p style={styles.sectionSubtitle}>
-                    {game.league?.name} • {formatDateTime(game.fixture?.date)}
-                  </p>
-                </div>
+      {selectedAnalysis && (
+        <section style={styles.analysisPanel}>
+          <div style={styles.analysisTop}>
+            <div>
+              <span style={styles.sectionKicker}>ANÁLISE ODDIX IA</span>
+              <h2 style={styles.analysisTitle}>
+                {selectedAnalysis.game.teams?.home?.name} x {selectedAnalysis.game.teams?.away?.name}
+              </h2>
+              <p style={styles.muted}>{selectedAnalysis.game.league?.name} • {formatDateTime(selectedAnalysis.game.fixture?.date)}</p>
+            </div>
+            <button style={styles.closeButton} onClick={() => setSelectedAnalysis(null)}>Fechar</button>
+          </div>
 
-                <button
-                  style={styles.closeButton}
-                  onClick={() => setSelectedAnalysis(null)}
-                >
-                  Fechar
-                </button>
+          <div style={styles.analysisBody}>
+            <div style={styles.matchSummary}>
+              <TeamLogo game={selectedAnalysis.game} side="home" />
+              <div style={styles.bigScore}>{getScore(selectedAnalysis.game).home} <span>-</span> {getScore(selectedAnalysis.game).away}</div>
+              <TeamLogo game={selectedAnalysis.game} side="away" />
+            </div>
+
+            <div style={styles.pickBoxLarge}>
+              <small>Entrada sugerida</small>
+              <strong>{selectedAnalysis.ai.tip}</strong>
+              <div style={styles.pickMetrics}>
+                <span>Odd {selectedAnalysis.ai.odd}</span>
+                <span>{selectedAnalysis.ai.confidence}%</span>
+                <span>{selectedAnalysis.ai.risk}</span>
               </div>
+            </div>
+          </div>
 
-              <div style={styles.analysisScoreboard}>
-                <div style={styles.analysisTeam}>
-                  <img
-                    src={
-                      game.teams?.home?.logo ||
-                      logoFallback(game.teams?.home?.name)
-                    }
-                    style={styles.analysisLogo}
-                  />
-                  <strong>{game.teams?.home?.name}</strong>
+          <p style={styles.analysisText}>{selectedAnalysis.ai.analysis}</p>
+
+          {Array.isArray(selectedAnalysis.ai.markets) && selectedAnalysis.ai.markets.length > 0 && (
+            <div style={styles.marketList}>
+              {selectedAnalysis.ai.markets.slice(0, 5).map((market: any, index: number) => (
+                <div key={index} style={styles.marketRow}>
+                  <span>{index + 1}</span>
+                  <strong>{market.tip || market.selection || market.market}</strong>
+                  <small>{market.market || "Mercado"} • Odd {market.odd || "-"} • {market.confidence || selectedAnalysis.ai.confidence}%</small>
                 </div>
+              ))}
+            </div>
+          )}
 
-                <div style={styles.analysisScoreCenter}>
-                  <div style={styles.analysisScore}>
-                    <span>{score.home}</span>
-                    <small>-</small>
-                    <span>{score.away}</span>
-                  </div>
+          <div style={styles.analysisActions}>
+            <button style={selectedAnalysis.saved ? styles.savedButton : styles.saveButton} disabled={saving || selectedAnalysis.saved} onClick={saveAnalysisToDashboard}>
+              {selectedAnalysis.saved ? "✅ Já salvo" : saving ? "Salvando..." : "Salvar análise"}
+            </button>
+            {selectedAnalysis.savedBetId && (
+              <button style={styles.secondaryButton} onClick={() => (window.location.href = `/dashboard/bet/${selectedAnalysis.savedBetId}`)}>Ver salvo</button>
+            )}
+          </div>
+        </section>
+      )}
 
-                  <strong style={styles.analysisClock}>
-                    {getGameTimeText(game)}
-                  </strong>
-                </div>
-
-                <div style={styles.analysisTeam}>
-                  <img
-                    src={
-                      game.teams?.away?.logo ||
-                      logoFallback(game.teams?.away?.name)
-                    }
-                    style={styles.analysisLogo}
-                  />
-                  <strong>{game.teams?.away?.name}</strong>
-                </div>
-              </div>
-
-              {selectedStats && (
-                <div style={styles.statsPanel}>
-                  <div style={styles.statsHeader}>
-                    <strong>Estatísticas do jogo</strong>
-                    <span>
-                      {selectedStats.simulated
-                        ? "Dados provisórios"
-                        : selectedStats.available
-                          ? "Dados reais da API"
-                          : selectedStats.message || "Indisponível"}
-                    </span>
-                  </div>
-
-                  {selectedStats.available ? (
-                    <div style={styles.statsTable}>
-                      <div style={styles.statsRowHead}>
-                        <strong>
-                          {getStatsTeamName(
-                            selectedStats,
-                            0,
-                            game.teams?.home?.name,
-                          )}
-                        </strong>
-                        <span>Estatística</span>
-                        <strong>
-                          {getStatsTeamName(
-                            selectedStats,
-                            1,
-                            game.teams?.away?.name,
-                          )}
-                        </strong>
-                      </div>
-
-                      {[
-                        ["Ball Possession", "Posse"],
-                        ["Total Shots", "Chutes"],
-                        ["Shots on Goal", "No gol"],
-                        ["Corner Kicks", "Escanteios"],
-                        ["Yellow Cards", "Cartões"],
-                        ["Fouls", "Faltas"],
-                        ["Offsides", "Impedimentos"],
-                      ].map(([type, label]) => (
-                        <div key={type} style={styles.statsRow}>
-                          <strong>
-                            {getStatValue(selectedStats, 0, type)}
-                          </strong>
-                          <span>{label}</span>
-                          <strong>
-                            {getStatValue(selectedStats, 1, type)}
-                          </strong>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p style={styles.statsEmpty}>
-                      {selectedStats.message ||
-                        "Estatísticas disponíveis quando o jogo começar."}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              <div style={styles.analysisGrid}>
-                <div style={styles.analysisMetric}>
-                  <small>Entrada</small>
-                  <strong>{selectedAnalysis.ai.tip}</strong>
-                </div>
-
-                <div style={styles.analysisMetric}>
-                  <small>Odd</small>
-                  <strong>{selectedAnalysis.ai.odd}</strong>
-                </div>
-
-                <div style={styles.analysisMetric}>
-                  <small>Confiança</small>
-                  <strong>{selectedAnalysis.ai.confidence}%</strong>
-                </div>
-
-                <div style={styles.analysisMetric}>
-                  <small>Risco</small>
-                  <strong>{selectedAnalysis.ai.risk}</strong>
-                </div>
-              </div>
-
-              {selectedAnalysis.ai.analysis && (
-                <p style={styles.analysisText}>
-                  {selectedAnalysis.ai.analysis}
-                </p>
-              )}
-
-              <div style={styles.gamerMarketsAndMultiples}>
-                {Array.isArray(selectedAnalysis.ai.markets) &&
-                  selectedAnalysis.ai.markets.length > 0 && (
-                    <div style={styles.gamerMarketsPanel}>
-                      <div style={styles.gamerPanelHeader}>
-                        <h3 style={styles.gamerPanelTitle}>🎮 5 mercados IA</h3>
-                        <span style={styles.gamerTag}>PRO / VIP</span>
-                      </div>
-
-                      <div style={styles.gamerMarketsList}>
-                        {selectedAnalysis.ai.markets
-                          .slice(0, 5)
-                          .map((market: any, index: number) => (
-                            <div key={index} style={styles.gamerMarketRow}>
-                              <span style={styles.gamerMarketNumber}>
-                                {index + 1}
-                              </span>
-
-                              <div style={styles.gamerMarketInfo}>
-                                <strong style={styles.gamerMarketName}>
-                                  {market.market}
-                                </strong>
-                                <span style={styles.gamerMarketTip}>
-                                  {market.tip}
-                                </span>
-                              </div>
-
-                              <div style={styles.gamerMarketNumbers}>
-                                <span>Odd {market.odd || "-"}</span>
-                                <span>{market.confidence || 0}%</span>
-                                <span>{market.risk || "Baixo"}</span>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-
-                {selectedAnalysis.ai.multiples && (
-                  <div style={styles.gamerMultiplesPanel}>
-                    <div style={styles.gamerPanelHeader}>
-                      <h3 style={styles.gamerPanelTitle}>🔥 Múltiplas IA</h3>
-                      <span style={styles.gamerGoldTag}>JOGOS DIFERENTES</span>
-                    </div>
-
-                    {[
-                      selectedAnalysis.ai.multiples.conservative,
-                      selectedAnalysis.ai.multiples.moderate,
-                      selectedAnalysis.ai.multiples.aggressive,
-                    ]
-                      .filter(Boolean)
-                      .map((multiple: any, index: number) => (
-                        <div key={index} style={styles.gamerMultipleMainCard}>
-                          <div style={styles.gamerMultipleTop}>
-                            <strong style={styles.gamerMultipleName}>
-                              {multiple.name}
-                            </strong>
-                            <span style={styles.gamerCombinedOdd}>
-                              Odd {multiple.combinedOdd}
-                            </span>
-                          </div>
-
-                          {multiple.selections?.map(
-                            (selection: any, itemIndex: number) => (
-                              <div
-                                key={itemIndex}
-                                style={styles.gamerSelection}
-                              >
-                                {selection.game && (
-                                  <span style={styles.gamerSelectionGame}>
-                                    {selection.game}
-                                  </span>
-                                )}
-                                <strong style={styles.gamerSelectionTip}>
-                                  {selection.tip}
-                                </strong>
-                                <span style={styles.gamerSelectionMeta}>
-                                  {selection.market} • Odd {selection.odd} •{" "}
-                                  {selection.confidence}% • {selection.risk}
-                                </span>
-                              </div>
-                            ),
-                          )}
-
-                          <div style={styles.gamerMultipleFooter}>
-                            <span>{multiple.note}</span>
-                            <strong>{multiple.stake}</strong>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-
-              <div style={styles.analysisActions}>
-                <button
-                  style={
-                    selectedAnalysis.saved
-                      ? styles.savedButton
-                      : styles.saveButton
-                  }
-                  onClick={saveAnalysisToDashboard}
-                  disabled={saving || selectedAnalysis.saved}
-                >
-                  {selectedAnalysis.saved
-                    ? "✅ Já salvo"
-                    : saving
-                      ? "Salvando..."
-                      : "Salvar análise"}
-                </button>
-
-                {selectedAnalysis.savedBetId && (
-                  <button
-                    style={styles.openSavedButton}
-                    onClick={() =>
-                      (window.location.href = `/dashboard/bet/${selectedAnalysis.savedBetId}`)
-                    }
-                  >
-                    Ver análise salva
-                  </button>
-                )}
-              </div>
-            </section>
-          );
-        })()}
-
-      <section style={styles.hero}>
-        <div>
-          <span style={styles.liveBadge}>● DASHBOARD ONLINE</span>
-
-          <h1 style={styles.heroTitle}>Jogos online para analisar com IA.</h1>
-
-          <p style={styles.heroText}>
-            O Dashboard busca jogos direto da API por data, sem depender da rota
-            /football/live.
+      <section style={styles.heroGrid}>
+        <div style={styles.heroMain}>
+          <span style={styles.sectionKicker}>ODDIX SMART BETTING</span>
+          <h1>Palpites com IA, odds e ranking de qualidade.</h1>
+          <p>
+            Agora o Oddix organiza os jogos como casa de aposta: destaques, ao vivo, pré-jogo, odds inteligentes e combinadas VIP.
           </p>
-
-          <div style={styles.heroChips}>
-            <span style={styles.chip}>🔴 Ao vivo</span>
-            <span style={styles.chip}>⏳ Futuros</span>
-            <span style={styles.chip}>🏁 Finalizados</span>
-            <span style={styles.chip}>🤖 Análise IA</span>
+          <div style={styles.heroStats}>
+            <InfoMetric label="Jogos" value={games.length} />
+            <InfoMetric label="Ao vivo" value={liveGames.length} />
+            <InfoMetric label="Tips IA" value={displayedSmartTips.length} />
+            <InfoMetric label="ROI" value={`${stats?.roi ?? 0}%`} />
           </div>
         </div>
 
-        <div style={styles.heroPanel}>
-          <strong style={styles.bigNumber}>{plan}</strong>
-          <span>Plano ativo</span>
-
-          <div style={styles.pulseBar}>
-            <div style={styles.pulseFill} />
-          </div>
+        <div style={styles.vipPanel}>
+          <span>Oddix Boost</span>
+          <strong>{boost.combinedOdd}</strong>
+          <small>Odd combinada estimada</small>
+          <div style={styles.confidenceBar}><div style={{ ...styles.confidenceFill, width: `${Math.min(100, boost.confidence)}%` }} /></div>
+          <button style={styles.vipFullButton} onClick={() => setActiveTab("boost")}>Ver combinada</button>
         </div>
       </section>
 
-      <section style={styles.history}>
-        <div style={styles.historyCard}>
-          <span>Jogos online</span>
-          <strong>{totalGames}</strong>
-        </div>
+      <MarketingBanner
+        mainGame={topGames[0]}
+        secondaryGames={topGames.slice(1, 4)}
+        liveTick={liveTick}
+        onAnalyze={openMatchDetail}
+        onVip={() => (window.location.href = "/plans")}
+      />
 
-        <div style={styles.historyCardOpen}>
-          <span>Ao vivo</span>
-          <strong>{liveGames}</strong>
-        </div>
+      <section style={styles.featuredStrip}>
+        {topGames.slice(0, 4).map((game) => (
+          <FeaturedGame key={stableGameKey(game)} game={game} liveTick={liveTick} onAnalyze={() => openMatchDetail(game)} />
+        ))}
+      </section>
 
-        <div style={styles.historyCardVip}>
-          <span>Futuros</span>
-          <strong>{futureGames}</strong>
-        </div>
-
-        <div style={styles.historyCardWon}>
-          <span>Finalizados</span>
-          <strong>{finishedGames}</strong>
-        </div>
-
-        <div style={styles.historyCard}>
-          <span>Salvos</span>
-          <strong>{savedBets.length}</strong>
-        </div>
-
-        <div style={styles.historyCard}>
-          <span>Favoritos</span>
-          <strong>{favorites.length}</strong>
-        </div>
-
-        <div style={styles.historyCard}>
-          <span>ROI</span>
-          <strong>{stats?.roi ?? 0}%</strong>
-        </div>
-
-        <div style={styles.historyCard}>
-          <span>Lucro simulado</span>
-          <strong>R$ {stats?.profit ?? 0}</strong>
+      <section style={styles.tabsWrapper}>
+        <div style={styles.tabs}>
+          {[
+            { key: "highlights", label: "Destaques" },
+            { key: "live", label: "Ao vivo" },
+            { key: "pregame", label: "Começa em breve" },
+            { key: "smart", label: "IA Premium" },
+            { key: "boost", label: "Combinadas" },
+            { key: "greens", label: "Greens" },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              style={activeTab === tab.key ? styles.tabActive : styles.tab}
+              onClick={() => setActiveTab(tab.key as TabKey)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </section>
 
-      <section style={styles.content}>
+      <section style={styles.layout}>
         <aside style={styles.sidebar}>
-          <div style={styles.sideCardGreen}>
-            <span>📡 Online agora</span>
-            <strong>{totalGames}</strong>
-            <small>Jogos puxados direto da API</small>
+          <div style={styles.searchCard}>
+            <strong>Filtros</strong>
+            <input style={styles.searchInput} placeholder="Buscar time ou liga" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <select style={styles.selectInput} value={leagueFilter} onChange={(e) => setLeagueFilter(e.target.value)}>
+              <option value="all">Todas as ligas</option>
+              {leagues.map((league) => <option key={league} value={league}>{league}</option>)}
+            </select>
+            <button style={styles.refreshButton} onClick={() => loadAll(false)}>{refreshing ? "Atualizando..." : "Atualizar"}</button>
           </div>
 
           <div style={styles.sideCard}>
-            <h3>Resumo</h3>
-            <p style={styles.rank}>🔴 Ao vivo: {liveGames}</p>
-            <p style={styles.rank}>⏳ Futuros: {futureGames}</p>
-            <p style={styles.rank}>🏁 Finalizados: {finishedGames}</p>
+            <h3>Geral</h3>
+            <SideLine label="Jogos" value={games.length} />
+            <SideLine label="Ao vivo" value={liveGames.length} />
+            <SideLine label="Pré-jogo" value={futureGames.length} />
           </div>
 
-          <div style={styles.sideCard}>
-            <h3>Histórico Oddix</h3>
-            <p style={styles.rank}>📚 Salvos: {savedBets.length}</p>
-            <p style={styles.rank}>⭐ Favoritos: {favorites.length}</p>
-            <p style={styles.rank}>📈 ROI: {stats?.roi ?? 0}%</p>
-            <p style={styles.rank}>💰 Lucro: R$ {stats?.profit ?? 0}</p>
-          </div>
-
-          <div style={styles.sideCard}>
-            <h3>Melhores dados</h3>
-            <p style={styles.rank}>🏆 Liga: {stats?.bestLeague || "-"}</p>
-            <p style={styles.rank}>🎯 Mercado: {stats?.bestMarket || "-"}</p>
-            <p style={styles.rank}>📊 Odd média: {stats?.averageOdd ?? "-"}</p>
+          <div style={styles.sideCardPurple}>
+            <h3>Grupo FREE</h3>
+            <p>Receba amostras e chamadas para o VIP.</p>
+            <button style={styles.freeButton} onClick={() => window.open(FREE_GROUP_LINK, "_blank")}>Entrar no grupo</button>
           </div>
         </aside>
 
-        <section>
-          <div style={styles.sectionHeader}>
-            <div>
-              <h2 style={styles.sectionTitle}>Jogos online</h2>
-              <p style={styles.sectionSubtitle}>
-                {isPaidPlan
-                  ? "Escolha um jogo para a IA analisar."
-                  : "Plano FREE: você vê os jogos, mas a análise IA é liberada no PRO/VIP."}
-              </p>
-            </div>
-
-            <button
-              style={styles.refreshButton}
-              onClick={() => {
-                loadGames(false);
-                loadSavedBets();
-                loadStats();
-              }}
-            >
-              Atualizar
-            </button>
-          </div>
-
-          <div style={styles.filterBox}>
-            {[
-              { label: "Todos", value: "all" },
-              { label: "🔴 Ao vivo", value: "live" },
-              { label: "📌 Hoje", value: "today" },
-              { label: "⏳ Futuros", value: "future" },
-              { label: "🏁 Finalizados", value: "finished" },
-            ].map((item) => (
-              <button
-                key={item.value}
-                style={
-                  statusFilter === item.value
-                    ? styles.filterButtonActive
-                    : styles.filterButton
-                }
-                onClick={() => setStatusFilter(item.value)}
-              >
-                {item.label}
-              </button>
-            ))}
-
-            <select
-              style={styles.leagueSelect}
-              value={leagueFilter}
-              onChange={(e) => setLeagueFilter(e.target.value)}
-            >
-              <option value="all">Todas as ligas</option>
-
-              {leagues.map((league: any) => (
-                <option key={league} value={league}>
-                  {league}
-                </option>
-              ))}
-            </select>
-
-            <input
-              style={styles.searchInput}
-              placeholder="Buscar por time ou liga..."
-              value={searchTeam}
-              onChange={(e) => setSearchTeam(e.target.value)}
-            />
-
-            <button style={styles.clearButton} onClick={clearFilters}>
-              Limpar filtros
-            </button>
-          </div>
-
-          <p style={styles.resultText}>
-            Mostrando {filteredGames.length} de {games.length} jogos online
-          </p>
-
-          {loading ? (
-            <div style={styles.emptyBox}>
-              <h3>Carregando jogos online...</h3>
-            </div>
-          ) : (
-            <div style={styles.grid}>
-              {filteredGames.map((game) => {
-                const score = getScore(game);
-                const saved = isSavedGame(game);
-                const live = isGameLive(game);
-                const finished = isGameFinished(game);
-                const fixtureId = game.fixture?.id;
-
-                return (
-                  <div
-                    key={fixtureId}
-                    style={live ? styles.cardLive : styles.card}
-                  >
-                    <div style={styles.topLine} />
-
-                    <div style={styles.cardHead}>
-                      <div style={styles.league}>
-                        <img
-                          src={
-                            game.league?.logo ||
-                            logoFallback(game.league?.name, "22c55e", "000000")
-                          }
-                          style={styles.leagueLogo}
-                        />
-                        <span>{game.league?.name}</span>
-                      </div>
-
-                      <span
-                        style={{
-                          ...styles.statusBadge,
-                          ...(live
-                            ? styles.statusLive
-                            : finished
-                              ? styles.statusFinished
-                              : styles.statusOpen),
-                        }}
-                      >
-                        {getGameStatusLabel(game)}
-                      </span>
-                    </div>
-
-                    <div style={styles.scoreboard}>
-                      <div style={styles.team}>
-                        <img
-                          src={
-                            game.teams?.home?.logo ||
-                            logoFallback(game.teams?.home?.name)
-                          }
-                          style={styles.teamLogo}
-                        />
-                        <strong>{game.teams?.home?.name}</strong>
-                      </div>
-
-                      <div style={styles.centerScore}>
-                        <strong>{score.home}</strong>
-                        <span>-</span>
-                        <strong>{score.away}</strong>
-                        <small>{getGameTimeText(game)}</small>
-                      </div>
-
-                      <div style={styles.team}>
-                        <img
-                          src={
-                            game.teams?.away?.logo ||
-                            logoFallback(game.teams?.away?.name)
-                          }
-                          style={styles.teamLogo}
-                        />
-                        <strong>{game.teams?.away?.name}</strong>
-                      </div>
-                    </div>
-
-                    <div style={styles.dashboardLiveTimeline}>
-                      <div
-                        style={{
-                          ...styles.dashboardLiveTimelineFill,
-                          width: `${getTimelinePercent(game)}%`,
-                        }}
-                      />
-                      <div
-                        style={{
-                          ...styles.dashboardLiveTimelineBall,
-                          left: `${getTimelinePercent(game)}%`,
-                        }}
-                      >
-                        ⚽
-                      </div>
-                    </div>
-
-                    <div style={styles.infoGrid}>
-                      <div style={styles.infoItem}>
-                        <small>
-                          {live
-                            ? "Tempo ao vivo"
-                            : finished
-                              ? "Finalizado"
-                              : "Começa em"}
-                        </small>
-                        <strong>{getGameTimeText(game)}</strong>
-                      </div>
-
-                      <div style={styles.infoItem}>
-                        <small>País</small>
-                        <strong>{game.league?.country || "-"}</strong>
-                      </div>
-
-                      <div style={styles.infoItem}>
-                        <small>Status</small>
-                        <strong>{game.fixture?.status?.long || "-"}</strong>
-                      </div>
-
-                      <div style={styles.infoItem}>
-                        <small>Salvo</small>
-                        <strong>{saved ? "Sim" : "Não"}</strong>
-                      </div>
-                    </div>
-
-                    <div style={styles.footerCard}>
-                      <button
-                        style={
-                          saved
-                            ? styles.favoriteActiveButton
-                            : styles.favoriteButton
-                        }
-                        onClick={() => {
-                          const betId = getSavedBetId(game);
-
-                          if (betId) {
-                            window.location.href = `/dashboard/bet/${betId}`;
-                          } else {
-                            analyzeGame(game);
-                          }
-                        }}
-                      >
-                        {saved ? "✅ Ver salvo" : "🤖 Analisar"}
-                      </button>
-
-                      <button
-                        style={styles.analysisButton}
-                        onClick={() => analyzeGame(game)}
-                        disabled={analyzingId === fixtureId}
-                      >
-                        {!isPaidPlan
-                          ? "Liberar análise"
-                          : analyzingId === fixtureId
-                            ? "Analisando..."
-                            : "Ver análise"}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+        <section style={styles.mainContent}>
+          {activeTab === "smart" && (
+            <SmartTipsSection tips={displayedSmartTips} games={games} liveTick={liveTick} onAnalyze={openMatchDetail} />
           )}
 
-          {!loading && filteredGames.length === 0 && (
-            <div style={styles.emptyBox}>
-              <h3>Nenhum jogo encontrado</h3>
-              <p>Tente mudar o filtro ou atualizar novamente.</p>
-            </div>
+          {activeTab === "boost" && (
+            <BoostSection boost={boost} games={games} onAnalyze={openMatchDetail} />
+          )}
+
+          {activeTab !== "smart" && activeTab !== "boost" && (
+            <>
+              <div style={styles.sectionHeader}>
+                <div>
+                  <h2>{getTabTitle(activeTab)}</h2>
+                  <p>{filteredGames.length} jogos encontrados</p>
+                </div>
+              </div>
+
+              {loading ? (
+                <div style={styles.emptyBox}>Carregando jogos...</div>
+              ) : filteredGames.length ? (
+                <div style={styles.gamesGrid}>
+                  {filteredGames.map((game) => (
+                    <GameCard
+                      key={stableGameKey(game)}
+                      game={game}
+                      liveTick={liveTick}
+                      saved={isSavedGame(game)}
+                      analyzing={analyzingId === game?.fixture?.id}
+                      onAnalyze={() => openMatchDetail(game)}
+                      onOpenSaved={() => {
+                        const id = getSavedBetId(game);
+                        if (id) window.location.href = `/dashboard/bet/${id}`;
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div style={styles.emptyBox}>Nenhum jogo encontrado.</div>
+              )}
+            </>
           )}
         </section>
       </section>
 
       <footer style={styles.footer}>
         <strong>ODDIX</strong>
-        <span>Dashboard online • IA • Placar ao vivo • Gestão de risco</span>
+        <span>IA • Odds • Pré-jogo • Ao vivo • Gestão de banca</span>
         <span>Jogue com responsabilidade.</span>
       </footer>
     </main>
   );
 }
 
-const styles = {
+function getTabTitle(tab: TabKey) {
+  const map: Record<TabKey, string> = {
+    highlights: "Destaques IA",
+    live: "Jogos ao vivo",
+    pregame: "Começa em breve",
+    smart: "IA Premium",
+    boost: "Combinadas Oddix",
+    greens: "Finalizados / Greens",
+  };
+  return map[tab];
+}
+
+function InfoMetric({ label, value }: { label: string; value: any }) {
+  return (
+    <div style={styles.infoMetric}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function SideLine({ label, value }: { label: string; value: any }) {
+  return (
+    <div style={styles.sideLine}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function TeamLogo({ game, side }: { game: any; side: "home" | "away" }) {
+  const team = game?.teams?.[side] || {};
+  return (
+    <div style={styles.teamLogoBox}>
+      <img src={team.logo || logoFallback(team.name)} style={styles.teamLogo} />
+      <strong>{team.name}</strong>
+    </div>
+  );
+}
+
+
+
+function getStatFromApi(stats: any, teamIndex: number, labels: string[]) {
+  const team = stats?.teams?.[teamIndex];
+
+  if (!team || !Array.isArray(team.statistics)) return null;
+
+  const found = team.statistics.find((item: any) => {
+    const type = String(item?.type || item?.name || item?.label || "").toLowerCase();
+    return labels.some((label) => type.includes(label.toLowerCase()));
+  });
+
+  return found?.value ?? null;
+}
+
+function getFastStats(game: any, stats: any) {
+  const score = getScore(game);
+  const totalGoals = safeNumber(score.home, 0) + safeNumber(score.away, 0);
+  const elapsed = getLiveElapsedMinute(game);
+  const quality = safeNumber(game?.oddix?.qualityScore, 0);
+  const odds = getOddsOptions(game);
+
+  return {
+    cardsHome: getStatFromApi(stats, 0, ["Yellow Cards", "Cartões"]) || "-",
+    cardsAway: getStatFromApi(stats, 1, ["Yellow Cards", "Cartões"]) || "-",
+    shotsHome: getStatFromApi(stats, 0, ["Total Shots", "Chutes"]) || "-",
+    shotsAway: getStatFromApi(stats, 1, ["Total Shots", "Chutes"]) || "-",
+    shotsOnHome: getStatFromApi(stats, 0, ["Shots on Goal", "No gol"]) || "-",
+    shotsOnAway: getStatFromApi(stats, 1, ["Shots on Goal", "No gol"]) || "-",
+    cornersHome: getStatFromApi(stats, 0, ["Corner Kicks", "Escanteios"]) || "-",
+    cornersAway: getStatFromApi(stats, 1, ["Corner Kicks", "Escanteios"]) || "-",
+    possessionHome: getStatFromApi(stats, 0, ["Ball Possession", "Posse"]) || "-",
+    possessionAway: getStatFromApi(stats, 1, ["Ball Possession", "Posse"]) || "-",
+    totalGoals,
+    elapsed,
+    quality,
+    oddsCount: odds.length,
+  };
+}
+
+
+function getPlayerNameFromLineup(game: any) {
+  const lineups = game?.lineups || game?.escalações || game?.escalacoes || [];
+
+  if (Array.isArray(lineups)) {
+    for (const lineup of lineups) {
+      const starters = lineup?.startXI || lineup?.startXi || lineup?.titulares || lineup?.players || [];
+      if (Array.isArray(starters) && starters.length) {
+        const first = starters.find((item: any) => {
+          const name =
+            item?.player?.name ||
+            item?.player?.nome ||
+            item?.name ||
+            item?.nome ||
+            item?.athlete?.name;
+
+          return !!name;
+        });
+
+        if (first) {
+          return (
+            first?.player?.name ||
+            first?.player?.nome ||
+            first?.name ||
+            first?.nome ||
+            first?.athlete?.name
+          );
+        }
+      }
+    }
+  }
+
+  const incidents = game?.incidents || game?.eventos || [];
+
+  if (Array.isArray(incidents)) {
+    const scorer = incidents.find((item: any) => {
+      const type = String(item?.type || item?.tipo || "").toLowerCase();
+      return type.includes("goal") || type.includes("gol");
+    });
+
+    if (scorer) {
+      return scorer?.player?.name || scorer?.player?.nome || scorer?.playerName || scorer?.nome || null;
+    }
+  }
+
+  const home = game?.teams?.home?.name || "Mandante";
+  return `${home} - atacante`;
+}
+
+function getPlayerPropMarkets(game: any) {
+  const playerName = getPlayerNameFromLineup(game);
+  const quality = safeNumber(game?.oddix?.qualityScore, 70);
+  const live = isGameLive(game);
+  const elapsed = safeNumber(game?.fixture?.status?.elapsed, 0);
+  const tipOdd = quality >= 80 ? "1.75" : quality >= 70 ? "1.90" : "2.05";
+
+  const base = [
+    {
+      label: `${playerName} +0.5 chute no gol`,
+      odd: tipOdd,
+    },
+    {
+      label: `${playerName} +1 finalização`,
+      odd: quality >= 75 ? "1.55" : "1.70",
+    },
+  ];
+
+  if (live && elapsed <= 70) {
+    base.push({
+      label: `${playerName} participa de gol`,
+      odd: quality >= 80 ? "2.60" : "3.10",
+    });
+  }
+
+  return base;
+}
+
+function buildMarketGroups(game: any) {
+  const tip = smartLocalTip(game);
+  const options = getOddsOptions(game);
+  const home = game?.teams?.home?.name || "Casa";
+  const away = game?.teams?.away?.name || "Fora";
+  const quality = safeNumber(game?.oddix?.qualityScore, 70);
+
+  const oneXtwo = options.length
+    ? options.slice(0, 3).map((item: any) => ({
+        label: item.name || item.nome || item.selection || "-",
+        odd: item.odd || item.ímpar || "-",
+      }))
+    : [
+        { label: home, odd: "2.05" },
+        { label: "Empate", odd: "3.20" },
+        { label: away, odd: "3.40" },
+      ];
+
+  return [
+    {
+      title: "Resultado Final",
+      tag: "CA",
+      markets: oneXtwo,
+    },
+    {
+      title: "Gols",
+      tag: "IA",
+      markets: [
+        { label: "Over 0.5 gols", odd: quality >= 75 ? "1.18" : "1.25" },
+        { label: "Over 1.5 gols", odd: quality >= 75 ? "1.42" : "1.55" },
+        { label: "Under 4.5 gols", odd: tip.tip.includes("Under 4.5") ? tip.odd : "1.35" },
+      ],
+    },
+    {
+      title: "Mercado Inteligente Oddix",
+      tag: "VIP",
+      markets: [
+        { label: tip.tip, odd: tip.odd },
+        { label: `Confiança ${tip.confidence}%`, odd: tip.risk },
+        { label: "Score IA", odd: String(tip.qualityScore) },
+      ],
+    },
+    {
+      title: "Jogador — Chutes no Gol",
+      tag: "PLAYER",
+      markets: getPlayerPropMarkets(game),
+    },
+  ];
+}
+
+function MatchDetailPanel({
+  data,
+  onClose,
+  onAnalyze,
+}: {
+  data: any;
+  onClose: () => void;
+  onAnalyze: (game: any) => void;
+}) {
+  const game = data?.game;
+  const stats = data?.stats;
+  const score = getScore(game);
+  const fastStats = getFastStats(game, stats);
+  const tip = smartLocalTip(game);
+  const marketGroups = buildMarketGroups(game);
+
+  return (
+    <section style={styles.matchDetailPanel}>
+      <div style={styles.matchDetailTop}>
+        <button style={styles.matchBackButton} onClick={onClose}>
+          ← Voltar
+        </button>
+
+        <div style={styles.matchTopTitle}>
+          <strong>{game?.league?.name}</strong>
+          <span>{game?.league?.country || "Oddix Arena"}</span>
+        </div>
+
+        <button style={styles.matchAnalyzeButton} onClick={() => onAnalyze(game)}>
+          🤖 Análise IA
+        </button>
+      </div>
+
+      <div style={styles.matchScoreHeader}>
+        <div style={styles.matchTeamBig}>
+          <img src={game?.teams?.home?.logo || logoFallback(game?.teams?.home?.name)} style={styles.matchTeamBigLogo} />
+          <strong>{game?.teams?.home?.name}</strong>
+        </div>
+
+        <div style={styles.matchCenterBig}>
+          <span style={styles.matchLivePill}>{getStatusLabel(game, data?.liveTick || 0)}</span>
+          <strong>{score.home} - {score.away}</strong>
+          <small>{gameTimeLabel(game, data?.liveTick || 0)}</small>
+        </div>
+
+        <div style={styles.matchTeamBig}>
+          <img src={game?.teams?.away?.logo || logoFallback(game?.teams?.away?.name)} style={styles.matchTeamBigLogo} />
+          <strong>{game?.teams?.away?.name}</strong>
+        </div>
+      </div>
+
+      <div style={styles.matchTabs}>
+        {["Jogos", "Estatísticas", "Confronto direto", "Linha do tempo", "Escalações"].map((tab, index) => (
+          <button key={tab} style={index === 1 ? styles.matchTabActive : styles.matchTab}>
+            {index === 0 ? "🎲" : index === 1 ? "📊" : index === 2 ? "🤝" : index === 3 ? "🎙️" : "👕"} {tab}
+          </button>
+        ))}
+      </div>
+
+      <div style={styles.matchBodyGrid}>
+        <div style={styles.matchStatsBox}>
+          <div style={styles.matchStatsHeader}>
+            <strong>ESTATÍSTICAS AO VIVO</strong>
+            <span>{data?.loadingStats ? "Carregando..." : stats?.available ? "Dados reais" : "Dados rápidos"}</span>
+          </div>
+
+          <StatsCompare label="Cartões" left={fastStats.cardsHome} right={fastStats.cardsAway} />
+          <StatsCompare label="Chutes" left={fastStats.shotsHome} right={fastStats.shotsAway} />
+          <StatsCompare label="Chutes a gol" left={fastStats.shotsOnHome} right={fastStats.shotsOnAway} />
+          <StatsCompare label="Escanteios" left={fastStats.cornersHome} right={fastStats.cornersAway} />
+          <StatsCompare label="Posse de bola" left={fastStats.possessionHome} right={fastStats.possessionAway} />
+
+          <div style={styles.attackRow}>
+            <div>
+              <span>⚽ Gols</span>
+              <strong>{fastStats.totalGoals}</strong>
+            </div>
+            <div>
+              <span>⏱ Minuto</span>
+              <strong>{gameTimeLabel(game, data?.liveTick || 0)}</strong>
+            </div>
+            <div>
+              <span>🔥 Score IA</span>
+              <strong>{fastStats.quality}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div style={styles.matchTipBox}>
+          <span style={styles.sectionKicker}>PALPITE AO VIVO</span>
+          <h3>{tip.tip}</h3>
+          <div style={styles.matchTipMetrics}>
+            <span>Odd {tip.odd}</span>
+            <span>{tip.confidence}%</span>
+            <span>{tip.risk}</span>
+          </div>
+          <p>
+            Entrada sugerida cruzando placar, minuto, qualidade do jogo, odds disponíveis, escalação e mercados de jogador quando a API retornar dados.
+          </p>
+          <button style={styles.vipFullButton} onClick={() => onAnalyze(game)}>
+            Ver análise completa
+          </button>
+        </div>
+      </div>
+
+      <div style={styles.marketTabs}>
+        {["Destaques", "Gols", "Jogador", "Escanteios", "1º/2º Tempo", "Apostas"].map((tab, index) => (
+          <button key={tab} style={index === 0 ? styles.marketTabActive : styles.marketTab}>
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      <div style={styles.marketGroups}>
+        {marketGroups.map((group) => (
+          <div key={group.title} style={styles.marketGroup}>
+            <div style={styles.marketGroupHead}>
+              <strong>{group.title}</strong>
+              <span>{group.tag}</span>
+            </div>
+
+            <div style={styles.marketButtons}>
+              {group.markets.map((market: any, index: number) => (
+                <button key={`${market.label}-${index}`} style={styles.marketOddButton}>
+                  <span>{market.label}</span>
+                  <strong>{market.odd}</strong>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function StatsCompare({ label, left, right }: { label: string; left: any; right: any }) {
+  const leftNumber = Number(String(left).replace(/[^0-9.]/g, ""));
+  const rightNumber = Number(String(right).replace(/[^0-9.]/g, ""));
+  const total = Number.isFinite(leftNumber + rightNumber) && leftNumber + rightNumber > 0 ? leftNumber + rightNumber : 1;
+  const leftPercent = Math.min(100, Math.max(8, Math.round((leftNumber / total) * 100)));
+
+  return (
+    <div style={styles.statsCompare}>
+      <strong>{left}</strong>
+      <div style={styles.statsBarWrap}>
+        <span>{label}</span>
+        <div style={styles.statsBar}>
+          <div style={{ ...styles.statsBarLeft, width: `${leftPercent}%` }} />
+          <div style={{ ...styles.statsBarRight, width: `${100 - leftPercent}%` }} />
+        </div>
+      </div>
+      <strong>{right}</strong>
+    </div>
+  );
+}
+
+function MarketingBanner({
+  mainGame,
+  secondaryGames,
+  onAnalyze,
+  onVip,
+  liveTick = 0,
+}: {
+  mainGame: any;
+  secondaryGames: any[];
+  onAnalyze: (game: any) => void;
+  onVip: () => void;
+  liveTick?: number;
+}) {
+  const game = mainGame;
+  const tip = game ? smartLocalTip(game) : null;
+  const score = game ? getScore(game) : { home: "-", away: "-" };
+
+  return (
+    <section style={styles.marketingBanner}>
+      <div style={styles.marketingGlow} />
+
+      <div style={styles.marketingContent}>
+        <span style={styles.marketingKicker}>🔥 ODDIX ARENA VIP</span>
+
+        <h2 style={styles.marketingTitle}>
+          Sala VIP com entradas filtradas por IA.
+        </h2>
+
+        <p style={styles.marketingText}>
+          O Oddix cruza jogos ao vivo, odds, placar, tempo de jogo e qualidade da liga
+          para destacar as melhores oportunidades antes do mercado mexer.
+        </p>
+
+        {game && (
+          <div style={styles.marketingMatchCard}>
+            <div style={styles.marketingTeam}>
+              <img
+                src={game?.teams?.home?.logo || logoFallback(game?.teams?.home?.name)}
+                style={styles.marketingTeamLogo}
+              />
+              <strong>{game?.teams?.home?.name}</strong>
+            </div>
+
+            <div style={styles.marketingScoreBox}>
+              <span>{isGameLive(game) ? gameTimeLabel(game, liveTick) : formatDateTime(game?.fixture?.date)}</span>
+              <strong>{score.home} - {score.away}</strong>
+            </div>
+
+            <div style={styles.marketingTeam}>
+              <img
+                src={game?.teams?.away?.logo || logoFallback(game?.teams?.away?.name)}
+                style={styles.marketingTeamLogo}
+              />
+              <strong>{game?.teams?.away?.name}</strong>
+            </div>
+          </div>
+        )}
+
+        {tip && (
+          <div style={styles.marketingPick}>
+            <span>Palpite IA</span>
+            <strong>{tip.tip}</strong>
+            <div style={styles.marketingPickMeta}>
+              <small>Odd {tip.odd}</small>
+              <small>{tip.confidence}% confiança</small>
+              <small>{tip.risk}</small>
+            </div>
+          </div>
+        )}
+
+        <div style={styles.marketingActions}>
+          {game && (
+            <button style={styles.marketingPrimaryButton} onClick={() => onAnalyze(game)}>
+              Ver análise IA
+            </button>
+          )}
+
+          <button style={styles.marketingVipButton} onClick={onVip}>
+            Quero ser VIP
+          </button>
+        </div>
+      </div>
+
+      <div style={styles.playerArea}>
+        <div style={styles.playerCard}>
+          <img
+            src="https://images.unsplash.com/photo-1517927033932-b3d18e61fb3a?auto=format&fit=crop&w=1200&q=90"
+            alt="Jogador de futebol"
+            style={styles.playerPhoto}
+          />
+
+          <div style={styles.playerShine} />
+
+          <div style={styles.playerOverlay}>
+            <strong>ODDIX TIPSTER IA</strong>
+            <span>Análise ao vivo • Odds • Gestão de banca</span>
+          </div>
+        </div>
+
+        <div style={styles.miniBannerGrid}>
+          {secondaryGames.map((item: any) => {
+            const itemTip = smartLocalTip(item);
+
+            return (
+              <button
+                key={stableGameKey(item)}
+                style={styles.miniMarketingCard}
+                onClick={() => onAnalyze(item)}
+              >
+                <div style={styles.miniTeams}>
+                  <img
+                    src={item?.teams?.home?.logo || logoFallback(item?.teams?.home?.name)}
+                    style={styles.miniLogo}
+                  />
+                  <span>x</span>
+                  <img
+                    src={item?.teams?.away?.logo || logoFallback(item?.teams?.away?.name)}
+                    style={styles.miniLogo}
+                  />
+                </div>
+                <strong>{itemTip.tip}</strong>
+                <small>{itemTip.confidence}% • Odd {itemTip.odd}</small>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FeaturedGame({ game, liveTick, onAnalyze }: { game: any; liveTick?: number; onAnalyze: () => void }) {
+  const score = getScore(game);
+  const quality = safeNumber(game?.oddix?.qualityScore, 0);
+  const tip = smartLocalTip(game);
+
+  return (
+    <div style={styles.featuredCard} onClick={onAnalyze}>
+      <div style={styles.featuredHeader}>
+        <span>{isGameLive(game) ? `● Ao vivo ${gameTimeLabel(game, liveTick || 0)}` : formatDateTime(game?.fixture?.date)}</span>
+        <small>{game?.league?.name}</small>
+      </div>
+      <div style={styles.featuredTeams}>
+        <TeamMini team={game?.teams?.home} />
+        <strong style={styles.featuredScore}>{score.home} - {score.away}</strong>
+        <TeamMini team={game?.teams?.away} />
+      </div>
+      <div style={styles.featuredPick}>
+        <span>{tip.tip}</span>
+        <strong>{quality}%</strong>
+      </div>
+    </div>
+  );
+}
+
+function TeamMini({ team }: { team: any }) {
+  return (
+    <div style={styles.teamMini}>
+      <img src={team?.logo || logoFallback(team?.name)} style={styles.teamMiniLogo} />
+      <span>{team?.name}</span>
+    </div>
+  );
+}
+
+function GameCard({ game, liveTick = 0, saved, analyzing, onAnalyze, onOpenSaved }: any) {
+  const score = getScore(game);
+  const quality = safeNumber(game?.oddix?.qualityScore, 0);
+  const tip = smartLocalTip(game);
+  const live = isGameLive(game);
+
+  return (
+    <article style={live ? styles.gameCardLive : styles.gameCard} onClick={onAnalyze}>
+      <div style={styles.cardTop}>
+        <span style={live ? styles.liveBadge : styles.statusBadge}>{getStatusLabel(game, liveTick)}</span>
+        <span style={styles.qualityBadge}>{qualityBadge(quality)} {quality}</span>
+      </div>
+
+      <div style={styles.leagueLine}>
+        <img src={game?.league?.logo || logoFallback(game?.league?.name, "7c3aed", "ffffff")} style={styles.leagueLogo} />
+        <span>{game?.league?.name}</span>
+      </div>
+
+      <div style={styles.matchLine}>
+        <TeamMini team={game?.teams?.home} />
+        <div style={styles.scoreBox}>{score.home}<span>-</span>{score.away}</div>
+        <TeamMini team={game?.teams?.away} />
+      </div>
+
+      <div style={styles.pickBox}>
+        <small>Palpite IA</small>
+        <strong>{tip.tip}</strong>
+        <div style={styles.pickMetrics}>
+          <span>Odd {tip.odd}</span>
+          <span>{tip.confidence}%</span>
+          <span>{tip.risk}</span>
+        </div>
+      </div>
+
+      <div style={styles.cardActions}>
+        {saved ? (
+          <button style={styles.savedSmallButton} onClick={(event) => { event.stopPropagation(); onOpenSaved(); }}>✅ Ver salvo</button>
+        ) : (
+          <button style={styles.analyzeButton} onClick={(event) => { event.stopPropagation(); onAnalyze(); }}>{analyzing ? "Abrindo..." : "Ver jogo"}</button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function SmartTipsSection({ tips, games, liveTick = 0, onAnalyze }: any) {
+  const liveGames = games.filter(isGameLive).slice(0, 6);
+
+  return (
+    <section>
+      <div style={styles.sectionHeader}>
+        <div>
+          <h2>IA Premium com Odds</h2>
+          <p>Ao clicar em IA Premium, veja primeiro os jogos ao vivo com estatísticas rápidas e depois as entradas ranqueadas.</p>
+        </div>
+      </div>
+
+      {liveGames.length > 0 && (
+        <div style={styles.liveStatsGrid}>
+          {liveGames.map((game: any) => {
+            const score = getScore(game);
+            const tip = smartLocalTip(game);
+            const elapsed = safeNumber(game?.fixture?.status?.elapsed, 0);
+            const totalGoals = safeNumber(score.home, 0) + safeNumber(score.away, 0);
+            const quality = safeNumber(game?.oddix?.qualityScore, 0);
+            const odds = getOddsOptions(game);
+
+            return (
+              <button
+                key={stableGameKey(game)}
+                style={styles.liveStatsCard}
+                onClick={() => onAnalyze(game, tip)}
+              >
+                <div style={styles.liveStatsTop}>
+                  <span style={styles.livePulse}>● Ao vivo {gameTimeLabel(game, liveTick)}</span>
+                  <strong>{qualityBadge(quality)} {quality}</strong>
+                </div>
+
+                <div style={styles.liveStatsTeams}>
+                  <TeamMini team={game?.teams?.home} />
+                  <div style={styles.liveStatsScore}>{score.home} - {score.away}</div>
+                  <TeamMini team={game?.teams?.away} />
+                </div>
+
+                <div style={styles.liveStatsNumbers}>
+                  <span>Gols: {totalGoals}</span>
+                  <span>Odds: {odds.length || 0}</span>
+                  <span>Mercado: {tip.market}</span>
+                </div>
+
+                <div style={styles.liveStatsPick}>
+                  <small>Palpite ao vivo</small>
+                  <strong>{tip.tip}</strong>
+                  <span>Odd {tip.odd} • {tip.confidence}% • {tip.risk}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={styles.smartList}>
+        {tips.slice(0, 12).map((tip: any, index: number) => {
+          const game = getGameByTip(tip, games);
+          return (
+            <div key={`${tip.fixtureId || index}-${tip.tip}`} style={styles.smartRow}>
+              <span style={styles.smartRank}>{index + 1}</span>
+              <div style={styles.smartInfo}>
+                <strong>{tip.game}</strong>
+                <small>{tip.league}</small>
+              </div>
+              <div style={styles.smartPick}>
+                <strong>{tip.tip}</strong>
+                <small>{tip.market}</small>
+              </div>
+              <div style={styles.smartNumbers}>
+                <span>Odd {tip.odd}</span>
+                <span>{tip.confidence}%</span>
+                <span>{tip.risk}</span>
+              </div>
+              <button style={styles.rowButton} onClick={() => game && onAnalyze(game, tip)}>Analisar</button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function BoostSection({ boost, games, onAnalyze }: any) {
+  return (
+    <section>
+      <div style={styles.boostHero}>
+        <div>
+          <span style={styles.sectionKicker}>ODDIX BOOST</span>
+          <h2>Combinada automática VIP</h2>
+          <p>Seleciona até 3 entradas com boa confiança e odd protegida.</p>
+        </div>
+        <div style={styles.boostOddBox}>
+          <span>Odd combinada</span>
+          <strong>{boost.combinedOdd}</strong>
+          <small>Confiança média {boost.confidence}%</small>
+        </div>
+      </div>
+
+      <div style={styles.boostSelections}>
+        {boost.picks.map((pick: any, index: number) => {
+          const game = getGameByTip(pick, games);
+          return (
+            <div key={`${pick.fixtureId || index}-${pick.tip}`} style={styles.boostCard}>
+              <span style={styles.smartRank}>{index + 1}</span>
+              <strong>{pick.game}</strong>
+              <p>{pick.tip}</p>
+              <div style={styles.pickMetrics}>
+                <span>Odd {pick.odd}</span>
+                <span>{pick.confidence}%</span>
+                <span>{pick.risk}</span>
+              </div>
+              <button style={styles.rowButton} onClick={() => game && onAnalyze(game, pick)}>Ver análise</button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
-    width: "100vw",
-    color: "#fff",
-    padding: "18px 30px 28px",
+    color: "#111827",
+    background: "#f5f3ff",
     fontFamily: "Arial, sans-serif",
-    backgroundImage:
-      'linear-gradient(rgba(0,0,0,.78), rgba(0,0,0,.96)), url("https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=2200&q=90")',
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    backgroundAttachment: "fixed",
-    position: "relative" as const,
-    overflowX: "hidden" as const,
   },
-  overlay: {
-    position: "fixed" as const,
-    inset: 0,
-    background: "rgba(0,0,0,.25)",
-    pointerEvents: "none" as const,
-  },
-  header: {
-    position: "relative" as const,
-    zIndex: 2,
+  topHeader: {
+    background: "linear-gradient(135deg,#5b21b6,#8b5cf6,#a855f7)",
+    color: "white",
+    padding: "14px 26px",
     display: "flex",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "8px",
-    gap: "20px",
+    justifyContent: "space-between",
+    gap: 18,
+    position: "sticky",
+    top: 0,
+    zIndex: 20,
+    boxShadow: "0 12px 35px rgba(76,29,149,.28)",
   },
-  logoBox: {
-    width: "540px",
-    height: "205px",
+  brand: {
+    width: 430,
+    minWidth: 430,
+    height: 104,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: "42px",
-    background: "rgba(0,0,0,.25)",
-    boxShadow: "0 0 45px rgba(0,0,0,.85)",
+    cursor: "pointer",
+    background: "rgba(255,255,255,.12)",
+    border: "1px solid rgba(255,255,255,.20)",
+    borderRadius: 28,
+    padding: "10px 22px",
+    boxShadow: "0 14px 34px rgba(0,0,0,.22)",
   },
-  logo: {
-    width: "520px",
-    height: "190px",
-    objectFit: "contain" as const,
-    filter: "drop-shadow(0 0 22px rgba(0,0,0,.95))",
+  brandLogo: {
+    width: "100%",
+    height: 88,
+    objectFit: "contain",
+    objectPosition: "center",
+    display: "block",
+    filter: "drop-shadow(0 0 16px rgba(0,0,0,.70))",
   },
-  nav: {
+  headerActions: {
     display: "flex",
     alignItems: "center",
-    gap: "14px",
-    color: "#e5e5e5",
-    flexWrap: "wrap" as const,
+    gap: 10,
+    flexWrap: "wrap",
     justifyContent: "flex-end",
   },
-  planBadge: {
-    background: "rgba(34,197,94,.15)",
-    color: "#22c55e",
-    border: "1px solid rgba(34,197,94,.4)",
+  headerPill: {
+    background: "rgba(255,255,255,.18)",
+    color: "#fff",
+    border: "1px solid rgba(255,255,255,.2)",
+    borderRadius: 999,
     padding: "10px 14px",
-    borderRadius: "999px",
-    fontWeight: "bold",
+    fontWeight: 800,
   },
-  liveNavButton: {
-    background: "rgba(239,68,68,.16)",
-    color: "#ef4444",
-    border: "1px solid rgba(239,68,68,.45)",
-    padding: "11px 16px",
-    borderRadius: "999px",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  adminButton: {
-    background: "rgba(255,255,255,.08)",
+  headerButton: {
+    background: "rgba(255,255,255,.12)",
     color: "#fff",
     border: "1px solid rgba(255,255,255,.18)",
-    padding: "11px 16px",
-    borderRadius: "999px",
-    fontWeight: "bold",
+    borderRadius: 999,
+    padding: "10px 14px",
     cursor: "pointer",
+    fontWeight: 700,
   },
-  historyButton: {
-    background: "rgba(56,189,248,.14)",
-    color: "#38bdf8",
-    border: "1px solid rgba(56,189,248,.4)",
-    padding: "11px 16px",
-    borderRadius: "999px",
-    fontWeight: "bold",
+  adminButton: {
+    background: "#111827",
+    color: "#fff",
+    border: 0,
+    borderRadius: 999,
+    padding: "10px 14px",
     cursor: "pointer",
-  },
-  favoriteNavButton: {
-    background: "rgba(250,204,21,.15)",
-    color: "#facc15",
-    border: "1px solid rgba(250,204,21,.45)",
-    padding: "11px 16px",
-    borderRadius: "999px",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  freeGroupButton: {
-    background: "rgba(34,197,94,.14)",
-    color: "#22c55e",
-    border: "1px solid rgba(34,197,94,.45)",
-    padding: "11px 16px",
-    borderRadius: "999px",
-    fontWeight: "bold",
-    cursor: "pointer",
+    fontWeight: 800,
   },
   vipButton: {
-    background: "linear-gradient(135deg,#22c55e,#a3e635)",
-    color: "#000",
+    background: "#facc15",
+    color: "#111827",
     border: 0,
-    padding: "13px 20px",
-    borderRadius: "999px",
-    fontWeight: "bold",
+    borderRadius: 999,
+    padding: "11px 18px",
     cursor: "pointer",
+    fontWeight: 900,
   },
   logoutButton: {
     background: "transparent",
-    color: "#ef4444",
-    border: "1px solid #ef4444",
-    padding: "11px 16px",
-    borderRadius: "999px",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  analysisPanel: {
-    position: "relative" as const,
-    zIndex: 2,
-    background: "linear-gradient(145deg,rgba(11,15,20,.98),rgba(0,0,0,.93))",
-    border: "1px solid rgba(34,197,94,.3)",
-    borderRadius: "28px",
-    padding: "24px",
-    marginBottom: "22px",
-  },
-  analysisTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "16px",
-    alignItems: "flex-start",
-  },
-  liveAnalysisBadge: {
-    background: "rgba(239,68,68,.18)",
-    color: "#ef4444",
-    border: "1px solid rgba(239,68,68,.45)",
-    padding: "8px 13px",
-    borderRadius: "999px",
-    fontWeight: "bold",
-    fontSize: "12px",
-  },
-  futureAnalysisBadge: {
-    background: "rgba(56,189,248,.16)",
-    color: "#38bdf8",
-    border: "1px solid rgba(56,189,248,.35)",
-    padding: "8px 13px",
-    borderRadius: "999px",
-    fontWeight: "bold",
-    fontSize: "12px",
-  },
-  analysisTitle: {
-    fontSize: "32px",
-    marginBottom: "6px",
-  },
-  closeButton: {
-    background: "rgba(239,68,68,.18)",
-    color: "#ef4444",
-    border: "1px solid rgba(239,68,68,.4)",
+    color: "#fff",
+    border: "1px solid rgba(255,255,255,.35)",
+    borderRadius: 999,
     padding: "10px 14px",
-    borderRadius: "12px",
-    fontWeight: "bold",
     cursor: "pointer",
+    fontWeight: 700,
   },
-  analysisScoreboard: {
-    display: "grid",
-    gridTemplateColumns: "1fr 240px 1fr",
-    alignItems: "center",
-    gap: "16px",
-    marginTop: "22px",
-    background: "rgba(255,255,255,.045)",
-    border: "1px solid rgba(255,255,255,.10)",
-    borderRadius: "20px",
-    padding: "18px",
-  },
-  analysisTeam: {
+  sportsRail: {
+    background: "linear-gradient(135deg,#6d28d9,#9333ea)",
+    padding: "14px 26px 24px",
     display: "flex",
-    flexDirection: "column" as const,
-    alignItems: "center",
-    gap: "10px",
-    textAlign: "center" as const,
-    fontSize: "18px",
+    gap: 12,
+    overflowX: "auto",
   },
-  analysisLogo: {
-    width: "82px",
-    height: "82px",
-    objectFit: "contain" as const,
-  },
-  analysisScoreCenter: {
-    display: "flex",
-    flexDirection: "column" as const,
-    alignItems: "center",
-    gap: "8px",
-  },
-  analysisScore: {
-    display: "flex",
-    gap: "14px",
-    alignItems: "center",
-    color: "#22c55e",
-    fontSize: "48px",
-    fontWeight: "bold",
-  },
-  analysisClock: {
-    background: "#06140c",
-    color: "#22c55e",
-    border: "1px solid rgba(34,197,94,.5)",
-    borderRadius: "13px",
-    padding: "8px 18px",
-  },
-  statsPanel: {
-    marginTop: "18px",
-    background: "rgba(0,0,0,.38)",
-    border: "1px solid rgba(34,197,94,.25)",
-    borderRadius: "18px",
-    padding: "15px",
-  },
-  statsHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "12px",
-    color: "#22c55e",
-    marginBottom: "12px",
-    flexWrap: "wrap" as const,
-  },
-  statsTable: {
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "7px",
-  },
-  statsRowHead: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr",
-    alignItems: "center",
-    textAlign: "center" as const,
-    gap: "8px",
-    background: "rgba(255,255,255,.08)",
-    borderRadius: "12px",
-    padding: "10px",
-    color: "#fff",
-  },
-  statsRow: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr",
-    alignItems: "center",
-    textAlign: "center" as const,
-    gap: "8px",
-    background: "rgba(255,255,255,.05)",
-    border: "1px solid rgba(255,255,255,.08)",
-    borderRadius: "12px",
-    padding: "9px",
-  },
-  statsEmpty: {
-    color: "#d4d4d8",
-    margin: 0,
-  },
-  analysisGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-    gap: "10px",
-    marginTop: "16px",
-  },
-  analysisMetric: {
-    background: "rgba(255,255,255,.06)",
-    border: "1px solid rgba(255,255,255,.09)",
-    borderRadius: "14px",
-    padding: "12px",
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "5px",
-  },
-  analysisText: {
-    background: "rgba(255,255,255,.045)",
-    border: "1px solid rgba(255,255,255,.1)",
-    color: "#d4d4d8",
-    lineHeight: 1.65,
-    borderRadius: "16px",
-    padding: "16px",
-  },
-  analysisActions: {
-    display: "flex",
-    gap: "12px",
-    flexWrap: "wrap" as const,
-    marginTop: "16px",
-  },
-  saveButton: {
-    background: "linear-gradient(135deg,#22c55e,#a3e635)",
-    color: "#000",
-    border: 0,
-    padding: "12px 18px",
-    borderRadius: "12px",
-    fontWeight: "bold",
+  sportItem: {
+    minWidth: 118,
+    height: 68,
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,.24)",
+    background: "rgba(255,255,255,.13)",
+    color: "white",
     cursor: "pointer",
+    fontWeight: 900,
+    boxShadow: "0 10px 24px rgba(76,29,149,.20)",
   },
-  savedButton: {
-    background: "#facc15",
-    color: "#000",
-    border: 0,
-    padding: "12px 18px",
-    borderRadius: "12px",
-    fontWeight: "bold",
-    cursor: "not-allowed",
-  },
-  openSavedButton: {
-    background: "rgba(255,255,255,.08)",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,.16)",
-    padding: "12px 18px",
-    borderRadius: "12px",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  hero: {
-    position: "relative" as const,
-    zIndex: 2,
+  heroGrid: {
     display: "grid",
-    gridTemplateColumns: "1fr 260px",
-    gap: "20px",
-    padding: "34px",
-    borderRadius: "30px",
-    background: "linear-gradient(135deg,rgba(20,20,25,.92),rgba(5,5,5,.88))",
-    border: "1px solid rgba(255,255,255,.12)",
-    boxShadow: "0 0 60px rgba(0,0,0,.55)",
-    marginBottom: "22px",
+    gridTemplateColumns: "1fr 300px",
+    gap: 18,
+    margin: "24px 26px 18px",
   },
-  liveBadge: {
-    background: "#ef4444",
-    padding: "8px 13px",
-    borderRadius: "999px",
-    fontWeight: "bold",
-    fontSize: "12px",
+  heroMain: {
+    background: "white",
+    borderRadius: 28,
+    padding: 28,
+    boxShadow: "0 18px 45px rgba(17,24,39,.09)",
   },
-  heroTitle: {
-    fontSize: "42px",
-    maxWidth: "780px",
-    marginBottom: "10px",
+  sectionKicker: {
+    color: "#7c3aed",
+    fontWeight: 900,
+    fontSize: 12,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
   },
-  heroText: {
-    color: "#d4d4d8",
-    fontSize: "16px",
+  heroStats: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))",
+    gap: 12,
+    marginTop: 18,
   },
-  heroChips: {
-    marginTop: "18px",
+  infoMetric: {
+    background: "#f5f3ff",
+    border: "1px solid #ede9fe",
+    borderRadius: 18,
+    padding: 16,
     display: "flex",
-    gap: "10px",
-    flexWrap: "wrap" as const,
+    flexDirection: "column",
+    gap: 6,
   },
-  chip: {
-    background: "rgba(255,255,255,.08)",
-    border: "1px solid rgba(255,255,255,.1)",
-    padding: "9px 12px",
-    borderRadius: "999px",
-  },
-  heroPanel: {
-    background: "rgba(0,0,0,.55)",
-    border: "1px solid rgba(255,255,255,.1)",
-    borderRadius: "24px",
-    padding: "24px",
+  vipPanel: {
+    background: "linear-gradient(145deg,#111827,#4c1d95)",
+    color: "white",
+    borderRadius: 28,
+    padding: 24,
+    boxShadow: "0 18px 45px rgba(76,29,149,.28)",
     display: "flex",
-    flexDirection: "column" as const,
+    flexDirection: "column",
+    gap: 10,
     justifyContent: "center",
   },
-  bigNumber: {
-    fontSize: "48px",
-    color: "#22c55e",
-  },
-  pulseBar: {
-    marginTop: "18px",
-    height: "10px",
-    background: "#27272a",
-    borderRadius: "999px",
+  confidenceBar: {
+    height: 10,
+    background: "rgba(255,255,255,.12)",
+    borderRadius: 999,
     overflow: "hidden",
   },
-  pulseFill: {
-    width: "91%",
+  confidenceFill: {
     height: "100%",
-    background: "linear-gradient(90deg,#22c55e,#a3e635)",
+    background: "linear-gradient(90deg,#22c55e,#facc15)",
   },
-  history: {
-    position: "relative" as const,
+  vipFullButton: {
+    background: "#facc15",
+    color: "#111827",
+    border: 0,
+    borderRadius: 14,
+    padding: "12px 14px",
+    fontWeight: 900,
+    cursor: "pointer",
+    marginTop: 10,
+  },
+  matchDetailPanel: {
+    margin: "22px 26px",
+    background: "white",
+    borderRadius: 28,
+    overflow: "hidden",
+    boxShadow: "0 24px 70px rgba(17,24,39,.16)",
+    border: "1px solid #ede9fe",
+  },
+  matchDetailTop: {
+    background: "linear-gradient(135deg,#5b21b6,#8b5cf6,#a855f7)",
+    color: "white",
+    padding: "18px 22px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  matchBackButton: {
+    background: "rgba(255,255,255,.14)",
+    color: "white",
+    border: "1px solid rgba(255,255,255,.22)",
+    borderRadius: 999,
+    padding: "10px 14px",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  matchTopTitle: {
+    display: "flex",
+    flexDirection: "column",
+    textAlign: "center",
+    gap: 3,
+  },
+  matchAnalyzeButton: {
+    background: "#facc15",
+    color: "#111827",
+    border: 0,
+    borderRadius: 999,
+    padding: "10px 14px",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  matchScoreHeader: {
+    background: "linear-gradient(135deg,#6d28d9,#9333ea)",
+    color: "white",
+    padding: "26px 22px",
+    display: "grid",
+    gridTemplateColumns: "1fr auto 1fr",
+    alignItems: "center",
+    gap: 18,
+  },
+  matchTeamBig: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    fontSize: 18,
+    fontWeight: 900,
+  },
+  matchTeamBigLogo: {
+    width: 58,
+    height: 58,
+    objectFit: "contain",
+    background: "rgba(255,255,255,.14)",
+    borderRadius: 18,
+    padding: 8,
+  },
+  matchCenterBig: {
+    minWidth: 170,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 7,
+  },
+  matchLivePill: {
+    background: "rgba(255,255,255,.90)",
+    color: "#047857",
+    borderRadius: 999,
+    padding: "7px 12px",
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  matchTabs: {
+    display: "flex",
+    gap: 8,
+    padding: "12px 22px",
+    background: "#f8fafc",
+    borderBottom: "1px solid #e5e7eb",
+    overflowX: "auto",
+  },
+  matchTab: {
+    background: "transparent",
+    color: "#6b7280",
+    border: 0,
+    borderRadius: 12,
+    padding: "10px 12px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    fontWeight: 800,
+  },
+  matchTabActive: {
+    background: "#ecfdf5",
+    color: "#059669",
+    border: "1px solid #bbf7d0",
+    borderRadius: 12,
+    padding: "10px 12px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    fontWeight: 900,
+  },
+  matchBodyGrid: {
+    display: "grid",
+    gridTemplateColumns: "1.3fr .7fr",
+    gap: 18,
+    padding: 22,
+  },
+  matchStatsBox: {
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    borderRadius: 22,
+    padding: 18,
+  },
+  matchStatsHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 18,
+    color: "#6b7280",
+    fontSize: 12,
+  },
+  statsCompare: {
+    display: "grid",
+    gridTemplateColumns: "54px 1fr 54px",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 14,
+  },
+  statsBarWrap: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    textAlign: "center",
+    color: "#9ca3af",
+    fontSize: 12,
+    fontWeight: 800,
+  },
+  statsBar: {
+    height: 5,
+    background: "#e5e7eb",
+    borderRadius: 999,
+    overflow: "hidden",
+    display: "flex",
+  },
+  statsBarLeft: {
+    height: "100%",
+    background: "#111827",
+  },
+  statsBarRight: {
+    height: "100%",
+    background: "#ef4444",
+  },
+  attackRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3,1fr)",
+    gap: 10,
+    marginTop: 18,
+  },
+  matchTipBox: {
+    background: "linear-gradient(145deg,#111827,#4c1d95)",
+    color: "white",
+    borderRadius: 22,
+    padding: 20,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  matchTipMetrics: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  marketTabs: {
+    display: "flex",
+    gap: 8,
+    padding: "0 22px 14px",
+    overflowX: "auto",
+  },
+  marketTab: {
+    background: "transparent",
+    border: 0,
+    color: "#64748b",
+    padding: "11px 16px",
+    borderRadius: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  marketTabActive: {
+    background: "#ede9fe",
+    border: 0,
+    color: "#7c3aed",
+    padding: "11px 16px",
+    borderRadius: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  marketGroups: {
+    padding: "0 22px 24px",
+    display: "grid",
+    gap: 14,
+  },
+  marketGroup: {
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb",
+    borderRadius: 22,
+    overflow: "hidden",
+  },
+  marketGroupHead: {
+    padding: "14px 16px",
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    background: "#fff",
+    borderBottom: "1px solid #e5e7eb",
+  },
+  marketButtons: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))",
+    gap: 8,
+    padding: 12,
+  },
+  marketOddButton: {
+    background: "#e5e7eb",
+    border: 0,
+    borderRadius: 14,
+    padding: "12px 14px",
+    cursor: "pointer",
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    alignItems: "center",
+    fontWeight: 900,
+  },
+  marketingBanner: {
+    position: "relative",
+    margin: "0 26px 20px",
+    minHeight: 360,
+    borderRadius: 30,
+    overflow: "hidden",
+    color: "white",
+    background:
+      "linear-gradient(120deg,rgba(17,24,39,.98),rgba(76,29,149,.96),rgba(124,58,237,.88)), url('https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=1800&q=90')",
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    boxShadow: "0 22px 65px rgba(76,29,149,.30)",
+    display: "grid",
+    gridTemplateColumns: "1.15fr .85fr",
+    gap: 22,
+    padding: 28,
+  },
+  marketingGlow: {
+    position: "absolute",
+    inset: 0,
+    background:
+      "radial-gradient(circle at 18% 15%, rgba(250,204,21,.26), transparent 28%), radial-gradient(circle at 78% 20%, rgba(34,197,94,.22), transparent 30%), radial-gradient(circle at 45% 90%, rgba(168,85,247,.36), transparent 36%)",
+    pointerEvents: "none",
+  },
+  marketingContent: {
+    position: "relative",
+    zIndex: 2,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    gap: 14,
+  },
+  marketingKicker: {
+    width: "fit-content",
+    background: "rgba(250,204,21,.18)",
+    color: "#facc15",
+    border: "1px solid rgba(250,204,21,.36)",
+    borderRadius: 999,
+    padding: "8px 12px",
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: 1,
+  },
+  marketingTitle: {
+    margin: 0,
+    maxWidth: 720,
+    fontSize: 39,
+    lineHeight: 1.07,
+    letterSpacing: -1,
+  },
+  marketingText: {
+    maxWidth: 660,
+    margin: 0,
+    color: "#ddd6fe",
+    fontSize: 16,
+    lineHeight: 1.55,
+  },
+  marketingMatchCard: {
+    maxWidth: 680,
+    display: "grid",
+    gridTemplateColumns: "1fr auto 1fr",
+    alignItems: "center",
+    gap: 14,
+    background: "rgba(255,255,255,.11)",
+    border: "1px solid rgba(255,255,255,.18)",
+    borderRadius: 22,
+    padding: 16,
+    backdropFilter: "blur(10px)",
+  },
+  marketingTeam: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    minWidth: 0,
+  },
+  marketingTeamLogo: {
+    width: 48,
+    height: 48,
+    objectFit: "contain",
+    flexShrink: 0,
+  },
+  marketingScoreBox: {
+    minWidth: 120,
+    background: "#0f172a",
+    borderRadius: 18,
+    padding: "10px 14px",
+    textAlign: "center",
+    border: "1px solid rgba(255,255,255,.14)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  marketingPick: {
+    maxWidth: 680,
+    background: "linear-gradient(135deg,rgba(34,197,94,.20),rgba(250,204,21,.16))",
+    border: "1px solid rgba(34,197,94,.28)",
+    borderRadius: 22,
+    padding: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 7,
+  },
+  marketingPickMeta: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    color: "#dcfce7",
+    fontWeight: 800,
+  },
+  marketingActions: {
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    marginTop: 4,
+  },
+  marketingPrimaryButton: {
+    background: "#22c55e",
+    color: "#052e16",
+    border: 0,
+    borderRadius: 16,
+    padding: "14px 18px",
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 12px 30px rgba(34,197,94,.30)",
+  },
+  marketingVipButton: {
+    background: "#facc15",
+    color: "#111827",
+    border: 0,
+    borderRadius: 16,
+    padding: "14px 18px",
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 12px 30px rgba(250,204,21,.25)",
+  },
+  playerArea: {
+    position: "relative",
     zIndex: 2,
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-    gap: "14px",
-    marginBottom: "22px",
+    gridTemplateColumns: "1fr",
+    gap: 12,
+    minWidth: 0,
   },
-  historyCard: {
-    background: "rgba(255,255,255,.06)",
-    border: "1px solid rgba(255,255,255,.1)",
-    borderRadius: "18px",
-    padding: "18px",
+  playerCard: {
+    minHeight: 260,
+    borderRadius: 26,
+    overflow: "hidden",
+    position: "relative",
+    background: "#111827",
+    border: "1px solid rgba(255,255,255,.18)",
+    boxShadow: "0 18px 42px rgba(0,0,0,.32)",
+  },
+  playerImage: {
+    position: "absolute",
+    inset: 0,
+    backgroundImage:
+      "linear-gradient(rgba(0,0,0,.12),rgba(0,0,0,.52)), url('https://images.unsplash.com/photo-1534474491051-94d140b820e8?auto=format&fit=crop&w=1000&q=90')",
+    backgroundSize: "cover",
+    backgroundPosition: "center top",
+    transform: "scale(1.05)",
+  },
+  playerPhoto: {
+    position: "absolute",
+    inset: 0,
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    objectPosition: "center center",
+    display: "block",
+    filter: "contrast(1.08) saturate(1.12)",
+  },
+  playerShine: {
+    position: "absolute",
+    inset: 0,
+    background:
+      "linear-gradient(90deg,rgba(17,24,39,.20),rgba(76,29,149,.10),rgba(0,0,0,.65)), radial-gradient(circle at 25% 15%, rgba(250,204,21,.20), transparent 32%)",
+    pointerEvents: "none",
+  },
+  playerOverlay: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 16,
+    background: "rgba(0,0,0,.56)",
+    border: "1px solid rgba(255,255,255,.16)",
+    borderRadius: 18,
+    padding: 14,
     display: "flex",
-    flexDirection: "column" as const,
-    gap: "8px",
+    flexDirection: "column",
+    gap: 4,
+    backdropFilter: "blur(10px)",
   },
-  historyCardOpen: {
-    background: "linear-gradient(135deg,#f97316,#facc15)",
-    color: "#000",
-    borderRadius: "18px",
-    padding: "18px",
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "8px",
-    fontWeight: "bold",
-  },
-  historyCardWon: {
-    background: "linear-gradient(135deg,#22c55e,#a3e635)",
-    color: "#000",
-    borderRadius: "18px",
-    padding: "18px",
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "8px",
-    fontWeight: "bold",
-  },
-  historyCardVip: {
-    background: "linear-gradient(135deg,#38bdf8,#6366f1)",
-    color: "#000",
-    borderRadius: "18px",
-    padding: "18px",
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "8px",
-    fontWeight: "bold",
-  },
-  content: {
-    position: "relative" as const,
-    zIndex: 2,
+  miniBannerGrid: {
     display: "grid",
-    gridTemplateColumns: "260px 1fr",
-    gap: "18px",
+    gridTemplateColumns: "repeat(3,1fr)",
+    gap: 10,
+  },
+  miniMarketingCard: {
+    border: "1px solid rgba(255,255,255,.18)",
+    background: "rgba(255,255,255,.10)",
+    color: "white",
+    borderRadius: 20,
+    padding: 12,
+    cursor: "pointer",
+    textAlign: "left",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    minHeight: 116,
+    backdropFilter: "blur(10px)",
+  },
+  miniTeams: {
+    display: "flex",
+    alignItems: "center",
+    gap: 7,
+  },
+  miniLogo: {
+    width: 28,
+    height: 28,
+    objectFit: "contain",
+  },
+  featuredStrip: {
+    margin: "0 26px 20px",
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
+    gap: 14,
+  },
+  featuredCard: {
+    minHeight: 165,
+    background: "linear-gradient(135deg,#2e1065,#7c3aed)",
+    borderRadius: 24,
+    padding: 16,
+    color: "white",
+    cursor: "pointer",
+    boxShadow: "0 16px 35px rgba(76,29,149,.25)",
+  },
+  featuredHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    fontSize: 12,
+    opacity: 0.9,
+  },
+  featuredTeams: {
+    marginTop: 14,
+    display: "grid",
+    gridTemplateColumns: "1fr auto 1fr",
+    alignItems: "center",
+    gap: 10,
+  },
+  featuredScore: {
+    background: "rgba(255,255,255,.16)",
+    borderRadius: 14,
+    padding: "8px 12px",
+  },
+  featuredPick: {
+    marginTop: 14,
+    background: "rgba(255,255,255,.14)",
+    borderRadius: 16,
+    padding: 12,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  teamMini: {
+    display: "flex",
+    alignItems: "center",
+    gap: 7,
+    minWidth: 0,
+  },
+  teamMiniLogo: {
+    width: 28,
+    height: 28,
+    objectFit: "contain",
+    flexShrink: 0,
+  },
+  tabsWrapper: {
+    margin: "0 26px 18px",
+    background: "white",
+    borderRadius: 18,
+    boxShadow: "0 10px 30px rgba(17,24,39,.06)",
+    overflowX: "auto",
+  },
+  tabs: {
+    display: "flex",
+    gap: 8,
+    padding: 8,
+    minWidth: 680,
+  },
+  tab: {
+    background: "transparent",
+    border: 0,
+    padding: "13px 18px",
+    borderRadius: 14,
+    cursor: "pointer",
+    fontWeight: 800,
+    color: "#6b7280",
+  },
+  tabActive: {
+    background: "#7c3aed",
+    color: "white",
+    border: 0,
+    padding: "13px 18px",
+    borderRadius: 14,
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  layout: {
+    display: "grid",
+    gridTemplateColumns: "280px 1fr",
+    gap: 18,
+    margin: "0 26px 28px",
+    alignItems: "start",
   },
   sidebar: {
     display: "flex",
-    flexDirection: "column" as const,
-    gap: "14px",
+    flexDirection: "column",
+    gap: 14,
+  },
+  searchCard: {
+    background: "white",
+    borderRadius: 22,
+    padding: 18,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    boxShadow: "0 12px 30px rgba(17,24,39,.07)",
+  },
+  searchInput: {
+    border: "1px solid #e5e7eb",
+    borderRadius: 14,
+    padding: "12px 14px",
+    outline: "none",
+  },
+  selectInput: {
+    border: "1px solid #e5e7eb",
+    borderRadius: 14,
+    padding: "12px 14px",
+    outline: "none",
+    background: "white",
+  },
+  refreshButton: {
+    background: "#111827",
+    color: "white",
+    border: 0,
+    borderRadius: 14,
+    padding: "12px 14px",
+    cursor: "pointer",
+    fontWeight: 800,
   },
   sideCard: {
-    background: "rgba(12,12,15,.88)",
-    border: "1px solid rgba(255,255,255,.1)",
-    borderRadius: "22px",
-    padding: "18px",
-    backdropFilter: "blur(12px)",
+    background: "white",
+    borderRadius: 22,
+    padding: 18,
+    boxShadow: "0 12px 30px rgba(17,24,39,.07)",
   },
-  sideCardGreen: {
-    background: "linear-gradient(135deg,#22c55e,#a3e635)",
-    color: "#000",
-    borderRadius: "22px",
-    padding: "20px",
+  sideCardPurple: {
+    background: "linear-gradient(145deg,#7c3aed,#4c1d95)",
+    color: "white",
+    borderRadius: 22,
+    padding: 18,
+    boxShadow: "0 12px 30px rgba(76,29,149,.2)",
+  },
+  sideLine: {
     display: "flex",
-    flexDirection: "column" as const,
-    gap: "8px",
-    fontWeight: "bold",
+    justifyContent: "space-between",
+    gap: 10,
+    borderBottom: "1px solid #f3f4f6",
+    padding: "9px 0",
   },
-  rank: {
-    background: "rgba(255,255,255,.06)",
-    padding: "10px",
-    borderRadius: "12px",
+  freeButton: {
+    background: "#22c55e",
+    color: "#052e16",
+    border: 0,
+    borderRadius: 14,
+    padding: "12px 14px",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  mainContent: {
+    minWidth: 0,
   },
   sectionHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "16px",
-  },
-  sectionTitle: {
-    margin: 0,
-    fontSize: "28px",
-  },
-  sectionSubtitle: {
-    margin: 0,
-    color: "#c4c4c4",
-  },
-  refreshButton: {
-    background: "transparent",
-    border: "1px solid #22c55e",
-    color: "#22c55e",
-    padding: "10px 16px",
-    borderRadius: "14px",
-    cursor: "pointer",
-  },
-  filterBox: {
-    display: "flex",
-    gap: "10px",
-    flexWrap: "wrap" as const,
-    marginBottom: "10px",
-    alignItems: "center",
-  },
-  filterButton: {
-    background: "rgba(255,255,255,.08)",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,.14)",
-    padding: "10px 14px",
-    borderRadius: "999px",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  filterButtonActive: {
-    background: "#22c55e",
-    color: "#000",
-    border: 0,
-    padding: "10px 14px",
-    borderRadius: "999px",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  leagueSelect: {
-    background: "rgba(0,0,0,.65)",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,.14)",
-    padding: "11px 14px",
-    borderRadius: "999px",
-    fontWeight: "bold",
-    outline: "none",
-    cursor: "pointer",
-  },
-  searchInput: {
-    background: "rgba(0,0,0,.65)",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,.14)",
-    padding: "11px 14px",
-    borderRadius: "999px",
-    fontWeight: "bold",
-    outline: "none",
-    minWidth: "220px",
-  },
-  clearButton: {
-    background: "rgba(239,68,68,.15)",
-    color: "#ef4444",
-    border: "1px solid rgba(239,68,68,.4)",
-    padding: "10px 14px",
-    borderRadius: "999px",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  resultText: {
-    color: "#c4c4c4",
-    marginBottom: "16px",
-    fontSize: "14px",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-    gap: "16px",
-  },
-  card: {
-    position: "relative" as const,
-    overflow: "hidden",
-    background: "rgba(10,10,13,.92)",
-    border: "1px solid rgba(255,255,255,.1)",
-    borderRadius: "24px",
-    padding: "17px",
-    boxShadow: "0 20px 45px rgba(0,0,0,.35)",
-    backdropFilter: "blur(12px)",
-  },
-  cardLive: {
-    position: "relative" as const,
-    overflow: "hidden",
-    background:
-      "linear-gradient(135deg,rgba(239,68,68,.18),rgba(10,10,13,.94))",
-    border: "1px solid rgba(239,68,68,.42)",
-    borderRadius: "24px",
-    padding: "17px",
-    boxShadow: "0 20px 45px rgba(239,68,68,.18)",
-    backdropFilter: "blur(12px)",
-  },
-  topLine: {
-    position: "absolute" as const,
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "4px",
-    background: "linear-gradient(90deg,#22c55e,#a3e635,#22c55e)",
-  },
-  cardHead: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "14px",
-  },
-  league: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    color: "#22c55e",
-    fontWeight: "bold",
-  },
-  leagueLogo: {
-    width: "28px",
-    height: "28px",
-    objectFit: "contain" as const,
-  },
-  statusBadge: {
-    padding: "5px 10px",
-    borderRadius: "999px",
-    fontWeight: "bold",
-    fontSize: "11px",
-  },
-  statusOpen: {
-    background: "#38bdf8",
-    color: "#000",
-  },
-  statusLive: {
-    background: "#ef4444",
-    color: "#fff",
-  },
-  statusFinished: {
-    background: "#71717a",
-    color: "#fff",
-  },
-  scoreboard: {
-    display: "grid",
-    gridTemplateColumns: "1fr 70px 1fr",
-    alignItems: "center",
-    gap: "8px",
-    marginBottom: "14px",
-  },
-  team: {
-    textAlign: "center" as const,
-    display: "flex",
-    flexDirection: "column" as const,
-    alignItems: "center",
-    gap: "7px",
-    fontSize: "13px",
-  },
-  teamLogo: {
-    width: "54px",
-    height: "54px",
-    objectFit: "contain" as const,
-    filter: "drop-shadow(0 0 14px rgba(255,255,255,.18))",
-  },
-  centerScore: {
-    background: "#06140c",
-    border: "1px solid rgba(34,197,94,.48)",
-    color: "#22c55e",
-    borderRadius: "16px",
-    padding: "7px 0",
-    textAlign: "center" as const,
-    fontWeight: "bold",
-    display: "flex",
-    flexDirection: "column" as const,
-    fontSize: "18px",
-    boxShadow: "0 0 18px rgba(34,197,94,.12)",
-  },
-  dashboardLiveTimeline: {
-    position: "relative" as const,
-    height: "7px",
-    background: "rgba(255,255,255,.13)",
-    borderRadius: "999px",
-    marginBottom: "14px",
-  },
-  dashboardLiveTimelineFill: {
-    height: "100%",
-    background: "linear-gradient(90deg,#22c55e,#a3e635)",
-    borderRadius: "999px",
-  },
-  dashboardLiveTimelineBall: {
-    position: "absolute" as const,
-    top: "-9px",
-    transform: "translateX(-50%)",
-    width: "24px",
-    height: "24px",
-    borderRadius: "50%",
-    background: "#06140c",
-    border: "1px solid rgba(34,197,94,.8)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "12px",
-  },
-  infoGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4,1fr)",
-    gap: "7px",
-    marginBottom: "12px",
-  },
-  infoItem: {
-    background: "rgba(255,255,255,.06)",
-    borderRadius: "12px",
-    padding: "9px",
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "4px",
-  },
-  footerCard: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "10px",
-  },
-  favoriteButton: {
-    background: "rgba(250,204,21,.12)",
-    color: "#facc15",
-    border: "1px solid rgba(250,204,21,.45)",
-    borderRadius: "12px",
-    padding: "9px 12px",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  favoriteActiveButton: {
-    background: "#facc15",
-    color: "#000",
-    border: 0,
-    borderRadius: "12px",
-    padding: "9px 12px",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  analysisButton: {
-    background: "#22c55e",
-    color: "#000",
-    border: 0,
-    borderRadius: "12px",
-    padding: "9px 12px",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  marketsMiniBox: {
-    background: "rgba(0,0,0,.38)",
-    border: "1px solid rgba(34,197,94,.25)",
-    borderRadius: "18px",
-    padding: "13px",
-    marginTop: "14px",
-    marginBottom: "12px",
-  },
-  marketsMiniTitle: {
-    display: "block",
-    color: "#22c55e",
-    marginBottom: "10px",
-    fontSize: "14px",
-  },
-  marketMiniRow: {
-    display: "grid",
-    gridTemplateColumns: "1fr auto",
-    gap: "10px",
-    background: "rgba(255,255,255,.06)",
-    border: "1px solid rgba(255,255,255,.08)",
-    borderRadius: "13px",
-    padding: "10px",
-    marginBottom: "8px",
-  },
-  marketLeft: {
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "5px",
-  },
-  marketName: {
-    color: "#fff",
-    fontSize: "13px",
-  },
-  marketTip: {
-    color: "#c4c4c4",
-    fontSize: "12px",
-    lineHeight: "1.35",
-  },
-  marketRight: {
-    display: "flex",
-    flexDirection: "column" as const,
-    alignItems: "flex-end",
-    gap: "5px",
-    minWidth: "78px",
-  },
-  marketOdd: {
-    color: "#facc15",
-    fontWeight: "bold",
-    fontSize: "12px",
-  },
-  marketConfidence: {
-    color: "#22c55e",
-    fontWeight: "bold",
-    fontSize: "12px",
-  },
-  marketRisk: {
-    color: "#facc15",
-    fontWeight: "bold",
-    fontSize: "12px",
-  },
-  emptyBox: {
-    marginTop: "18px",
-    background: "rgba(0,0,0,.55)",
-    border: "1px solid rgba(255,255,255,.12)",
-    borderRadius: "20px",
-    padding: "24px",
-    textAlign: "center" as const,
-    color: "#d4d4d8",
-  },
-  footer: {
-    position: "relative" as const,
-    zIndex: 2,
-    marginTop: "28px",
-    paddingTop: "20px",
-    borderTop: "1px solid rgba(255,255,255,.12)",
-    display: "flex",
-    justifyContent: "space-between",
-    color: "#c4c4c4",
-    gap: "12px",
-    flexWrap: "wrap" as const,
-  },
-  gamerMarketsAndMultiples: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1.15fr) minmax(360px, .85fr)",
-    gap: "18px",
-    alignItems: "stretch",
-    marginTop: "22px",
-    marginBottom: "22px",
-  },
-  gamerMarketsPanel: {
-    position: "relative" as const,
-    overflow: "hidden",
-    background:
-      "linear-gradient(135deg, rgba(0,255,136,.12), rgba(10,10,20,.92) 45%, rgba(0,0,0,.96))",
-    border: "1px solid rgba(34,197,94,.38)",
-    borderRadius: "26px",
-    padding: "20px",
-    boxShadow:
-      "0 0 32px rgba(34,197,94,.12), inset 0 0 24px rgba(34,197,94,.04)",
-  },
-  gamerMultiplesPanel: {
-    position: "relative" as const,
-    overflow: "hidden",
-    background:
-      "linear-gradient(135deg, rgba(250,204,21,.16), rgba(15,23,42,.94) 42%, rgba(0,0,0,.98))",
-    border: "1px solid rgba(250,204,21,.36)",
-    borderRadius: "26px",
-    padding: "20px",
-    boxShadow:
-      "0 0 34px rgba(250,204,21,.12), inset 0 0 24px rgba(250,204,21,.04)",
-  },
-  gamerPanelHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "12px",
-    marginBottom: "16px",
-  },
-  gamerPanelTitle: {
-    margin: 0,
-    fontSize: "22px",
-    letterSpacing: ".3px",
-    textTransform: "uppercase" as const,
-  },
-  gamerTag: {
-    background: "rgba(34,197,94,.18)",
-    border: "1px solid rgba(34,197,94,.45)",
-    color: "#86efac",
-    borderRadius: "999px",
-    padding: "7px 11px",
-    fontSize: "11px",
-    fontWeight: "900",
-    whiteSpace: "nowrap" as const,
-  },
-  gamerGoldTag: {
-    background: "rgba(250,204,21,.18)",
-    border: "1px solid rgba(250,204,21,.45)",
-    color: "#fde047",
-    borderRadius: "999px",
-    padding: "7px 11px",
-    fontSize: "11px",
-    fontWeight: "900",
-    whiteSpace: "nowrap" as const,
-  },
-  gamerMarketsList: {
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "12px",
-  },
-  gamerMarketRow: {
-    display: "grid",
-    gridTemplateColumns: "42px minmax(0, 1fr) 120px",
-    gap: "12px",
-    alignItems: "center",
-    background:
-      "linear-gradient(90deg, rgba(255,255,255,.08), rgba(255,255,255,.035))",
-    border: "1px solid rgba(255,255,255,.12)",
-    borderRadius: "18px",
-    padding: "12px",
-  },
-  gamerMarketNumber: {
-    width: "38px",
-    height: "38px",
-    borderRadius: "13px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "linear-gradient(135deg,#22c55e,#a3e635)",
-    color: "#020617",
-    fontWeight: "900",
-    boxShadow: "0 0 16px rgba(34,197,94,.35)",
-  },
-  gamerMarketInfo: {
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "4px",
-    minWidth: 0,
-  },
-  gamerMarketName: {
-    color: "#fff",
-    fontSize: "14px",
-    fontWeight: "900",
-  },
-  gamerMarketTip: {
-    color: "#cbd5e1",
-    fontSize: "12px",
-    lineHeight: 1.35,
-  },
-  gamerMarketNumbers: {
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "4px",
-    textAlign: "right" as const,
-    color: "#fde047",
-    fontSize: "12px",
-    fontWeight: "900",
-  },
-  gamerMultipleMainCard: {
-    background: "rgba(0,0,0,.38)",
-    border: "1px solid rgba(250,204,21,.24)",
-    borderRadius: "22px",
-    padding: "16px",
-    marginBottom: "14px",
-  },
-  gamerMultipleTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "12px",
-    alignItems: "center",
-    marginBottom: "12px",
-  },
-  gamerMultipleName: {
-    fontSize: "16px",
-    fontWeight: "900",
-    color: "#fff",
-  },
-  gamerCombinedOdd: {
-    background: "linear-gradient(135deg,#facc15,#f97316)",
-    color: "#111827",
-    padding: "9px 12px",
-    borderRadius: "14px",
-    fontWeight: "900",
-    boxShadow: "0 0 18px rgba(250,204,21,.25)",
-  },
-  gamerSelection: {
-    background: "rgba(255,255,255,.07)",
-    border: "1px solid rgba(255,255,255,.10)",
-    borderRadius: "15px",
-    padding: "11px",
-    marginBottom: "9px",
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "4px",
-  },
-  gamerSelectionGame: {
-    color: "#93c5fd",
-    fontSize: "12px",
-    fontWeight: "900",
-  },
-  gamerSelectionTip: {
-    color: "#fff",
-    fontWeight: "900",
-    fontSize: "13px",
-  },
-  gamerSelectionMeta: {
-    color: "#fde047",
-    fontSize: "12px",
-    fontWeight: "800",
-  },
-  gamerMultipleFooter: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "10px",
-    color: "#cbd5e1",
-    fontSize: "12px",
-    borderTop: "1px solid rgba(255,255,255,.1)",
-    paddingTop: "10px",
-    marginTop: "8px",
-  },
-  multiplesPanel: {
-    background:
-      "linear-gradient(135deg, rgba(250,204,21,.14), rgba(0,0,0,.78) 45%, rgba(15,23,42,.95))",
-    border: "1px solid rgba(250,204,21,.35)",
-    borderRadius: "28px",
-    padding: "22px",
-    marginTop: "20px",
-    boxShadow: "0 0 36px rgba(250,204,21,.12)",
-  },
-  multiplesTitle: {
-    margin: "0 0 16px",
-    fontSize: "24px",
-    color: "#fde047",
-    textTransform: "uppercase" as const,
-    letterSpacing: ".5px",
-  },
-  multiplesGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-    gap: "16px",
-  },
-  multipleCard: {
-    background: "rgba(3,7,18,.86)",
-    border: "1px solid rgba(255,255,255,.12)",
-    borderRadius: "22px",
-    padding: "16px",
-    boxShadow: "inset 0 0 22px rgba(255,255,255,.03)",
-  },
-  multipleHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "10px",
-    alignItems: "center",
-    marginBottom: "12px",
-  },
-  multipleRisk: {
-    padding: "7px 10px",
-    borderRadius: "999px",
-    fontSize: "11px",
-    fontWeight: "900",
-  },
-  multipleOddBox: {
-    background:
-      "linear-gradient(135deg,rgba(250,204,21,.18),rgba(249,115,22,.12))",
-    border: "1px solid rgba(250,204,21,.28)",
-    borderRadius: "16px",
-    padding: "12px",
-    display: "flex",
-    justifyContent: "space-between",
-    marginBottom: "12px",
-  },
-  multipleSelections: {
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "9px",
-  },
-  multipleSelection: {
-    background: "rgba(255,255,255,.07)",
-    border: "1px solid rgba(255,255,255,.10)",
-    borderRadius: "15px",
-    padding: "11px",
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "5px",
-  },
-  multipleNote: {
-    color: "#cbd5e1",
-    lineHeight: 1.5,
-    fontSize: "13px",
-  },
-  multipleStake: {
-    background: "rgba(34,197,94,.12)",
-    border: "1px solid rgba(34,197,94,.22)",
-    borderRadius: "14px",
-    padding: "11px",
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "10px",
-  },
-  riskLow: { background: "#22c55e", color: "#020617" },
-  riskMedium: { background: "#facc15", color: "#020617" },
-  riskHigh: { background: "#ef4444", color: "#fff" },
-  navButton: {
-    background:
-      "linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.04))",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,.16)",
-    padding: "11px 14px",
-    borderRadius: "999px",
-    fontWeight: "900",
-    cursor: "pointer",
-    boxShadow: "inset 0 0 18px rgba(255,255,255,.03)",
-  },
-  heroBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "8px",
-    background: "linear-gradient(135deg,#ef4444,#f97316)",
-    color: "#fff",
-    borderRadius: "999px",
-    padding: "9px 13px",
-    fontWeight: "900",
-    fontSize: "12px",
-    boxShadow: "0 0 20px rgba(239,68,68,.25)",
-  },
-  statCards: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-    gap: "12px",
-    marginBottom: "20px",
-  },
-  statCard: {
-    background:
-      "linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.035))",
-    border: "1px solid rgba(255,255,255,.13)",
-    borderRadius: "20px",
-    padding: "16px",
-    boxShadow:
-      "inset 0 0 22px rgba(255,255,255,.03), 0 14px 35px rgba(0,0,0,.24)",
-  },
-  greenStatCard: {
-    background: "linear-gradient(135deg,#22c55e,#84cc16)",
-    color: "#020617",
-    borderRadius: "20px",
-    padding: "16px",
-    fontWeight: "900",
-    boxShadow: "0 0 30px rgba(34,197,94,.25)",
-  },
-  orangeStatCard: {
-    background: "linear-gradient(135deg,#f59e0b,#f97316)",
-    color: "#020617",
-    borderRadius: "20px",
-    padding: "16px",
-    fontWeight: "900",
-    boxShadow: "0 0 30px rgba(249,115,22,.22)",
-  },
-  blueStatCard: {
-    background: "linear-gradient(135deg,#38bdf8,#6366f1)",
-    color: "#020617",
-    borderRadius: "20px",
-    padding: "16px",
-    fontWeight: "900",
-    boxShadow: "0 0 30px rgba(56,189,248,.22)",
-  },
-  dashboardShell: {
-    display: "grid",
-    gridTemplateColumns: "290px minmax(0,1fr)",
-    gap: "18px",
-    alignItems: "start",
-  },
-  sidebarCard: {
-    background: "linear-gradient(135deg, rgba(0,0,0,.82), rgba(15,23,42,.78))",
-    border: "1px solid rgba(255,255,255,.12)",
-    borderRadius: "24px",
-    padding: "18px",
-    boxShadow: "0 18px 45px rgba(0,0,0,.35)",
-  },
-  contentPanel: {
-    background: "linear-gradient(135deg, rgba(0,0,0,.52), rgba(15,23,42,.58))",
-    border: "1px solid rgba(255,255,255,.10)",
-    borderRadius: "28px",
-    padding: "18px",
-    boxShadow: "0 18px 55px rgba(0,0,0,.30)",
-  },
-  filterBar: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    flexWrap: "wrap" as const,
-    marginBottom: "18px",
-    padding: "12px",
-    borderRadius: "20px",
-    background: "rgba(0,0,0,.45)",
-    border: "1px solid rgba(255,255,255,.10)",
-  },
-  activeFilterButton: {
-    background: "linear-gradient(135deg,#22c55e,#a3e635)",
-    color: "#020617",
-    border: "1px solid rgba(34,197,94,.7)",
-    padding: "10px 13px",
-    borderRadius: "999px",
-    fontWeight: "900",
-    cursor: "pointer",
-    boxShadow: "0 0 22px rgba(34,197,94,.30)",
-  },
-  select: {
-    background: "rgba(0,0,0,.66)",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,.16)",
-    padding: "12px 14px",
-    borderRadius: "999px",
-    outline: "none",
+    marginBottom: 14,
   },
   gamesGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(330px, 1fr))",
-    gap: "16px",
+    gridTemplateColumns: "repeat(auto-fill,minmax(295px,1fr))",
+    gap: 14,
   },
   gameCard: {
-    position: "relative" as const,
-    overflow: "hidden",
-    background:
-      "linear-gradient(135deg, rgba(34,197,94,.11), rgba(15,23,42,.88) 42%, rgba(0,0,0,.96))",
-    border: "1px solid rgba(34,197,94,.24)",
-    borderRadius: "26px",
-    padding: "18px",
-    boxShadow: "0 0 30px rgba(34,197,94,.08), 0 18px 42px rgba(0,0,0,.35)",
+    background: "white",
+    borderRadius: 22,
+    padding: 16,
+    boxShadow: "0 12px 30px rgba(17,24,39,.07)",
+    border: "1px solid #f3f4f6",
   },
-  liveGameCard: {
-    position: "relative" as const,
-    overflow: "hidden",
-    background:
-      "linear-gradient(135deg, rgba(239,68,68,.20), rgba(15,23,42,.90) 42%, rgba(0,0,0,.98))",
-    border: "1px solid rgba(239,68,68,.45)",
-    borderRadius: "26px",
-    padding: "18px",
-    boxShadow: "0 0 34px rgba(239,68,68,.18), 0 18px 42px rgba(0,0,0,.35)",
+  gameCardLive: {
+    background: "white",
+    borderRadius: 22,
+    padding: 16,
+    boxShadow: "0 12px 30px rgba(239,68,68,.13)",
+    border: "1px solid rgba(239,68,68,.35)",
   },
-  scoreBadge: {
-    background: "linear-gradient(135deg,#020617,#111827)",
-    border: "1px solid rgba(34,197,94,.45)",
-    color: "#22c55e",
-    borderRadius: "18px",
-    padding: "10px 13px",
-    fontSize: "24px",
-    fontWeight: "900",
-    minWidth: "86px",
-    textAlign: "center" as const,
-    boxShadow: "inset 0 0 18px rgba(34,197,94,.08)",
+  cardTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  liveBadge: {
+    background: "#dc2626",
+    color: "white",
+    borderRadius: 999,
+    padding: "7px 11px",
+    fontSize: 12,
+    fontWeight: 900,
+    minWidth: 92,
+    textAlign: "center",
+  },
+  statusBadge: {
+    background: "#ede9fe",
+    color: "#6d28d9",
+    borderRadius: 999,
+    padding: "7px 10px",
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  qualityBadge: {
+    background: "#ecfdf5",
+    color: "#047857",
+    borderRadius: 999,
+    padding: "7px 10px",
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  leagueLine: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    color: "#6b7280",
+    fontSize: 13,
+    minHeight: 30,
+  },
+  leagueLogo: {
+    width: 22,
+    height: 22,
+    objectFit: "contain",
+  },
+  matchLine: {
+    display: "grid",
+    gridTemplateColumns: "1fr auto 1fr",
+    alignItems: "center",
+    gap: 10,
+    margin: "16px 0",
+  },
+  scoreBox: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    background: "#111827",
+    color: "white",
+    borderRadius: 14,
+    padding: "10px 12px",
+    fontWeight: 900,
+  },
+  pickBox: {
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb",
+    borderRadius: 18,
+    padding: 13,
+    display: "flex",
+    flexDirection: "column",
+    gap: 7,
+  },
+  pickBoxLarge: {
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb",
+    borderRadius: 20,
+    padding: 18,
+    display: "flex",
+    flexDirection: "column",
+    gap: 9,
+  },
+  pickMetrics: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  cardActions: {
+    marginTop: 13,
+    display: "flex",
+    gap: 8,
   },
   analyzeButton: {
-    background: "linear-gradient(135deg,#22c55e,#a3e635)",
-    color: "#020617",
+    width: "100%",
+    background: "#7c3aed",
+    color: "white",
     border: 0,
-    borderRadius: "14px",
+    borderRadius: 14,
     padding: "12px 14px",
-    fontWeight: "900",
+    fontWeight: 900,
     cursor: "pointer",
-    boxShadow: "0 0 22px rgba(34,197,94,.25)",
   },
-  viewButton: {
-    background: "linear-gradient(135deg,#38bdf8,#2563eb)",
-    color: "#fff",
+  savedSmallButton: {
+    width: "100%",
+    background: "#facc15",
+    color: "#111827",
     border: 0,
-    borderRadius: "14px",
+    borderRadius: 14,
     padding: "12px 14px",
-    fontWeight: "900",
+    fontWeight: 900,
     cursor: "pointer",
+  },
+  liveStatsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill,minmax(310px,1fr))",
+    gap: 14,
+    marginBottom: 18,
+  },
+  liveStatsCard: {
+    background: "linear-gradient(145deg,#111827,#312e81,#581c87)",
+    color: "white",
+    border: "1px solid rgba(239,68,68,.38)",
+    borderRadius: 24,
+    padding: 16,
+    cursor: "pointer",
+    boxShadow: "0 16px 35px rgba(76,29,149,.18)",
+    textAlign: "left",
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  },
+  liveStatsTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    alignItems: "center",
+  },
+  livePulse: {
+    background: "#dc2626",
+    color: "white",
+    borderRadius: 999,
+    padding: "7px 10px",
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  liveStatsTeams: {
+    display: "grid",
+    gridTemplateColumns: "1fr auto 1fr",
+    alignItems: "center",
+    gap: 10,
+  },
+  liveStatsScore: {
+    background: "#020617",
+    color: "white",
+    borderRadius: 16,
+    padding: "11px 14px",
+    fontWeight: 900,
+    fontSize: 18,
+  },
+  liveStatsNumbers: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3,1fr)",
+    gap: 8,
+  },
+  liveStatsPick: {
+    background: "rgba(255,255,255,.11)",
+    border: "1px solid rgba(255,255,255,.14)",
+    borderRadius: 18,
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+  },
+  smartList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  smartRow: {
+    background: "white",
+    borderRadius: 20,
+    padding: 14,
+    display: "grid",
+    gridTemplateColumns: "42px 1.4fr 1.2fr 1fr auto",
+    gap: 12,
+    alignItems: "center",
+    boxShadow: "0 10px 28px rgba(17,24,39,.06)",
+  },
+  smartRank: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    background: "#7c3aed",
+    color: "white",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 900,
+  },
+  smartInfo: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  smartPick: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  smartNumbers: {
+    display: "flex",
+    gap: 7,
+    flexWrap: "wrap",
+    color: "#4b5563",
+    fontWeight: 800,
+  },
+  rowButton: {
+    background: "#111827",
+    color: "white",
+    border: 0,
+    borderRadius: 12,
+    padding: "10px 13px",
+    cursor: "pointer",
+    fontWeight: 800,
+  },
+  boostHero: {
+    background: "linear-gradient(135deg,#111827,#4c1d95)",
+    color: "white",
+    borderRadius: 26,
+    padding: 24,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 18,
+    marginBottom: 14,
+  },
+  boostOddBox: {
+    minWidth: 190,
+    background: "rgba(255,255,255,.12)",
+    borderRadius: 20,
+    padding: 18,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  boostSelections: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
+    gap: 14,
+  },
+  boostCard: {
+    background: "white",
+    borderRadius: 22,
+    padding: 18,
+    boxShadow: "0 12px 30px rgba(17,24,39,.07)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  analysisPanel: {
+    margin: "22px 26px",
+    background: "white",
+    borderRadius: 28,
+    padding: 24,
+    boxShadow: "0 20px 55px rgba(17,24,39,.14)",
+    border: "1px solid #ede9fe",
+  },
+  analysisTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 18,
+    alignItems: "flex-start",
+  },
+  analysisTitle: {
+    margin: "8px 0 4px",
+    fontSize: 28,
+  },
+  muted: {
+    color: "#6b7280",
+  },
+  closeButton: {
+    background: "#fee2e2",
+    color: "#991b1b",
+    border: 0,
+    borderRadius: 12,
+    padding: "10px 14px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  analysisBody: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 16,
+    marginTop: 18,
+  },
+  matchSummary: {
+    background: "#f5f3ff",
+    borderRadius: 20,
+    padding: 18,
+    display: "grid",
+    gridTemplateColumns: "1fr auto 1fr",
+    alignItems: "center",
+    gap: 12,
+  },
+  teamLogoBox: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    textAlign: "center",
+    gap: 8,
+  },
+  teamLogo: {
+    width: 58,
+    height: 58,
+    objectFit: "contain",
+  },
+  bigScore: {
+    fontSize: 34,
+    fontWeight: 900,
+    color: "#4c1d95",
+  },
+  analysisText: {
+    background: "#f8fafc",
+    borderRadius: 18,
+    padding: 16,
+    color: "#374151",
+    lineHeight: 1.55,
+  },
+  marketList: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+    gap: 10,
+  },
+  marketRow: {
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb",
+    borderRadius: 16,
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+  },
+  analysisActions: {
+    display: "flex",
+    gap: 10,
+    marginTop: 16,
+  },
+  saveButton: {
+    background: "#22c55e",
+    color: "#052e16",
+    border: 0,
+    borderRadius: 14,
+    padding: "12px 16px",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  savedButton: {
+    background: "#facc15",
+    color: "#111827",
+    border: 0,
+    borderRadius: 14,
+    padding: "12px 16px",
+    fontWeight: 900,
+    cursor: "not-allowed",
+  },
+  secondaryButton: {
+    background: "#111827",
+    color: "white",
+    border: 0,
+    borderRadius: 14,
+    padding: "12px 16px",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  emptyBox: {
+    background: "white",
+    borderRadius: 22,
+    padding: 30,
+    textAlign: "center",
+    color: "#6b7280",
+    boxShadow: "0 12px 30px rgba(17,24,39,.07)",
+  },
+  footer: {
+    margin: "26px",
+    padding: "18px 0 30px",
+    display: "flex",
+    gap: 12,
+    color: "#6b7280",
+    flexWrap: "wrap",
   },
 };
