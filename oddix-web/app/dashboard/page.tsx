@@ -2950,16 +2950,6 @@ const styles: Record<string, CSSProperties> = {
     backgroundPosition: "center top",
     transform: "scale(1.05)",
   },
-  playerPhoto: {
-    position: "absolute",
-    inset: 0,
-    width: "100%",
-    height: "100%",
-    objectFit: "cover",
-    objectPosition: "center center",
-    display: "block",
-    filter: "contrast(1.08) saturate(1.12)",
-  },
   playerShine: {
     position: "absolute",
     inset: 0,
