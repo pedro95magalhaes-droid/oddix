@@ -176,8 +176,6 @@ const LOW_QUALITY_PATTERNS = [
   /\bleague two\b/,
   /\busl league two\b/,
   /\bprimera b metropolitana\b/,
-  /\bprimera c\b/,
-  /\bprimera d\b/,
   /\bstate league 1\b/,
   /\bqualification\b/,
 ];
@@ -193,18 +191,12 @@ const EXPLICIT_PRIORITY_SCORES: Array<[RegExp, number]> = [
   [/\beuropa league\b/, 93],
   [/\bconference league\b/, 91],
   [/\bbrasileirao\b|\bbrasileiro serie a\b|\bbrasil serie a\b|\bbrazil serie a\b/, 92],
-  [/\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b/, 90],
+  [/\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b|\bserie b\b/, 90],
   [/\bsudamericana\b|\bsul americana\b/, 88],
   [/\bcopa do brasil\b/, 88],
   [/\bcopa do nordeste\b/, 84],
   [/\bpaulista\b|\bcarioca\b|\bmineiro\b|\bgaucho\b|\bparanaense\b|\bpernambucano\b|\bcearense\b|\bbaiano\b|\bgoiano\b|\bcatarinense\b/, 82],
-
-  // Argentina: NÃO usar somente "argentina", senão Primera B Metropolitana vira prioridade.
-  [/\bliga profesional\b/, 82],
-  [/\bargentina primera division\b/, 82],
-  [/\bprimera division argentina\b/, 82],
-  [/\bcopa argentina\b/, 80],
-
+  [/\bargentina\b|\bprimera division\b/, 82],
   [/\bliga mx\b|\bmexico\b/, 84],
   [/\bmls\b/, 83],
   [/\bchampionship\b/, 82],
@@ -214,7 +206,7 @@ const EXPLICIT_PRIORITY_SCORES: Array<[RegExp, number]> = [
   [/\bk league\b/, 80],
   [/\bsaudi pro league\b/, 79],
   [/\bsuper lig\b|\bturkey\b/, 79],
-  [/\bchile primera\b|\buruguay primera\b|\buruguai primeira\b|\bparaguay primera\b|\bparaguai primera\b|\becuador primera\b|\bcolombia primera\b|\bperu primera\b|\bbolivia primera\b/, 78],
+  [/\bchile\b|\buruguay\b|\buruguai\b|\bparaguay\b|\bparaguai\b|\becuador\b|\bcolombia\b|\bperu\b|\bbolivia\b/, 78],
   [/\bworld cup\b|\bclub world cup\b|\bnations league\b|\beuro\b|\brecopa\b/, 90],
 ];
 
@@ -236,9 +228,7 @@ export function isOddixBlockedLeague(item: OddixFixtureLike) {
   if (HARD_BLOCKED_PATTERNS.some((pattern) => pattern.test(text))) return true;
 
   const blockLowQuality = process.env.ODDIX_BLOCK_LOW_QUALITY_LEAGUES === 'true';
-  if (blockLowQuality && LOW_QUALITY_PATTERNS.some((pattern) => pattern.test(text))) {
-    return true;
-  }
+  if (blockLowQuality && LOW_QUALITY_PATTERNS.some((pattern) => pattern.test(text))) return true;
 
   return false;
 }
@@ -291,7 +281,7 @@ export function getOddixFixtureQualityScore(item: OddixFixtureLike) {
   if (league?.logo || league?.logotipo) score += 2;
   if (home?.logo && away?.logo) score += 4;
 
-  if (/(brazil|brasil|mexico|usa|united states)/.test(leagueText)) {
+  if (/(brazil|brasil|argentina|chile|uruguay|uruguai|paraguay|paraguai|ecuador|colombia|peru|mexico|usa|united states)/.test(leagueText)) {
     score += 4;
   }
 
@@ -299,7 +289,7 @@ export function getOddixFixtureQualityScore(item: OddixFixtureLike) {
     score += 2;
   }
 
-  if (LOW_QUALITY_PATTERNS.some((pattern) => pattern.test(fullText))) score -= 30;
+  if (LOW_QUALITY_PATTERNS.some((pattern) => pattern.test(fullText))) score -= 22;
   if (/\b(ii|b)\b/.test(teamsText) || /\b2\b/.test(teamsText)) score -= 8;
   if (/\bdivision 3\b|\bserie d\b|\bliga 3\b|\bleague two\b/.test(leagueText)) score -= 14;
   if (/\bunknown\b|\bdesconhecido\b|\bliga nao informada\b/.test(leagueText)) score -= 18;
@@ -362,7 +352,7 @@ export function isOddixFinishedFixture(item: OddixFixtureLike) {
 export function isOddixDashboardFixtureAllowed(item: OddixFixtureLike, hideFinishedAfterHours = 0) {
   if (!isOddixLeagueAllowed(item)) return false;
 
-  const minScore = Number(process.env.ODDIX_DASHBOARD_MIN_SCORE || 75);
+  const minScore = Number(process.env.ODDIX_DASHBOARD_MIN_SCORE || 70);
   if (getOddixFixtureQualityScore(item) < minScore) return false;
 
   const showFinished = process.env.ODDIX_DASHBOARD_SHOW_FINISHED === 'true';
