@@ -32,6 +32,9 @@ type StatTotals = {
 export class ResultsCronService {
   private readonly logger = new Logger(ResultsCronService.name);
   private readonly timezone = "America/Fortaleza";
+  private lastLiveTipSentAt = 0;
+  private sendingLiveTip = false;
+  private readonly liveUpdateSent = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -67,6 +70,71 @@ export class ResultsCronService {
     const start = new Date(`${key}T03:00:00.000Z`);
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
     return { key, start, end };
+  }
+
+  private minutesUntilGame(dateValue: any) {
+    if (!dateValue) return null;
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return null;
+    return Math.floor((date.getTime() - Date.now()) / 1000 / 60);
+  }
+
+  private minutesSinceGameStart(dateValue: any) {
+    if (!dateValue) return null;
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return null;
+    return Math.floor((Date.now() - date.getTime()) / 1000 / 60);
+  }
+
+  private isFixtureSafeForLiveTip(game: any) {
+    const fixtureDate = game?.fixture?.date;
+    const statusShort = String(game?.fixture?.status?.short || "").toUpperCase();
+    const elapsed = Number(game?.fixture?.status?.elapsed || 0);
+    const minLiveMinute = Number(process.env.ODDIX_MIN_LIVE_MINUTE || 12);
+    const maxLiveMinute = Number(process.env.ODDIX_MAX_LIVE_MINUTE || 75);
+
+    if (!this.isTodayInFortaleza(fixtureDate)) {
+      return { ok: false, reason: "fora de hoje" };
+    }
+
+    const untilStart = this.minutesUntilGame(fixtureDate);
+    if (untilStart !== null && untilStart > 5) {
+      return { ok: false, reason: `jogo ainda não começou. faltam ${untilStart}min` };
+    }
+
+    const sinceStart = this.minutesSinceGameStart(fixtureDate);
+    if (sinceStart !== null && sinceStart < 0) {
+      return { ok: false, reason: "jogo futuro" };
+    }
+
+    if (!this.isFixtureActuallyLive(game)) {
+      return { ok: false, reason: `não está live. status=${statusShort}` };
+    }
+
+    if (elapsed < minLiveMinute) {
+      return { ok: false, reason: `muito cedo. minuto=${elapsed}` };
+    }
+
+    if (elapsed > maxLiveMinute) {
+      return { ok: false, reason: `muito tarde. minuto=${elapsed}` };
+    }
+
+    return { ok: true, reason: "ok" };
+  }
+
+  private shouldSendNewLiveTipNow() {
+    const cooldownMinutes = Number(process.env.ODDIX_MIN_MINUTES_BETWEEN_TIPS || 20);
+
+    if (this.sendingLiveTip) {
+      return { ok: false, reason: "fluxo anterior ainda enviando" };
+    }
+
+    if (this.lastLiveTipSentAt && Date.now() - this.lastLiveTipSentAt < cooldownMinutes * 60 * 1000) {
+      const remaining = Math.ceil((cooldownMinutes * 60 * 1000 - (Date.now() - this.lastLiveTipSentAt)) / 1000 / 60);
+      return { ok: false, reason: `cooldown ativo. faltam ${remaining}min` };
+    }
+
+    return { ok: true, reason: "ok" };
   }
 
   private isTodayInFortaleza(dateValue: any) {
@@ -326,10 +394,10 @@ export class ResultsCronService {
     return [
       "👀 *ODDIX FREE*",
       "",
-      "A IA encontrou uma oportunidade com odd dentro do nosso filtro.",
-      "No FREE você recebe só uma amostra.",
+      "A IA encontrou um jogo interessante agora.",
+      "No FREE você recebe só a amostra, sem odd e sem análise completa.",
       "",
-      "🔒 No VIP tem card premium, entradas primeiro e múltipla boost.",
+      "🔒 No VIP tem odd, card premium, análise, gestão e entradas primeiro.",
       "👇 Aperte abaixo para virar VIP.",
     ].join("\n");
   }
@@ -342,9 +410,8 @@ export class ResultsCronService {
       bet.league ? `🏆 ${bet.league}` : "",
       "",
       `✅ Entrada: *${bet.tip}*`,
-      `📈 Odd: *${bet.odd}*`,
       "",
-      "🔒 A análise completa sai no VIP.",
+      "🔒 Odd, confiança e análise completa saem apenas no VIP.",
     ].filter(Boolean).join("\n");
   }
 
@@ -367,6 +434,14 @@ export class ResultsCronService {
   async sendLiveTipsAutomatically() {
     try {
       this.logger.log("🔥 ODDIX cron de palpites iniciado | filtros: confiança/odd/mercado/limite diário");
+
+      const canSend = this.shouldSendNewLiveTipNow();
+      if (!canSend.ok) {
+        this.logger.log(`⏭️ Anti-spam: ${canSend.reason}`);
+        return;
+      }
+
+      this.sendingLiveTip = true;
 
       const dailyMax = Number(process.env.ODDIX_MAX_TIPS_PER_DAY || 5);
       const todayCount = await this.countTodayBets();
@@ -393,9 +468,10 @@ export class ResultsCronService {
         const statusShort = String(game.fixture?.status?.short || "").toUpperCase();
 
         if (!fixtureId) continue;
-        if (!this.isTodayInFortaleza(fixtureDate)) continue;
-        if (!this.isFixtureActuallyLive(game)) {
-          this.logger.log(`⏭️ Jogo não está ao vivo: fixtureId=${fixtureId} | status=${statusShort}`);
+
+        const liveSafety = this.isFixtureSafeForLiveTip(game);
+        if (!liveSafety.ok) {
+          this.logger.log(`⏭️ Palpite recusado por horário/live: fixtureId=${fixtureId} | ${liveSafety.reason}`);
           continue;
         }
 
@@ -406,6 +482,22 @@ export class ResultsCronService {
 
         if (alreadyExists) {
           this.logger.log(`⏭️ Já existe palpite para fixtureId=${fixtureId} | ${alreadyExists.homeTeam} x ${alreadyExists.awayTeam}`);
+          continue;
+        }
+
+        const homeName = String(game?.teams?.home?.name || "");
+        const awayName = String(game?.teams?.away?.name || "");
+        const duplicateByTeams = await this.prisma.bet.findFirst({
+          where: {
+            homeTeam: homeName,
+            awayTeam: awayName,
+            createdAt: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) },
+          },
+          select: { id: true },
+        });
+
+        if (duplicateByTeams) {
+          this.logger.log(`⏭️ Palpite repetido por times nas últimas 6h: ${homeName} x ${awayName}`);
           continue;
         }
 
@@ -438,9 +530,8 @@ export class ResultsCronService {
         const freeMessage = this.createFreeTipMessage(bet);
         const vipMessage = this.createVipTipMessage(bet);
 
-        await this.oddixHumanMessageService.sendBeforeTip("free");
         await this.oddixHumanMessageService.sendBeforeTip("vip");
-        await this.sleepRandom(60_000, 120_000);
+        await this.sleepRandom(45_000, 90_000);
 
         const imagePath = await this.oddixImageService.createVipCard({
           homeTeam: bet.homeTeam,
@@ -481,12 +572,15 @@ export class ResultsCronService {
         }
 
         sentCount++;
+        this.lastLiveTipSentAt = Date.now();
         this.logger.log(`✅ Palpite enviado: ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip} | odd=${bet.odd}`);
       }
 
       if (sentCount === 0) this.logger.log("⚠️ Nenhum palpite novo aprovado pelos filtros.");
     } catch (error: any) {
       this.logger.error(`❌ Erro no cron de palpites: ${error?.message || "erro desconhecido"}`);
+    } finally {
+      this.sendingLiveTip = false;
     }
   }
 
@@ -514,7 +608,9 @@ export class ResultsCronService {
       for (const game of liveGames || []) {
         if (selections.length >= 3) break;
         const fixtureId = Number(game.fixture?.id || 0);
-        if (!fixtureId || !this.isFixtureActuallyLive(game)) continue;
+        if (!fixtureId) continue;
+        const liveSafety = this.isFixtureSafeForLiveTip(game);
+        if (!liveSafety.ok) continue;
 
         const exists = await this.prisma.bet.findFirst({ where: { fixtureId }, select: { id: true } });
         if (exists) continue;
@@ -704,6 +800,19 @@ export class ResultsCronService {
         const foundBy = fixture?.__oddixCachedAt ? "cache_or_api" : fixture?.provider || "api";
         if (foundBy.includes("cache")) fixtureFoundByCache++; else fixtureFoundByApi++;
 
+        const fixtureDate = fixture?.fixture?.date || bet.gameDate;
+        const minutesUntil = this.minutesUntilGame(fixtureDate);
+        if (minutesUntil !== null && minutesUntil > 5) {
+          stillOpen++;
+          details.push({
+            ...baseDetail,
+            result: "open",
+            reason: `Jogo futuro. Faltam ${minutesUntil}min. Não validar GREEN/RED agora.`,
+            foundBy,
+          });
+          continue;
+        }
+
         const statusShort = fixture.fixture?.status?.short || "";
         const statusLong = fixture.fixture?.status?.long || "";
         const finished = this.isFinished(statusShort, statusLong);
@@ -732,12 +841,25 @@ export class ResultsCronService {
           stillOpen++;
 
           if (resolved.reason === "not_finished") {
-            await this.oddixHumanMessageService.sendLiveUpdate("vip", {
-              homeTeam: bet.homeTeam,
-              awayTeam: bet.awayTeam,
-              tip: bet.tip,
-              score: `${homeGoals}x${awayGoals}`,
-            });
+            const elapsed = Number(fixture?.fixture?.status?.elapsed || 0);
+            const updateBucket =
+              elapsed >= 68 ? "70" :
+              elapsed >= 43 ? "45" :
+              elapsed >= 23 ? "25" :
+              "";
+
+            const updateKey = updateBucket ? `${bet.id}:${updateBucket}` : "";
+
+            if (updateKey && !this.liveUpdateSent.has(updateKey)) {
+              this.liveUpdateSent.add(updateKey);
+
+              await this.oddixHumanMessageService.sendLiveUpdate("vip", {
+                homeTeam: bet.homeTeam,
+                awayTeam: bet.awayTeam,
+                tip: bet.tip,
+                score: `${homeGoals}x${awayGoals}`,
+              });
+            }
           }
 
           details.push({
