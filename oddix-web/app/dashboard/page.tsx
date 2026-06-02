@@ -1914,18 +1914,82 @@ function SmartTipsSection({ tips, games, liveTick = 0, onAnalyze }: any) {
 }
 
 
+
+function playerNameFromProp(prop: any) {
+  const explicit =
+    prop?.player ||
+    prop?.playerName ||
+    prop?.athlete ||
+    prop?.name ||
+    prop?.raw?.player ||
+    prop?.raw?.playerName ||
+    "";
+
+  if (explicit) return String(explicit);
+
+  const tip = String(prop?.tip || prop?.selection || prop?.market || "");
+  const cleaned = tip
+    .replace(/\b(mais de|menos de|over|under)\b/gi, "")
+    .replace(/\d+([.,]\d+)?/g, "")
+    .replace(/\b(chutes no gol|chutes|finalizações|finalizacoes|assistências|assistencias|gol a qualquer momento|sot|shots on target|shots)\b/gi, "")
+    .replace(/[+:-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned || cleaned.length < 3) return "Jogador Oddix";
+  return cleaned.split(" ").slice(0, 3).join(" ");
+}
+
+function playerPhotoFromProp(prop: any) {
+  const photo =
+    prop?.playerPhoto ||
+    prop?.photo ||
+    prop?.image ||
+    prop?.avatar ||
+    prop?.raw?.playerPhoto ||
+    prop?.raw?.photo ||
+    prop?.raw?.image ||
+    "";
+
+  if (photo) return photo;
+
+  const name = playerNameFromProp(prop);
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=4c1d95&color=facc15&bold=true&size=256`;
+}
+
+function playerPropType(prop: any) {
+  const text = String(`${prop?.market || ""} ${prop?.marketName || ""} ${prop?.tip || ""}`).toLowerCase();
+
+  if (text.includes("chute no gol") || text.includes("shots on target") || text.includes("sot")) return "Chutes no Gol";
+  if (text.includes("finaliza") || text.includes("shots") || text.includes("chutes")) return "Finalizações";
+  if (text.includes("assist")) return "Assistência";
+  if (text.includes("gol")) return "Gol";
+  return "Player Prop";
+}
+
+function playerPropLine(prop: any) {
+  const tip = String(prop?.tip || prop?.selection || prop?.market || "").trim();
+
+  if (!tip) return "Mercado de jogador";
+
+  return tip
+    .replace(playerNameFromProp(prop), "")
+    .replace(/\s+/g, " ")
+    .trim() || tip;
+}
+
 function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: any) {
   const safeProps = Array.isArray(props) ? props : [];
 
   return (
     <section>
-      <div style={styles.boostHero}>
+      <div style={styles.playerPropsHero}>
         <div>
           <span style={styles.sectionKicker}>PLAYER PROPS IA</span>
-          <h2>Mercados de jogador com odds reais</h2>
+          <h2>Cards de jogador com mercado real</h2>
           <p>
-            A Oddix só mostra Player Props quando encontra mercado real vindo das odds.
-            Sem escalação ou sem linha real, não inventamos jogador.
+            Chutes no gol, finalizações, assistência e gol. A Oddix só destaca
+            jogador quando encontra linha real de odds ou dado confiável no jogo.
           </p>
         </div>
 
@@ -1937,51 +2001,85 @@ function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: 
       </div>
 
       {safeProps.length ? (
-        <div style={styles.smartList}>
+        <div style={styles.playerPropsGrid}>
           {safeProps.map((prop: any, index: number) => {
             const game = getGameByTip(prop, games);
+            const playerName = playerNameFromProp(prop);
+            const playerPhoto = playerPhotoFromProp(prop);
+            const type = playerPropType(prop);
+            const line = playerPropLine(prop);
 
             return (
-              <div key={`${prop.fixtureId || index}-${prop.tip || prop.selection}`} style={styles.smartRow}>
-                <span style={styles.smartRank}>{index + 1}</span>
+              <article key={`${prop.fixtureId || index}-${prop.tip || prop.selection}`} style={styles.playerPropCard}>
+                <div style={styles.playerPropTop}>
+                  <div style={styles.playerPhotoWrap}>
+                    <img
+                      src={playerPhoto}
+                      alt={playerName}
+                      style={styles.playerPhoto}
+                      onError={(event) => {
+                        event.currentTarget.src = logoFallback(playerName, "4c1d95", "facc15");
+                      }}
+                    />
+                  </div>
 
-                <div style={styles.smartInfo}>
-                  <strong>{prop.game || "Player Prop"}</strong>
-                  <small>{prop.league || prop.bookmaker || "Mercado real"}</small>
+                  <div style={styles.playerPropBadge}>
+                    <span>#{index + 1}</span>
+                    <strong>{prop.confidence || "-"}%</strong>
+                  </div>
                 </div>
 
-                <div style={styles.smartPick}>
-                  <strong>{prop.tip || prop.selection || prop.market || "Mercado de jogador"}</strong>
-                  <small>{prop.market || prop.marketName || "Player Props"}</small>
+                <div style={styles.playerPropBody}>
+                  <span style={styles.playerPropType}>{type}</span>
+                  <h3>{playerName}</h3>
+
+                  <div style={styles.playerPropGame}>
+                    <strong>{prop.game || game ? `${game?.teams?.home?.name || prop.homeTeam || ""} x ${game?.teams?.away?.name || prop.awayTeam || ""}` : "Jogo Oddix"}</strong>
+                    <small>{prop.league || game?.league?.name || prop.bookmaker || "Mercado real"}</small>
+                  </div>
+
+                  <div style={styles.playerPropPick}>
+                    <span>Entrada</span>
+                    <strong>{line}</strong>
+                  </div>
+
+                  <div style={styles.playerPropMetrics}>
+                    <div>
+                      <span>Odd</span>
+                      <strong>{prop.odd || "-"}</strong>
+                    </div>
+                    <div>
+                      <span>Risco</span>
+                      <strong>{prop.risk || "Médio"}</strong>
+                    </div>
+                  </div>
+
+                  <button
+                    style={isPaidPlan ? styles.playerPropButton : styles.playerPropLockButton}
+                    onClick={() => {
+                      if (!isPaidPlan) {
+                        onUpgrade();
+                        return;
+                      }
+
+                      if (game) onAnalyze(game);
+                    }}
+                  >
+                    {isPaidPlan ? "Ver análise do jogo" : "🔒 Liberar análise"}
+                  </button>
                 </div>
-
-                <div style={styles.smartNumbers}>
-                  <span>Odd {prop.odd || "-"}</span>
-                  <span>{prop.confidence || "-"}%</span>
-                  <span>{prop.risk || "Médio"}</span>
-                </div>
-
-                <button
-                  style={styles.rowButton}
-                  onClick={() => {
-                    if (!isPaidPlan) {
-                      onUpgrade();
-                      return;
-                    }
-
-                    if (game) onAnalyze(game);
-                  }}
-                >
-                  {isPaidPlan ? "Ver jogo" : "Liberar"}
-                </button>
-              </div>
+              </article>
             );
           })}
         </div>
       ) : (
-        <div style={styles.emptyBox}>
-          Nenhum Player Prop real encontrado agora. Quando a Odds API retornar chutes no gol,
-          finalizações ou assistência de jogador, eles aparecem aqui automaticamente.
+        <div style={styles.playerPropsEmpty}>
+          <div style={styles.playerPropsEmptyIcon}>⚽</div>
+          <h3>Player Props aguardando odds reais</h3>
+          <p>
+            Quando a Odds API retornar mercados como jogador +0.5 chute no gol,
+            finalizações ou assistência, os cards aparecem aqui com foto e análise.
+          </p>
         </div>
       )}
     </section>
@@ -2027,6 +2125,151 @@ function BoostSection({ boost, games, onAnalyze }: any) {
 }
 
 const styles: Record<string, CSSProperties> = {
+
+  playerPropsHero: {
+    background: "linear-gradient(135deg,#111827,#4c1d95,#7c3aed)",
+    color: "white",
+    borderRadius: 30,
+    padding: 24,
+    marginBottom: 18,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 18,
+    alignItems: "center",
+    boxShadow: "0 18px 45px rgba(76,29,149,.20)",
+    border: "1px solid rgba(255,255,255,.14)",
+  },
+  playerPropsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))",
+    gap: 18,
+  },
+  playerPropCard: {
+    overflow: "hidden",
+    background: "linear-gradient(180deg,#111827,#1f123d)",
+    color: "white",
+    borderRadius: 28,
+    border: "1px solid rgba(250,204,21,.24)",
+    boxShadow: "0 18px 45px rgba(0,0,0,.22)",
+  },
+  playerPropTop: {
+    position: "relative",
+    height: 210,
+    background: "radial-gradient(circle at 50% 15%,rgba(250,204,21,.34),rgba(124,58,237,.20),rgba(0,0,0,.20))",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playerPhotoWrap: {
+    width: 172,
+    height: 172,
+    borderRadius: "50%",
+    padding: 6,
+    background: "linear-gradient(135deg,#facc15,#7c3aed)",
+    boxShadow: "0 20px 45px rgba(0,0,0,.35)",
+  },
+  playerPhoto: {
+    width: "100%",
+    height: "100%",
+    borderRadius: "50%",
+    objectFit: "cover",
+    background: "#111827",
+    border: "4px solid rgba(255,255,255,.20)",
+  },
+  playerPropBadge: {
+    position: "absolute",
+    right: 14,
+    top: 14,
+    background: "rgba(0,0,0,.58)",
+    border: "1px solid rgba(250,204,21,.28)",
+    borderRadius: 18,
+    padding: "9px 11px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    alignItems: "center",
+    color: "#facc15",
+    fontWeight: 900,
+  },
+  playerPropBody: {
+    padding: 18,
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  },
+  playerPropType: {
+    alignSelf: "flex-start",
+    background: "rgba(250,204,21,.16)",
+    color: "#facc15",
+    border: "1px solid rgba(250,204,21,.26)",
+    borderRadius: 999,
+    padding: "7px 10px",
+    fontSize: 12,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: .5,
+  },
+  playerPropGame: {
+    background: "rgba(255,255,255,.07)",
+    border: "1px solid rgba(255,255,255,.10)",
+    borderRadius: 16,
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  playerPropPick: {
+    background: "rgba(0,0,0,.34)",
+    border: "1px solid rgba(250,204,21,.20)",
+    borderRadius: 18,
+    padding: 14,
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+  },
+  playerPropMetrics: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 10,
+  },
+  playerPropButton: {
+    background: "#22c55e",
+    color: "#052e16",
+    border: 0,
+    borderRadius: 15,
+    padding: "13px 14px",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  playerPropLockButton: {
+    background: "#facc15",
+    color: "#111827",
+    border: 0,
+    borderRadius: 15,
+    padding: "13px 14px",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  playerPropsEmpty: {
+    background: "white",
+    color: "#111827",
+    borderRadius: 28,
+    padding: 26,
+    textAlign: "center",
+    border: "1px solid #ede9fe",
+  },
+  playerPropsEmptyIcon: {
+    width: 70,
+    height: 70,
+    margin: "0 auto 12px",
+    borderRadius: 22,
+    background: "linear-gradient(135deg,#7c3aed,#facc15)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 32,
+  },
+
   page: {
     minHeight: "100vh",
     color: "#111827",
