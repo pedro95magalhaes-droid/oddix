@@ -289,7 +289,7 @@ function bestOddFromGame(game: any) {
   return Math.min(...valid.filter((odd: number) => odd >= 1.2)) || valid[0];
 }
 
-const DASHBOARD_MIN_SCORE = Number(process.env.NEXT_PUBLIC_ODDIX_DASHBOARD_MIN_SCORE || 70);
+const DASHBOARD_MIN_SCORE = Number(process.env.NEXT_PUBLIC_ODDIX_DASHBOARD_MIN_SCORE || 75);
 
 const ODDIX_MARKET_ROTATION = [
   "total_goals_over_safe",
@@ -696,36 +696,35 @@ export default function Dashboard() {
         api.get(`/football/fixtures?date=${today}`),
         api.get(`/football/fixtures?date=${tomorrow}`),
         api.get(`/football/fixtures?date=${afterTomorrow}`),
-        api.get("/football/odds/smart"),
         api.get("/bets"),
         api.get("/favorite"),
-        api.get("/stats"),
       ]);
 
       const live = responses[0].status === "fulfilled" ? responses[0].value?.data || [] : [];
       const fixturesToday = responses[1].status === "fulfilled" ? responses[1].value?.data || [] : [];
       const fixturesTomorrow = responses[2].status === "fulfilled" ? responses[2].value?.data || [] : [];
       const fixturesAfterTomorrow = responses[3].status === "fulfilled" ? responses[3].value?.data || [] : [];
-      const smart = responses[4].status === "fulfilled" ? responses[4].value?.data || [] : [];
-      const bets = responses[5].status === "fulfilled" ? responses[5].value?.data || [] : [];
-      const favs = responses[6].status === "fulfilled" ? responses[6].value?.data || [] : [];
-      const statsData = responses[7].status === "fulfilled" ? responses[7].value?.data : null;
+      const bets = responses[4].status === "fulfilled" ? responses[4].value?.data || [] : [];
+      const favs = responses[5].status === "fulfilled" ? responses[5].value?.data || [] : [];
 
-      const merged = mergeGames([live, fixturesToday, fixturesTomorrow, fixturesAfterTomorrow]);
+      const merged = mergeGames([live, fixturesToday, fixturesTomorrow, fixturesAfterTomorrow])
+        .filter((game) => safeNumber(game?.oddix?.qualityScore, 0) >= DASHBOARD_MIN_SCORE);
+
+      const wonBets = Array.isArray(bets) ? bets.filter((bet: any) => String(bet?.status || "").toLowerCase() === "won").length : 0;
+      const lostBets = Array.isArray(bets) ? bets.filter((bet: any) => String(bet?.status || "").toLowerCase() === "lost").length : 0;
+      const finishedBets = wonBets + lostBets;
+
       setGames(merged);
       setSavedBets(Array.isArray(bets) ? bets : []);
       setFavorites(Array.isArray(favs) ? favs : []);
-      setStats(statsData);
+      setStats({
+        totalBets: Array.isArray(bets) ? bets.length : 0,
+        wonBets,
+        lostBets,
+        roi: finishedBets ? Math.round((wonBets / finishedBets) * 100) : 0,
+      });
 
-      const smartArray = Array.isArray(smart?.tips)
-        ? smart.tips
-        : Array.isArray(smart?.data)
-          ? smart.data
-          : Array.isArray(smart)
-            ? smart
-            : [];
-
-      setSmartTips(dedupeSmartTips(smartArray.map((tip: any) => normalizeSmartTip(tip, getGameByTip(tip, merged)))).slice(0, 12));
+      setSmartTips([]);
     } catch {
       setGames([]);
       setSmartTips([]);
