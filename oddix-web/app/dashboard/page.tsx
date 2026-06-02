@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { api } from "../../services/api";
+import Top5Tips from "../../components/oddix/Top5Tips";
+import VipConversionBanner from "../../components/oddix/VipConversionBanner";
+import OddixBoostPremium from "../../components/oddix/OddixBoostPremium";
+import FreeLockModal from "../../components/oddix/FreeLockModal";
 
 const FREE_GROUP_LINK = "https://chat.whatsapp.com/JQuwv77T1b8J6KMlXCEeRb";
 
@@ -457,6 +461,7 @@ export default function Dashboard() {
   const [analyzingId, setAnalyzingId] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [liveTick, setLiveTick] = useState(0);
+  const [freeLockOpen, setFreeLockOpen] = useState(false);
 
   const isPaidPlan = ["PRO", "VIP", "Pro", "Vip", "pro", "vip"].includes(String(plan));
   const today = dateKey(new Date());
@@ -641,8 +646,7 @@ export default function Dashboard() {
     if (!game) return;
 
     if (!isPaidPlan) {
-      alert("Análise IA completa disponível apenas no PRO/VIP.");
-      window.location.href = "/plans";
+      setFreeLockOpen(true);
       return;
     }
 
@@ -836,8 +840,38 @@ export default function Dashboard() {
 
   const boost = buildBoost();
 
+  const top5Tips = [...displayedSmartTips]
+    .filter((tip) => safeNumber(tip.confidence, 0) >= 65)
+    .sort((a, b) => {
+      const confidenceDiff = safeNumber(b.confidence, 0) - safeNumber(a.confidence, 0);
+      if (confidenceDiff !== 0) return confidenceDiff;
+      return safeNumber(b.qualityScore, 0) - safeNumber(a.qualityScore, 0);
+    })
+    .slice(0, 5);
+
+  const premiumBoost = [...displayedSmartTips]
+    .filter((tip) => safeNumber(tip.confidence, 0) >= 75)
+    .filter((tip) => safeNumber(tip.odd, 0) >= 1.25)
+    .filter((tip) => safeNumber(tip.odd, 0) <= 2.05)
+    .sort((a, b) => {
+      const scoreA = safeNumber(a.confidence, 0) + safeNumber(a.qualityScore, 0) * 0.35 - safeNumber(a.odd, 0) * 2;
+      const scoreB = safeNumber(b.confidence, 0) + safeNumber(b.qualityScore, 0) * 0.35 - safeNumber(b.odd, 0) * 2;
+      return scoreB - scoreA;
+    })
+    .slice(0, 3);
+
+  const boostOdd = premiumBoost.reduce((acc, item) => acc * safeNumber(item.odd, 1), 1);
+  const boostConfidence = premiumBoost.length
+    ? Math.round(premiumBoost.reduce((acc, item) => acc + safeNumber(item.confidence, 0), 0) / premiumBoost.length)
+    : 0;
+
   return (
     <main style={styles.page}>
+      <FreeLockModal
+        open={freeLockOpen}
+        onClose={() => setFreeLockOpen(false)}
+        onUpgrade={() => (window.location.href = "/plans")}
+      />
       <header style={styles.topHeader}>
         <div style={styles.brand} onClick={() => (window.location.href = "/dashboard")}>
           <img
@@ -885,6 +919,13 @@ export default function Dashboard() {
           </button>
         ))}
       </section>
+
+      <VipConversionBanner
+        plan={plan}
+        liveGames={liveGames.length}
+        topTips={top5Tips.length}
+        onUpgrade={() => (window.location.href = "/plans")}
+      />
 
       {selectedMatchDetail && (
         <MatchDetailPanel
@@ -981,6 +1022,30 @@ export default function Dashboard() {
         onAnalyze={openMatchDetail}
         onVip={() => (window.location.href = "/plans")}
       />
+
+      <section style={{ margin: "0 26px 20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr", gap: 18 }}>
+          <Top5Tips
+            tips={top5Tips}
+            onOpen={(tip: any) => {
+              const game = getGameByTip(tip, games);
+              if (game) openMatchDetail(game);
+            }}
+          />
+
+          <OddixBoostPremium
+            picks={premiumBoost}
+            combinedOdd={boostOdd ? boostOdd.toFixed(2) : "0.00"}
+            confidence={boostConfidence}
+            isPaidPlan={isPaidPlan}
+            onUpgrade={() => (window.location.href = "/plans")}
+            onOpen={(tip: any) => {
+              const game = getGameByTip(tip, games);
+              if (game) openMatchDetail(game);
+            }}
+          />
+        </div>
+      </section>
 
       <section style={styles.featuredStrip}>
         {topGames.slice(0, 4).map((game) => (
@@ -1214,12 +1279,24 @@ function getPlayerNameFromLineup(game: any) {
     }
   }
 
-  const home = game?.teams?.home?.name || "Mandante";
-  return `${home} - atacante`;
+  return null;
 }
 
 function getPlayerPropMarkets(game: any) {
   const playerName = getPlayerNameFromLineup(game);
+
+  if (!playerName) {
+    return [
+      {
+        label: "Aguardando escalações para Player Props",
+        odd: "Indisponível",
+      },
+      {
+        label: "Mercados de jogador aparecem quando a API retornar odds reais",
+        odd: "PRO/VIP",
+      },
+    ];
+  }
   const quality = safeNumber(game?.oddix?.qualityScore, 70);
   const live = isGameLive(game);
   const elapsed = safeNumber(game?.fixture?.status?.elapsed, 0);
