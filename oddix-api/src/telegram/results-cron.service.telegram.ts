@@ -236,6 +236,145 @@ export class ResultsCronService {
     return { metricName: 'Gols', metricValue: totalGoals };
   }
 
+
+  private almostGreenEnabled() {
+    return String(process.env.ODDIX_ALMOST_GREEN_ENABLED || 'true').toLowerCase() === 'true';
+  }
+
+  private almostGreenTag() {
+    return 'ODDIX_ALMOST_GREEN_SENT';
+  }
+
+  private hasAlmostGreenAlreadySent(bet: any) {
+    return String(bet?.analysis || '').includes(this.almostGreenTag());
+  }
+
+  private isAlmostGreenCandidate(params: {
+    bet: any;
+    resolved: ResolvedBetResult;
+    finished: boolean;
+  }) {
+    if (!this.almostGreenEnabled()) {
+      return { ok: false, reason: 'almost green desativado' };
+    }
+
+    if (params.finished) {
+      return { ok: false, reason: 'jogo finalizado' };
+    }
+
+    if (this.hasAlmostGreenAlreadySent(params.bet)) {
+      return { ok: false, reason: 'aviso já enviado' };
+    }
+
+    const tip = this.normalize(params.bet?.tip);
+    const line = params.resolved.line;
+    const value = Number(params.resolved.metricValue ?? NaN);
+    const metricName = params.resolved.metricName || '';
+
+    if (line === null || line === undefined || Number.isNaN(value)) {
+      return { ok: false, reason: 'sem linha ou métrica real' };
+    }
+
+    const isOver = /\b(over|mais de)\b/.test(tip);
+    if (!isOver) {
+      return { ok: false, reason: 'não é mercado over' };
+    }
+
+    const missing = Math.ceil(line - value + 0.0001);
+
+    if (missing !== 1) {
+      return { ok: false, reason: `não está faltando 1. faltam ${missing}` };
+    }
+
+    if (value >= line) {
+      return { ok: false, reason: 'já passou da linha' };
+    }
+
+    return {
+      ok: true,
+      reason: 'faltando 1 para bater',
+      metricName,
+      metricValue: value,
+      line,
+      missing,
+    };
+  }
+
+  private createAlmostGreenText(bet: any, almost: any) {
+    const metric = almost?.metricName || 'Mercado';
+    const value = almost?.metricValue ?? '-';
+    const line = almost?.line ?? '-';
+
+    return [
+      '👀 *ODDIX VIP | QUASE GREEN*',
+      '',
+      `⚽ *${bet.homeTeam} x ${bet.awayTeam}*`,
+      `🎯 Entrada: ${bet.tip}`,
+      `📊 ${metric}: ${value} / linha ${line}`,
+      '',
+      'Estamos a apenas 1 evento da confirmação.',
+      'Mantenha a calma e siga a gestão.',
+    ].join('\n');
+  }
+
+  private async markAlmostGreenSent(bet: any) {
+    const currentAnalysis = String(bet?.analysis || '').trim();
+    const tag = this.almostGreenTag();
+
+    if (currentAnalysis.includes(tag)) return;
+
+    await this.prisma.bet.update({
+      where: { id: bet.id },
+      data: {
+        analysis: currentAnalysis ? `${currentAnalysis} | ${tag}` : tag,
+      } as any,
+    });
+  }
+
+  private async sendAlmostGreenAudioIfNeeded(params: {
+    bet: any;
+    resolved: ResolvedBetResult;
+    finished: boolean;
+  }) {
+    const almost = this.isAlmostGreenCandidate(params);
+
+    if (!almost.ok) {
+      this.logger.log(
+        `⏭️ Almost green não enviado ${params.bet.homeTeam} x ${params.bet.awayTeam}: ${almost.reason}`,
+      );
+      return;
+    }
+
+    try {
+      const audio = await this.oddixVoiceService.createAudioFile({
+        category: 'ALMOST_GREEN',
+        homeTeam: params.bet.homeTeam,
+        awayTeam: params.bet.awayTeam,
+        market: params.bet.tip,
+        odd: params.bet.odd,
+      });
+
+      if (audio.filePath) {
+        await this.whatsappWebService.sendAudioFile({
+          filePath: audio.filePath,
+          target: 'vip',
+          ptt: true,
+        });
+      } else {
+        await this.whatsappWebService.sendText(this.createAlmostGreenText(params.bet, almost), 'vip');
+      }
+
+      await this.markAlmostGreenSent(params.bet);
+
+      this.logger.log(
+        `🎤 Almost green enviado: ${params.bet.homeTeam} x ${params.bet.awayTeam} | ${params.bet.tip}`,
+      );
+    } catch (error: any) {
+      this.logger.warn(`Erro ao enviar almost green: ${error?.message || error}`);
+    }
+  }
+
+
   private resolveResult(params: {
     tip: string;
     homeTeam: string;
@@ -601,6 +740,12 @@ export class ResultsCronService {
         });
 
         if (resolved.result === 'open') {
+          await this.sendAlmostGreenAudioIfNeeded({
+            bet,
+            resolved,
+            finished,
+          });
+
           this.logger.log(
             `⏳ Bet aberta ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip} | motivo=${resolved.reason} | ${resolved.metricName || ''}=${resolved.metricValue ?? 'sem stats'}`,
           );

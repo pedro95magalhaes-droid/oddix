@@ -13,6 +13,7 @@ import { FootballModule } from "../football/football.module";
 import { AiModule } from "../ai/ai.module";
 import { MarketingModule } from "../marketing/marketing.module";
 import { OddsModule } from "../odds/odds.module";
+import { VoiceModule } from "../voice/voice.module";
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { OddsModule } from "../odds/odds.module";
     AiModule,
     MarketingModule,
     OddsModule,
+    VoiceModule,
   ],
   controllers: [ResultsCronController],
   providers: [
@@ -31,6 +33,10 @@ import { OddsModule } from "../odds/odds.module";
     OddixImageService,
     OddixHumanMessageService,
   ],
-  exports: [TelegramService, ResultsCronService, PregameCronService],
+  exports: [
+    TelegramService,
+    ResultsCronService,
+    PregameCronService,
+  ],
 })
 export class TelegramModule {}
