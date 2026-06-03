@@ -14,6 +14,7 @@ import { AiModule } from "../ai/ai.module";
 import { MarketingModule } from "../marketing/marketing.module";
 import { OddsModule } from "../odds/odds.module";
 import { VoiceModule } from "../voice/voice.module";
+import { OddixFlowManagerService } from './oddix-flow-manager.service';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { VoiceModule } from "../voice/voice.module";
     PregameCronService,
     OddixImageService,
     OddixHumanMessageService,
+	OddixFlowManagerService,
   ],
   exports: [
     TelegramService,
