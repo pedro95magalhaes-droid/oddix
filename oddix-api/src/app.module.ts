@@ -15,6 +15,7 @@ import { MarketsModule } from './markets/markets.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { WhatsappWebModule } from './whatsapp-web/whatsapp-web.module';
 import { MarketingModule } from './marketing/marketing.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { MarketingModule } from './marketing/marketing.module';
     TelegramModule,
     WhatsappWebModule,
     MarketingModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}
