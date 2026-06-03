@@ -878,7 +878,10 @@ export class FootballService {
 
   async getFixturesFromFotmob(date?: string) {
     try {
-      return await this.fotmobService.getMatchesByDate(date);
+      const safeDate = date || this.brazilDateKey();
+      const response = await this.fotmobService.getMatchesByDate(safeDate);
+      const data = this.fotmobService.normalizeMatches(response);
+      return { ok: true, data, error: null };
     } catch (error: any) {
       return { ok: false, data: [], error: error?.message || 'Erro na FotMob' };
     }
@@ -886,7 +889,9 @@ export class FootballService {
 
   async getLiveFixturesFromFotmob() {
     try {
-      return await this.fotmobService.getLiveMatches();
+      const response = await this.fotmobService.getLiveMatches();
+      const data = this.fotmobService.normalizeMatches(response);
+      return { ok: true, data, error: null };
     } catch (error: any) {
       return { ok: false, data: [], error: error?.message || 'Erro na FotMob Live' };
     }
@@ -894,7 +899,8 @@ export class FootballService {
 
   async getFixtureByIdFromFotmob(fixtureId: string) {
     try {
-      return await this.fotmobService.getMatch(fixtureId);
+      const response = await this.fotmobService.getMatch(fixtureId);
+      return { ok: true, data: response, error: null };
     } catch (error: any) {
       return { ok: false, data: null, error: error?.message || 'Erro na FotMob por ID' };
     }
@@ -902,7 +908,12 @@ export class FootballService {
 
   async getStatisticsFromFotmob(fixtureId: string) {
     try {
-      return await this.fotmobService.getStatistics(fixtureId);
+      const stats = await this.fotmobService.getStatistics(fixtureId);
+      return {
+        ok: !!stats?.available,
+        data: stats?.available ? stats : null,
+        error: stats?.available ? null : stats?.message || 'Sem estatísticas FotMob',
+      };
     } catch (error: any) {
       return { ok: false, data: null, error: error?.message || 'Erro nas estatísticas FotMob' };
     }

@@ -5,6 +5,19 @@ import axios from 'axios';
 export class FotmobService {
   private readonly logger = new Logger(FotmobService.name);
 
+
+  isEnabled() {
+    return this.enabled();
+  }
+
+  hasKey() {
+    return !!this.apiKey();
+  }
+
+  getBaseUrl() {
+    return this.baseUrl();
+  }
+
   private enabled() {
     return String(process.env.FOTMOB_ENABLED || 'false').toLowerCase() === 'true';
   }
