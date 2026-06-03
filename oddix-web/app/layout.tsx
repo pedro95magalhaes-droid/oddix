@@ -14,6 +14,11 @@ export const metadata: Metadata = {
     description: 'Palpites inteligentes com IA, odds e gestão de banca.',
     images: ['/logo-oddix-square.png'],
   },
+  verification: {
+    other: {
+      'ga-site-verification': 'Um_GfxxEsH8wbK2fgaX8qV6a',
+    },
+  },
 };
 
 export default function RootLayout({
@@ -29,12 +34,3 @@ export default function RootLayout({
     </html>
   );
 }
-export const metadata = {
-  title: 'Oddix',
-  description: 'Oddix IA',
-  verification: {
-    other: {
-      'ga-site-verification': 'Um_GfxxEsH8wbK2fgaX8qV6a',
-    },
-  },
-};
