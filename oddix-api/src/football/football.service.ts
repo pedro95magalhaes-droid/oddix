@@ -1898,8 +1898,11 @@ export class FootballService {
   async getStatistics(fixtureId: string) {
     const cachedForStats: any = await this.getFixtureFromCacheById(fixtureId);
 
+    let flashScoreStatsError = 'FlashScore não consultada';
+
     if (cachedForStats?.provider === 'flashscore') {
       const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
+      flashScoreStatsError = flashScore.error || flashScoreStatsError;
 
       if (flashScore.ok && flashScore.data) {
         return flashScore.data;
@@ -1928,6 +1931,7 @@ export class FootballService {
 
     if (cachedForStats?.provider !== 'flashscore') {
       const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
+      flashScoreStatsError = flashScore.error || flashScoreStatsError;
 
       if (flashScore.ok && flashScore.data) {
         return flashScore.data;
@@ -1950,7 +1954,7 @@ export class FootballService {
       ...fallback,
       simulated: true,
       source: 'oddix-fallback',
-      message: `Estatísticas reais indisponíveis. Usando estimativa temporária. Motivo: ${sportScore.error || flashScore.error || apiFootball.error || 'sem dados reais'}`,
+      message: `Estatísticas reais indisponíveis. Usando estimativa temporária. Motivo: ${sportScore.error || flashScoreStatsError || apiFootball.error || 'sem dados reais'}`,
     };
   }
 
