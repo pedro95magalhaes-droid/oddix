@@ -140,102 +140,7 @@ export class FootballService {
       output[key] = value;
     }
 
-    return this.normalizeFixtureShape(output) as T;
-  }
-
-  private normalizeFixtureShape(input: any) {
-    if (!input || typeof input !== 'object' || Array.isArray(input)) return input;
-
-    const provider = String(input.provider || input.provedor || '').toLowerCase();
-    const fixture = input.fixture || input.jogo || input.disputa || {};
-    const league = input.league || input.liga || input.competition || {};
-    const teams = input.teams || input.times || input.equipes || {};
-    const goals = input.goals || input.gols || {};
-    const score = input.score || input.placar || {};
-    const odds = input.odds || null;
-
-    const home = teams.home || teams.casa || teams.mandante || {};
-    const away = teams.away || teams.fora || teams.visitante || {};
-
-    const status = fixture.status || {};
-    const statusShort = status.short || status.curto || status.abreviado || 'NS';
-    const statusLong = status.long || status.longo || status.nome || 'Not Started';
-    const elapsed = status.elapsed ?? status.decorrido ?? status['tempo decorrido'] ?? null;
-
-    const normalized: any = {
-      ...input,
-      provider: input.provider || input.provedor || 'unknown',
-      fixture: {
-        id: Number(fixture.id || fixture.fixtureId || 0),
-        externalId: String(fixture.externalId || fixture.external_id || fixture.slug || ''),
-        date: fixture.date || fixture.data || fixture.utcDate || new Date().toISOString(),
-        timestamp: fixture.timestamp || fixture['carimbo de data/hora'] || fixture.carimboDeDataHora || null,
-        timezone: fixture.timezone || fixture['fuso horário'] || fixture.fuso || 'America/Sao_Paulo',
-        status: {
-          long: String(statusLong).toLowerCase() === 'unknown' ? 'Not Started' : statusLong,
-          short: String(statusShort).toUpperCase() === 'UNK' ? 'NS' : statusShort,
-          elapsed,
-          extra: status.extra ?? null,
-        },
-      },
-      league: {
-        id: Number(league.id || league.leagueId || 0),
-        name: league.name || league.nome || 'Liga não informada',
-        country: league.country || league.país || league.pais || '',
-        logo: league.logo || league.image || league.image_path || '',
-      },
-      teams: {
-        home: {
-          id: Number(home.id || 0),
-          externalId: String(home.externalId || home.external_id || ''),
-          name: home.name || home.nome || '',
-          logo: home.logo || '',
-          winner: home.winner ?? home.vencedor ?? null,
-        },
-        away: {
-          id: Number(away.id || 0),
-          externalId: String(away.externalId || away.external_id || ''),
-          name: away.name || away.nome || '',
-          logo: away.logo || '',
-          winner: away.winner ?? away.vencedor ?? null,
-        },
-      },
-      goals: {
-        home: goals.home ?? goals.casa ?? null,
-        away: goals.away ?? goals.fora ?? goals.visitante ?? null,
-      },
-      score: {
-        fulltime: {
-          home: score.fulltime?.home ?? score['tempo integral']?.casa ?? score['tempo integral']?.home ?? goals.home ?? goals.casa ?? null,
-          away: score.fulltime?.away ?? score['tempo integral']?.fora ?? score['tempo integral']?.visitante ?? score['tempo integral']?.away ?? goals.away ?? goals.fora ?? goals.visitante ?? null,
-        },
-      },
-    };
-
-    if (odds) {
-      const options = odds.options || odds.opções || [];
-      normalized.odds = {
-        source: odds.source || odds.fonte || provider || 'unknown',
-        bookmaker: odds.bookmaker || odds['casa de apostas'] || 'FlashScore',
-        market: odds.market || odds.mercado || '1X2',
-        options: Array.isArray(options)
-          ? options.map((option: any) => ({
-              name: option.name || option.nome || '',
-              odd: Number(option.odd || 0) || null,
-            })).filter((option: any) => option.name && option.odd)
-          : [],
-      };
-    }
-
-    delete normalized.provedor;
-    delete normalized.jogo;
-    delete normalized.disputa;
-    delete normalized.liga;
-    delete normalized.times;
-    delete normalized.gols;
-    delete normalized.placar;
-
-    return normalized;
+    return output as T;
   }
 
   private enrichFixtureForOddix(item: any) {
@@ -1993,11 +1898,8 @@ export class FootballService {
   async getStatistics(fixtureId: string) {
     const cachedForStats: any = await this.getFixtureFromCacheById(fixtureId);
 
-    let flashScoreStatsError = 'FlashScore não consultada';
-
     if (cachedForStats?.provider === 'flashscore') {
       const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
-      flashScoreStatsError = flashScore.error || flashScoreStatsError;
 
       if (flashScore.ok && flashScore.data) {
         return flashScore.data;
@@ -2026,7 +1928,6 @@ export class FootballService {
 
     if (cachedForStats?.provider !== 'flashscore') {
       const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
-      flashScoreStatsError = flashScore.error || flashScoreStatsError;
 
       if (flashScore.ok && flashScore.data) {
         return flashScore.data;
@@ -2049,7 +1950,7 @@ export class FootballService {
       ...fallback,
       simulated: true,
       source: 'oddix-fallback',
-      message: `Estatísticas reais indisponíveis. Usando estimativa temporária. Motivo: ${sportScore.error || flashScoreStatsError || apiFootball.error || 'sem dados reais'}`,
+      message: `Estatísticas reais indisponíveis. Usando estimativa temporária. Motivo: ${sportScore.error || flashScore.error || apiFootball.error || 'sem dados reais'}`,
     };
   }
 
@@ -2107,7 +2008,7 @@ export class FootballService {
       apiFootballBlockedUntil: this.apiFootballBlockedUntil?.toISOString() || null,
       liveCacheSeconds: this.liveCacheSeconds(),
       fixturesCacheMinutes: this.fixturesCacheMinutes(),
-      note: 'API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem: FlashScore > SportScore6 > FotMob > SportScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData.',
+      note: 'API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem: FotMob > SportScore6 > SportScore > FlashScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData.',
 
       cache: {
         responseLength: cache.length,
