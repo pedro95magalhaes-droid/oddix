@@ -29,3 +29,12 @@ export default function RootLayout({
     </html>
   );
 }
+export const metadata = {
+  title: 'Oddix',
+  description: 'Oddix IA',
+  verification: {
+    other: {
+      'ga-site-verification': 'Um_GfxxEsH8wbK2fgaX8qV6a',
+    },
+  },
+};
