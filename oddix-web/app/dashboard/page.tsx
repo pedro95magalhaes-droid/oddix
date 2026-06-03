@@ -598,6 +598,75 @@ function extractPlayerPropsFromTips(tips: any[]) {
     .slice(0, 20);
 }
 
+
+function buildEstimatedPlayerPropsFromGames(games: any[]) {
+  const props: any[] = [];
+
+  for (const game of games || []) {
+    const playerName = getPlayerNameFromLineup(game);
+    if (!playerName) continue;
+
+    const quality = safeNumber(game?.oddix?.qualityScore, 70);
+    if (quality < DASHBOARD_MIN_SCORE) continue;
+
+    const fixtureId = game?.fixture?.id;
+    const homeTeam = game?.teams?.home?.name || "Casa";
+    const awayTeam = game?.teams?.away?.name || "Fora";
+    const league = game?.league?.name || "Liga";
+    const baseConfidence = Math.min(88, Math.max(72, quality));
+
+    props.push({
+      key: "player_shots_on_target_estimated",
+      category: "Player Props",
+      market: "Jogador chutes no gol",
+      player: playerName,
+      tip: `${playerName} Over 0.5 chute no gol`,
+      odd: quality >= 85 ? "1.72" : quality >= 75 ? "1.85" : "1.95",
+      confidence: Math.min(88, baseConfidence + 2),
+      risk: quality >= 85 ? "Baixo" : "Médio",
+      source: "Oddix Player Props IA",
+      bookmaker: "Oddix estimada",
+      fixtureId,
+      game: `${homeTeam} x ${awayTeam}`,
+      homeTeam,
+      awayTeam,
+      league,
+      isEstimated: true,
+    });
+
+    props.push({
+      key: "player_shots_estimated",
+      category: "Player Props",
+      market: "Jogador finalizações",
+      player: playerName,
+      tip: `${playerName} Over 1.5 finalizações`,
+      odd: quality >= 85 ? "1.62" : quality >= 75 ? "1.76" : "1.90",
+      confidence: baseConfidence,
+      risk: quality >= 85 ? "Baixo" : "Médio",
+      source: "Oddix Player Props IA",
+      bookmaker: "Oddix estimada",
+      fixtureId,
+      game: `${homeTeam} x ${awayTeam}`,
+      homeTeam,
+      awayTeam,
+      league,
+      isEstimated: true,
+    });
+  }
+
+  const seen = new Set<string>();
+
+  return props
+    .filter((item) => {
+      const key = `${item.fixtureId || ""}-${item.tip || ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => safeNumber(b.confidence, 0) - safeNumber(a.confidence, 0))
+    .slice(0, 20);
+}
+
 export default function Dashboard() {
   const [games, setGames] = useState<any[]>([]);
   const [smartTips, setSmartTips] = useState<any[]>([]);
@@ -647,8 +716,10 @@ export default function Dashboard() {
   }, [smartTips, localTips]);
 
   const playerPropsTips = useMemo(() => {
-    return extractPlayerPropsFromTips(displayedSmartTips);
-  }, [displayedSmartTips]);
+    const realProps = extractPlayerPropsFromTips(displayedSmartTips);
+    if (realProps.length) return realProps;
+    return buildEstimatedPlayerPropsFromGames(topGames);
+  }, [displayedSmartTips, topGames]);
 
   const filteredGames = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -2089,7 +2160,7 @@ function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: 
           <h2>Cards de jogador com mercado real</h2>
           <p>
             Chutes no gol, finalizações, assistência e gol. A Oddix só destaca
-            jogador quando encontra linha real de odds ou dado confiável no jogo.
+            jogador quando encontra linha real de odds ou escalação confiável no jogo.
           </p>
         </div>
 
@@ -2177,8 +2248,8 @@ function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: 
           <div style={styles.playerPropsEmptyIcon}>⚽</div>
           <h3>Player Props aguardando odds reais</h3>
           <p>
-            Quando a Odds API retornar mercados como jogador +0.5 chute no gol,
-            finalizações ou assistência, os cards aparecem aqui com foto e análise.
+            Quando a Odds API retornar mercados reais ou quando houver escalação confiável,
+            os cards de jogador aparecem aqui com foto, linha, odd e análise.
           </p>
         </div>
       )}
