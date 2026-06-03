@@ -5,8 +5,8 @@ import { FootballService } from "../football/football.service";
 import { AiService } from "../ai/ai.service";
 import { WhatsappWebService } from "../whatsapp-web/whatsapp-web.service";
 import { OddixImageService } from "./oddix-image.service";
-import { OddixCreativeService } from "./oddix-creative.service";
-import { OddixCopyService } from "./oddix-copy.service";
+import { OddixCreativeService } from "../marketing/oddix-creative.service";
+import { OddixCopyService } from "../marketing/oddix-copy.service";
 
 type PregameStage = "early" | "main" | "final";
 
