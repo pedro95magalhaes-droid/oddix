@@ -249,11 +249,23 @@ export class FlashScoreService {
       };
     }
 
-    if (statusRaw.includes('scheduled') || statusRaw.includes('not started') || statusRaw === 'ns') {
+    if (
+      statusRaw.includes('scheduled') ||
+      statusRaw.includes('not started') ||
+      statusRaw.includes('unknown') ||
+      statusRaw === 'ns' ||
+      statusRaw === 'unk' ||
+      !statusRaw
+    ) {
       return { long: 'Not Started', short: 'NS', elapsed: null, extra: null };
     }
 
-    return { long: statusRaw || 'Unknown', short: statusRaw ? statusRaw.toUpperCase().slice(0, 8) : 'UNK', elapsed: elapsed > 0 ? elapsed : null, extra: null };
+    return {
+      long: statusRaw || 'Not Started',
+      short: statusRaw ? statusRaw.toUpperCase().slice(0, 8) : 'NS',
+      elapsed: elapsed > 0 ? elapsed : null,
+      extra: null,
+    };
   }
 
   private readTeam(match: any, side: 'home' | 'away') {
