@@ -1294,8 +1294,8 @@ export class FootballService {
 
     let score = 0;
 
+    if (provider.includes('flashscore')) score += 85;
     if (provider.includes('sportscore6')) score += 65;
-    if (provider.includes('flashscore')) score += 50;
     if (provider.includes('sports-betting')) score += 45;
     if (provider.includes('allscores')) score += 30;
     if (provider.includes('api-football')) score += 25;
@@ -1419,8 +1419,8 @@ export class FootballService {
     const providerGroups: any[][] = [];
 
     for (const currentDate of searchDates) {
-      const fotmob = await this.getFixturesFromFotmob(currentDate);
-      if (fotmob.ok && fotmob.data.length > 0) providerGroups.push(fotmob.data);
+      const flashScore = await this.getFixturesFromFlashScore(currentDate);
+      if (flashScore.ok && flashScore.data.length > 0) providerGroups.push(flashScore.data);
     }
 
     /**
@@ -1433,11 +1433,11 @@ export class FootballService {
     }
 
     for (const currentDate of searchDates) {
+      const fotmob = await this.getFixturesFromFotmob(currentDate);
+      if (fotmob.ok && fotmob.data.length > 0) providerGroups.push(fotmob.data);
+
       const sportScore = await this.getFixturesFromSportScore(currentDate);
       if (sportScore.ok && sportScore.data.length > 0) providerGroups.push(sportScore.data);
-
-      const flashScore = await this.getFixturesFromFlashScore(currentDate);
-      if (flashScore.ok && flashScore.data.length > 0) providerGroups.push(flashScore.data);
 
       const allScores = await this.getFixturesFromAllScores(currentDate);
       if (allScores.ok && allScores.data.length > 0) providerGroups.push(allScores.data);
@@ -1508,6 +1508,17 @@ export class FootballService {
     const groups: any[][] = [];
     const today = this.brazilDateKey();
 
+    const flashScore = await this.getLiveFixturesFromFlashScore();
+
+    if (flashScore.ok && flashScore.data.length > 0) {
+      const live = flashScore.data
+        .filter((game: any) => isOddixLeagueAllowed(game))
+        .filter((game: any) => this.shouldTreatAsLive(game))
+        .map((item: any) => this.normalizeLiveStatus(item));
+
+      if (live.length > 0) groups.push(live);
+    }
+
     const fotmob = await this.getLiveFixturesFromFotmob();
 
     if (fotmob.ok && fotmob.data.length > 0) {
@@ -1545,17 +1556,6 @@ export class FootballService {
 
     if (sportScore.ok && sportScore.data.length > 0) {
       const live = sportScore.data
-        .filter((game: any) => isOddixLeagueAllowed(game))
-        .filter((game: any) => this.shouldTreatAsLive(game))
-        .map((item: any) => this.normalizeLiveStatus(item));
-
-      if (live.length > 0) groups.push(live);
-    }
-
-    const flashScore = await this.getLiveFixturesFromFlashScore();
-
-    if (flashScore.ok && flashScore.data.length > 0) {
-      const live = flashScore.data
         .filter((game: any) => isOddixLeagueAllowed(game))
         .filter((game: any) => this.shouldTreatAsLive(game))
         .map((item: any) => this.normalizeLiveStatus(item));
@@ -1718,10 +1718,15 @@ export class FootballService {
   async getFixtureById(fixtureId: string) {
     /**
      * IMPORTANTE PARA GREEN/RED:
-     * Para aposta aberta, não confiar primeiro em cache antigo.
-     * SportScore é a fonte principal; API-Football só entra se API_FOOTBALL_ENABLE_FALLBACK=true.
+     * FlashScore agora é a fonte principal do Oddix.
+     * Para providers sem endpoint de detalhe por ID neste serviço, usamos cache fresco
+     * e caímos para SportScore6/FotMob/SportScore/API-Football quando necessário.
      */
     const cachedFotmob: any = await this.getFixtureFromCacheById(fixtureId);
+
+    if (cachedFotmob?.provider === 'flashscore' && this.isCacheFresh(cachedFotmob, this.liveCacheSeconds() * 4)) {
+      return cachedFotmob;
+    }
 
     if (cachedFotmob?.provider === 'fotmob') {
       const fotmob = await this.getFixtureByIdFromFotmob(fixtureId);
@@ -1893,11 +1898,11 @@ export class FootballService {
   async getStatistics(fixtureId: string) {
     const cachedForStats: any = await this.getFixtureFromCacheById(fixtureId);
 
-    if (!cachedForStats || cachedForStats?.provider === 'fotmob') {
-      const fotmob = await this.getStatisticsFromFotmob(fixtureId);
+    if (cachedForStats?.provider === 'flashscore') {
+      const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
 
-      if (fotmob.ok && fotmob.data) {
-        return fotmob.data;
+      if (flashScore.ok && flashScore.data) {
+        return flashScore.data;
       }
     }
 
@@ -1907,16 +1912,26 @@ export class FootballService {
       return sportScore6.data;
     }
 
+    if (!cachedForStats || cachedForStats?.provider === 'fotmob') {
+      const fotmob = await this.getStatisticsFromFotmob(fixtureId);
+
+      if (fotmob.ok && fotmob.data) {
+        return fotmob.data;
+      }
+    }
+
     const sportScore = await this.getStatisticsFromSportScore(fixtureId);
 
     if (sportScore.ok && sportScore.data) {
       return sportScore.data;
     }
 
-    const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
+    if (cachedForStats?.provider !== 'flashscore') {
+      const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
 
-    if (flashScore.ok && flashScore.data) {
-      return flashScore.data;
+      if (flashScore.ok && flashScore.data) {
+        return flashScore.data;
+      }
     }
 
     let apiFootball = { ok: false, data: null, error: 'API-Football poupada' } as any;

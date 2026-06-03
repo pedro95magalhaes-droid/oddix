@@ -32,7 +32,7 @@ export class AiService {
       `${homeTeam}-${awayTeam}-${league}-${statusShort}-${elapsed}-${homeGoals}-${awayGoals}`,
     );
 
-    const context = this.buildMatchContext({
+    let context = this.buildMatchContext({
       homeTeam,
       awayTeam,
       league,
@@ -42,6 +42,11 @@ export class AiService {
       awayGoals,
       seed,
     });
+
+    // Quando o provider enviar estatísticas reais (FlashScore/SportScore/etc.),
+    // a IA deixa de usar apenas seed simulada e passa a ponderar posse,
+    // finalizações, chutes no gol, escanteios e cartões reais.
+    context = this.applyRealStatsToContext(context, game);
 
     const realOdds = await this.oddsService.getBestOdds({
       homeTeam,
@@ -449,6 +454,177 @@ export class AiService {
           : 'nenhum',
       gamePhase: this.getGamePhase(data.statusShort, data.elapsed),
       matchTempo: this.getMatchTempo(data.elapsed, totalGoals, goalTrend),
+    };
+  }
+
+  private extractStatValue(stats: any[], aliases: string[]) {
+    const normalize = (value: any) =>
+      String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+
+    const wanted = aliases.map((item) => normalize(item));
+
+    const row = (stats || []).find((item: any) => {
+      const type = normalize(item?.type || item?.name || item?.title || item?.statName);
+      return wanted.some((alias) => type.includes(alias));
+    });
+
+    if (!row) return null;
+
+    const rawValue = row?.value ?? row?.home ?? row?.away ?? row?.total ?? null;
+    if (rawValue === null || rawValue === undefined || rawValue === '') return null;
+
+    const parsed = Number(String(rawValue).replace('%', '').replace(',', '.').replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private readStatsTeams(game: any) {
+    const candidates = [
+      game?.statistics,
+      game?.stats,
+      game?.oddixStats,
+      game?.flashScoreStats,
+      game?.flashScoreRaw?.statistics,
+      game?.flashScoreRaw?.stats,
+      game?.raw?.statistics,
+      game?.raw?.stats,
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate?.teams)) return candidate.teams;
+      if (Array.isArray(candidate)) {
+        const looksLikeOddixTeams = candidate.some((item: any) => Array.isArray(item?.statistics));
+        if (looksLikeOddixTeams) return candidate;
+      }
+    }
+
+    return [];
+  }
+
+  private getRealStatsSnapshot(game: any) {
+    const teams = this.readStatsTeams(game);
+    if (!teams.length) return null;
+
+    const homeStats = teams[0]?.statistics || teams[0]?.stats || [];
+    const awayStats = teams[1]?.statistics || teams[1]?.stats || [];
+
+    const get = (stats: any[], aliases: string[]) => this.extractStatValue(stats, aliases);
+
+    const possessionHome = get(homeStats, ['Ball Possession', 'posse']);
+    const possessionAway = get(awayStats, ['Ball Possession', 'posse']);
+    const shotsTotalHome = get(homeStats, ['Total Shots', 'finalizacoes', 'chutes totais']);
+    const shotsTotalAway = get(awayStats, ['Total Shots', 'finalizacoes', 'chutes totais']);
+    const shotsOnGoalHome = get(homeStats, ['Shots on Goal', 'chutes no gol', 'on target']);
+    const shotsOnGoalAway = get(awayStats, ['Shots on Goal', 'chutes no gol', 'on target']);
+    const cornersHome = get(homeStats, ['Corner Kicks', 'escanteios', 'corners']);
+    const cornersAway = get(awayStats, ['Corner Kicks', 'escanteios', 'corners']);
+    const yellowCardsHome = get(homeStats, ['Yellow Cards', 'cartoes amarelos']);
+    const yellowCardsAway = get(awayStats, ['Yellow Cards', 'cartoes amarelos']);
+
+    const hasAnyRealStat = [
+      possessionHome,
+      possessionAway,
+      shotsTotalHome,
+      shotsTotalAway,
+      shotsOnGoalHome,
+      shotsOnGoalAway,
+      cornersHome,
+      cornersAway,
+      yellowCardsHome,
+      yellowCardsAway,
+    ].some((value) => value !== null && value !== undefined);
+
+    if (!hasAnyRealStat) return null;
+
+    return {
+      possessionHome,
+      possessionAway,
+      shotsTotalHome,
+      shotsTotalAway,
+      shotsOnGoalHome,
+      shotsOnGoalAway,
+      cornersHome,
+      cornersAway,
+      yellowCardsHome,
+      yellowCardsAway,
+    };
+  }
+
+  private trendFromStat(total: number, excellent: number, base = 52) {
+    const ratio = Math.max(0, Math.min(1.4, total / Math.max(1, excellent)));
+    return Math.max(42, Math.min(94, Math.round(base + ratio * 30)));
+  }
+
+  private applyRealStatsToContext(context: any, game: any) {
+    const stats = this.getRealStatsSnapshot(game);
+    if (!stats) return context;
+
+    const elapsed = Math.max(1, Number(context.elapsed || 0));
+    const paceMultiplier = context.isLive ? Math.max(0.45, Math.min(1.25, 90 / elapsed)) : 1;
+
+    const totalShots = Number(stats.shotsTotalHome || 0) + Number(stats.shotsTotalAway || 0);
+    const totalShotsOnGoal = Number(stats.shotsOnGoalHome || 0) + Number(stats.shotsOnGoalAway || 0);
+    const totalCorners = Number(stats.cornersHome || 0) + Number(stats.cornersAway || 0);
+    const totalCards = Number(stats.yellowCardsHome || 0) + Number(stats.yellowCardsAway || 0);
+
+    const projectedShots = context.isLive ? totalShots * paceMultiplier : totalShots;
+    const projectedShotsOnGoal = context.isLive ? totalShotsOnGoal * paceMultiplier : totalShotsOnGoal;
+    const projectedCorners = context.isLive ? totalCorners * paceMultiplier : totalCorners;
+    const projectedCards = context.isLive ? totalCards * paceMultiplier : totalCards;
+
+    const possessionHome = stats.possessionHome ?? context.possessionHome;
+    const possessionAway = stats.possessionAway ?? context.possessionAway;
+
+    const homePressure =
+      Number(stats.shotsTotalHome || 0) * 2 +
+      Number(stats.shotsOnGoalHome || 0) * 5 +
+      Number(stats.cornersHome || 0) * 3 +
+      Number(possessionHome || 50) * 0.4;
+
+    const awayPressure =
+      Number(stats.shotsTotalAway || 0) * 2 +
+      Number(stats.shotsOnGoalAway || 0) * 5 +
+      Number(stats.cornersAway || 0) * 3 +
+      Number(possessionAway || 50) * 0.4;
+
+    const pressureTotal = Math.max(1, homePressure + awayPressure);
+    const dominanceHome = Math.round((homePressure / pressureTotal) * 100);
+    const dominanceAway = 100 - dominanceHome;
+
+    return {
+      ...context,
+      realStatsAvailable: true,
+      possessionHome,
+      possessionAway,
+      shotsTotalHome: stats.shotsTotalHome,
+      shotsTotalAway: stats.shotsTotalAway,
+      shotsOnGoalHome: stats.shotsOnGoalHome,
+      shotsOnGoalAway: stats.shotsOnGoalAway,
+      cornersHome: stats.cornersHome,
+      cornersAway: stats.cornersAway,
+      yellowCardsHome: stats.yellowCardsHome,
+      yellowCardsAway: stats.yellowCardsAway,
+      dominanceHome,
+      dominanceAway,
+      dominantTeam:
+        dominanceHome >= dominanceAway + 12
+          ? context.homeTeam
+          : dominanceAway >= dominanceHome + 12
+          ? context.awayTeam
+          : 'Jogo equilibrado',
+      shotTrend: Math.max(
+        context.shotTrend,
+        this.trendFromStat(projectedShots + projectedShotsOnGoal * 1.8, 24, 50),
+      ),
+      cornerTrend: Math.max(context.cornerTrend, this.trendFromStat(projectedCorners, 9, 50)),
+      cardTrend: Math.max(context.cardTrend, this.trendFromStat(projectedCards, 5, 45)),
+      goalTrend: Math.max(
+        context.goalTrend,
+        this.trendFromStat(projectedShotsOnGoal * 2 + projectedShots * 0.35, 12, 48),
+      ),
     };
   }
 
@@ -908,20 +1084,20 @@ export class AiService {
     const baseDangerous = hasLiveMomentum ? Math.max(35, Math.round((context.shotTrend || 60) + (context.cornerTrend || 55) / 2)) : 45;
 
     return {
-      possessionHome: Math.round(45 + (homeShare - 0.5) * 30),
-      possessionAway: Math.round(45 + (awayShare - 0.5) * 30),
+      possessionHome: Number(context.possessionHome ?? Math.round(45 + (homeShare - 0.5) * 30)),
+      possessionAway: Number(context.possessionAway ?? Math.round(45 + (awayShare - 0.5) * 30)),
       attacksHome: Math.round(baseDangerous * homeShare * 1.45),
       attacksAway: Math.round(baseDangerous * awayShare * 1.45),
       dangerousAttacksHome: Math.round(baseDangerous * homeShare),
       dangerousAttacksAway: Math.round(baseDangerous * awayShare),
-      shotsTotalHome: Math.round(baseShots * homeShare),
-      shotsTotalAway: Math.round(baseShots * awayShare),
-      shotsOnGoalHome: Math.max(1, Math.round(baseShots * homeShare * 0.38)),
-      shotsOnGoalAway: Math.max(1, Math.round(baseShots * awayShare * 0.38)),
-      cornersHome: Math.round(baseCorners * homeShare),
-      cornersAway: Math.round(baseCorners * awayShare),
-      yellowCardsHome: 1,
-      yellowCardsAway: 1,
+      shotsTotalHome: Number(context.shotsTotalHome ?? Math.round(baseShots * homeShare)),
+      shotsTotalAway: Number(context.shotsTotalAway ?? Math.round(baseShots * awayShare)),
+      shotsOnGoalHome: Number(context.shotsOnGoalHome ?? Math.max(1, Math.round(baseShots * homeShare * 0.38))),
+      shotsOnGoalAway: Number(context.shotsOnGoalAway ?? Math.max(1, Math.round(baseShots * awayShare * 0.38))),
+      cornersHome: Number(context.cornersHome ?? Math.round(baseCorners * homeShare)),
+      cornersAway: Number(context.cornersAway ?? Math.round(baseCorners * awayShare)),
+      yellowCardsHome: Number(context.yellowCardsHome ?? 1),
+      yellowCardsAway: Number(context.yellowCardsAway ?? 1),
     };
   }
 
@@ -959,7 +1135,7 @@ export class AiService {
 ${gameMoment}
 
 Leitura:
-O modelo priorizou mercados protegidos, evitando placar correto, bet builder agressivo e resultado seco sem vantagem clara. Neste confronto, ${favoriteText}. Tendência de gols ${context.goalTrend}/100, escanteios ${context.cornerTrend}/100, cartões ${context.cardTrend}/100 e finalizações ${context.shotTrend}/100.
+O modelo priorizou mercados protegidos, evitando placar correto, bet builder agressivo e resultado seco sem vantagem clara. Neste confronto, ${favoriteText}. Tendência de gols ${context.goalTrend}/100, escanteios ${context.cornerTrend}/100, cartões ${context.cardTrend}/100 e finalizações ${context.shotTrend}/100${context.realStatsAvailable ? ' com leitura de estatísticas reais do jogo.' : '. '}
 
 Entrada principal:
 ${best.tip} | odd ${best.odd} | confiança ${best.confidence}% | risco ${best.risk}.
@@ -972,7 +1148,7 @@ Conservadora: ${multiples?.conservative?.selections?.map((s: any) => s.tip).join
 Moderada: ${multiples?.moderate?.selections?.map((s: any) => s.tip).join(' + ') || 'Sem múltipla segura'} | odd ${multiples?.moderate?.combinedOdd || '-'}.
 
 Fontes:
-Dados do jogo: API-Football primeiro, Sportmonks como fallback. Odds: The Odds API quando disponível; caso contrário, odd marcada como estimada.
+Dados do jogo: FlashScore como principal, SportScore6/FotMob como fallback. Odds: The Odds API quando disponível; caso contrário, odd marcada como estimada.
 
 Gestão:
 Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou usar valor simbólico.`;

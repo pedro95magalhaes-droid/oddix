@@ -9,7 +9,8 @@ type ProviderResult<T> = {
 
 @Injectable()
 export class FlashScoreService {
-  private readonly baseURL = 'https://flashscore4.p.rapidapi.com';
+  private readonly baseURL = process.env.FLASHSCORE_API_BASE_URL || 'https://flashscore4.p.rapidapi.com';
+  private readonly memoryCache = new Map<string, { expiresAt: number; data: any }>();
 
   isEnabled() {
     return String(process.env.FLASHSCORE_ENABLED || 'false').toLowerCase() === 'true';
@@ -19,12 +20,16 @@ export class FlashScoreService {
     return !!this.getKey();
   }
 
+  getBaseUrl() {
+    return this.baseURL;
+  }
+
   private getKey() {
-    return process.env.FLASHSCORE_KEY || process.env.RAPIDAPI_KEY || '';
+    return process.env.FLASHSCORE_KEY || process.env.FLASHSCORE_API_KEY || process.env.RAPIDAPI_KEY || '';
   }
 
   private getHost() {
-    return process.env.FLASHSCORE_HOST || 'flashscore4.p.rapidapi.com';
+    return process.env.FLASHSCORE_HOST || process.env.FLASHSCORE_API_HOST || 'flashscore4.p.rapidapi.com';
   }
 
   private getTimezone() {
@@ -48,6 +53,47 @@ export class FlashScoreService {
     return 1600000000 + (hash % 400000000);
   }
 
+  private cacheSecondsForPath(path: string) {
+    if (String(process.env.FLASHSCORE_DISABLE_CACHE || 'false').toLowerCase() === 'true') return 0;
+
+    if (path.includes('/matches/live')) {
+      return Number(process.env.FLASHSCORE_LIVE_CACHE_SECONDS || 120);
+    }
+
+    if (path.includes('/matches/list-by-date')) {
+      return Number(process.env.FLASHSCORE_FIXTURES_CACHE_SECONDS || 1800);
+    }
+
+    if (path.includes('/matches/match/stats')) {
+      return Number(process.env.FLASHSCORE_STATS_CACHE_SECONDS || 90);
+    }
+
+    if (path.includes('/matches/match/lineups')) {
+      return Number(process.env.FLASHSCORE_LINEUPS_CACHE_SECONDS || 1800);
+    }
+
+    if (path.includes('/matches/h2h')) {
+      return Number(process.env.FLASHSCORE_H2H_CACHE_SECONDS || 21600);
+    }
+
+    if (path.includes('/matches/odds')) {
+      return Number(process.env.FLASHSCORE_ODDS_CACHE_SECONDS || 300);
+    }
+
+    return Number(process.env.FLASHSCORE_DEFAULT_CACHE_SECONDS || 300);
+  }
+
+  private cacheKey(path: string, params: Record<string, any>) {
+    const sortedParams = Object.keys(params || {})
+      .sort()
+      .reduce((acc: Record<string, any>, key) => {
+        acc[key] = params[key];
+        return acc;
+      }, {});
+
+    return `${path}:${JSON.stringify(sortedParams)}`;
+  }
+
   private async request<T = any>(path: string, params: Record<string, any> = {}): Promise<ProviderResult<T | null>> {
     if (!this.isEnabled()) {
       return { ok: false, data: null, error: 'FlashScore desativada. Defina FLASHSCORE_ENABLED=true' };
@@ -56,6 +102,16 @@ export class FlashScoreService {
     const key = this.getKey();
     if (!key) {
       return { ok: false, data: null, error: 'FLASHSCORE_KEY não encontrada' };
+    }
+
+    const ttlSeconds = this.cacheSecondsForPath(path);
+    const cacheKey = this.cacheKey(path, params);
+
+    if (ttlSeconds > 0) {
+      const cached = this.memoryCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return { ok: true, data: cached.data, error: null };
+      }
     }
 
     try {
@@ -68,6 +124,13 @@ export class FlashScoreService {
         },
         params,
       });
+
+      if (ttlSeconds > 0) {
+        this.memoryCache.set(cacheKey, {
+          expiresAt: Date.now() + ttlSeconds * 1000,
+          data: response.data,
+        });
+      }
 
       return { ok: true, data: response.data, error: null };
     } catch (error: any) {
