@@ -5,7 +5,6 @@ import { AllScoresService } from './allscores.service';
 import { FlashScoreService } from './flashscore.service';
 import { SportScoreService } from './sportscore.service';
 import { SportScore6Service } from './sportscore6.service';
-import { FotmobService } from './fotmob.service';
 import {
   getOddixFixtureDate,
   getOddixFixtureQualityLabel,
