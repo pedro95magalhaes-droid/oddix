@@ -15,6 +15,7 @@ import { MarketingModule } from "../marketing/marketing.module";
 import { OddsModule } from "../odds/odds.module";
 import { VoiceModule } from "../voice/voice.module";
 import { OddixFlowManagerService } from './oddix-flow-manager.service';
+import { OddixHypeService } from './oddix-hype.service';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { OddixFlowManagerService } from './oddix-flow-manager.service';
     OddixImageService,
     OddixHumanMessageService,
 	OddixFlowManagerService,
+	OddixHypeService,
   ],
   exports: [
     TelegramService,
