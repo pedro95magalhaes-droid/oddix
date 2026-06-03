@@ -118,35 +118,60 @@ export class AiService {
 
     const playerPropMarkets = playerProps
       .filter((prop: any) => {
-        const key = String(prop.marketKey || "");
-        if (key === "player_goal_scorer_anytime" && process.env.ODDIX_ALLOW_ANYTIME_SCORER !== "true") return false;
-        return ["player_shots_on_target", "player_shots", "player_assists", "player_goal_scorer_anytime"].includes(key);
+        const key = String(prop.marketKey || '');
+        if (key === 'player_goal_scorer_anytime' && process.env.ODDIX_ALLOW_ANYTIME_SCORER !== 'true') return false;
+        return ['player_shots_on_target', 'player_shots', 'player_assists', 'player_goal_scorer_anytime'].includes(key);
       })
-      .filter((prop: any) => Number(prop.odd || 0) >= 1.25 && Number(prop.odd || 0) <= 2.35)
-      .map((prop: any, index: number) => ({
-      key: prop.marketKey,
-      category: 'Player Props',
-      market: prop.marketName,
-      tip: prop.tip,
-      odd: prop.odd,
-      confidence:
-        prop.marketKey === 'player_shots_on_target'
-          ? Math.max(76, 86 - index)
-          : prop.marketKey === 'player_shots'
-          ? Math.max(74, 83 - index)
-          : Math.max(68, 74 - index),
-      risk: (
-        prop.marketKey === 'player_goal_scorer_anytime'
+      .filter((prop: any) => Number(prop.odd || 0) >= 1.18)
+      .filter((prop: any) => Number(prop.odd || 0) <= Number(process.env.ODDIX_PLAYER_PROP_MAX_ODD || 3.0))
+      .map((prop: any, index: number) => {
+        const key = String(prop.marketKey || '');
+        const isSot = key === 'player_shots_on_target';
+        const isShots = key === 'player_shots';
+        const isAssist = key === 'player_assists';
+        const isScorer = key === 'player_goal_scorer_anytime';
+        const odd = Number(prop.odd || 0);
+
+        let confidence = isSot
+          ? 88 - index
+          : isShots
+          ? 85 - index
+          : isAssist
+          ? 76 - index
+          : 72 - index;
+
+        if (context.isLive && context.elapsed > 0 && context.elapsed <= 70) confidence += 2;
+        if (context.shotTrend >= 70 && (isSot || isShots)) confidence += 3;
+        if (odd >= 2.4) confidence -= 4;
+        if (odd >= 2.8) confidence -= 5;
+        if (isScorer) confidence -= 8;
+
+        confidence = Math.max(isSot ? 76 : isShots ? 74 : 68, Math.min(91, Math.round(confidence)));
+
+        const risk = (isScorer || odd >= 2.65
           ? 'Alto'
-          : index <= 2
+          : confidence >= 82 && odd <= 2.15
           ? 'Baixo'
-          : 'Médio'
-      ) as RiskLevel,
-      bookmaker: prop.bookmaker,
-      oddsSource: 'the-odds-api',
-      isRealOdd: true,
-      reason: `Mercado real encontrado na The Odds API via ${prop.bookmaker}. Entrada baseada em linha disponível de player props, sem inventar jogador ou odd.`,
-    }));
+          : 'Médio') as RiskLevel;
+
+        return {
+          key,
+          category: 'Player Props',
+          market: prop.marketName || 'Player Props',
+          player: prop.player || prop.playerName || null,
+          playerPhoto: prop.playerPhoto || prop.photo || null,
+          tip: prop.tip,
+          odd,
+          confidence,
+          risk,
+          bookmaker: prop.bookmaker,
+          oddsSource: prop.source || 'the-odds-api',
+          isRealOdd: true,
+          point: prop.point ?? null,
+          eventId: prop.eventId ?? null,
+          reason: `Mercado real de Player Props encontrado via ${prop.bookmaker}. A Oddix priorizou linha de jogador com odd real, sem inventar atleta, linha ou cotação.`,
+        };
+      });
 
     const mergedMarkets = [...playerPropMarkets, ...bestMarkets]
       .filter((market) => market.risk !== 'Alto')
@@ -218,7 +243,7 @@ export class AiService {
 
       playerProps: playerPropMarkets
         .filter((market: any) => market.isRealOdd)
-        .slice(0, 8)
+        .slice(0, Number(process.env.ODDIX_PLAYER_PROPS_RESPONSE_LIMIT || 12))
         .map((market: any) => ({
           ...market,
           tip: this.sanitizeTip(market.tip, homeTeam, awayTeam, context),
@@ -489,8 +514,9 @@ export class AiService {
 
     let bonus = 0;
 
-    if (key === 'player_shots_on_target') bonus += 36;
-    if (key === 'player_shots') bonus += 30;
+    if (key === 'player_shots_on_target') bonus += 42;
+    if (key === 'player_shots') bonus += 34;
+    if (key === 'player_assists') bonus += 18;
     if (key === 'escanteios') bonus += 24;
     if (key === 'chutes_no_gol') bonus += 22;
     if (key === 'chutes') bonus += 20;

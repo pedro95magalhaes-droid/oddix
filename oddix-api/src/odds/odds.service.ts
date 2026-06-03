@@ -487,6 +487,7 @@ export class OddsService {
       team_total: 'Total do time',
       player_shots_on_target: 'Jogador chutes no gol',
       player_shots: 'Jogador chutes totais',
+      player_assists: 'Jogador assistência',
       player_goal_scorer_anytime: 'Jogador marca gol',
     };
 
@@ -821,14 +822,169 @@ export class OddsService {
     return this.getTheOddsGameOdds(params);
   }
 
-  async getPlayerProps(_params: {
+  private playerPropMarketsForTheOddsApi() {
+    const raw =
+      process.env.THE_ODDS_API_PLAYER_MARKETS ||
+      'player_shots_on_target,player_shots,player_assists,player_goal_scorer_anytime';
+
+    return raw
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  private normalizePlayerPropMarketKey(key: string) {
+    const normalized = this.normalize(key).replace(/\s+/g, '_');
+
+    if (normalized.includes('shots_on_target') || normalized.includes('sot')) {
+      return 'player_shots_on_target';
+    }
+
+    if (normalized.includes('shots') || normalized.includes('finaliz')) {
+      return 'player_shots';
+    }
+
+    if (normalized.includes('assist')) {
+      return 'player_assists';
+    }
+
+    if (
+      normalized.includes('goal_scorer_anytime') ||
+      normalized.includes('anytime_goalscorer') ||
+      normalized.includes('anytime_goal_scorer')
+    ) {
+      return 'player_goal_scorer_anytime';
+    }
+
+    return key;
+  }
+
+  private getPlayerFromOutcome(outcome: any) {
+    return String(
+      outcome?.description ||
+        outcome?.participant ||
+        outcome?.player ||
+        outcome?.name ||
+        '',
+    ).trim();
+  }
+
+  private buildPlayerPropTip(params: {
+    marketKey: string;
+    outcome: any;
+  }) {
+    const { marketKey, outcome } = params;
+    const player = this.getPlayerFromOutcome(outcome);
+    const point = outcome?.point ?? this.parseLineNumber(String(outcome?.name || ''));
+    const normalizedName = this.normalize(outcome?.name);
+    const side = normalizedName.includes('under') || normalizedName.includes('menos') ? 'Under' : 'Over';
+
+    if (marketKey === 'player_shots_on_target') {
+      return `${player} ${side} ${point ?? 0.5} chute no gol`.trim();
+    }
+
+    if (marketKey === 'player_shots') {
+      return `${player} ${side} ${point ?? 1.5} finalizações`.trim();
+    }
+
+    if (marketKey === 'player_assists') {
+      return `${player} assistência`.trim();
+    }
+
+    if (marketKey === 'player_goal_scorer_anytime') {
+      return `${player} marca a qualquer momento`.trim();
+    }
+
+    return `${player} ${outcome?.name || ''}`.trim();
+  }
+
+  private isUsefulPlayerProp(marketKey: string, outcome: any, odd: number) {
+    if (!odd || odd < 1.18 || odd > Number(process.env.ODDIX_PLAYER_PROP_MAX_ODD || 3.0)) return false;
+
+    const player = this.getPlayerFromOutcome(outcome);
+    if (!player || player.length < 3) return false;
+
+    if (marketKey === 'player_goal_scorer_anytime') {
+      return process.env.ODDIX_ALLOW_ANYTIME_SCORER === 'true';
+    }
+
+    return ['player_shots_on_target', 'player_shots', 'player_assists'].includes(marketKey);
+  }
+
+  async getTheOddsPlayerProps(params: {
     homeTeam: string;
     awayTeam: string;
     league: string;
   }): Promise<OddsPick[]> {
-    // A Sports Betting API testada trouxe grupo de Players' stats, mas não trouxe odds de player props
-    // no formato confiável para o Oddix. Mantemos vazio para não inventar jogador/linha.
-    return [];
+    if (!this.theOddsEnabled()) return [];
+
+    const found = await this.findTheOddsSoccerEvent(params);
+    if (!found?.sportKey || !found?.event?.id) return [];
+
+    const url = new URL(`${this.theOddsBaseUrl}/sports/${found.sportKey}/events/${found.event.id}/odds`);
+    url.searchParams.set('apiKey', this.theOddsApiKey());
+    url.searchParams.set('regions', this.region());
+    url.searchParams.set('markets', this.playerPropMarketsForTheOddsApi().join(','));
+    url.searchParams.set('oddsFormat', this.oddsFormat());
+
+    if (process.env.THE_ODDS_API_BOOKMAKERS) {
+      url.searchParams.set('bookmakers', process.env.THE_ODDS_API_BOOKMAKERS);
+    }
+
+    const data = await this.fetchTheOddsJson(url.toString());
+    const picks: OddsPick[] = [];
+
+    for (const bookmaker of data?.bookmakers || []) {
+      for (const market of bookmaker?.markets || []) {
+        const marketKey = this.normalizePlayerPropMarketKey(String(market?.key || ''));
+        const marketName = this.marketName(marketKey);
+
+        for (const outcome of market?.outcomes || []) {
+          const odd = this.safeOdd(outcome?.price);
+          if (!this.isUsefulPlayerProp(marketKey, outcome, odd)) continue;
+
+          const player = this.getPlayerFromOutcome(outcome);
+
+          picks.push({
+            marketKey,
+            marketName,
+            player,
+            tip: this.buildPlayerPropTip({ marketKey, outcome }),
+            odd,
+            bookmaker: bookmaker.title || bookmaker.key || 'The Odds API',
+            source: 'the-odds-api',
+            outcomeName: outcome?.name,
+            point: outcome?.point ?? null,
+            eventId: found.event.id,
+            leagueName: params.league,
+          });
+        }
+      }
+    }
+
+    return picks
+      .sort((a, b) => {
+        const priority: Record<string, number> = {
+          player_shots_on_target: 60,
+          player_shots: 52,
+          player_assists: 34,
+          player_goal_scorer_anytime: 12,
+        };
+
+        return (priority[b.marketKey] || 0) + b.odd - ((priority[a.marketKey] || 0) + a.odd);
+      })
+      .slice(0, Number(process.env.ODDIX_PLAYER_PROPS_LIMIT || 20));
+  }
+
+  async getPlayerProps(params: {
+    homeTeam: string;
+    awayTeam: string;
+    league: string;
+  }): Promise<OddsPick[]> {
+    // Não inventa jogador. Só retorna Player Props quando a casa/API trouxer mercado real.
+    if (process.env.ODDIX_PLAYER_PROPS_ENABLED === 'false') return [];
+
+    return this.getTheOddsPlayerProps(params);
   }
 
   async getBestOdds(params: {
