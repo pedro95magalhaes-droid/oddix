@@ -193,6 +193,41 @@ export class WhatsappWebService implements OnModuleInit {
     }
   }
 
+
+
+  async sendAudioFile(params: {
+    filePath: string;
+    target?: 'vip' | 'free';
+    ptt?: boolean;
+  }) {
+    if (!(await this.ensureConnected())) {
+      return { ok: false, skipped: true, reason: 'WhatsApp Web não conectado' };
+    }
+
+    const jid = this.getTarget(params.target || 'vip');
+
+    if (!jid) {
+      return { ok: false, skipped: true, reason: 'Grupo não configurado' };
+    }
+
+    if (!fs.existsSync(params.filePath)) {
+      return { ok: false, skipped: true, reason: 'Arquivo de áudio não encontrado' };
+    }
+
+    try {
+      await this.sock!.sendMessage(jid, {
+        audio: fs.readFileSync(params.filePath),
+        mimetype: 'audio/mpeg',
+        ptt: params.ptt ?? true,
+      });
+
+      return { ok: true, target: params.target || 'vip', jid };
+    } catch (error: any) {
+      this.logger.warn(`Erro ao enviar áudio WhatsApp Web: ${error?.message}`);
+      return { ok: false, error: error?.message };
+    }
+  }
+
   async listGroups() {
     if (!(await this.ensureConnected())) return [];
 

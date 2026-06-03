@@ -100,3 +100,9 @@ model CachedFixture {
   @@index([provider])
   @@index([statusShort])
 }
+model AudioHistory {
+  id        String   @id @default(uuid())
+  audioKey  String
+  category  String
+  createdAt DateTime @default(now())
+}

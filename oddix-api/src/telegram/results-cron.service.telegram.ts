@@ -9,6 +9,7 @@ import { FootballService } from '../football/football.service';
 import { AiService } from '../ai/ai.service';
 import { OddixImageService } from './oddix-image.service';
 import { OddixHumanMessageService } from './oddix-human-message.service';
+import { OddixVoiceService } from '../voice/oddix-voice.service';
 
 type BetResult = 'won' | 'lost' | 'open';
 type ResultReason = 'green_live' | 'green_final' | 'red_final' | 'not_finished' | 'unknown_market' | 'missing_real_stats';
@@ -44,6 +45,7 @@ export class ResultsCronService {
     private readonly aiService: AiService,
     private readonly oddixImageService: OddixImageService,
     private readonly oddixHumanMessageService: OddixHumanMessageService,
+    private readonly oddixVoiceService: OddixVoiceService,
   ) {}
 
   private vipLink() {
@@ -630,6 +632,23 @@ export class ResultsCronService {
           `Resultado: ${resolved.result === 'won' ? 'GREEN ✅' : 'RED ❌'}`,
           `Fonte: ${stats?.source || fixture?.provider || bet.provider || 'provider'}`,
         ].join('\n');
+
+        const audioCategory = resolved.result === 'won' ? 'GREEN' : 'RED';
+        const audio = await this.oddixVoiceService.createAudioFile({
+          category: audioCategory,
+          homeTeam: bet.homeTeam,
+          awayTeam: bet.awayTeam,
+          market: bet.tip,
+          odd: bet.odd,
+        });
+
+        if (audio.filePath) {
+          await this.whatsappWebService.sendAudioFile({
+            filePath: audio.filePath,
+            target: 'vip',
+            ptt: true,
+          });
+        }
 
         await this.whatsappWebService.sendText(message, 'vip');
         this.logger.log(`${resultEmoji} Resultado atualizado: ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip} => ${resolved.result}`);
