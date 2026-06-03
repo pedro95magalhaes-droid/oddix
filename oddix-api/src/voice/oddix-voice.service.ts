@@ -44,18 +44,14 @@ export class OddixVoiceService {
   }
 
   private ttsUrl() {
-    const raw = process.env.ODDIX_TTS_URL || 'http://localhost:5050/v1/audio/speech';
-    const clean = raw.replace(/\/$/, '');
-
-    if (clean.endsWith('/v1/audio/speech') || clean.endsWith('/audio/speech')) {
-      return clean;
-    }
-
-    return `${clean}/v1/audio/speech`;
+    const raw = String(process.env.ODDIX_TTS_URL || 'http://localhost:5050/v1/audio/speech').trim();
+    if (!raw) return 'http://localhost:5050/v1/audio/speech';
+    if (raw.endsWith('/v1/audio/speech')) return raw;
+    return `${raw.replace(/\/+$/, '')}/v1/audio/speech`;
   }
 
   private ttsApiKey() {
-    return process.env.ODDIX_TTS_API_KEY || process.env.ODDIX_VOICE_API_KEY || 'oddix_voice_key';
+    return process.env.ODDIX_TTS_API_KEY || process.env.ODDIX_VOICE_API_KEY || 'oddix';
   }
 
   private voice() {
@@ -83,7 +79,7 @@ export class OddixVoiceService {
         },
         {
           responseType: 'arraybuffer',
-          timeout: 90000,
+          timeout: 90_000,
           headers: {
             Authorization: `Bearer ${this.ttsApiKey()}`,
             'Content-Type': 'application/json',

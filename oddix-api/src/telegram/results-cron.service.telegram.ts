@@ -657,4 +657,26 @@ export class ResultsCronService {
       this.logger.error(`Erro ao checar resultados: ${error?.message || error}`);
     }
   }
+
+  async syncResults(source = 'manual') {
+    await this.checkOpenBetsResults();
+
+    return {
+      ok: true,
+      message: 'Sincronização de resultados executada',
+      source,
+    };
+  }
+
+  async debugFixturesByDate(date?: string) {
+    const fixtures = await this.footballService.getFixtures(date);
+
+    return {
+      ok: true,
+      date: date || this.formatDateKeyInFortaleza(new Date()),
+      total: fixtures?.length || 0,
+      fixtures,
+    };
+  }
+
 }

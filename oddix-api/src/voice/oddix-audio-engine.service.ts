@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export type OddixAudioCategory =
   | 'PRE_GAME'
@@ -36,28 +37,23 @@ export type OddixAudioTemplate = {
   text: string;
 };
 
+type AudioHistoryRow = {
+  audioKey: string;
+  category: string;
+  createdAt: string;
+};
+
 @Injectable()
 export class OddixAudioEngineService {
-  constructor(private readonly prisma: PrismaService) {}
-
   async pick(input: OddixAudioInput): Promise<OddixAudioTemplate> {
     const all = this.buildTemplates().filter((item) => item.category === input.category);
-    const recent = await this.recentKeys();
+    const recent = this.recentKeys();
 
     let available = all.filter((item) => !recent.includes(item.key));
+    if (!available.length) available = all;
 
-    if (!available.length) {
-      available = all;
-    }
-
-    const selected = available[Math.floor(Math.random() * available.length)];
-
-    await this.prisma.audioHistory.create({
-      data: {
-        audioKey: selected.key,
-        category: selected.category,
-      } as any,
-    });
+    const selected = available[Math.floor(Math.random() * available.length)] || all[0];
+    this.saveHistory(selected.key, selected.category);
 
     return {
       ...selected,
@@ -65,21 +61,38 @@ export class OddixAudioEngineService {
     };
   }
 
-  private async recentKeys() {
-    const since = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  private historyFile() {
+    const dir = path.join(process.cwd(), 'tmp', 'oddix-voice');
+    fs.mkdirSync(dir, { recursive: true });
+    return path.join(dir, 'audio-history.json');
+  }
 
-    const rows = await this.prisma.audioHistory.findMany({
-      where: {
-        createdAt: {
-          gte: since,
-        },
-      },
-      select: {
-        audioKey: true,
-      },
-    } as any);
+  private readHistory(): AudioHistoryRow[] {
+    try {
+      const file = this.historyFile();
+      if (!fs.existsSync(file)) return [];
+      const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
 
-    return rows.map((row: any) => row.audioKey);
+  private recentKeys() {
+    const since = Date.now() - 48 * 60 * 60 * 1000;
+    return this.readHistory()
+      .filter((row) => new Date(row.createdAt).getTime() >= since)
+      .map((row) => row.audioKey);
+  }
+
+  private saveHistory(audioKey: string, category: string) {
+    const since = Date.now() - 72 * 60 * 60 * 1000;
+    const history = this.readHistory()
+      .filter((row) => new Date(row.createdAt).getTime() >= since)
+      .slice(-500);
+
+    history.push({ audioKey, category, createdAt: new Date().toISOString() });
+    fs.writeFileSync(this.historyFile(), JSON.stringify(history, null, 2));
   }
 
   private replaceVars(text: string, input: OddixAudioInput) {
@@ -114,7 +127,6 @@ export class OddixAudioEngineService {
     ];
 
     const templates: OddixAudioTemplate[] = [];
-
     for (const category of categories) {
       for (const personality of personalities) {
         for (let variation = 1; variation <= 5; variation++) {
@@ -131,11 +143,7 @@ export class OddixAudioEngineService {
     return templates;
   }
 
-  private templateText(
-    category: OddixAudioCategory,
-    personality: OddixAudioPersonality,
-    variation: number,
-  ) {
+  private templateText(category: OddixAudioCategory, personality: OddixAudioPersonality, variation: number) {
     const intro = this.intro(personality);
 
     const map: Record<OddixAudioCategory, string[]> = {
