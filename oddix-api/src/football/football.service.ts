@@ -668,7 +668,7 @@ export class FootballService {
     }
 
     const todayKey = this.brazilDateKey();
-    const maxFutureDays = Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 2);
+    const maxFutureDays = Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 1);
     const rangeEnd =
       safeDate === todayKey
         ? new Date(end.getTime() + Math.max(0, maxFutureDays) * 24 * 60 * 60 * 1000)
@@ -1378,22 +1378,24 @@ export class FootballService {
     date = this.normalizeDateKey(date);
 
     /**
-     * O Dashboard/Pré-jogo precisa enxergar jogos futuros.
-     * Antes o Oddix buscava ontem/hoje/amanhã, mas depois filtrava tudo de volta
-     * para apenas a data base. Isso deixava poucos jogos na tela.
+     * O Dashboard/Pré-jogo agora deve puxar somente:
+     * - hoje
+     * - amanhã
      *
-     * Agora buscamos ontem + hoje + próximos N dias e deixamos
-     * isOddixDashboardFixtureAllowed controlar o intervalo final.
+     * Isso reduz consumo da FlashScore, evita poluição com jogos distantes
+     * e mantém o Oddix focado nos jogos com maior chance de conversão.
+     * Para mudar depois, ajuste ODDIX_DASHBOARD_DAYS_AHEAD.
+     * 1 = hoje + amanhã.
      */
-    const futureDays = Math.max(
+    const daysAhead = Math.max(
       1,
-      Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 2),
+      Math.min(1, Number(process.env.ODDIX_DASHBOARD_DAYS_AHEAD || 1)),
     );
 
     const searchDates = Array.from(
       new Set(
-        Array.from({ length: futureDays + 2 }, (_, index) =>
-          this.addDays(date, index - 1),
+        Array.from({ length: daysAhead + 1 }, (_, index) =>
+          this.addDays(date, index),
         ),
       ),
     );
@@ -1897,13 +1899,16 @@ export class FootballService {
 
   async getStatistics(fixtureId: string) {
     const cachedForStats: any = await this.getFixtureFromCacheById(fixtureId);
+    let flashScoreStatsError: any = null;
 
     if (cachedForStats?.provider === 'flashscore') {
-      const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
+      const flashScoreStats = await this.getStatisticsFromFlashScore(fixtureId);
 
-      if (flashScore.ok && flashScore.data) {
-        return flashScore.data;
+      if (flashScoreStats.ok && flashScoreStats.data) {
+        return flashScoreStats.data;
       }
+
+      flashScoreStatsError = flashScoreStats.error;
     }
 
     const sportScore6 = await this.getStatisticsFromSportScore6(fixtureId);
@@ -1927,11 +1932,13 @@ export class FootballService {
     }
 
     if (cachedForStats?.provider !== 'flashscore') {
-      const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
+      const flashScoreStats = await this.getStatisticsFromFlashScore(fixtureId);
 
-      if (flashScore.ok && flashScore.data) {
-        return flashScore.data;
+      if (flashScoreStats.ok && flashScoreStats.data) {
+        return flashScoreStats.data;
       }
+
+      flashScoreStatsError = flashScoreStats.error;
     }
 
     let apiFootball = { ok: false, data: null, error: 'API-Football poupada' } as any;
@@ -1950,7 +1957,7 @@ export class FootballService {
       ...fallback,
       simulated: true,
       source: 'oddix-fallback',
-      message: `Estatísticas reais indisponíveis. Usando estimativa temporária. Motivo: ${sportScore.error || flashScore.error || apiFootball.error || 'sem dados reais'}`,
+      message: `Estatísticas reais indisponíveis. Usando estimativa temporária. Motivo: ${sportScore.error || flashScoreStatsError || apiFootball.error || 'sem dados reais'}`,
     };
   }
 
@@ -2008,7 +2015,7 @@ export class FootballService {
       apiFootballBlockedUntil: this.apiFootballBlockedUntil?.toISOString() || null,
       liveCacheSeconds: this.liveCacheSeconds(),
       fixturesCacheMinutes: this.fixturesCacheMinutes(),
-      note: 'API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem: FotMob > SportScore6 > SportScore > FlashScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData.',
+      note: 'API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem: FlashScore > SportScore6 > FotMob > SportScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData. Janela do Dashboard: hoje + amanhã.',
 
       cache: {
         responseLength: cache.length,
