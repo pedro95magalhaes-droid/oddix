@@ -1,17 +1,17 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { Cron } from "@nestjs/schedule";
-import { ConfigService } from "@nestjs/config";
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
+import { ConfigService } from '@nestjs/config';
 
-import { PrismaService } from "../prisma/prisma.service";
-import { TelegramService } from "../telegram/telegram.service";
-import { WhatsappWebService } from "../whatsapp-web/whatsapp-web.service";
-import { FootballService } from "../football/football.service";
-import { AiService } from "../ai/ai.service";
-import { OddixImageService } from "./oddix-image.service";
-import { OddixHumanMessageService } from "./oddix-human-message.service";
+import { PrismaService } from '../prisma/prisma.service';
+import { TelegramService } from '../telegram/telegram.service';
+import { WhatsappWebService } from '../whatsapp-web/whatsapp-web.service';
+import { FootballService } from '../football/football.service';
+import { AiService } from '../ai/ai.service';
+import { OddixImageService } from './oddix-image.service';
+import { OddixHumanMessageService } from './oddix-human-message.service';
 
-type BetResult = "won" | "lost" | "open";
-type ResultReason = "green_live" | "green_final" | "red_final" | "not_finished" | "unknown_market";
+type BetResult = 'won' | 'lost' | 'open';
+type ResultReason = 'green_live' | 'green_final' | 'red_final' | 'not_finished' | 'unknown_market' | 'missing_real_stats';
 
 type ResolvedBetResult = {
   result: BetResult;
@@ -31,10 +31,9 @@ type StatTotals = {
 @Injectable()
 export class ResultsCronService {
   private readonly logger = new Logger(ResultsCronService.name);
-  private readonly timezone = "America/Fortaleza";
+  private readonly timezone = 'America/Fortaleza';
   private lastLiveTipSentAt = 0;
   private sendingLiveTip = false;
-  private readonly liveUpdateSent = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -48,7 +47,7 @@ export class ResultsCronService {
   ) {}
 
   private vipLink() {
-    return process.env.ODDIX_VIP_LINK || "";
+    return process.env.ODDIX_VIP_LINK || '';
   }
 
   private async sleepRandom(minMs: number, maxMs: number): Promise<void> {
@@ -57,11 +56,11 @@ export class ResultsCronService {
   }
 
   private formatDateKeyInFortaleza(date: Date) {
-    return new Intl.DateTimeFormat("en-CA", {
+    return new Intl.DateTimeFormat('en-CA', {
       timeZone: this.timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
     }).format(date);
   }
 
@@ -72,69 +71,22 @@ export class ResultsCronService {
     return { key, start, end };
   }
 
+  private normalize(text: any) {
+    return String(text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\b(fc|sc|ec|afc|cf|club|women|woman|w|u20|u21|u23|rs)\b/g, '')
+      .replace(/[^a-z0-9\s.+-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   private minutesUntilGame(dateValue: any) {
     if (!dateValue) return null;
     const date = new Date(dateValue);
     if (Number.isNaN(date.getTime())) return null;
     return Math.floor((date.getTime() - Date.now()) / 1000 / 60);
-  }
-
-  private minutesSinceGameStart(dateValue: any) {
-    if (!dateValue) return null;
-    const date = new Date(dateValue);
-    if (Number.isNaN(date.getTime())) return null;
-    return Math.floor((Date.now() - date.getTime()) / 1000 / 60);
-  }
-
-  private isFixtureSafeForLiveTip(game: any) {
-    const fixtureDate = game?.fixture?.date;
-    const statusShort = String(game?.fixture?.status?.short || "").toUpperCase();
-    const elapsed = Number(game?.fixture?.status?.elapsed || 0);
-    const minLiveMinute = Number(process.env.ODDIX_MIN_LIVE_MINUTE || 12);
-    const maxLiveMinute = Number(process.env.ODDIX_MAX_LIVE_MINUTE || 75);
-
-    if (!this.isTodayInFortaleza(fixtureDate)) {
-      return { ok: false, reason: "fora de hoje" };
-    }
-
-    const untilStart = this.minutesUntilGame(fixtureDate);
-    if (untilStart !== null && untilStart > 5) {
-      return { ok: false, reason: `jogo ainda não começou. faltam ${untilStart}min` };
-    }
-
-    const sinceStart = this.minutesSinceGameStart(fixtureDate);
-    if (sinceStart !== null && sinceStart < 0) {
-      return { ok: false, reason: "jogo futuro" };
-    }
-
-    if (!this.isFixtureActuallyLive(game)) {
-      return { ok: false, reason: `não está live. status=${statusShort}` };
-    }
-
-    if (elapsed < minLiveMinute) {
-      return { ok: false, reason: `muito cedo. minuto=${elapsed}` };
-    }
-
-    if (elapsed > maxLiveMinute) {
-      return { ok: false, reason: `muito tarde. minuto=${elapsed}` };
-    }
-
-    return { ok: true, reason: "ok" };
-  }
-
-  private shouldSendNewLiveTipNow() {
-    const cooldownMinutes = Number(process.env.ODDIX_MIN_MINUTES_BETWEEN_TIPS || 20);
-
-    if (this.sendingLiveTip) {
-      return { ok: false, reason: "fluxo anterior ainda enviando" };
-    }
-
-    if (this.lastLiveTipSentAt && Date.now() - this.lastLiveTipSentAt < cooldownMinutes * 60 * 1000) {
-      const remaining = Math.ceil((cooldownMinutes * 60 * 1000 - (Date.now() - this.lastLiveTipSentAt)) / 1000 / 60);
-      return { ok: false, reason: `cooldown ativo. faltam ${remaining}min` };
-    }
-
-    return { ok: true, reason: "ok" };
   }
 
   private isTodayInFortaleza(dateValue: any) {
@@ -144,32 +96,18 @@ export class ResultsCronService {
     return this.formatDateKeyInFortaleza(new Date()) === this.formatDateKeyInFortaleza(date);
   }
 
-  normalize(text: any) {
-    return String(text || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\b(fc|sc|ec|afc|cf|club|women|woman|w|u20|u21|u23|rs)\b/g, "")
-      .replace(/[^a-z0-9\s.+-]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
   private isFixtureActuallyLive(game: any) {
-    const short = String(game?.fixture?.status?.short || "").toUpperCase();
-    const long = String(game?.fixture?.status?.long || "").toLowerCase();
+    const short = String(game?.fixture?.status?.short || '').toUpperCase();
+    const long = String(game?.fixture?.status?.long || '').toLowerCase();
     const elapsed = Number(game?.fixture?.status?.elapsed || 0);
     const extra = Number(game?.fixture?.status?.extra || 0);
     const fixtureDate = game?.fixture?.date;
 
-    if (["FT", "AET", "PEN", "AWD", "WO", "CANC", "ABD", "PST"].includes(short)) return false;
-    if (long.includes("finished") || long.includes("final") || long.includes("postponed") || long.includes("cancel")) return false;
-
-    // Para NOVO PALPITE, não entra em jogo 85+ nem jogo com acréscimo.
+    if (['FT', 'AET', 'PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'].includes(short)) return false;
+    if (long.includes('finished') || long.includes('final') || long.includes('postponed') || long.includes('cancel')) return false;
     if (elapsed >= 85) return false;
     if (extra && elapsed >= 80) return false;
 
-    // Evita jogo travado no cache ou API desatualizada.
     if (fixtureDate) {
       const start = new Date(fixtureDate).getTime();
       if (!Number.isNaN(start)) {
@@ -178,35 +116,60 @@ export class ResultsCronService {
       }
     }
 
-    return ["1H", "HT", "2H", "LIVE", "IN_PLAY"].includes(short) || long.includes("live") || long.includes("in play");
+    return ['1H', 'HT', '2H', 'LIVE', 'IN_PLAY'].includes(short) || long.includes('live') || long.includes('in play');
   }
 
-  isFinished(statusShort: string, statusLong: string) {
-    const short = String(statusShort || "").toUpperCase();
+  private isFixtureSafeForLiveTip(game: any) {
+    const fixtureDate = game?.fixture?.date;
+    const elapsed = Number(game?.fixture?.status?.elapsed || 0);
+    const minLiveMinute = Number(process.env.ODDIX_MIN_LIVE_MINUTE || 12);
+    const maxLiveMinute = Number(process.env.ODDIX_MAX_LIVE_MINUTE || 75);
+
+    if (!this.isTodayInFortaleza(fixtureDate)) return { ok: false, reason: 'fora de hoje' };
+
+    const untilStart = this.minutesUntilGame(fixtureDate);
+    if (untilStart !== null && untilStart > 5) return { ok: false, reason: `jogo ainda não começou. faltam ${untilStart}min` };
+
+    if (!this.isFixtureActuallyLive(game)) return { ok: false, reason: 'não está live' };
+    if (elapsed < minLiveMinute) return { ok: false, reason: `muito cedo. minuto=${elapsed}` };
+    if (elapsed > maxLiveMinute) return { ok: false, reason: `muito tarde. minuto=${elapsed}` };
+
+    return { ok: true, reason: 'ok' };
+  }
+
+  private shouldSendNewLiveTipNow() {
+    const cooldownMinutes = Number(process.env.ODDIX_MIN_MINUTES_BETWEEN_TIPS || 20);
+
+    if (this.sendingLiveTip) return { ok: false, reason: 'fluxo anterior ainda enviando' };
+
+    if (this.lastLiveTipSentAt && Date.now() - this.lastLiveTipSentAt < cooldownMinutes * 60 * 1000) {
+      const remaining = Math.ceil((cooldownMinutes * 60 * 1000 - (Date.now() - this.lastLiveTipSentAt)) / 1000 / 60);
+      return { ok: false, reason: `cooldown ativo. faltam ${remaining}min` };
+    }
+
+    return { ok: true, reason: 'ok' };
+  }
+
+  private isFinished(statusShort: string, statusLong: string) {
+    const short = String(statusShort || '').toUpperCase();
     const long = this.normalize(statusLong);
-    return ["FT", "AET", "PEN", "AWD", "WO"].includes(short) || long.includes("match finished") || long.includes("finished");
-  }
-
-  private allowLiveGreen() {
-    return String(process.env.ODDIX_ALLOW_LIVE_GREEN || "false").toLowerCase() === "true";
-  }
-
-  private sameTipKey(value: any) {
-    return this.normalize(value)
-      .replace(/\b(ao vivo|pre jogo|pré jogo|entrada|palpite)\b/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
+    return ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(short) || long.includes('match finished') || long.includes('finished') || long.includes('final');
   }
 
   private isCanceled(statusShort: string, statusLong: string) {
-    const short = String(statusShort || "").toUpperCase();
+    const short = String(statusShort || '').toUpperCase();
     const long = this.normalize(statusLong);
-    return ["PST", "CANC", "ABD", "SUSP", "INT"].includes(short) || long.includes("postponed") || long.includes("cancel");
+    return ['PST', 'CANC', 'ABD', 'SUSP', 'INT'].includes(short) || long.includes('postponed') || long.includes('cancel');
+  }
+
+  private allowLiveGreen() {
+    return String(process.env.ODDIX_ALLOW_LIVE_GREEN || 'false').toLowerCase() === 'true';
   }
 
   private getGoals(fixture: any) {
-    const homeGoals = fixture.goals?.home ?? fixture.score?.fulltime?.home ?? fixture.score?.extratime?.home ?? 0;
-    const awayGoals = fixture.goals?.away ?? fixture.score?.fulltime?.away ?? fixture.score?.extratime?.away ?? 0;
+    const homeGoals = fixture?.goals?.home ?? fixture?.goals?.casa ?? fixture?.score?.fulltime?.home ?? fixture?.score?.fulltime?.casa ?? fixture?.score?.['tempo integral']?.home ?? fixture?.score?.['tempo integral']?.casa ?? 0;
+    const awayGoals = fixture?.goals?.away ?? fixture?.goals?.fora ?? fixture?.score?.fulltime?.away ?? fixture?.score?.fulltime?.fora ?? fixture?.score?.['tempo integral']?.away ?? fixture?.score?.['tempo integral']?.fora ?? 0;
+
     return {
       homeGoals: Number(homeGoals || 0),
       awayGoals: Number(awayGoals || 0),
@@ -215,8 +178,8 @@ export class ResultsCronService {
   }
 
   private numericStatValue(value: any): number {
-    if (typeof value === "number") return value;
-    const parsed = Number(String(value ?? "0").replace("%", "").replace(",", "."));
+    if (typeof value === 'number') return value;
+    const parsed = Number(String(value ?? '0').replace('%', '').replace(',', '.'));
     return Number.isNaN(parsed) ? 0 : parsed;
   }
 
@@ -229,11 +192,11 @@ export class ResultsCronService {
     const normalizedTypes = possibleTypes.map((type) => this.normalize(type));
 
     for (const team of teams) {
-      for (const stat of team?.statistics || []) {
-        const type = this.normalize(stat?.type);
+      for (const stat of team?.statistics || team?.stats || []) {
+        const type = this.normalize(stat?.type || stat?.name || stat?.label);
         if (normalizedTypes.some((expected) => type === expected || type.includes(expected))) {
           found = true;
-          total += this.numericStatValue(stat?.value);
+          total += this.numericStatValue(stat?.value ?? stat?.stat ?? stat?.val);
         }
       }
     }
@@ -242,40 +205,33 @@ export class ResultsCronService {
   }
 
   private extractStatTotals(stats: any): StatTotals {
+    if (!stats || stats.simulated === true || stats.available === false) {
+      return { corners: null, shotsOnGoal: null, totalShots: null, yellowCards: null };
+    }
+
     return {
-      corners: this.getStatTotal(stats, ["Corner Kicks", "Corners", "Escanteios"]),
-      shotsOnGoal: this.getStatTotal(stats, ["Shots on Goal", "Shots on Target", "Chutes no Gol"]),
-      totalShots: this.getStatTotal(stats, ["Total Shots", "Shots Total", "Chutes"]),
-      yellowCards: this.getStatTotal(stats, ["Yellow Cards", "Cartões Amarelos"]),
+      corners: this.getStatTotal(stats, ['Corner Kicks', 'Corners', 'Escanteios']),
+      shotsOnGoal: this.getStatTotal(stats, ['Shots on Goal', 'Shots on Target', 'Chutes no Gol']),
+      totalShots: this.getStatTotal(stats, ['Total Shots', 'Shots Total', 'Chutes']),
+      yellowCards: this.getStatTotal(stats, ['Yellow Cards', 'Cartões Amarelos']),
     };
   }
 
   private parseLine(text: string) {
     const match = text.match(/(?:over|under|mais de|menos de)\s*(\d+(?:[.,]\d+)?)/i);
     if (!match) return null;
-    return Number(match[1].replace(",", "."));
+    return Number(match[1].replace(',', '.'));
   }
 
   private getMarketMetric(tipRaw: any, totalGoals: number, statTotals: StatTotals) {
     const tip = this.normalize(tipRaw);
 
-    if (tip.includes("escanteio") || tip.includes("corner")) {
-      return { metricName: "Escanteios", metricValue: statTotals.corners };
-    }
+    if (tip.includes('escanteio') || tip.includes('corner')) return { metricName: 'Escanteios', metricValue: statTotals.corners };
+    if (tip.includes('chute no gol') || tip.includes('shots on goal') || tip.includes('shots on target') || tip.includes('sot')) return { metricName: 'Chutes no gol', metricValue: statTotals.shotsOnGoal };
+    if (tip.includes('chute') || tip.includes('total shots') || tip.includes('finalizacao')) return { metricName: 'Chutes', metricValue: statTotals.totalShots };
+    if (tip.includes('cartao') || tip.includes('yellow')) return { metricName: 'Cartões', metricValue: statTotals.yellowCards };
 
-    if (tip.includes("chute no gol") || tip.includes("shots on goal") || tip.includes("shots on target") || tip.includes("sot")) {
-      return { metricName: "Chutes no gol", metricValue: statTotals.shotsOnGoal };
-    }
-
-    if (tip.includes("chute") || tip.includes("total shots") || tip.includes("finalizacao")) {
-      return { metricName: "Chutes", metricValue: statTotals.totalShots };
-    }
-
-    if (tip.includes("cartao") || tip.includes("yellow")) {
-      return { metricName: "Cartões", metricValue: statTotals.yellowCards };
-    }
-
-    return { metricName: "Gols", metricValue: totalGoals };
+    return { metricName: 'Gols', metricValue: totalGoals };
   }
 
   private resolveResult(params: {
@@ -293,11 +249,7 @@ export class ResultsCronService {
     const awayTeam = this.normalize(params.awayTeam);
     const { homeGoals, awayGoals, totalGoals, finished, statTotals } = params;
 
-    const homeWon = homeGoals > awayGoals;
-    const awayWon = awayGoals > homeGoals;
-    const draw = homeGoals === awayGoals;
-
-    if (!tip) return { result: "open", reason: "unknown_market" };
+    if (!tip) return { result: 'open', reason: 'unknown_market' };
 
     const isOver = /\b(over|mais de)\b/.test(tip);
     const isUnder = /\b(under|menos de)\b/.test(tip);
@@ -308,153 +260,159 @@ export class ResultsCronService {
       const value = metric.metricValue;
 
       if (value === null || value === undefined) {
+        // Correção principal: escanteio/chute/player props sem stats reais NUNCA vira RED.
+        if (metric.metricName !== 'Gols') {
+          return {
+            result: 'open',
+            reason: 'missing_real_stats',
+            metricName: metric.metricName,
+            metricValue: undefined,
+            line,
+          };
+        }
+
         return finished
-      ? { result: "open", reason: "unknown_market", metricName: metric.metricName, metricValue: undefined, line }
-    : { result: "open", reason: "not_finished", metricName: metric.metricName, metricValue: undefined, line };
+          ? { result: 'open', reason: 'unknown_market', metricName: metric.metricName, metricValue: undefined, line }
+          : { result: 'open', reason: 'not_finished', metricName: metric.metricName, metricValue: undefined, line };
       }
 
       if (isOver && value > line) {
         if (!finished && !this.allowLiveGreen()) {
-          return { result: "open", reason: "not_finished", metricName: metric.metricName, metricValue: value, line };
+          return { result: 'open', reason: 'not_finished', metricName: metric.metricName, metricValue: value, line };
         }
-
-        return { result: "won", reason: finished ? "green_final" : "green_live", metricName: metric.metricName, metricValue: value, line };
+        return { result: 'won', reason: finished ? 'green_final' : 'green_live', metricName: metric.metricName, metricValue: value, line };
       }
 
       if (isUnder && finished && value < line) {
-        return { result: "won", reason: "green_final", metricName: metric.metricName, metricValue: value, line };
+        return { result: 'won', reason: 'green_final', metricName: metric.metricName, metricValue: value, line };
       }
 
-      if (finished) {
-        return { result: "lost", reason: "red_final", metricName: metric.metricName, metricValue: value, line };
-      }
-
-      return { result: "open", reason: "not_finished", metricName: metric.metricName, metricValue: value, line };
+      if (finished) return { result: 'lost', reason: 'red_final', metricName: metric.metricName, metricValue: value, line };
+      return { result: 'open', reason: 'not_finished', metricName: metric.metricName, metricValue: value, line };
     }
 
-    if (tip.includes("ambas equipes marcam sim") || tip.includes("ambas marcam sim") || tip.includes("btts sim")) {
+    if (tip.includes('ambas equipes marcam sim') || tip.includes('ambas marcam sim') || tip.includes('btts sim')) {
       if (homeGoals > 0 && awayGoals > 0) {
-        if (!finished && !this.allowLiveGreen()) {
-          return { result: "open", reason: "not_finished", metricName: "Placar", metricValue: totalGoals };
-        }
-
-        return { result: "won", reason: finished ? "green_final" : "green_live", metricName: "Placar", metricValue: totalGoals };
+        if (!finished && !this.allowLiveGreen()) return { result: 'open', reason: 'not_finished', metricName: 'Placar', metricValue: totalGoals };
+        return { result: 'won', reason: finished ? 'green_final' : 'green_live', metricName: 'Placar', metricValue: totalGoals };
       }
-      return finished ? { result: "lost", reason: "red_final", metricName: "Placar", metricValue: totalGoals } : { result: "open", reason: "not_finished", metricName: "Placar", metricValue: totalGoals };
+      return finished ? { result: 'lost', reason: 'red_final', metricName: 'Placar', metricValue: totalGoals } : { result: 'open', reason: 'not_finished', metricName: 'Placar', metricValue: totalGoals };
     }
 
-    if (tip.includes("ambas equipes marcam nao") || tip.includes("ambas marcam nao") || tip.includes("btts nao")) {
-      if (!finished) return { result: "open", reason: "not_finished", metricName: "Placar", metricValue: totalGoals };
+    if (tip.includes('ambas equipes marcam nao') || tip.includes('ambas marcam nao') || tip.includes('btts nao')) {
+      if (!finished) return { result: 'open', reason: 'not_finished', metricName: 'Placar', metricValue: totalGoals };
       return homeGoals === 0 || awayGoals === 0
-        ? { result: "won", reason: "green_final", metricName: "Placar", metricValue: totalGoals }
-        : { result: "lost", reason: "red_final", metricName: "Placar", metricValue: totalGoals };
+        ? { result: 'won', reason: 'green_final', metricName: 'Placar', metricValue: totalGoals }
+        : { result: 'lost', reason: 'red_final', metricName: 'Placar', metricValue: totalGoals };
     }
 
-    if (!finished) return { result: "open", reason: "not_finished" };
+    if (!finished) return { result: 'open', reason: 'not_finished' };
 
-    if (tip.includes("ou empate") || tip.includes("dupla chance")) {
-      if (tip.includes(homeTeam) || tip.includes("casa")) return { result: homeWon || draw ? "won" : "lost", reason: homeWon || draw ? "green_final" : "red_final" };
-      if (tip.includes(awayTeam) || tip.includes("fora")) return { result: awayWon || draw ? "won" : "lost", reason: awayWon || draw ? "green_final" : "red_final" };
+    const homeWon = homeGoals > awayGoals;
+    const awayWon = awayGoals > homeGoals;
+    const draw = homeGoals === awayGoals;
+
+    if (tip.includes('ou empate') || tip.includes('dupla chance')) {
+      if (tip.includes(homeTeam) || tip.includes('casa')) return { result: homeWon || draw ? 'won' : 'lost', reason: homeWon || draw ? 'green_final' : 'red_final' };
+      if (tip.includes(awayTeam) || tip.includes('fora')) return { result: awayWon || draw ? 'won' : 'lost', reason: awayWon || draw ? 'green_final' : 'red_final' };
     }
 
-    if (tip.includes("empate anula") || tip.includes("draw no bet") || tip.includes("dnb")) {
-      if (draw) return { result: "open", reason: "unknown_market" };
-      if (tip.includes(homeTeam) || tip.includes("casa")) return { result: homeWon ? "won" : "lost", reason: homeWon ? "green_final" : "red_final" };
-      if (tip.includes(awayTeam) || tip.includes("fora")) return { result: awayWon ? "won" : "lost", reason: awayWon ? "green_final" : "red_final" };
+    if (tip.includes('empate anula') || tip.includes('draw no bet') || tip.includes('dnb')) {
+      if (draw) return { result: 'open', reason: 'unknown_market' };
+      if (tip.includes(homeTeam) || tip.includes('casa')) return { result: homeWon ? 'won' : 'lost', reason: homeWon ? 'green_final' : 'red_final' };
+      if (tip.includes(awayTeam) || tip.includes('fora')) return { result: awayWon ? 'won' : 'lost', reason: awayWon ? 'green_final' : 'red_final' };
     }
 
-    if (tip.includes(`${homeTeam} para vencer`) || tip.includes(`${homeTeam} vence`)) {
-      return { result: homeWon ? "won" : "lost", reason: homeWon ? "green_final" : "red_final" };
-    }
-
-    if (tip.includes(`${awayTeam} para vencer`) || tip.includes(`${awayTeam} vence`)) {
-      return { result: awayWon ? "won" : "lost", reason: awayWon ? "green_final" : "red_final" };
-    }
-
-    return { result: "open", reason: "unknown_market" };
+    return { result: 'open', reason: 'unknown_market' };
   }
 
-  private isBlockedMarket(tipRaw: any) {
+  private isBlockedMarket(tipRaw: any, hasRealStats = false, isLive = false) {
     const tip = this.normalize(tipRaw);
     const line = this.parseLine(tip);
 
     if (!tip) return true;
-    if (tip.includes("escanteio") || tip.includes("corner")) return line !== null && line >= 8.5;
-    if (tip.includes("chute no gol") || tip.includes("shots on goal") || tip.includes("sot")) return line !== null && line >= 5.5;
-    if (tip.includes("handicap") && !tip.includes("+0.25") && !tip.includes("+0.5")) return true;
-    if (tip.includes("cartao vermelho")) return true;
+
+    // Correção principal: bloqueia escanteio/chute/player props sem estatística real.
+    if (tip.includes('escanteio') || tip.includes('corner')) return !isLive || !hasRealStats || (line !== null && line >= 8.5);
+    if (tip.includes('chute no gol') || tip.includes('shots on goal') || tip.includes('sot')) return !isLive || !hasRealStats || (line !== null && line >= 5.5);
+    if (tip.includes('player') || tip.includes('jogador')) return !hasRealStats;
+    if (tip.includes('handicap') && !tip.includes('+0.25') && !tip.includes('+0.5') && !tip.includes('+1.5')) return true;
+    if (tip.includes('cartao vermelho')) return true;
+
     return false;
   }
 
-  private isQualifiedBet(bet: any) {
+  private isQualifiedBet(bet: any, game?: any) {
     const odd = Number(bet?.odd || 0);
     const confidence = Number(bet?.confidence || 0);
-    const minOdd = Number(process.env.ODDIX_MIN_ODD || 1.4);
+    const minOdd = Number(process.env.ODDIX_MIN_ODD || 1.35);
     const maxOdd = Number(process.env.ODDIX_MAX_ODD || 2.0);
-    const minConfidence = Number(process.env.ODDIX_MIN_CONFIDENCE || 80);
+    const minConfidence = Number(process.env.ODDIX_MIN_CONFIDENCE || 75);
+    const stats = game?.statistics || game?.stats || {};
+    const statTotals = this.extractStatTotals(stats);
+    const hasRealStats = !!stats?.available && stats?.simulated !== true && Object.values(statTotals).some((v) => v !== null);
+    const isLive = this.isFixtureActuallyLive(game);
 
-    if (!bet?.tip) return { ok: false, reason: "sem tip" };
+    if (!bet?.tip) return { ok: false, reason: 'sem tip' };
     if (odd < minOdd) return { ok: false, reason: `odd baixa ${odd}` };
     if (odd > maxOdd) return { ok: false, reason: `odd acima do máximo ${odd}` };
     if (confidence < minConfidence) return { ok: false, reason: `confiança baixa ${confidence}` };
-    if (this.isBlockedMarket(bet.tip)) return { ok: false, reason: `mercado bloqueado: ${bet.tip}` };
+    if (this.isBlockedMarket(bet.tip, hasRealStats, isLive)) return { ok: false, reason: `mercado bloqueado sem stats reais: ${bet.tip}` };
 
-    return { ok: true, reason: "ok" };
+    return { ok: true, reason: 'ok' };
   }
 
   private async countTodayBets() {
     const { start, end } = this.todayRangeFortaleza();
-    return this.prisma.bet.count({
-      where: {
-        createdAt: { gte: start, lte: end },
-      },
-    });
+    return this.prisma.bet.count({ where: { createdAt: { gte: start, lte: end } } });
   }
 
   private createFreeCopyMessage() {
     return [
-      "👀 *ODDIX FREE*",
-      "",
-      "A IA encontrou um jogo interessante agora.",
-      "No FREE você recebe só a amostra, sem odd e sem análise completa.",
-      "",
-      "🔒 No VIP tem odd, card premium, análise, gestão e entradas primeiro.",
-      "👇 Aperte abaixo para virar VIP.",
-    ].join("\n");
+      '👀 *ODDIX FREE*',
+      '',
+      'A IA encontrou um jogo interessante agora.',
+      'No FREE você recebe só a amostra, sem odd e sem análise completa.',
+      '',
+      '🔒 No VIP tem odd, card premium, análise, gestão e entradas primeiro.',
+      '👇 Aperte abaixo para virar VIP.',
+    ].join('\n');
   }
 
   private createFreeTipMessage(bet: any) {
     return [
-      "🔥 *ODDIX FREE | AMOSTRA*",
-      "",
+      '🔥 *ODDIX FREE | AMOSTRA*',
+      '',
       `⚽ *${bet.homeTeam} x ${bet.awayTeam}*`,
-      bet.league ? `🏆 ${bet.league}` : "",
-      "",
+      bet.league ? `🏆 ${bet.league}` : '',
+      '',
       `✅ Entrada: *${bet.tip}*`,
-      "",
-      "🔒 Odd, confiança e análise completa saem apenas no VIP.",
-    ].filter(Boolean).join("\n");
+      '',
+      '🔒 Odd, confiança e análise completa saem apenas no VIP.',
+    ].filter(Boolean).join('\n');
   }
 
   private createVipTipMessage(bet: any) {
     return [
-      "🔥 *ODDIX VIP*",
-      "",
+      '🔥 *ODDIX VIP*',
+      '',
       `⚽ *${bet.homeTeam} x ${bet.awayTeam}*`,
-      bet.league ? `🏆 ${bet.league}` : "",
-      "",
+      bet.league ? `🏆 ${bet.league}` : '',
+      '',
       `✅ Entrada: *${bet.tip}*`,
       `📈 Odd: *${bet.odd}*`,
-      "",
-      "🤖 Entrada validada pela IA Oddix.",
-      "💵 Gestão: até 1 unidade.",
-    ].filter(Boolean).join("\n");
+      `🧠 Confiança: *${bet.confidence}%*`,
+      `⚠️ Risco: *${bet.risk || 'Médio'}*`,
+      '',
+      '🤖 Entrada validada pela IA Oddix.',
+      '💵 Gestão: até 1 unidade.',
+    ].filter(Boolean).join('\n');
   }
 
-  @Cron("*/15 * * * *")
+  @Cron('*/15 * * * *')
   async sendLiveTipsAutomatically() {
     try {
-      this.logger.log("🔥 ODDIX cron de palpites iniciado | filtros: confiança/odd/mercado/limite diário");
+      this.logger.log('🔥 ODDIX cron de palpites iniciado | modo stats reais');
 
       const canSend = this.shouldSendNewLiveTipNow();
       if (!canSend.ok) {
@@ -473,7 +431,7 @@ export class ResultsCronService {
 
       const liveGames = await this.footballService.getLiveFixtures();
       if (!liveGames?.length) {
-        this.logger.log("⚠️ Nenhum jogo ao vivo encontrado.");
+        this.logger.log('⚠️ Nenhum jogo ao vivo encontrado.');
         return;
       }
 
@@ -482,12 +440,10 @@ export class ResultsCronService {
 
       for (const game of liveGames) {
         if (sentCount >= maxTipsPerCron) break;
-        if ((todayCount + sentCount) >= dailyMax) break;
+        if (todayCount + sentCount >= dailyMax) break;
 
         const fixtureId = Number(game.fixture?.id || 0);
         const fixtureDate = game.fixture?.date;
-        const statusShort = String(game.fixture?.status?.short || "").toUpperCase();
-
         if (!fixtureId) continue;
 
         const liveSafety = this.isFixtureSafeForLiveTip(game);
@@ -496,18 +452,12 @@ export class ResultsCronService {
           continue;
         }
 
-        const alreadyExists = await this.prisma.bet.findFirst({
-          where: { fixtureId },
-          select: { id: true, status: true, homeTeam: true, awayTeam: true },
-        });
+        const alreadyExists = await this.prisma.bet.findFirst({ where: { fixtureId }, select: { id: true } });
+        if (alreadyExists) continue;
 
-        if (alreadyExists) {
-          this.logger.log(`⏭️ Já existe palpite para fixtureId=${fixtureId} | ${alreadyExists.homeTeam} x ${alreadyExists.awayTeam}`);
-          continue;
-        }
+        const homeName = String(game?.teams?.home?.name || game?.times?.home?.name || '');
+        const awayName = String(game?.teams?.away?.name || game?.times?.away?.name || '');
 
-        const homeName = String(game?.teams?.home?.name || "");
-        const awayName = String(game?.teams?.away?.name || "");
         const duplicateByTeams = await this.prisma.bet.findFirst({
           where: {
             homeTeam: homeName,
@@ -517,13 +467,12 @@ export class ResultsCronService {
           select: { id: true },
         });
 
-        if (duplicateByTeams) {
-          this.logger.log(`⏭️ Palpite repetido por times nas últimas 6h: ${homeName} x ${awayName}`);
-          continue;
-        }
+        if (duplicateByTeams) continue;
 
-        const bet = await this.aiService.generateBet(game);
-        const quality = this.isQualifiedBet(bet);
+        const stats = await this.footballService.getStatistics(String(fixtureId));
+        const enrichedGame = { ...game, statistics: stats };
+        const bet = await this.aiService.generateBet(enrichedGame);
+        const quality = this.isQualifiedBet(bet, enrichedGame);
 
         if (!quality.ok) {
           this.logger.log(`⏭️ Palpite recusado fixtureId=${fixtureId}: ${quality.reason}`);
@@ -540,10 +489,7 @@ export class ResultsCronService {
           select: { id: true },
         });
 
-        if (duplicatedSameMarket) {
-          this.logger.log(`⏭️ Palpite repetido por jogo + mercado nas últimas 12h: ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip}`);
-          continue;
-        }
+        if (duplicatedSameMarket) continue;
 
         await this.prisma.bet.create({
           data: {
@@ -554,382 +500,108 @@ export class ResultsCronService {
             tip: bet.tip,
             odd: Number(bet.odd || 1),
             confidence: Number(bet.confidence || 0),
-            risk: bet.risk || "Médio",
-            analysis: bet.analysis || bet.markets?.[0]?.reason || "Entrada validada pela IA Oddix.",
-            status: "open",
+            risk: bet.risk || 'Médio',
+            analysis: bet.analysis || bet.markets?.[0]?.reason || 'Entrada validada pela IA Oddix.',
+            status: 'open',
             gameDate: fixtureDate ? new Date(fixtureDate) : new Date(),
-            provider: game.provider || "api-football",
+            provider: game.provider || 'provider',
           } as any,
         });
 
-        const freeCopyMessage = this.createFreeCopyMessage();
-        const freeMessage = this.createFreeTipMessage(bet);
-        const vipMessage = this.createVipTipMessage(bet);
-
-        await this.oddixHumanMessageService.sendBeforeTip("vip");
-        await this.sleepRandom(45_000, 90_000);
+        await this.oddixHumanMessageService.sendBeforeTip('vip');
+        await this.sleepRandom(20_000, 45_000);
 
         const imagePath = await this.oddixImageService.createVipCard({
           homeTeam: bet.homeTeam,
           awayTeam: bet.awayTeam,
           league: bet.league,
-          market: bet.markets?.[0]?.market || "Entrada ao vivo",
+          market: bet.markets?.[0]?.market || 'Entrada ao vivo',
           tip: bet.tip,
           odd: bet.odd,
           confidence: bet.confidence,
-          risk: bet.risk || "Médio",
-          stake: "até 1 unidade",
-          homeLogo: game.teams?.home?.logo,
-          awayLogo: game.teams?.away?.logo,
+          risk: bet.risk || 'Médio',
+          stake: 'até 1 unidade',
+          homeLogo: game.teams?.home?.logo || game.times?.home?.logo,
+          awayLogo: game.teams?.away?.logo || game.times?.away?.logo,
         });
 
         await this.whatsappWebService.sendButtonText({
-          target: "free",
-          text: freeCopyMessage,
-          buttonText: "QUERO SER VIP",
+          target: 'free',
+          text: this.createFreeCopyMessage(),
+          buttonText: 'QUERO SER VIP',
           url: this.vipLink(),
         });
 
-        await this.sleepRandom(30_000, 90_000);
+        await this.sleepRandom(20_000, 50_000);
 
         await this.whatsappWebService.sendButtonText({
-          target: "free",
-          text: freeMessage,
-          buttonText: "QUERO SER VIP",
+          target: 'free',
+          text: this.createFreeTipMessage(bet),
+          buttonText: 'QUERO SER VIP',
           url: this.vipLink(),
         });
 
-        await this.sleepRandom(60_000, 150_000);
+        await this.sleepRandom(40_000, 90_000);
 
-        if (imagePath) {
-          await this.whatsappWebService.sendImageFile({ filePath: imagePath, caption: vipMessage, target: "vip" });
-        } else {
-          await this.whatsappWebService.sendText(vipMessage, "vip");
-        }
+        const vipMessage = this.createVipTipMessage(bet);
+        if (imagePath) await this.whatsappWebService.sendImageFile({ filePath: imagePath, caption: vipMessage, target: 'vip' });
+        else await this.whatsappWebService.sendText(vipMessage, 'vip');
 
         sentCount++;
         this.lastLiveTipSentAt = Date.now();
-        this.logger.log(`✅ Palpite enviado: ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip} | odd=${bet.odd}`);
+        this.logger.log(`✅ Palpite VIP enviado: ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip}`);
       }
-
-      if (sentCount === 0) this.logger.log("⚠️ Nenhum palpite novo aprovado pelos filtros.");
     } catch (error: any) {
-      this.logger.error(`❌ Erro no cron de palpites: ${error?.message || "erro desconhecido"}`);
+      this.logger.error(`Erro no cron de palpites: ${error?.message || error}`);
     } finally {
       this.sendingLiveTip = false;
     }
   }
 
-  @Cron("0 18 * * *")
-  async sendVipBoostMultipleAutomatically() {
-    if (String(process.env.ODDIX_VIP_MULTIPLE_ENABLED || "true").toLowerCase() !== "true") return;
-
+  @Cron('*/5 * * * *')
+  async checkOpenBetsResults() {
     try {
-      const { start, end } = this.todayRangeFortaleza();
-      const tag = "ODDIX_MULTIPLE_BOOST";
-
-      const alreadySent = await this.prisma.bet.findFirst({
+      const maxHours = Number(process.env.ODDIX_MAX_OPEN_BET_HOURS || 72);
+      const openBets = await this.prisma.bet.findMany({
         where: {
-          createdAt: { gte: start, lte: end },
-          analysis: { contains: tag } as any,
+          status: 'open',
+          createdAt: { gte: new Date(Date.now() - maxHours * 60 * 60 * 1000) },
         },
-        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+        take: Number(process.env.ODDIX_RESULT_CHECK_LIMIT || 15),
       });
 
-      if (alreadySent) return;
-
-      const liveGames = await this.footballService.getLiveFixtures();
-      const selections: any[] = [];
-
-      for (const game of liveGames || []) {
-        if (selections.length >= 3) break;
-        const fixtureId = Number(game.fixture?.id || 0);
+      for (const bet of openBets as any[]) {
+        const fixtureId = String(bet.fixtureId || '');
         if (!fixtureId) continue;
-        const liveSafety = this.isFixtureSafeForLiveTip(game);
-        if (!liveSafety.ok) continue;
 
-        const exists = await this.prisma.bet.findFirst({ where: { fixtureId }, select: { id: true } });
-        if (exists) continue;
+        const fixture = await this.footballService.getFixtureById(fixtureId);
+        if (!fixture) continue;
 
-        const bet = await this.aiService.generateBet(game);
-        const quality = this.isQualifiedBet(bet);
-        if (!quality.ok) continue;
+        const statusShort = String(fixture?.fixture?.status?.short || '');
+        const statusLong = String(fixture?.fixture?.status?.long || '');
+        if (this.isCanceled(statusShort, statusLong)) continue;
 
-        selections.push({ bet, game, fixtureId });
-      }
-
-      if (selections.length < 2) {
-        this.logger.log("⏭️ Múltipla VIP não enviada: menos de 2 seleções aprovadas.");
-        return;
-      }
-
-      const totalOdd = selections.reduce((acc, item) => acc * Number(item.bet.odd || 1), 1);
-      const maxMultipleOdd = Number(process.env.ODDIX_MAX_MULTIPLE_ODD || 5.5);
-
-      while (selections.length > 2 && totalOdd > maxMultipleOdd) selections.pop();
-
-      await this.oddixHumanMessageService.sendBeforeTip("vip");
-      await this.sleepRandom(60_000, 120_000);
-
-      for (const item of selections) {
-        await this.prisma.bet.create({
-          data: {
-            fixtureId: item.fixtureId,
-            homeTeam: item.bet.homeTeam,
-            awayTeam: item.bet.awayTeam,
-            league: item.bet.league,
-            tip: item.bet.tip,
-            odd: Number(item.bet.odd || 1),
-            confidence: Number(item.bet.confidence || 0),
-            risk: item.bet.risk || "Médio",
-            analysis: `${tag} | seleção da múltipla VIP`,
-            status: "open",
-            gameDate: item.game.fixture?.date ? new Date(item.game.fixture.date) : new Date(),
-            provider: item.game.provider || "api-football",
-          } as any,
-        });
-      }
-
-      const finalOdd = selections.reduce((acc, item) => acc * Number(item.bet.odd || 1), 1).toFixed(2);
-      const imagePath = await this.oddixImageService.createVipMultipleCard({
-        title: "ODDIX BOOST VIP",
-        oddTotal: finalOdd,
-        selections: selections.map((item) => ({
-          homeTeam: item.bet.homeTeam,
-          awayTeam: item.bet.awayTeam,
-          league: item.bet.league,
-          tip: item.bet.tip,
-          odd: item.bet.odd,
-          homeLogo: item.game.teams?.home?.logo,
-          awayLogo: item.game.teams?.away?.logo,
-        })),
-      });
-
-      const caption = [
-        "🚀 *ODDIX BOOST VIP*",
-        "",
-        ...selections.flatMap((item, index) => [
-          `${index + 1}. ⚽ *${item.bet.homeTeam} x ${item.bet.awayTeam}*`,
-          `✅ ${item.bet.tip}`,
-          `📈 Odd: ${item.bet.odd}`,
-          "",
-        ]),
-        `🔥 Odd total: *${finalOdd}*`,
-        "💵 Gestão baixa. Múltipla é para buscar boost, não para forçar banca.",
-      ].join("\n");
-
-      if (imagePath) await this.whatsappWebService.sendImageFile({ filePath: imagePath, caption, target: "vip" });
-      else await this.whatsappWebService.sendText(caption, "vip");
-    } catch (error: any) {
-      this.logger.error(`❌ Erro na múltipla VIP: ${error?.message || "erro desconhecido"}`);
-    }
-  }
-
-  @Cron("*/5 * * * *")
-  async syncResultsAutomatically() {
-    return this.syncResults("auto");
-  }
-
-  private async sendWhatsappResult(params: {
-    result: BetResult;
-    homeTeam: string;
-    awayTeam: string;
-    tip: string;
-    score: string;
-    reason?: ResultReason;
-    metricName?: string;
-    metricValue?: number;
-    line?: number;
-  }) {
-    if (params.result === "open") return;
-    const isGreen = params.result === "won";
-    const liveText = params.reason === "green_live" ? " antes do apito final" : "";
-    const metricLine = params.metricName && params.metricValue !== undefined
-      ? `📊 ${params.metricName}: *${params.metricValue}${params.line !== undefined ? ` / linha ${params.line}` : ""}*`
-      : "";
-
-    if (isGreen) {
-      await this.oddixHumanMessageService.sendAfterGreen("vip");
-      await this.oddixHumanMessageService.sendAfterGreen("free");
-    } else {
-      await this.oddixHumanMessageService.sendAfterRed("vip");
-      await this.oddixHumanMessageService.sendAfterRed("free");
-    }
-
-    await this.whatsappWebService.sendButtonText({
-      target: "free",
-      buttonText: "QUERO SER VIP",
-      url: this.vipLink(),
-      text: [
-        isGreen ? `✅ *GREEN ODDIX FREE${liveText.toUpperCase()}*` : "❌ *RED ODDIX FREE*",
-        "",
-        `⚽ ${params.homeTeam} x ${params.awayTeam}`,
-        `📌 Entrada: ${params.tip}`,
-        `📊 Placar: ${params.score}`,
-        metricLine,
-        "",
-        "🔒 Próximas entradas primeiro no VIP.",
-      ].filter(Boolean).join("\n"),
-    });
-
-    await this.whatsappWebService.sendText(
-      [
-        isGreen ? `✅🔥 *GREEN ODDIX VIP${liveText.toUpperCase()}*` : "❌⚠️ *RED ODDIX VIP*",
-        "",
-        `⚽ *${params.homeTeam} x ${params.awayTeam}*`,
-        `📌 Entrada: *${params.tip}*`,
-        `📊 Placar: *${params.score}*`,
-        metricLine,
-      ].filter(Boolean).join("\n"),
-      "vip",
-    );
-  }
-
-  async syncResults(source: "auto" | "manual" = "auto") {
-    this.logger.log(`🔎 Oddix verificando GREEN/RED... origem=${source}`);
-
-    const now = new Date();
-    const minDate = new Date(now.getTime() - 1000 * 60 * 60 * 48);
-
-    const openBets = await this.prisma.bet.findMany({
-      where: {
-        status: "open",
-        OR: [{ gameDate: { gte: minDate } }, { createdAt: { gte: minDate } }],
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    let updatedWon = 0;
-    let updatedLost = 0;
-    let stillOpen = 0;
-    let fixtureFoundByApi = 0;
-    let fixtureFoundByCache = 0;
-    const details: any[] = [];
-
-    for (const bet of openBets) {
-      try {
-        const baseDetail = {
-          betId: bet.id,
-          fixtureId: bet.fixtureId,
-          game: `${bet.homeTeam} x ${bet.awayTeam}`,
-          tip: bet.tip,
-          status: bet.status,
-          gameDate: bet.gameDate,
-          createdAt: bet.createdAt,
-        };
-
-        if (!bet.fixtureId) {
-          stillOpen++;
-          details.push({ ...baseDetail, result: "open", reason: "Aposta sem fixtureId" });
-          continue;
-        }
-
-        const fixture = await this.footballService.getFixtureById(String(bet.fixtureId));
-        const stats = await this.footballService.getStatistics(String(bet.fixtureId));
-
-        if (!fixture) {
-          stillOpen++;
-          details.push({ ...baseDetail, result: "open", reason: "Fixture não encontrado" });
-          continue;
-        }
-
-        const foundBy = fixture?.__oddixCachedAt ? "cache_or_api" : fixture?.provider || "api";
-        if (foundBy.includes("cache")) fixtureFoundByCache++; else fixtureFoundByApi++;
-
-        const fixtureDate = fixture?.fixture?.date || bet.gameDate;
-        const minutesUntil = this.minutesUntilGame(fixtureDate);
-        if (minutesUntil !== null && minutesUntil > 5) {
-          stillOpen++;
-          details.push({
-            ...baseDetail,
-            result: "open",
-            reason: `Jogo futuro. Faltam ${minutesUntil}min. Não validar GREEN/RED agora.`,
-            foundBy,
-          });
-          continue;
-        }
-
-        const statusShort = fixture.fixture?.status?.short || "";
-        const statusLong = fixture.fixture?.status?.long || "";
         const finished = this.isFinished(statusShort, statusLong);
-        const canceled = this.isCanceled(statusShort, statusLong);
-
-        if (!finished && !canceled) {
-          const fixtureDateForValidation = fixture?.fixture?.date || bet.gameDate;
-          const minutesUntilValidation = this.minutesUntilGame(fixtureDateForValidation);
-
-          if (minutesUntilValidation !== null && minutesUntilValidation > 5) {
-            stillOpen++;
-            details.push({
-              ...baseDetail,
-              result: "open",
-              reason: `Jogo futuro. Faltam ${minutesUntilValidation}min. GREEN/RED bloqueado.`,
-              foundBy,
-              apiStatusShort: statusShort,
-              apiStatusLong: statusLong,
-            });
-            continue;
-          }
-        }
-        const { homeGoals, awayGoals, totalGoals } = this.getGoals(fixture);
+        const stats = await this.footballService.getStatistics(fixtureId);
         const statTotals = this.extractStatTotals(stats);
-
-        if (canceled) {
-          stillOpen++;
-          details.push({ ...baseDetail, result: "open", reason: "Jogo cancelado/suspenso. Revisar manualmente.", apiStatusShort: statusShort, apiStatusLong: statusLong });
-          continue;
-        }
+        const goals = this.getGoals(fixture);
 
         const resolved = this.resolveResult({
           tip: bet.tip,
           homeTeam: bet.homeTeam,
           awayTeam: bet.awayTeam,
-          homeGoals,
-          awayGoals,
-          totalGoals,
+          homeGoals: goals.homeGoals,
+          awayGoals: goals.awayGoals,
+          totalGoals: goals.totalGoals,
           statTotals,
           finished,
         });
 
-        if (resolved.result === "open") {
-          stillOpen++;
-
-          if (resolved.reason === "not_finished") {
-            const elapsed = Number(fixture?.fixture?.status?.elapsed || 0);
-            const updateBucket =
-              elapsed >= 68 ? "70" :
-              elapsed >= 43 ? "45" :
-              elapsed >= 23 ? "25" :
-              "";
-
-            const updateKey = updateBucket ? `${bet.id}:${updateBucket}` : "";
-
-            if (updateKey && !this.liveUpdateSent.has(updateKey)) {
-              this.liveUpdateSent.add(updateKey);
-
-              await this.oddixHumanMessageService.sendLiveUpdate("vip", {
-                homeTeam: bet.homeTeam,
-                awayTeam: bet.awayTeam,
-                tip: bet.tip,
-                score: `${homeGoals}x${awayGoals}`,
-              });
-            }
-          }
-
-          details.push({
-            ...baseDetail,
-            fixtureId: fixture.fixture?.id || bet.fixtureId,
-            result: "open",
-            reason: resolved.reason === "not_finished" ? "Jogo ainda não bateu a meta e não finalizou" : "Mercado não reconhecido ou sem estatística real",
-            foundBy,
-            apiStatusShort: statusShort,
-            apiStatusLong: statusLong,
-            score: `${homeGoals}x${awayGoals}`,
-            stats: statTotals,
-            metricName: resolved.metricName,
-            metricValue: resolved.metricValue,
-            line: resolved.line,
-          });
+        if (resolved.result === 'open') {
+          this.logger.log(
+            `⏳ Bet aberta ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip} | motivo=${resolved.reason} | ${resolved.metricName || ''}=${resolved.metricValue ?? 'sem stats'}`,
+          );
           continue;
         }
 
@@ -937,86 +609,33 @@ export class ResultsCronService {
           where: { id: bet.id },
           data: {
             status: resolved.result,
-            fixtureId: fixture.fixture?.id ? Number(fixture.fixture.id) : bet.fixtureId,
-            homeScore: homeGoals,
-            awayScore: awayGoals,
-            statusShort,
-          },
+            result: resolved.result,
+          } as any,
         });
 
-        if (resolved.result === "won") updatedWon++;
-        if (resolved.result === "lost") updatedLost++;
+        const resultEmoji = resolved.result === 'won' ? '✅' : '❌';
+        const resultTitle = resolved.result === 'won' ? 'ODDIX GREEN' : 'ODDIX RED';
+        const metricLine = resolved.metricName
+          ? `📊 ${resolved.metricName}: ${resolved.metricValue ?? '-'}${resolved.line !== undefined ? ` / linha ${resolved.line}` : ''}`
+          : `📊 Placar: ${goals.homeGoals}x${goals.awayGoals}`;
 
-        await this.telegram.sendResultMessage({
-          result: resolved.result,
-          homeTeam: bet.homeTeam,
-          awayTeam: bet.awayTeam,
-          tip: bet.tip,
-          score: `${homeGoals}x${awayGoals}`,
-          provider: foundBy,
-        });
+        const message = [
+          `${resultEmoji} *${resultTitle}*`,
+          '',
+          `⚽ *${bet.homeTeam} x ${bet.awayTeam}*`,
+          `🎯 Palpite: ${bet.tip}`,
+          metricLine,
+          `Placar: ${goals.homeGoals}x${goals.awayGoals}`,
+          '',
+          `Resultado: ${resolved.result === 'won' ? 'GREEN ✅' : 'RED ❌'}`,
+          `Fonte: ${stats?.source || fixture?.provider || bet.provider || 'provider'}`,
+        ].join('\n');
 
-        await this.sendWhatsappResult({
-          result: resolved.result,
-          homeTeam: bet.homeTeam,
-          awayTeam: bet.awayTeam,
-          tip: bet.tip,
-          score: `${homeGoals}x${awayGoals}`,
-          reason: resolved.reason,
-          metricName: resolved.metricName,
-          metricValue: resolved.metricValue,
-          line: resolved.line,
-        });
-
-        details.push({
-          ...baseDetail,
-          fixtureId: fixture.fixture?.id || bet.fixtureId,
-          result: resolved.result,
-          reason: resolved.reason,
-          foundBy,
-          apiStatusShort: statusShort,
-          apiStatusLong: statusLong,
-          score: `${homeGoals}x${awayGoals}`,
-          stats: statTotals,
-          metricName: resolved.metricName,
-          metricValue: resolved.metricValue,
-          line: resolved.line,
-        });
-      } catch (error: any) {
-        stillOpen++;
-        details.push({
-          betId: bet.id,
-          fixtureId: bet.fixtureId,
-          game: `${bet.homeTeam} x ${bet.awayTeam}`,
-          tip: bet.tip,
-          result: "open",
-          reason: `Erro ao validar: ${error?.message || "erro desconhecido"}`,
-        });
+        await this.whatsappWebService.sendText(message, 'vip');
+        this.logger.log(`${resultEmoji} Resultado atualizado: ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip} => ${resolved.result}`);
       }
+    } catch (error: any) {
+      this.logger.error(`Erro ao checar resultados: ${error?.message || error}`);
     }
-
-    await this.telegram.sendSyncSummary({ checked: openBets.length, updatedWon, updatedLost, stillOpen, source });
-
-    return {
-      message: "Debug GREEN/RED finalizado",
-      checked: openBets.length,
-      updatedWon,
-      updatedLost,
-      stillOpen,
-      fixtureFoundByCache,
-      fixtureFoundByApi,
-      apiFootballDisabled: process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === "true",
-      ignoredOldBets: "Apostas abertas com mais de 48h foram ignoradas",
-      details,
-    };
-  }
-
-  async debugFixturesByDate(date: string) {
-    const start = new Date(`${date}T00:00:00.000Z`);
-    const end = new Date(`${date}T23:59:59.999Z`);
-
-    const cached = await this.prisma.cachedFixture.findMany({ where: { date: { gte: start, lte: end } }, orderBy: { date: "asc" } });
-
-    return { date, cacheLength: cached.length, sample: cached.slice(0, 20).map((item) => item.raw) };
   }
 }

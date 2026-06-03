@@ -34,6 +34,7 @@ export type OddixBoostContext = {
   odds?: any;
   statistics?: any;
   stats?: OddixStatsSnapshot;
+  hasRealStats?: boolean;
   seed?: number;
 };
 
@@ -44,6 +45,7 @@ export type OddixBoostPick = OddixMarket & {
     selected: boolean;
     reasons: string[];
     stats: OddixStatsSnapshot;
+    hasRealStats: boolean;
   };
 };
 
@@ -88,19 +90,13 @@ export class OddixBoostV2Service {
       text.includes('jogador') ||
       text.includes('chute no gol') ||
       text.includes('finalizacao') ||
-      text.includes('finalização') ||
-      text.includes('assistencia') ||
-      text.includes('assistência')
-    ) {
-      return 'player-props';
-    }
+      text.includes('assistencia')
+    ) return 'player-props';
 
     if (text.includes('escanteio') || text.includes('corner')) return 'corners';
     if (text.includes('ambas') || text.includes('btts')) return 'btts';
     if (text.includes('handicap') || text.includes('+1.5') || text.includes('+0.5') || text.includes('-1.5')) return 'handicap';
-    if (text.includes('dupla') || text.includes('double chance') || text.includes('empate anula') || text.includes('dnb')) {
-      return 'protection';
-    }
+    if (text.includes('dupla') || text.includes('double chance') || text.includes('empate anula') || text.includes('dnb')) return 'protection';
     if (text.includes('under') || text.includes('over') || text.includes('gol')) return 'goals';
 
     return text.slice(0, 30) || 'generic';
@@ -126,7 +122,8 @@ export class OddixBoostV2Service {
   }
 
   private extractStatByLabels(stats: any, teamIndex: number, labels: string[]) {
-    const team = stats?.teams?.[teamIndex] || stats?.statistics?.teams?.[teamIndex];
+    const teams = stats?.teams || stats?.statistics?.teams || [];
+    const team = teams?.[teamIndex];
     const list = team?.statistics || team?.stats || [];
 
     if (!Array.isArray(list)) return undefined;
@@ -143,6 +140,8 @@ export class OddixBoostV2Service {
 
   private extractFotmobStat(stats: any, side: 'home' | 'away', labels: string[]) {
     const blocks = [
+      stats?.details?.content?.stats?.Periods?.All?.stats,
+      stats?.details?.content?.stats?.periods?.all?.stats,
       stats?.content?.stats?.Periods?.All?.stats,
       stats?.content?.stats?.periods?.all?.stats,
       stats?.stats?.Periods?.All?.stats,
@@ -179,48 +178,38 @@ export class OddixBoostV2Service {
   extractStats(input: any): OddixStatsSnapshot {
     const stats = input?.statistics || input?.stats || input || {};
 
-    const fromApi = {
-      possessionHome: this.extractStatByLabels(stats, 0, ['possession', 'posse']),
-      possessionAway: this.extractStatByLabels(stats, 1, ['possession', 'posse']),
-      shotsHome: this.extractStatByLabels(stats, 0, ['total shots', 'chutes', 'finalizacoes', 'finalizações']),
-      shotsAway: this.extractStatByLabels(stats, 1, ['total shots', 'chutes', 'finalizacoes', 'finalizações']),
-      shotsOnHome: this.extractStatByLabels(stats, 0, ['shots on goal', 'shots on target', 'chutes no gol', 'no gol']),
-      shotsOnAway: this.extractStatByLabels(stats, 1, ['shots on goal', 'shots on target', 'chutes no gol', 'no gol']),
-      cornersHome: this.extractStatByLabels(stats, 0, ['corner', 'escanteio']),
-      cornersAway: this.extractStatByLabels(stats, 1, ['corner', 'escanteio']),
-      xgHome: this.extractStatByLabels(stats, 0, ['expected goals', 'xg']),
-      xgAway: this.extractStatByLabels(stats, 1, ['expected goals', 'xg']),
-    };
-
-    const fromFotmob = {
-      possessionHome: this.extractFotmobStat(stats, 'home', ['possession', 'posse']),
-      possessionAway: this.extractFotmobStat(stats, 'away', ['possession', 'posse']),
-      shotsHome: this.extractFotmobStat(stats, 'home', ['total shots', 'shots', 'chutes']),
-      shotsAway: this.extractFotmobStat(stats, 'away', ['total shots', 'shots', 'chutes']),
-      shotsOnHome: this.extractFotmobStat(stats, 'home', ['shots on target', 'shots on goal', 'chutes no gol']),
-      shotsOnAway: this.extractFotmobStat(stats, 'away', ['shots on target', 'shots on goal', 'chutes no gol']),
-      cornersHome: this.extractFotmobStat(stats, 'home', ['corners', 'corner kicks', 'escanteios']),
-      cornersAway: this.extractFotmobStat(stats, 'away', ['corners', 'corner kicks', 'escanteios']),
-      xgHome: this.extractFotmobStat(stats, 'home', ['expected goals', 'xg']),
-      xgAway: this.extractFotmobStat(stats, 'away', ['expected goals', 'xg']),
-    };
-
     return {
-      possessionHome: input?.possessionHome ?? fromApi.possessionHome ?? fromFotmob.possessionHome,
-      possessionAway: input?.possessionAway ?? fromApi.possessionAway ?? fromFotmob.possessionAway,
-      shotsHome: input?.shotsHome ?? fromApi.shotsHome ?? fromFotmob.shotsHome,
-      shotsAway: input?.shotsAway ?? fromApi.shotsAway ?? fromFotmob.shotsAway,
-      shotsOnHome: input?.shotsOnHome ?? fromApi.shotsOnHome ?? fromFotmob.shotsOnHome,
-      shotsOnAway: input?.shotsOnAway ?? fromApi.shotsOnAway ?? fromFotmob.shotsOnAway,
-      cornersHome: input?.cornersHome ?? fromApi.cornersHome ?? fromFotmob.cornersHome,
-      cornersAway: input?.cornersAway ?? fromApi.cornersAway ?? fromFotmob.cornersAway,
-      xgHome: input?.xgHome ?? fromApi.xgHome ?? fromFotmob.xgHome,
-      xgAway: input?.xgAway ?? fromApi.xgAway ?? fromFotmob.xgAway,
+      possessionHome: input?.possessionHome ?? this.extractStatByLabels(stats, 0, ['possession', 'posse']) ?? this.extractFotmobStat(stats, 'home', ['possession', 'posse']),
+      possessionAway: input?.possessionAway ?? this.extractStatByLabels(stats, 1, ['possession', 'posse']) ?? this.extractFotmobStat(stats, 'away', ['possession', 'posse']),
+      shotsHome: input?.shotsHome ?? this.extractStatByLabels(stats, 0, ['total shots', 'chutes', 'finalizacoes', 'finalizações']) ?? this.extractFotmobStat(stats, 'home', ['total shots', 'shots', 'chutes']),
+      shotsAway: input?.shotsAway ?? this.extractStatByLabels(stats, 1, ['total shots', 'chutes', 'finalizacoes', 'finalizações']) ?? this.extractFotmobStat(stats, 'away', ['total shots', 'shots', 'chutes']),
+      shotsOnHome: input?.shotsOnHome ?? this.extractStatByLabels(stats, 0, ['shots on goal', 'shots on target', 'chutes no gol', 'no gol']) ?? this.extractFotmobStat(stats, 'home', ['shots on target', 'shots on goal', 'chutes no gol']),
+      shotsOnAway: input?.shotsOnAway ?? this.extractStatByLabels(stats, 1, ['shots on goal', 'shots on target', 'chutes no gol', 'no gol']) ?? this.extractFotmobStat(stats, 'away', ['shots on target', 'shots on goal', 'chutes no gol']),
+      cornersHome: input?.cornersHome ?? this.extractStatByLabels(stats, 0, ['corner', 'escanteio']) ?? this.extractFotmobStat(stats, 'home', ['corners', 'corner kicks', 'escanteios']),
+      cornersAway: input?.cornersAway ?? this.extractStatByLabels(stats, 1, ['corner', 'escanteio']) ?? this.extractFotmobStat(stats, 'away', ['corners', 'corner kicks', 'escanteios']),
+      xgHome: input?.xgHome ?? this.extractStatByLabels(stats, 0, ['expected goals', 'xg']) ?? this.extractFotmobStat(stats, 'home', ['expected goals', 'xg']),
+      xgAway: input?.xgAway ?? this.extractStatByLabels(stats, 1, ['expected goals', 'xg']) ?? this.extractFotmobStat(stats, 'away', ['expected goals', 'xg']),
       momentumHome: input?.momentumHome,
       momentumAway: input?.momentumAway,
       dangerousHome: input?.dangerousHome,
       dangerousAway: input?.dangerousAway,
     };
+  }
+
+  hasRealStats(input: any) {
+    const stats = this.extractStats(input || {});
+    return [
+      stats.possessionHome,
+      stats.possessionAway,
+      stats.shotsHome,
+      stats.shotsAway,
+      stats.shotsOnHome,
+      stats.shotsOnAway,
+      stats.cornersHome,
+      stats.cornersAway,
+      stats.xgHome,
+      stats.xgAway,
+    ].some((value) => value !== undefined && value !== null);
   }
 
   private statSum(stats: OddixStatsSnapshot, a: keyof OddixStatsSnapshot, b: keyof OddixStatsSnapshot) {
@@ -248,19 +237,23 @@ export class OddixBoostV2Service {
     return { side: 'balanced', team: '', power: Math.abs(homePower - awayPower) };
   }
 
-  private scoreMarket(market: OddixMarket, context: OddixBoostContext, stats: OddixStatsSnapshot) {
+  private scoreMarket(market: OddixMarket, context: OddixBoostContext, stats: OddixStatsSnapshot, hasRealStats: boolean) {
     const confidence = this.num(market.confidence, 0);
     const odd = this.num(market.odd, 0);
-    const risk = String(market.risk || 'Médio');
-    const riskNorm = this.normalize(risk);
+    const riskNorm = this.normalize(market.risk || 'Médio');
     const family = this.marketFamily(market);
 
     let score = confidence;
     const reasons: string[] = [];
 
     if (market.isRealOdd || market.source === 'FotMob' || market.source === 'The Odds API' || market.source === 'FlashScore') {
-      score += 10;
+      score += 8;
       reasons.push('odd/dado real');
+    }
+
+    if (hasRealStats) {
+      score += 8;
+      reasons.push('estatística real');
     }
 
     if (odd >= 1.25 && odd <= 2.0) {
@@ -268,22 +261,20 @@ export class OddixBoostV2Service {
       reasons.push('odd segura');
     }
 
-    if (odd > 2.1) {
-      score -= 16;
-      reasons.push('odd alta');
-    }
+    if (odd > 2.1) score -= 16;
 
     if (riskNorm.includes('baixo')) score += 10;
     if (riskNorm.includes('medio') || riskNorm.includes('médio')) score += 2;
     if (riskNorm.includes('alto')) score -= 35;
 
-    if (family === 'player-props') score += 9;
-    if (family === 'protection') score += 7;
+    if (family === 'player-props') score += hasRealStats ? 7 : -18;
+    if (family === 'corners') score += context.isLive && hasRealStats ? 6 : -50;
+    if (family === 'btts') score -= 4;
+    if (family === 'goals') score += hasRealStats ? 2 : -2;
+    if (family === 'protection') score += 8;
     if (family === 'handicap') score += 6;
-    if (family === 'btts') score += 2;
-    if (family === 'corners') score += 3;
 
-    if (this.isRepeatedUnsafeTip(market)) score -= 14;
+    if (this.isRepeatedUnsafeTip(market)) score -= 18;
 
     const elapsed = this.num(context.elapsed, 0);
     const totalGoals = this.num(context.totalGoals, 0);
@@ -292,28 +283,20 @@ export class OddixBoostV2Service {
     const totalShots = this.statSum(stats, 'shotsHome', 'shotsAway');
     const totalXg = this.num(stats.xgHome, 0) + this.num(stats.xgAway, 0);
 
-    if (context.isLive) {
+    if (context.isLive && hasRealStats) {
       if (family === 'corners' && elapsed >= 35 && totalCorners >= 5) {
         score += 14;
         reasons.push('escanteios reais fortes');
       }
 
       if (family === 'goals' && elapsed >= 25 && totalShotsOn >= 4) {
-        score += 10;
+        score += 8;
         reasons.push('chutes no alvo');
       }
 
       if (family === 'goals' && elapsed >= 30 && totalXg >= 1.2) {
-        score += 10;
+        score += 8;
         reasons.push('xG forte');
-      }
-
-      if (family === 'goals' && elapsed >= 55 && totalGoals >= 2) {
-        score += 4;
-      }
-
-      if (family === 'btts' && totalShotsOn >= 5 && totalGoals <= 2) {
-        score += 6;
       }
 
       if (family === 'player-props' && totalShots >= 10) {
@@ -321,11 +304,14 @@ export class OddixBoostV2Service {
       }
     }
 
+    if (context.isLive && family === 'goals' && elapsed >= 55 && totalGoals >= 2) score += 4;
+
     return { score, reasons };
   }
 
   buildCandidateMarkets(context: OddixBoostContext = {}): OddixMarket[] {
     const stats = context.stats || this.extractStats(context.statistics || {});
+    const hasRealStats = context.hasRealStats ?? this.hasRealStats(stats);
     const quality = this.clamp(this.num(context.qualityScore, 72), 45, 95);
     const elapsed = this.num(context.elapsed, 0);
     const isLive = !!context.isLive;
@@ -336,131 +322,30 @@ export class OddixBoostV2Service {
 
     const totalCorners = this.statSum(stats, 'cornersHome', 'cornersAway');
     const totalShotsOn = this.statSum(stats, 'shotsOnHome', 'shotsOnAway');
-    const totalShots = this.statSum(stats, 'shotsHome', 'shotsAway');
     const totalXg = this.num(stats.xgHome, 0) + this.num(stats.xgAway, 0);
 
     const candidates: OddixMarket[] = [];
+    const add = (market: OddixMarket) => candidates.push({ fixtureId: context.fixtureId, game: `${homeTeam} x ${awayTeam}`, homeTeam, awayTeam, league: context.league, source: 'Oddix Boost V2', ...market });
 
-    const add = (market: OddixMarket) => {
-      candidates.push({
-        fixtureId: context.fixtureId,
-        game: `${homeTeam} x ${awayTeam}`,
-        homeTeam,
-        awayTeam,
-        league: context.league,
-        source: 'Oddix Boost V2',
-        ...market,
-      });
-    };
+    if (isLive && hasRealStats) {
+      if (elapsed >= 25 && totalShotsOn >= 4) add({ market: 'Chutes no gol', tip: `Over ${Math.max(4.5, totalShotsOn + 1.5).toFixed(1)} chutes no gol`, odd: 1.62, confidence: this.clamp(quality + 7), risk: 'Médio/Baixo', isRealOdd: false });
+      if (elapsed >= 30 && totalCorners >= 5) add({ market: 'Escanteios', tip: `Over ${Math.max(7.5, totalCorners + 1.5).toFixed(1)} escanteios`, odd: 1.68, confidence: this.clamp(quality + 6), risk: 'Médio', isRealOdd: false });
+      if (elapsed >= 20 && (totalXg >= 1.1 || totalShotsOn >= 4) && totalGoals <= 2) add({ market: 'Total de Gols', tip: totalGoals <= 1 ? 'Over 1.5 gols' : 'Over 2.5 gols', odd: totalGoals <= 1 ? 1.58 : 1.82, confidence: this.clamp(quality + 5), risk: 'Médio', isRealOdd: false });
+      if (dominant.side !== 'balanced' && elapsed >= 35) add({ market: 'Proteção', tip: `${dominant.team} +0.5 handicap`, odd: 1.55, confidence: this.clamp(quality + 7), risk: 'Baixo', isRealOdd: false });
+    }
 
-    if (isLive) {
-      if (elapsed >= 25 && totalShotsOn >= 4) {
-        add({
-          market: 'Chutes no gol',
-          tip: `Over ${Math.max(4.5, totalShotsOn + 1.5).toFixed(1)} chutes no gol`,
-          odd: 1.62,
-          confidence: this.clamp(quality + 8),
-          risk: 'Médio/Baixo',
-          isRealOdd: false,
-        });
-      }
-
-      if (elapsed >= 30 && totalCorners >= 5) {
-        add({
-          market: 'Escanteios',
-          tip: `Over ${Math.max(7.5, totalCorners + 1.5).toFixed(1)} escanteios`,
-          odd: 1.68,
-          confidence: this.clamp(quality + 7),
-          risk: 'Médio',
-          isRealOdd: false,
-        });
-      }
-
-      if (elapsed >= 20 && totalXg >= 1.1 && totalGoals <= 2) {
-        add({
-          market: 'Total de Gols',
-          tip: totalGoals <= 1 ? 'Over 1.5 gols' : 'Over 2.5 gols',
-          odd: totalGoals <= 1 ? 1.58 : 1.82,
-          confidence: this.clamp(quality + 6),
-          risk: 'Médio',
-          isRealOdd: false,
-        });
-      }
-
-      if (dominant.side !== 'balanced' && elapsed >= 35) {
-        add({
-          market: 'Proteção',
-          tip: `${dominant.team} +0.5 handicap`,
-          odd: 1.55,
-          confidence: this.clamp(quality + 7),
-          risk: 'Baixo',
-          isRealOdd: false,
-        });
-      }
-
-      if (elapsed >= 55 && totalGoals >= 2) {
-        add({
-          market: 'Total de Gols',
-          tip: 'Under 5.5 gols',
-          odd: 1.45,
-          confidence: this.clamp(quality + 5),
-          risk: 'Baixo',
-          isRealOdd: false,
-        });
-      }
-    } else {
+    if (!isLive) {
       const seed = this.hash(`${context.fixtureId || ''}-${homeTeam}-${awayTeam}-${context.league || ''}`);
-      const rotation = seed % 6;
-
+      const rotation = seed % 4;
       const pregameOptions: OddixMarket[] = [
-        {
-          market: 'Proteção',
-          tip: `${homeTeam} +1.5 handicap`,
-          odd: 1.45,
-          confidence: this.clamp(quality + 3),
-          risk: 'Baixo',
-        },
-        {
-          market: 'Dupla Chance',
-          tip: `${homeTeam} ou empate`,
-          odd: 1.58,
-          confidence: this.clamp(quality + 2),
-          risk: 'Baixo',
-        },
-        {
-          market: 'Total de Gols',
-          tip: 'Over 2.0 gols asiático',
-          odd: 1.75,
-          confidence: this.clamp(quality),
-          risk: 'Médio',
-        },
-        {
-          market: 'Escanteios',
-          tip: 'Over 8.5 escanteios',
-          odd: 1.72,
-          confidence: this.clamp(quality - 1),
-          risk: 'Médio',
-        },
-        {
-          market: 'Ambas Marcam',
-          tip: 'Ambas marcam - Sim',
-          odd: 1.82,
-          confidence: this.clamp(quality - 2),
-          risk: 'Médio',
-        },
-        {
-          market: 'Total de Gols',
-          tip: 'Under 3.5 gols',
-          odd: 1.55,
-          confidence: this.clamp(quality - 1),
-          risk: 'Baixo',
-        },
+        { market: 'Proteção', tip: `${homeTeam} +1.5 handicap`, odd: 1.45, confidence: this.clamp(quality - 2, 68, 86), risk: 'Baixo' },
+        { market: 'Dupla Chance', tip: `${homeTeam} ou empate`, odd: 1.58, confidence: this.clamp(quality - 3, 68, 84), risk: 'Baixo' },
+        { market: 'Total de Gols', tip: 'Under 3.5 gols', odd: 1.55, confidence: this.clamp(quality - 5, 68, 82), risk: 'Baixo' },
+        { market: 'Total de Gols', tip: 'Over 1.5 gols', odd: 1.50, confidence: this.clamp(quality - 6, 68, 80), risk: 'Médio/Baixo' },
       ];
 
-      // Alterna mercado principal para não deixar o VIP com cara repetida.
       add(pregameOptions[rotation]);
-      add(pregameOptions[(rotation + 2) % pregameOptions.length]);
-      add(pregameOptions[(rotation + 4) % pregameOptions.length]);
+      add(pregameOptions[(rotation + 1) % pregameOptions.length]);
     }
 
     return candidates;
@@ -468,32 +353,33 @@ export class OddixBoostV2Service {
 
   selectBestMarkets(markets: OddixMarket[], context: OddixBoostContext = {}, limit = 5): OddixBoostPick[] {
     const stats = context.stats || this.extractStats(context.statistics || {});
+    const hasRealStats = context.hasRealStats ?? this.hasRealStats(context.statistics || stats);
     const usedFamilies = new Map<string, number>();
     const usedTips = new Set<string>();
     const output: OddixBoostPick[] = [];
 
-    const sourceMarkets = Array.isArray(markets) && markets.length ? markets : this.buildCandidateMarkets({ ...context, stats });
-
+    const sourceMarkets = Array.isArray(markets) && markets.length ? markets : this.buildCandidateMarkets({ ...context, stats, hasRealStats });
     const sorted = [...sourceMarkets]
       .filter((market) => market && this.num(market.confidence, 0) >= 68)
       .filter((market) => !this.normalize(market.risk).includes('alto'))
       .filter((market) => this.num(market.odd, 0) >= 1.2)
       .filter((market) => this.num(market.odd, 0) <= 2.15 || this.num(market.confidence, 0) >= 88)
-      .sort((a, b) => this.scoreMarket(b, context, stats).score - this.scoreMarket(a, context, stats).score);
+      .filter((market) => {
+        const family = this.marketFamily(market);
+        if (family === 'corners') return !!context.isLive && hasRealStats;
+        if (family === 'player-props') return hasRealStats && !!market.isRealOdd;
+        return true;
+      })
+      .sort((a, b) => this.scoreMarket(b, context, stats, hasRealStats).score - this.scoreMarket(a, context, stats, hasRealStats).score);
 
     for (const market of sorted) {
       const family = this.marketFamily(market);
       const tipKey = this.normalizeTipKey(market);
       const familyCount = usedFamilies.get(family) || 0;
-
       if (tipKey && usedTips.has(tipKey)) continue;
+      if (familyCount >= 1) continue;
 
-      // Permite até 2 mercados de gols, mas só 1 família genérica/proteção/player por seleção.
-      if (family === 'goals' && familyCount >= 2) continue;
-      if (family !== 'goals' && familyCount >= 1) continue;
-
-      const scored = this.scoreMarket(market, context, stats);
-
+      const scored = this.scoreMarket(market, context, stats, hasRealStats);
       output.push({
         ...market,
         oddixBoostV2: {
@@ -502,12 +388,12 @@ export class OddixBoostV2Service {
           selected: true,
           reasons: scored.reasons,
           stats,
+          hasRealStats,
         },
       });
 
       usedFamilies.set(family, familyCount + 1);
       usedTips.add(tipKey);
-
       if (output.length >= limit) break;
     }
 

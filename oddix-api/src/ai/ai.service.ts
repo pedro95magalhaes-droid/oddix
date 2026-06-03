@@ -6,6 +6,20 @@ import { OddixBoostV2Service } from './oddix-boost-v2.service';
 
 type RiskLevel = 'Baixo' | 'Médio' | 'Alto';
 
+type CandidateMarket = {
+  key: string;
+  category: string;
+  market: string;
+  tip: string;
+  odd: number;
+  confidence: number;
+  risk: RiskLevel | 'Médio/Baixo';
+  bookmaker?: string | null;
+  oddsSource?: string;
+  isRealOdd?: boolean;
+  reason?: string;
+};
+
 @Injectable()
 export class AiService {
   private readonly oddixBoostV2 = new OddixBoostV2Service();
@@ -16,280 +30,22 @@ export class AiService {
     private readonly confidenceEngine: OddixConfidenceEngineService,
   ) {}
 
-  async generateBet(game: any) {
-    const homeTeam = game.homeTeam || game.teams?.home?.name || 'Time Casa';
-    const awayTeam = game.awayTeam || game.teams?.away?.name || 'Time Visitante';
-    const league = game.leagueName || game.league?.name || game.league || 'Liga';
-
-    const statusShort = game.status?.short || game.fixture?.status?.short || '';
-    const elapsed = Number(game.status?.elapsed || game.fixture?.status?.elapsed || 0);
-
-    const score = game.score || game.goals || {};
-    const homeGoals = Number(score.home ?? score?.fulltime?.home ?? 0);
-    const awayGoals = Number(score.away ?? score?.fulltime?.away ?? 0);
-
-    const seed = this.createSeed(
-      `${homeTeam}-${awayTeam}-${league}-${statusShort}-${elapsed}-${homeGoals}-${awayGoals}`,
-    );
-
-    const context = this.buildMatchContext({
-      homeTeam,
-      awayTeam,
-      league,
-      statusShort,
-      elapsed,
-      homeGoals,
-      awayGoals,
-      seed,
-    });
-
-    const realOdds = await this.oddsService.getBestOdds({
-      homeTeam,
-      awayTeam,
-      league,
-    });
-
-    const playerProps = realOdds.filter((pick: any) =>
-      String(pick.marketKey || '').startsWith('player_'),
-    );
-
-    const gameOdds = realOdds.filter((pick: any) =>
-      !String(pick.marketKey || '').startsWith('player_'),
-    );
-
-    const flatMarkets = this.marketsService.getFlatMarkets();
-
-    const generatedMarkets = flatMarkets
-      .map((market: any, index: number) => {
-        const marketSeed = this.createSeed(`${seed}-${market.key}-${index}`);
-
-        const confidence = this.generateConfidence(
-          market.key,
-          index,
-          context,
-          marketSeed,
-        );
-
-        const rawTip = this.generateTip(
-          market.key,
-          homeTeam,
-          awayTeam,
-          context,
-          marketSeed,
-        );
-
-        const tip = this.sanitizeTip(rawTip, homeTeam, awayTeam, context);
-        const realOdd = this.findRealOddForMarket(gameOdds, market.key, tip);
-        const odd = realOdd?.odd || this.generateOdd(market.key, confidence, context, marketSeed);
-        const risk = this.getRisk(confidence, market.key, context);
-
-        return {
-          key: market.key,
-          category: market.category,
-          market: market.name,
-          tip: realOdd?.tip || tip,
-          odd,
-          confidence,
-          risk,
-          bookmaker: realOdd?.bookmaker || null,
-          oddsSource: realOdd ? 'the-odds-api' : 'oddix-estimada',
-          isRealOdd: !!realOdd,
-          reason: this.generateProfessionalReason(
-            market.name,
-            homeTeam,
-            awayTeam,
-            context,
-            confidence,
-            risk,
-            realOdd,
-          ),
-        };
-      })
-      .filter((market) => this.isMarketAllowed(market, context))
-      .filter((market) => !this.isConditionalTip(market.tip));
-
-    const bestMarkets = generatedMarkets
-      .sort((a, b) => {
-        const scoreA = this.marketScore(a.confidence, a.odd, a.risk, context, a.key);
-        const scoreB = this.marketScore(b.confidence, b.odd, b.risk, context, b.key);
-        return scoreB - scoreA;
-      })
-      .slice(0, 5);
-
-    const playerPropMarkets = playerProps
-      .filter((prop: any) => {
-        const key = String(prop.marketKey || "");
-        if (key === "player_goal_scorer_anytime" && process.env.ODDIX_ALLOW_ANYTIME_SCORER !== "true") return false;
-        return ["player_shots_on_target", "player_shots", "player_assists", "player_goal_scorer_anytime"].includes(key);
-      })
-      .filter((prop: any) => Number(prop.odd || 0) >= 1.25 && Number(prop.odd || 0) <= 2.35)
-      .map((prop: any, index: number) => ({
-      key: prop.marketKey,
-      category: 'Player Props',
-      market: prop.marketName,
-      tip: prop.tip,
-      odd: prop.odd,
-      confidence:
-        prop.marketKey === 'player_shots_on_target'
-          ? Math.max(76, 86 - index)
-          : prop.marketKey === 'player_shots'
-          ? Math.max(74, 83 - index)
-          : Math.max(68, 74 - index),
-      risk: (
-        prop.marketKey === 'player_goal_scorer_anytime'
-          ? 'Alto'
-          : index <= 2
-          ? 'Baixo'
-          : 'Médio'
-      ) as RiskLevel,
-      bookmaker: prop.bookmaker,
-      oddsSource: 'the-odds-api',
-      isRealOdd: true,
-      reason: `Mercado real encontrado na The Odds API via ${prop.bookmaker}. Entrada baseada em linha disponível de player props, sem inventar jogador ou odd.`,
-    }));
-
-    const mergedMarkets = [...playerPropMarkets, ...bestMarkets]
-      .filter((market) => market.risk !== 'Alto')
-      .filter((market) => Number(market.confidence || 0) >= 70)
-      .sort((a, b) => {
-        const scoreA = this.marketScore(a.confidence, a.odd, a.risk, context, a.key);
-        const scoreB = this.marketScore(b.confidence, b.odd, b.risk, context, b.key);
-        return scoreB - scoreA;
-      })
-      .slice(0, 5);
-
-    const fallback = this.safeFallbackMarket(homeTeam, awayTeam, league, context);
-    fallback.tip = this.sanitizeTip(fallback.tip, homeTeam, awayTeam, context);
-
-    const rawFinalMarkets = mergedMarkets.length ? mergedMarkets : [fallback];
-
-    const finalMarkets = this.oddixBoostV2.selectBestMarkets(
-      rawFinalMarkets
-        .map((market: any) => this.applyConfidenceEngine(market, context, homeTeam, awayTeam, game))
-        .filter((market: any) => market.oddixEngine?.send || Number(market.confidence || 0) >= 80),
-      {
-        isLive: context.isLive,
-        elapsed: context.elapsed,
-        totalGoals: context.totalGoals,
-        league,
-        seed,
-      },
-      5,
-    );
-
-    const safeFinalMarkets = finalMarkets.length
-      ? finalMarkets
-      : [this.applyConfidenceEngine(fallback, context, homeTeam, awayTeam, game)];
-
-    const best = safeFinalMarkets[0];
-
-    const multiples = this.generateMultiples(safeFinalMarkets, context);
-
-    return {
-      homeTeam,
-      awayTeam,
-      league,
-      status: 'open',
-      sources: {
-        matchData: game.provider || game.sources?.matchData || 'api-football/sportmonks',
-        odds: safeFinalMarkets.some((market: any) => market.isRealOdd) ? 'the-odds-api' : 'oddix-estimada',
-        confidenceEngine: 'oddix-confidence-engine-v1',
-        realOddsCount: realOdds.length,
-        playerPropsCount: playerPropMarkets.length,
-        estimatedOddsCount: safeFinalMarkets.filter((market: any) => !market.isRealOdd).length,
-      },
-
-      tip: this.sanitizeTip(best.tip, homeTeam, awayTeam, context),
-      odd: best.odd,
-      confidence: best.confidence,
-      risk: best.risk,
-      engineScore: best.oddixEngine?.score ?? best.confidence,
-      engineLevel: best.oddixEngine?.level || 'BOM',
-      engineCategory: best.oddixEngine?.category || 'SAFE',
-      dominanceHome: best.oddixEngine?.dominanceHome ?? 50,
-      dominanceAway: best.oddixEngine?.dominanceAway ?? 50,
-      dominantTeam: best.oddixEngine?.dominantTeam || 'Jogo equilibrado',
-      engineReasons: best.oddixEngine?.reasons || [],
-
-      markets: safeFinalMarkets.map((market) => ({
-        ...market,
-        tip: this.sanitizeTip(market.tip, homeTeam, awayTeam, context),
-      })),
-
-      playerProps: playerPropMarkets
-        .filter((market: any) => market.isRealOdd)
-        .slice(0, 8)
-        .map((market: any) => ({
-          ...market,
-          tip: this.sanitizeTip(market.tip, homeTeam, awayTeam, context),
-        })),
-
-      multiples,
-
-      analysis: this.generateProfessionalAnalysis({
-        homeTeam,
-        awayTeam,
-        league,
-        context,
-        best: {
-          ...best,
-          tip: this.sanitizeTip(best.tip, homeTeam, awayTeam, context),
-        },
-        bestMarkets: safeFinalMarkets.map((market) => ({
-          ...market,
-          tip: this.sanitizeTip(market.tip, homeTeam, awayTeam, context),
-        })),
-        multiples,
-      }),
-    };
-  }
-
-
-  private mapGeneratedMarketToOddsKeys(key: string) {
-    const map: Record<string, string[]> = {
-      resultado_final: ['h2h'],
-      total_gols: ['totals'],
-      ao_vivo: ['totals'],
-      ambas_marcam: ['btts'],
-      handicap_asiatico: ['spreads'],
-      handicap_europeu: ['spreads'],
-    };
-
-    return map[key] || [];
-  }
-
-  private findRealOddForMarket(realOdds: any[], marketKey: string, generatedTip: string) {
-    const allowedKeys = this.mapGeneratedMarketToOddsKeys(marketKey);
-    if (!allowedKeys.length) return null;
-
-    const normalizedTip = this.normalizeText(generatedTip);
-    const candidates = (realOdds || []).filter((odd) => allowedKeys.includes(odd.marketKey));
-
-    if (!candidates.length) return null;
-
-    const exact = candidates.find((odd) => {
-      const tip = this.normalizeText(odd.tip);
-      return tip && (normalizedTip.includes(tip) || tip.includes(normalizedTip));
-    });
-
-    if (exact) return exact;
-
-    const safe = candidates
-      .filter((odd) => Number(odd.odd || 0) >= 1.25)
-      .filter((odd) => Number(odd.odd || 0) <= 2.35)
-      .sort((a, b) => Number(a.odd || 0) - Number(b.odd || 0));
-
-    return safe[0] || candidates[0] || null;
+  private normalizeText(text: any) {
+    return String(text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s.+-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   private createSeed(text: string) {
     let hash = 0;
-
-    for (let i = 0; i < text.length; i++) {
+    for (let i = 0; i < text.length; i += 1) {
       hash = (hash << 5) - hash + text.charCodeAt(i);
       hash |= 0;
     }
-
     return Math.abs(hash);
   }
 
@@ -304,598 +60,410 @@ export class AiService {
   }
 
   private pickBySeed<T>(items: T[], seed: number) {
-    return items[seed % items.length];
+    return items[Math.abs(seed) % items.length];
   }
 
-  private normalizeText(text: any) {
-    return String(text || '')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+  private clamp(value: number, min = 0, max = 100) {
+    return Math.max(min, Math.min(max, Math.round(value)));
   }
 
-  private isConditionalTip(tip: string) {
-    const normalized = this.normalizeText(tip);
+  private num(value: any, fallback = 0) {
+    if (value === null || value === undefined || value === '') return fallback;
+    const parsed = Number(String(value).replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
 
+  private getHomeTeam(game: any) {
     return (
-      normalized.includes('entrada ao vivo somente') ||
-      normalized.includes('somente se') ||
-      normalized.includes('ritmo ofensivo') ||
-      normalized.includes('ritmo confirmar') ||
-      normalized.includes('aguardar') ||
-      normalized.includes('evitar 1o tempo') ||
-      normalized.includes('jogo ja em andamento') ||
-      normalized.includes('exposicao controlada')
+      game?.homeTeam ||
+      game?.teams?.home?.name ||
+      game?.times?.home?.name ||
+      game?.times?.home?.nome ||
+      game?.times?.casa?.name ||
+      game?.times?.casa?.nome ||
+      'Time Casa'
     );
   }
 
-  private getSafeRealTip(homeTeam: string, awayTeam: string, context: any) {
-    const livePrefix = context.isLive ? 'Ao vivo: ' : '';
-
-    if (context.isLive) {
-      if (context.elapsed >= 70) {
-        return context.totalGoals <= 2
-          ? `${livePrefix}Under 4.5 gols`
-          : `${livePrefix}Over 3.5 gols`;
-      }
-
-      if (context.totalGoals <= 1) {
-        return `${livePrefix}Under 3.5 gols`;
-      }
-
-      return `${livePrefix}Over 1.5 gols`;
-    }
-
-    if (context.goalTrend >= 72) {
-      return 'Over 1.5 gols';
-    }
-
-    if (context.favorite === awayTeam) {
-      return `${awayTeam} ou empate`;
-    }
-
-    return `${homeTeam} ou empate`;
+  private getAwayTeam(game: any) {
+    return (
+      game?.awayTeam ||
+      game?.teams?.away?.name ||
+      game?.times?.away?.name ||
+      game?.times?.away?.nome ||
+      game?.times?.fora?.name ||
+      game?.times?.fora?.nome ||
+      'Time Visitante'
+    );
   }
 
-  private sanitizeTip(tip: string, homeTeam: string, awayTeam: string, context: any) {
-    if (!tip || this.isConditionalTip(tip)) {
-      return this.getSafeRealTip(homeTeam, awayTeam, context);
-    }
-
-    return tip;
+  private getLeague(game: any) {
+    return (
+      game?.leagueName ||
+      game?.league?.name ||
+      game?.league?.nome ||
+      game?.liga?.name ||
+      game?.liga?.nome ||
+      game?.league ||
+      'Liga'
+    );
   }
 
-  private buildMatchContext(data: {
+  private getStatus(game: any) {
+    const status = game?.status || game?.fixture?.status || game?.jogo?.status || {};
+    return {
+      short: String(status?.short || status?.curto || ''),
+      elapsed: Number(status?.elapsed || status?.decorrido || status?.['tempo decorrido'] || 0),
+    };
+  }
+
+  private getGoals(game: any) {
+    const goals = game?.goals || game?.gols || {};
+    const score = game?.score || game?.placar || {};
+    const fulltime = score?.fulltime || score?.['tempo integral'] || {};
+
+    const homeGoals = Number(
+      goals?.home ??
+        goals?.casa ??
+        fulltime?.home ??
+        fulltime?.casa ??
+        0,
+    );
+
+    const awayGoals = Number(
+      goals?.away ??
+        goals?.fora ??
+        goals?.visitante ??
+        fulltime?.away ??
+        fulltime?.fora ??
+        fulltime?.visitante ??
+        0,
+    );
+
+    return {
+      homeGoals: Number.isFinite(homeGoals) ? homeGoals : 0,
+      awayGoals: Number.isFinite(awayGoals) ? awayGoals : 0,
+      totalGoals: (Number.isFinite(homeGoals) ? homeGoals : 0) + (Number.isFinite(awayGoals) ? awayGoals : 0),
+    };
+  }
+
+  private isLive(statusShort: string) {
+    return ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'IN_PLAY', 'INT'].includes(String(statusShort || '').toUpperCase());
+  }
+
+  private isFinished(statusShort: string) {
+    return ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(String(statusShort || '').toUpperCase());
+  }
+
+  private getStatValue(stats: any, teamIndex: number, labels: string[]) {
+    const teams = stats?.teams || stats?.statistics?.teams || [];
+    const list = teams?.[teamIndex]?.statistics || teams?.[teamIndex]?.stats || [];
+    if (!Array.isArray(list)) return undefined;
+
+    const found = list.find((item: any) => {
+      const label = this.normalizeText(item?.type || item?.name || item?.label || item?.title);
+      return labels.some((target) => label.includes(this.normalizeText(target)));
+    });
+
+    if (!found) return undefined;
+    return this.num(found.value ?? found.val ?? found.stat, undefined as any);
+  }
+
+  private extractStats(game: any) {
+    const rawStats = game?.statistics || game?.stats || {};
+    const boostStats = this.oddixBoostV2.extractStats(rawStats);
+
+    const stats = {
+      ...boostStats,
+      shotsHome: boostStats.shotsHome ?? this.getStatValue(rawStats, 0, ['total shots', 'chutes', 'finalizações', 'finalizacoes']),
+      shotsAway: boostStats.shotsAway ?? this.getStatValue(rawStats, 1, ['total shots', 'chutes', 'finalizações', 'finalizacoes']),
+      shotsOnHome: boostStats.shotsOnHome ?? this.getStatValue(rawStats, 0, ['shots on goal', 'shots on target', 'chutes no gol']),
+      shotsOnAway: boostStats.shotsOnAway ?? this.getStatValue(rawStats, 1, ['shots on goal', 'shots on target', 'chutes no gol']),
+      cornersHome: boostStats.cornersHome ?? this.getStatValue(rawStats, 0, ['corner', 'escanteio']),
+      cornersAway: boostStats.cornersAway ?? this.getStatValue(rawStats, 1, ['corner', 'escanteio']),
+      xgHome: boostStats.xgHome ?? this.getStatValue(rawStats, 0, ['expected goals', 'xg']),
+      xgAway: boostStats.xgAway ?? this.getStatValue(rawStats, 1, ['expected goals', 'xg']),
+    };
+
+    const hasRealStats =
+      rawStats?.available === true &&
+      rawStats?.simulated !== true &&
+      [
+        stats.shotsHome,
+        stats.shotsAway,
+        stats.shotsOnHome,
+        stats.shotsOnAway,
+        stats.cornersHome,
+        stats.cornersAway,
+        stats.xgHome,
+        stats.xgAway,
+      ].some((value) => value !== undefined && value !== null);
+
+    return { stats, hasRealStats, rawStats };
+  }
+
+  private getGameOddFromFixture(game: any, fallback = 1.55) {
+    const options = game?.odds?.options || game?.odds?.opções || [];
+    if (!Array.isArray(options) || !options.length) return fallback;
+
+    const safe = options
+      .map((item: any) => Number(item?.odd || item?.rate?.decimal || 0))
+      .filter((odd: number) => odd >= 1.25 && odd <= 2.15)
+      .sort((a: number, b: number) => a - b);
+
+    return Number((safe[0] || fallback).toFixed(2));
+  }
+
+  private async getRealOdds(homeTeam: string, awayTeam: string, league: string) {
+    try {
+      const odds = await this.oddsService.getBestOdds({ homeTeam, awayTeam, league });
+      return Array.isArray(odds) ? odds : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private mapRealOddMarket(prop: any, index: number): CandidateMarket | null {
+    const key = String(prop.marketKey || '');
+    const odd = Number(prop.odd || 0);
+
+    if (!odd || odd < 1.25 || odd > 2.35) return null;
+
+    if (key === 'player_goal_scorer_anytime' && process.env.ODDIX_ALLOW_ANYTIME_SCORER !== 'true') {
+      return null;
+    }
+
+    if (!['player_shots_on_target', 'player_shots', 'player_assists', 'player_goal_scorer_anytime'].includes(key)) {
+      return null;
+    }
+
+    return {
+      key,
+      category: 'Player Props',
+      market: prop.marketName || 'Player Props',
+      tip: prop.tip,
+      odd,
+      confidence: key === 'player_shots_on_target' ? Math.max(76, 86 - index) : key === 'player_shots' ? Math.max(74, 83 - index) : Math.max(68, 74 - index),
+      risk: key === 'player_goal_scorer_anytime' ? 'Alto' : index <= 2 ? 'Baixo' : 'Médio',
+      bookmaker: prop.bookmaker,
+      oddsSource: 'the-odds-api',
+      isRealOdd: true,
+      reason: `Mercado real encontrado via ${prop.bookmaker || 'The Odds API'}.`,
+    };
+  }
+
+  private buildPregameMarkets(homeTeam: string, awayTeam: string, league: string, seed: number, fixtureOdd: number, qualityScore: number): CandidateMarket[] {
+    const confidenceBase = this.clamp(Number(qualityScore || 75), 68, 85);
+    const favoriteIsAway = seed % 3 === 0;
+    const protectedTeam = favoriteIsAway ? awayTeam : homeTeam;
+
+    const markets: CandidateMarket[] = [
+      {
+        key: 'handicap_asiatico',
+        category: 'Proteção',
+        market: 'Handicap Asiático',
+        tip: `${protectedTeam} +1.5 handicap`,
+        odd: Math.min(1.75, Math.max(1.35, fixtureOdd || 1.45)),
+        confidence: this.clamp(confidenceBase + 2, 68, 86),
+        risk: 'Baixo',
+        oddsSource: 'oddix-estimada',
+        isRealOdd: false,
+        reason: 'Pré-jogo sem estatística real: mercado protegido. Escanteios e player props bloqueados.',
+      },
+      {
+        key: 'dupla_chance',
+        category: 'Proteção',
+        market: 'Dupla Chance',
+        tip: `${protectedTeam} ou empate`,
+        odd: 1.55,
+        confidence: this.clamp(confidenceBase, 68, 84),
+        risk: 'Baixo',
+        oddsSource: 'oddix-estimada',
+        isRealOdd: false,
+        reason: 'Pré-jogo sem estatística real: dupla chance é mais segura que resultado seco.',
+      },
+      {
+        key: 'total_gols',
+        category: 'Gols',
+        market: 'Total de Gols',
+        tip: seed % 2 === 0 ? 'Under 3.5 gols' : 'Over 1.5 gols',
+        odd: seed % 2 === 0 ? 1.55 : 1.50,
+        confidence: this.clamp(confidenceBase - 4, 68, 80),
+        risk: 'Médio',
+        oddsSource: 'oddix-estimada',
+        isRealOdd: false,
+        reason: 'Mercado de gols conservador. Sem usar tendência simulada.',
+      },
+    ];
+
+    return markets;
+  }
+
+  private buildLiveMarkets(params: {
     homeTeam: string;
     awayTeam: string;
     league: string;
-    statusShort: string;
-    elapsed: number;
-    homeGoals: number;
-    awayGoals: number;
     seed: number;
-  }) {
-    const isLive = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'].includes(
-      data.statusShort,
-    );
+    qualityScore: number;
+    elapsed: number;
+    totalGoals: number;
+    stats: any;
+    hasRealStats: boolean;
+  }): CandidateMarket[] {
+    const { homeTeam, awayTeam, seed, qualityScore, elapsed, totalGoals, stats, hasRealStats } = params;
+    const confidenceBase = this.clamp(Number(qualityScore || 75), 68, 88);
+    const totalShotsOn = this.num(stats.shotsOnHome, 0) + this.num(stats.shotsOnAway, 0);
+    const totalShots = this.num(stats.shotsHome, 0) + this.num(stats.shotsAway, 0);
+    const totalCorners = this.num(stats.cornersHome, 0) + this.num(stats.cornersAway, 0);
+    const totalXg = this.num(stats.xgHome, 0) + this.num(stats.xgAway, 0);
 
-    const isFinished = ['FT', 'AET', 'PEN'].includes(data.statusShort);
-
-    const totalGoals = data.homeGoals + data.awayGoals;
-    const goalDifference = Math.abs(data.homeGoals - data.awayGoals);
-
-    const homeStrength = this.seededInt(data.seed + 11, 56, 86);
-    const awayStrength = this.seededInt(data.seed + 22, 52, 84);
-    const goalTrend = this.seededInt(data.seed + 33, 45, 88);
-    const cornerTrend = this.seededInt(data.seed + 44, 42, 86);
-    const cardTrend = this.seededInt(data.seed + 55, 38, 82);
-    const shotTrend = this.seededInt(data.seed + 66, 44, 88);
-    const balance = Math.abs(homeStrength - awayStrength);
-
-    return {
-      ...data,
-      isLive,
-      isFinished,
-      totalGoals,
-      goalDifference,
-      isDraw: data.homeGoals === data.awayGoals,
-      homeWinning: data.homeGoals > data.awayGoals,
-      awayWinning: data.awayGoals > data.homeGoals,
-      homeStrength,
-      awayStrength,
-      goalTrend,
-      cornerTrend,
-      cardTrend,
-      shotTrend,
-      balance,
-      favorite:
-        homeStrength >= awayStrength + 5
-          ? data.homeTeam
-          : awayStrength >= homeStrength + 5
-          ? data.awayTeam
-          : 'equilibrado',
-      underdog:
-        homeStrength >= awayStrength + 5
-          ? data.awayTeam
-          : awayStrength >= homeStrength + 5
-          ? data.homeTeam
-          : 'nenhum',
-      gamePhase: this.getGamePhase(data.statusShort, data.elapsed),
-      matchTempo: this.getMatchTempo(data.elapsed, totalGoals, goalTrend),
-    };
-  }
-
-  private getGamePhase(statusShort: string, elapsed: number) {
-    if (statusShort === 'HT') return 'intervalo';
-    if (['FT', 'AET', 'PEN'].includes(statusShort)) return 'finalizado';
-    if (elapsed > 75) return 'reta final';
-    if (elapsed > 45) return 'segundo tempo';
-    if (elapsed > 0) return 'primeiro tempo';
-    return 'pré-jogo';
-  }
-
-  private getMatchTempo(elapsed: number, totalGoals: number, goalTrend: number) {
-    if (!elapsed) {
-      if (goalTrend >= 72) return 'tendente a gols';
-      if (goalTrend <= 54) return 'mais controlado';
-      return 'neutro';
+    if (!hasRealStats) {
+      return [
+        {
+          key: 'handicap_asiatico',
+          category: 'Proteção',
+          market: 'Handicap Asiático',
+          tip: `${seed % 2 === 0 ? homeTeam : awayTeam} +0.5 handicap`,
+          odd: 1.55,
+          confidence: this.clamp(confidenceBase - 3, 68, 82),
+          risk: 'Baixo',
+          oddsSource: 'oddix-estimada',
+          isRealOdd: false,
+          reason: 'Ao vivo sem estatística real: entrada protegida. Escanteios/chutes bloqueados.',
+        },
+        {
+          key: 'total_gols',
+          category: 'Gols',
+          market: 'Total de Gols',
+          tip: elapsed >= 55 && totalGoals >= 2 ? 'Under 5.5 gols' : 'Under 3.5 gols',
+          odd: 1.52,
+          confidence: this.clamp(confidenceBase - 5, 68, 78),
+          risk: 'Médio',
+          oddsSource: 'oddix-estimada',
+          isRealOdd: false,
+          reason: 'Sem estatística real: mercado conservador, sem inventar pressão ou volume.',
+        },
+      ];
     }
 
-    if (totalGoals >= 3 && elapsed <= 70) return 'aberto';
-    if (totalGoals === 0 && elapsed >= 35) return 'travado';
-    if (totalGoals <= 1 && elapsed >= 60) return 'controlado';
+    const markets: CandidateMarket[] = [];
 
-    return 'equilibrado';
+    if (elapsed >= 25 && totalShotsOn >= 4) {
+      markets.push({
+        key: 'chutes_no_gol',
+        category: 'Finalizações',
+        market: 'Chutes no Gol',
+        tip: `Over ${Math.max(4.5, totalShotsOn + 1.5).toFixed(1)} chutes no gol`,
+        odd: 1.62,
+        confidence: this.clamp(confidenceBase + 5, 72, 90),
+        risk: 'Médio/Baixo',
+        oddsSource: 'estatística-real',
+        isRealOdd: false,
+        reason: `Chutes no gol reais no jogo: ${totalShotsOn}.`,
+      });
+    }
+
+    if (elapsed >= 30 && totalCorners >= 5) {
+      markets.push({
+        key: 'escanteios',
+        category: 'Escanteios',
+        market: 'Escanteios',
+        tip: `Over ${Math.max(7.5, totalCorners + 1.5).toFixed(1)} escanteios`,
+        odd: 1.68,
+        confidence: this.clamp(confidenceBase + 3, 72, 88),
+        risk: 'Médio',
+        oddsSource: 'estatística-real',
+        isRealOdd: false,
+        reason: `Escanteios reais no jogo: ${totalCorners}.`,
+      });
+    }
+
+    if ((totalXg >= 1.1 || totalShotsOn >= 4 || totalShots >= 10) && totalGoals <= 2) {
+      markets.push({
+        key: 'total_gols',
+        category: 'Gols',
+        market: 'Total de Gols',
+        tip: totalGoals <= 1 ? 'Over 1.5 gols' : 'Over 2.5 gols',
+        odd: totalGoals <= 1 ? 1.58 : 1.82,
+        confidence: this.clamp(confidenceBase + 2, 70, 86),
+        risk: 'Médio',
+        oddsSource: 'estatística-real',
+        isRealOdd: false,
+        reason: `Volume real: ${totalShots} chutes, ${totalShotsOn} no gol, xG ${totalXg.toFixed(2)}.`,
+      });
+    }
+
+    if (!markets.length) {
+      markets.push({
+        key: 'handicap_asiatico',
+        category: 'Proteção',
+        market: 'Handicap Asiático',
+        tip: `${seed % 2 === 0 ? homeTeam : awayTeam} +0.5 handicap`,
+        odd: 1.55,
+        confidence: this.clamp(confidenceBase - 2, 68, 82),
+        risk: 'Baixo',
+        oddsSource: 'estatística-real',
+        isRealOdd: false,
+        reason: 'Estatística real disponível, mas sem volume suficiente para mercado agressivo.',
+      });
+    }
+
+    return markets;
   }
 
-  private isMarketAllowed(market: any, context: any) {
-    if (!market) return false;
-
-    const blockedAlways = ['placar_correto', 'jogadores', 'bet_builder'];
-    if (blockedAlways.includes(market.key)) return false;
-
-    if (market.risk === 'Alto') return false;
-    if (market.confidence < 68) return false;
-    if (Number(market.odd) > 2.35 && market.confidence < 78) return false;
-
-    if (context.isFinished) return false;
-
-    if (context.isLive && context.elapsed >= 75) {
-      const allowedLate = ['total_gols', 'escanteios', 'chutes_no_gol', 'chutes'];
-      if (!allowedLate.includes(market.key)) return false;
-      if (market.confidence < 76) return false;
-    }
-
-    if (market.key === 'resultado_final' && context.balance < 22) return false;
-    if (market.key === 'multipla') return false;
-
-    return true;
-  }
-
-  private marketScore(
-    confidence: number,
-    odd: number,
-    risk: RiskLevel,
-    context: any,
-    key: string,
-  ) {
-    const riskPenalty: Record<RiskLevel, number> = {
-      Baixo: 0,
-      Médio: 9,
-      Alto: 30,
-    };
-
-    let bonus = 0;
-
-    if (key === 'player_shots_on_target') bonus += 36;
-    if (key === 'player_shots') bonus += 30;
-    if (key === 'escanteios') bonus += 24;
-    if (key === 'chutes_no_gol') bonus += 22;
-    if (key === 'chutes') bonus += 20;
-    if (key === 'total_gols') bonus += 8;
-
-    if (key === 'dupla_chance') bonus -= 8;
-    if (key === 'empate_anula') bonus -= 6;
-    if (key === 'resultado_final') bonus -= 14;
-    if (key === 'ambas_marcam') bonus -= 8;
-    if (key === 'handicap_asiatico') bonus += 2;
-
-    if (key === 'total_gols') bonus += context.goalTrend >= 70 ? 8 : 3;
-    if (key === 'escanteios') bonus += context.cornerTrend >= 70 ? 5 : -5;
-    if (key === 'cartoes') bonus += context.cardTrend >= 68 ? 4 : -6;
-    if (key === 'chutes' || key === 'chutes_no_gol') bonus += context.shotTrend >= 70 ? 4 : -5;
-
-    if (key === 'resultado_final') bonus += context.balance >= 22 ? 4 : -20;
-    if (key === 'ambas_marcam') bonus += context.goalTrend >= 72 ? 3 : -8;
-
-    if (context.isLive && key === 'ao_vivo') bonus += 6;
-    if (context.isLive && context.elapsed >= 75) bonus -= 8;
-
-    return confidence + odd * 2.2 + bonus - riskPenalty[risk];
-  }
-
-  private generateConfidence(key: string, index: number, context: any, seed: number) {
-    const base: Record<string, number> = {
-      total_gols: 74,
-      dupla_chance: 76,
-      empate_anula: 73,
-      handicap_asiatico: 71,
-      escanteios: 80,
-      cartoes: 68,
-      chutes_no_gol: 80,
-      chutes: 78,
-      ambas_marcam: 63,
-      primeiro_tempo: 60,
-      resultado_final: 58,
-      jogadores: 50,
-      bet_builder: 48,
-      multipla: 45,
-      placar_correto: 35,
-      ao_vivo: 74,
-    };
-
-    let value = base[key] ?? 58;
-
-    if (key === 'total_gols' || key === 'ao_vivo') {
-      if (context.goalTrend >= 72) value += 7;
-      if (context.goalTrend <= 55) value += 4;
-      if (context.matchTempo === 'travado') value += 6;
-      if (context.totalGoals >= 3 && context.elapsed >= 60) value -= 7;
-    }
-
-    if (key === 'dupla_chance') {
-      value += context.balance >= 10 ? 8 : 3;
-      if (context.isLive && context.elapsed >= 70) value += 5;
-    }
-
-    if (key === 'empate_anula') {
-      value += context.balance >= 12 ? 8 : 2;
-    }
-
-    if (key === 'handicap_asiatico') {
-      value += context.balance >= 10 ? 7 : 2;
-    }
-
-    if (key === 'resultado_final') {
-      value += context.balance >= 22 ? 10 : -12;
-    }
-
-    if (key === 'ambas_marcam') {
-      value += context.goalTrend >= 74 ? 7 : -8;
-    }
-
-    if (key === 'escanteios') value += Math.round((context.cornerTrend - 60) * 0.25);
-    if (key === 'cartoes') value += Math.round((context.cardTrend - 60) * 0.22);
-    if (key === 'chutes' || key === 'chutes_no_gol') value += Math.round((context.shotTrend - 60) * 0.22);
-
-    if (context.isLive) {
-      if (context.elapsed < 12) value -= 5;
-      if (context.elapsed >= 75) value -= 4;
-      if (key === 'total_gols' && context.matchTempo === 'aberto') value += 5;
-      if (key === 'total_gols' && context.matchTempo === 'controlado') value += 6;
-      if (key === 'ao_vivo') value += 4;
-      if (key === 'placar_correto') value -= 20;
-    }
-
-    if (context.isFinished) value -= 30;
-
-    const variation = this.seededInt(seed + index, -4, 5);
-
-    return Math.max(35, Math.min(91, value + variation));
-  }
-
-  private generateOdd(key: string, confidence: number, context: any, seed: number) {
-    const baseOdds: Record<string, number> = {
-      total_gols: 1.55,
-      dupla_chance: 1.38,
-      empate_anula: 1.52,
-      handicap_asiatico: 1.62,
-      escanteios: 1.72,
-      cartoes: 1.74,
-      chutes_no_gol: 1.78,
-      chutes: 1.72,
-      ambas_marcam: 1.82,
-      primeiro_tempo: 1.68,
-      resultado_final: 2.05,
-      jogadores: 2.25,
-      bet_builder: 2.55,
-      multipla: 2.75,
-      placar_correto: 8.5,
-      ao_vivo: 1.58,
-    };
-
-    let odd = baseOdds[key] ?? 1.75;
-
-    odd += this.seededNumber(seed + 99, -0.08, 0.12);
-
-    if (confidence >= 82) odd -= 0.06;
-    if (confidence <= 65) odd += 0.12;
-    if (context.isLive && context.elapsed >= 70) odd += 0.05;
-
-    return Number(Math.max(1.25, Math.min(2.45, odd)).toFixed(2));
-  }
-
-  private generateTip(key: string, homeTeam: string, awayTeam: string, context: any, seed: number) {
-    const livePrefix = context.isLive ? 'Ao vivo: ' : '';
-    const favorite = context.favorite === 'equilibrado' ? homeTeam : context.favorite;
-
-    const safeGoalLine =
-      context.goalTrend >= 72
-        ? this.pickBySeed(['Over 1.5 gols', 'Over 2.0 gols asiático'], seed + 1)
-        : this.pickBySeed(['Under 3.5 gols', 'Under 4.5 gols'], seed + 2);
-
-    const cornerLine = this.pickBySeed(['Over 7.5 escanteios', 'Over 8.5 escanteios'], seed + 3);
-    const cardLine = this.pickBySeed(['Over 2.5 cartões', 'Over 3.5 cartões'], seed + 4);
-    const shotLine = this.pickBySeed(['Over 18.5 chutes totais', 'Over 20.5 chutes totais'], seed + 5);
-    const shotOnTargetLine = this.pickBySeed(['Over 5.5 chutes no gol', 'Over 6.5 chutes no gol'], seed + 6);
-
-    const liveRealTip =
-      context.totalGoals <= 1
-        ? 'Under 3.5 gols'
-        : context.totalGoals >= 3
-        ? 'Over 3.5 gols'
-        : 'Over 1.5 gols';
-
-    const tips: Record<string, string> = {
-      resultado_final:
-        context.balance >= 22
-          ? `${livePrefix}${favorite} para vencer`
-          : `${livePrefix}${favorite} empate anula aposta`,
-      dupla_chance:
-        context.favorite === awayTeam
-          ? `${livePrefix}${awayTeam} ou empate`
-          : `${livePrefix}${homeTeam} ou empate`,
-      empate_anula: `${livePrefix}${favorite} empate anula aposta`,
-      total_gols: `${livePrefix}${safeGoalLine}`,
-      ambas_marcam:
-        context.goalTrend >= 74
-          ? `${livePrefix}Ambas equipes marcam: Sim`
-          : `${livePrefix}Ambas equipes marcam: Não`,
-      handicap_asiatico:
-        context.favorite === awayTeam
-          ? `${livePrefix}${awayTeam} +0.25 handicap asiático`
-          : `${livePrefix}${homeTeam} +0.25 handicap asiático`,
-      handicap_europeu:
-        context.favorite === awayTeam
-          ? `${livePrefix}${awayTeam} +1 handicap europeu`
-          : `${livePrefix}${homeTeam} +1 handicap europeu`,
-      escanteios: `${livePrefix}${cornerLine}`,
-      cartoes: `${livePrefix}${cardLine}`,
-      chutes: `${livePrefix}${shotLine}`,
-      chutes_no_gol: `${livePrefix}${shotOnTargetLine}`,
-      primeiro_tempo:
-        context.gamePhase === 'pré-jogo'
-          ? 'Over 0.5 gol no 1º tempo'
-          : `${livePrefix}Under 3.5 gols`,
-      aposta_simples: `${livePrefix}${safeGoalLine}`,
-      multipla: `Dupla chance + ${safeGoalLine}`,
-      bet_builder: `${safeGoalLine} + dupla chance`,
-      ao_vivo: `${livePrefix}${liveRealTip}`,
-    };
-
-    return this.sanitizeTip(
-      tips[key] || `${livePrefix}${safeGoalLine}`,
-      homeTeam,
-      awayTeam,
-      context,
-    );
-  }
-
-  private getRisk(confidence: number, key?: string, context?: any): RiskLevel {
-    if (['placar_correto', 'multipla', 'bet_builder', 'jogadores'].includes(key || '')) {
-      return 'Alto';
-    }
-
-    if (key === 'resultado_final' && context?.balance < 22) return 'Alto';
-
-    if (context?.isLive && context.elapsed >= 75) {
-      if (confidence >= 82 && ['dupla_chance', 'empate_anula', 'total_gols'].includes(key || '')) {
-        return 'Médio';
-      }
-      return 'Alto';
-    }
-
-    if (confidence >= 80) return 'Baixo';
-    if (confidence >= 70) return 'Médio';
-
-    return 'Alto';
-  }
-
-  private safeFallbackMarket(homeTeam: string, awayTeam: string, league: string, context: any) {
-    const favorite = context.favorite === 'equilibrado' ? homeTeam : context.favorite;
-    const tip = this.getSafeRealTip(homeTeam, awayTeam, context);
-
-    return {
-      key: 'total_gols',
-      category: 'Protegido',
-      market: 'Total de gols',
-      tip,
-      odd: context.isLive ? 1.48 : 1.55,
-      confidence: 74,
-      risk: 'Médio' as RiskLevel,
-      reason: `Mercado real escolhido como fallback para ${homeTeam} x ${awayTeam} (${league}). O modelo evitou entradas condicionais e priorizou uma linha mensurável para validação GREEN/RED. Referência técnica: ${favorite}.`,
-    };
-  }
-
-  private generateProfessionalReason(
-    market: string,
-    homeTeam: string,
-    awayTeam: string,
-    context: any,
-    confidence: number,
-    risk: RiskLevel,
-    realOdd?: any,
-  ) {
-    const phase =
-      context.gamePhase === 'pré-jogo'
-        ? 'pré-jogo'
-        : `momento atual da partida (${context.gamePhase})`;
-
-    const scoreText = context.isLive
-      ? ` Placar atual: ${context.homeGoals}x${context.awayGoals}.`
-      : '';
-
-    const oddsText = realOdd
-      ? ` Odd real encontrada na The Odds API via ${realOdd.bookmaker}.`
-      : ' Odd estimada pela Oddix porque não houve linha real compatível na The Odds API.';
-
-    return `Mercado de ${market} selecionado para ${homeTeam} x ${awayTeam} com base no ${phase}, equilíbrio técnico, tendência de gols ${context.goalTrend}/100, escanteios ${context.cornerTrend}/100, cartões ${context.cardTrend}/100 e finalizações ${context.shotTrend}/100.${scoreText}${oddsText} Confiança estimada em ${confidence}% e risco ${risk}.`;
-  }
-
-  private generateMultiples(markets: any[], context: any) {
-    const safe = markets
-      .filter((market) => market.risk !== 'Alto')
-      .filter((market) => market.confidence >= 70)
-      .filter((market) => Number(market.odd) <= 2.1)
-      .filter((market) => !this.isConditionalTip(market.tip))
-      .slice(0, 4);
-
-    const conservative = safe.slice(0, 2);
-    const moderate = safe.slice(0, 3);
-    const aggressive = safe.slice(0, 4);
-
-    const build = (name: string, items: any[], risk: RiskLevel, stake: string) => {
-      const combinedOdd = items.reduce((acc, item) => acc * Number(item.odd || 1), 1);
-
-      return {
-        name,
-        selections: items.map((item) => ({
-          market: item.market,
-          tip: this.sanitizeTip(item.tip, '', '', context),
-          odd: item.odd,
-          confidence: item.confidence,
-          risk: item.risk,
-        })),
-        combinedOdd: Number(combinedOdd.toFixed(2)),
-        risk,
-        stake,
-        note:
-          risk === 'Baixo'
-            ? 'Múltipla protegida, indicada para controle de banca.'
-            : risk === 'Médio'
-            ? 'Múltipla equilibrada. Use stake reduzida.'
-            : 'Múltipla agressiva. Use apenas valor simbólico.',
-      };
-    };
-
-    return {
-      conservative: build('Múltipla Conservadora', conservative, 'Baixo', '0.5 unidade'),
-      moderate: build('Múltipla Moderada', moderate, 'Médio', '0.25 unidade'),
-      aggressive: build('Múltipla Agressiva', aggressive, 'Alto', '0.10 unidade'),
-    };
+  private isUnsafeMarket(market: CandidateMarket, isLive: boolean, hasRealStats: boolean) {
+    const text = this.normalizeText(`${market.key} ${market.market} ${market.tip}`);
+    if (text.includes('escanteio') || text.includes('corner')) return !isLive || !hasRealStats;
+    if (text.includes('chute no gol') || text.includes('shots on target')) return !isLive || !hasRealStats;
+    if (text.includes('player') || text.includes('jogador')) return !hasRealStats || !market.isRealOdd;
+    if (text.includes('placar correto')) return true;
+    return false;
   }
 
   private applyConfidenceEngine(market: any, context: any, homeTeam: string, awayTeam: string, game: any) {
-    const oddsMeta = this.extractOddsMetaFromGame(game, market);
-    const dominanceHint = this.buildDominanceHint(context, game);
+    try {
+      const enriched = {
+        ...market,
+        homeTeam,
+        awayTeam,
+        league: game?.league?.name || game?.league || '',
+        status: game?.fixture?.status,
+        game,
+      };
 
-    const engine = this.confidenceEngine.calculate({
-      minute: context.elapsed,
-      statusShort: context.statusShort,
-      homeTeam,
-      awayTeam,
-      homeGoals: context.homeGoals,
-      awayGoals: context.awayGoals,
-      odd: Number(market.odd || 1),
-      oldOdd: oddsMeta.oldOdd,
-      originalOdd: oddsMeta.originalOdd,
-      prematchOdd: oddsMeta.prematchOdd,
-      trend: oddsMeta.trend,
-      marketKey: market.key,
-      tip: market.tip,
-      possessionHome: dominanceHint.possessionHome,
-      possessionAway: dominanceHint.possessionAway,
-      attacksHome: dominanceHint.attacksHome,
-      attacksAway: dominanceHint.attacksAway,
-      dangerousAttacksHome: dominanceHint.dangerousAttacksHome,
-      dangerousAttacksAway: dominanceHint.dangerousAttacksAway,
-      shotsTotalHome: dominanceHint.shotsTotalHome,
-      shotsTotalAway: dominanceHint.shotsTotalAway,
-      shotsOnGoalHome: dominanceHint.shotsOnGoalHome,
-      shotsOnGoalAway: dominanceHint.shotsOnGoalAway,
-      cornersHome: dominanceHint.cornersHome,
-      cornersAway: dominanceHint.cornersAway,
-      yellowCardsHome: dominanceHint.yellowCardsHome,
-      yellowCardsAway: dominanceHint.yellowCardsAway,
-    });
+      const result = this.confidenceEngine.analyze
+        ? this.confidenceEngine.analyze(enriched)
+        : this.confidenceEngine.calculate
+        ? this.confidenceEngine.calculate(enriched)
+        : null;
 
-    const confidence = Math.max(Number(market.confidence || 0), engine.confidence);
-    const risk = engine.risk === 'Alto' && confidence >= 90 ? 'Médio' : engine.risk;
+      if (!result) return market;
 
-    return {
-      ...market,
-      confidence,
-      risk,
-      oddixEngine: engine,
-      engineScore: engine.score,
-      engineLevel: engine.level,
-      engineCategory: engine.category,
-      dominanceHome: engine.dominanceHome,
-      dominanceAway: engine.dominanceAway,
-      dominantTeam: engine.dominantTeam,
-      engineReasons: engine.reasons,
-      reason: `${market.reason || ''} Score Oddix ${engine.score}/100 (${engine.level}). ${engine.reasons.join(' ')}`.trim(),
-    };
+      return {
+        ...market,
+        confidence: Number(result.confidence || market.confidence || 0),
+        oddixEngine: result,
+      };
+    } catch {
+      return market;
+    }
   }
 
-  private extractOddsMetaFromGame(game: any, market: any) {
-    const rawOdds =
-      game?.odds ||
-      game?.allScoresRaw?.odds ||
-      game?.raw?.odds ||
-      game?.allScoresRaw?.promotedPredictions?.predictions?.[0]?.odds ||
-      null;
+  private generateMultiples(markets: any[], context: any) {
+    const safe = (markets || [])
+      .filter((market) => Number(market.odd || 0) >= 1.25 && Number(market.odd || 0) <= 2.05)
+      .filter((market) => String(market.risk || '').toLowerCase() !== 'alto')
+      .slice(0, 3);
 
-    const options = Array.isArray(rawOdds?.options) ? rawOdds.options : [];
-    const normalizedTip = this.normalizeText(market?.tip || '');
+    if (safe.length < 2) return null;
 
-    const option =
-      options.find((item: any) => this.normalizeText(item?.name).includes(normalizedTip)) ||
-      options.find((item: any) => Number(item?.rate?.decimal || 0) === Number(market?.odd || 0)) ||
-      options.find((item: any) => Number(item?.rate?.decimal || 0) >= 1.35 && Number(item?.rate?.decimal || 0) <= 2.3) ||
-      options[0] ||
-      null;
+    const oddTotal = safe.reduce((total, market) => total * Number(market.odd || 1), 1);
 
     return {
-      oldOdd: Number(option?.oldRate?.decimal || 0),
-      originalOdd: Number(option?.originalRate?.decimal || 0),
-      prematchOdd: Number(option?.prematchRate?.decimal || 0),
-      trend: Number(option?.trend || 0),
-    };
-  }
-
-  private buildDominanceHint(context: any, game: any) {
-    const raw = game?.allScoresRaw || game?.raw || game || {};
-    const homeScore = Number(context.homeStrength || 60);
-    const awayScore = Number(context.awayStrength || 60);
-    const totalStrength = Math.max(1, homeScore + awayScore);
-    const homeShare = homeScore / totalStrength;
-    const awayShare = awayScore / totalStrength;
-
-    const gameTime = Number(raw?.gameTime || context.elapsed || 0);
-    const hasLiveMomentum = gameTime > 0;
-
-    const baseShots = hasLiveMomentum ? Math.max(8, Math.round((context.shotTrend || 60) / 4)) : 10;
-    const baseCorners = hasLiveMomentum ? Math.max(3, Math.round((context.cornerTrend || 55) / 10)) : 4;
-    const baseDangerous = hasLiveMomentum ? Math.max(35, Math.round((context.shotTrend || 60) + (context.cornerTrend || 55) / 2)) : 45;
-
-    return {
-      possessionHome: Math.round(45 + (homeShare - 0.5) * 30),
-      possessionAway: Math.round(45 + (awayShare - 0.5) * 30),
-      attacksHome: Math.round(baseDangerous * homeShare * 1.45),
-      attacksAway: Math.round(baseDangerous * awayShare * 1.45),
-      dangerousAttacksHome: Math.round(baseDangerous * homeShare),
-      dangerousAttacksAway: Math.round(baseDangerous * awayShare),
-      shotsTotalHome: Math.round(baseShots * homeShare),
-      shotsTotalAway: Math.round(baseShots * awayShare),
-      shotsOnGoalHome: Math.max(1, Math.round(baseShots * homeShare * 0.38)),
-      shotsOnGoalAway: Math.max(1, Math.round(baseShots * awayShare * 0.38)),
-      cornersHome: Math.round(baseCorners * homeShare),
-      cornersAway: Math.round(baseCorners * awayShare),
-      yellowCardsHome: 1,
-      yellowCardsAway: 1,
+      enabled: true,
+      type: context.isLive ? 'live' : 'pre-game',
+      selections: safe,
+      oddTotal: Number(oddTotal.toFixed(2)),
     };
   }
 
@@ -908,155 +476,145 @@ export class AiService {
     bestMarkets: any[];
     multiples?: any;
   }) {
-    const { homeTeam, awayTeam, league, context, best, bestMarkets, multiples } = data;
+    const { homeTeam, awayTeam, league, context, best, bestMarkets } = data;
+    const stats = context.stats || {};
+    const hasRealStats = !!context.hasRealStats;
 
-    const favoriteText =
-      context.favorite === 'equilibrado'
-        ? 'não há favorito claro pelo modelo'
-        : `${context.favorite} aparece com leve vantagem`;
+    const lines = [
+      `Análise Oddix — ${homeTeam} x ${awayTeam} (${league}).`,
+      context.isLive ? `Jogo ao vivo, minuto ${context.elapsed || 0}.` : 'Pré-jogo.',
+      hasRealStats
+        ? `Dados reais detectados: chutes ${this.num(stats.shotsHome, 0) + this.num(stats.shotsAway, 0)}, chutes no gol ${this.num(stats.shotsOnHome, 0) + this.num(stats.shotsOnAway, 0)}, escanteios ${this.num(stats.cornersHome, 0) + this.num(stats.cornersAway, 0)}.`
+        : 'Sem estatísticas reais suficientes. O modelo bloqueou escanteios, player props e chutes agressivos.',
+      `Entrada principal: ${best.tip} | odd ${best.odd} | confiança ${best.confidence}% | risco ${best.risk}.`,
+      '',
+      'Mercados recomendados:',
+      ...bestMarkets.slice(0, 3).map((market: any, index: number) => `${index + 1}. ${market.market}: ${market.tip} | odd ${market.odd} | ${market.confidence}%`),
+    ];
 
-    const gameMoment = context.isLive
-      ? `A partida está ao vivo, em fase de ${context.gamePhase}, com placar ${context.homeGoals}x${context.awayGoals}.`
-      : context.isFinished
-      ? `A partida já está finalizada.`
-      : `A partida ainda não começou.`;
-
-    const marketList = bestMarkets
-      .map(
-        (market, index) =>
-          `${index + 1}. ${market.market}: ${market.tip} | odd ${market.odd} (${market.isRealOdd ? 'real' : 'estimada'}) | confiança ${market.confidence}% | risco ${market.risk}`,
-      )
-      .join('\n');
-
-    return `Análise Oddix — ${homeTeam} x ${awayTeam} (${league}).
-
-${gameMoment}
-
-Leitura:
-O modelo priorizou mercados protegidos, evitando placar correto, bet builder agressivo e resultado seco sem vantagem clara. Neste confronto, ${favoriteText}. Tendência de gols ${context.goalTrend}/100, escanteios ${context.cornerTrend}/100, cartões ${context.cardTrend}/100 e finalizações ${context.shotTrend}/100.
-
-Entrada principal:
-${best.tip} | odd ${best.odd} | confiança ${best.confidence}% | risco ${best.risk}.
-
-Mercados recomendados:
-${marketList}
-
-Múltiplas:
-Conservadora: ${multiples?.conservative?.selections?.map((s: any) => s.tip).join(' + ') || 'Sem múltipla segura'} | odd ${multiples?.conservative?.combinedOdd || '-'}.
-Moderada: ${multiples?.moderate?.selections?.map((s: any) => s.tip).join(' + ') || 'Sem múltipla segura'} | odd ${multiples?.moderate?.combinedOdd || '-'}.
-
-Fontes:
-Dados do jogo: API-Football primeiro, Sportmonks como fallback. Odds: The Odds API quando disponível; caso contrário, odd marcada como estimada.
-
-Gestão:
-Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou usar valor simbólico.`;
+    return lines.join('\\n');
   }
 
-  async generateBestMultipleFromGames(games: any[]) {
-    const bets = await Promise.all((games || []).map((game) => this.generateBet(game)));
+  async generateBet(game: any) {
+    const homeTeam = this.getHomeTeam(game);
+    const awayTeam = this.getAwayTeam(game);
+    const league = this.getLeague(game);
+    const status = this.getStatus(game);
+    const goals = this.getGoals(game);
+    const isLive = this.isLive(status.short);
+    const isFinished = this.isFinished(status.short);
+    const qualityScore = Number(game?.oddix?.qualityScore || game?.qualityScore || 75);
+    const seed = this.createSeed(`${homeTeam}-${awayTeam}-${league}-${status.short}-${status.elapsed}-${goals.homeGoals}-${goals.awayGoals}`);
+    const statsInfo = this.extractStats(game);
 
-    const generated = bets
-      .filter(Boolean)
-      .map((bet: any) => {
-        const bestMarket = Array.isArray(bet.markets)
-          ? bet.markets.find(
-              (m: any) =>
-                m.risk !== 'Alto' &&
-                Number(m.confidence) >= 70 &&
-                Number(m.odd) <= 2.1 &&
-                !this.isConditionalTip(m.tip),
-            ) || bet.markets[0]
-          : null;
-
-        return {
-          game: `${bet.homeTeam} x ${bet.awayTeam}`,
-          league: bet.league,
-          market: bestMarket?.market || 'Melhor entrada',
-          tip: this.sanitizeTip(bestMarket?.tip || bet.tip, bet.homeTeam, bet.awayTeam, {
-            isLive: false,
-            goalTrend: 60,
-            favorite: bet.homeTeam,
-            totalGoals: 0,
-          }),
-          odd: Number(bestMarket?.odd || bet.odd || 1),
-          confidence: Number(bestMarket?.confidence || bet.confidence || 0),
-          risk: bestMarket?.risk || bet.risk || 'Médio',
-        };
-      })
-      .filter((item: any) => item.tip && item.odd > 1)
-      .filter((item: any) => item.risk !== 'Alto')
-      .filter((item: any) => item.confidence >= 70)
-      .filter((item: any) => item.odd <= 2.1)
-      .filter((item: any) => !this.isConditionalTip(item.tip))
-      .sort((a: any, b: any) => {
-        const riskScore: any = { Baixo: 18, Médio: 7, Alto: -30 };
-        const scoreA = a.confidence + riskScore[a.risk] + a.odd * 1.5;
-        const scoreB = b.confidence + riskScore[b.risk] + b.odd * 1.5;
-        return scoreB - scoreA;
-      });
-
-    const uniqueGames: any[] = [];
-    const used = new Set<string>();
-
-    for (const item of generated) {
-      const key = item.game.toLowerCase();
-      if (!used.has(key)) {
-        used.add(key);
-        uniqueGames.push(item);
-      }
-
-      if (uniqueGames.length >= 4) break;
-    }
-
-    const conservative = uniqueGames.slice(0, 2);
-    const moderate = uniqueGames.slice(0, 3);
-    const aggressive = uniqueGames.slice(0, 4);
-
-    const build = (name: string, selections: any[], risk: RiskLevel, stake: string) => {
-      const combinedOdd = selections.reduce(
-        (acc, item) => acc * Number(item.odd || 1),
-        1,
-      );
-
-      const avgConfidence = selections.length
-        ? Math.round(
-            selections.reduce(
-              (acc, item) => acc + Number(item.confidence || 0),
-              0,
-            ) / selections.length,
-          )
-        : 0;
-
-      return {
-        name,
-        selections,
-        combinedOdd: Number(combinedOdd.toFixed(2)),
-        confidence: avgConfidence,
-        risk,
-        stake,
-        note:
-          risk === 'Baixo'
-            ? 'Múltipla com jogos diferentes e mercados protegidos.'
-            : risk === 'Médio'
-            ? 'Múltipla equilibrada, com stake reduzida.'
-            : 'Múltipla agressiva, usar stake simbólica.',
-      };
+    const context = {
+      homeTeam,
+      awayTeam,
+      league,
+      statusShort: status.short,
+      elapsed: status.elapsed,
+      homeGoals: goals.homeGoals,
+      awayGoals: goals.awayGoals,
+      totalGoals: goals.totalGoals,
+      isLive,
+      isFinished,
+      seed,
+      qualityScore,
+      stats: statsInfo.stats,
+      hasRealStats: statsInfo.hasRealStats,
     };
 
-    const result = {
-      conservative: build('Múltipla Conservadora do Dia', conservative, 'Baixo', '0.5 unidade'),
-      moderate: build('Múltipla Moderada do Dia', moderate, 'Médio', '0.25 unidade'),
-      aggressive: build('Múltipla Agressiva do Dia', aggressive, 'Alto', '0.10 unidade'),
+    const realOdds = await this.getRealOdds(homeTeam, awayTeam, league);
+    const playerPropMarkets = realOdds
+      .filter((pick: any) => String(pick.marketKey || '').startsWith('player_'))
+      .map((prop: any, index: number) => this.mapRealOddMarket(prop, index))
+      .filter(Boolean) as CandidateMarket[];
+
+    const fixtureOdd = this.getGameOddFromFixture(game, 1.55);
+    const candidateMarkets = isLive
+      ? this.buildLiveMarkets({ homeTeam, awayTeam, league, seed, qualityScore, elapsed: status.elapsed, totalGoals: goals.totalGoals, stats: statsInfo.stats, hasRealStats: statsInfo.hasRealStats })
+      : this.buildPregameMarkets(homeTeam, awayTeam, league, seed, fixtureOdd, qualityScore);
+
+    const rawFinalMarkets = [...playerPropMarkets, ...candidateMarkets]
+      .filter((market) => !this.isUnsafeMarket(market, isLive, statsInfo.hasRealStats))
+      .filter((market) => Number(market.odd || 0) >= 1.25 && Number(market.odd || 0) <= 2.15)
+      .filter((market) => Number(market.confidence || 0) >= 68)
+      .map((market) => this.applyConfidenceEngine(market, context, homeTeam, awayTeam, game))
+      .filter((market) => market?.oddixEngine?.send !== false);
+
+    const finalMarkets = this.oddixBoostV2.selectBestMarkets(rawFinalMarkets, {
+      isLive,
+      elapsed: status.elapsed,
+      totalGoals: goals.totalGoals,
+      homeGoals: goals.homeGoals,
+      awayGoals: goals.awayGoals,
+      league,
+      seed,
+      qualityScore,
+      stats: statsInfo.stats,
+      statistics: statsInfo.rawStats,
+      hasRealStats: statsInfo.hasRealStats,
+    }, 5);
+
+    const safeFinalMarkets = finalMarkets.length
+      ? finalMarkets
+      : this.oddixBoostV2.selectBestMarkets(this.buildPregameMarkets(homeTeam, awayTeam, league, seed, fixtureOdd, qualityScore), {
+          isLive: false,
+          elapsed: status.elapsed,
+          totalGoals: goals.totalGoals,
+          league,
+          seed,
+          qualityScore,
+          hasRealStats: false,
+        }, 3);
+
+    const best = safeFinalMarkets[0] || {
+      tip: 'Sem entrada segura no momento',
+      odd: 0,
+      confidence: 0,
+      risk: 'Alto',
+      market: 'Sem entrada',
     };
+
+    const multiples = this.generateMultiples(safeFinalMarkets, context);
 
     return {
-      ...result,
-      bestTelegramPick:
-        result.conservative.selections.length >= 2
-          ? result.conservative
-          : result.moderate.selections.length >= 2
-          ? result.moderate
-          : null,
+      homeTeam,
+      awayTeam,
+      league,
+      status: 'open',
+      sources: {
+        matchData: game.provider || game.sources?.matchData || 'provider',
+        odds: safeFinalMarkets.some((market: any) => market.isRealOdd) ? 'the-odds-api' : 'oddix-estimada',
+        confidenceEngine: 'oddix-confidence-engine-v1',
+        realOddsCount: realOdds.length,
+        playerPropsCount: playerPropMarkets.length,
+        estimatedOddsCount: safeFinalMarkets.filter((market: any) => !market.isRealOdd).length,
+        stats: statsInfo.hasRealStats ? 'real' : 'indisponivel',
+      },
+      tip: best.tip,
+      odd: best.odd,
+      confidence: best.confidence,
+      risk: best.risk,
+      engineScore: best.oddixEngine?.score ?? best.confidence,
+      engineLevel: best.oddixEngine?.level || 'BOM',
+      engineCategory: best.oddixEngine?.category || 'SAFE',
+      dominanceHome: best.oddixEngine?.dominanceHome ?? 50,
+      dominanceAway: best.oddixEngine?.dominanceAway ?? 50,
+      dominantTeam: best.oddixEngine?.dominantTeam || 'Jogo equilibrado',
+      engineReasons: best.oddixEngine?.reasons || [],
+      markets: safeFinalMarkets,
+      playerProps: playerPropMarkets.slice(0, 8),
+      multiples,
+      analysis: this.generateProfessionalAnalysis({
+        homeTeam,
+        awayTeam,
+        league,
+        context,
+        best,
+        bestMarkets: safeFinalMarkets,
+        multiples,
+      }),
     };
   }
 }
