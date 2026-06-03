@@ -1,8 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
-import * as fs from 'fs';
-import * as path from 'path';
-import sharp from 'sharp';
+import { Injectable, Logger } from "@nestjs/common";
+import axios from "axios";
+import * as fs from "fs";
+import * as path from "path";
+import sharp from "sharp";
 
 export type OddixVipCardInput = {
   homeTeam: string;
@@ -19,6 +19,14 @@ export type OddixVipCardInput = {
   status?: string;
   elapsed?: string | number | null;
   source?: string;
+  headline?: string;
+  subheadline?: string;
+  vipBadge?: string;
+  edge?: string;
+  confidenceLabel?: string;
+  valueLabel?: string;
+  theme?: string;
+  visualPrompt?: string;
 };
 
 export type OddixVipMultipleCardInput = {
@@ -45,22 +53,24 @@ export class OddixImageService {
   private readonly height = 515;
 
   private outputDir() {
-    const dir = path.join(process.cwd(), 'tmp', 'oddix-cards');
+    const dir = path.join(process.cwd(), "tmp", "oddix-cards");
     fs.mkdirSync(dir, { recursive: true });
     return dir;
   }
 
   private escape(value: any) {
-    return String(value ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   }
 
   private cleanText(value: any) {
-    return String(value ?? '').replace(/\s+/g, ' ').trim();
+    return String(value ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   private short(value: any, max = 32) {
@@ -69,9 +79,9 @@ export class OddixImageService {
   }
 
   private wrapText(value: any, maxCharsPerLine = 24, maxLines = 2) {
-    const words = this.cleanText(value).split(' ').filter(Boolean);
+    const words = this.cleanText(value).split(" ").filter(Boolean);
     const lines: string[] = [];
-    let current = '';
+    let current = "";
 
     for (const word of words) {
       const next = current ? `${current} ${word}` : word;
@@ -99,12 +109,12 @@ export class OddixImageService {
   }
 
   private initials(name: string) {
-    return String(name || 'OD')
+    return String(name || "OD")
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase())
-      .join('');
+      .join("");
   }
 
   private async downloadImage(url?: string): Promise<Buffer | null> {
@@ -112,9 +122,9 @@ export class OddixImageService {
 
     try {
       const response = await axios.get(url, {
-        responseType: 'arraybuffer',
+        responseType: "arraybuffer",
         timeout: 12000,
-        headers: { 'User-Agent': 'Oddix/1.0' },
+        headers: { "User-Agent": "Oddix/1.0" },
       });
       return Buffer.from(response.data);
     } catch {
@@ -122,13 +132,17 @@ export class OddixImageService {
     }
   }
 
-  private async logoBuffer(url: string | undefined, teamName: string, size: number): Promise<Buffer> {
+  private async logoBuffer(
+    url: string | undefined,
+    teamName: string,
+    size: number,
+  ): Promise<Buffer> {
     const downloaded = await this.downloadImage(url);
 
     if (downloaded) {
       return sharp(downloaded)
         .resize(size, size, {
-          fit: 'contain',
+          fit: "contain",
           background: { r: 0, g: 0, b: 0, alpha: 0 },
         })
         .png()
@@ -163,50 +177,54 @@ export class OddixImageService {
         process.env.ODDIX_USE_POLLINATIONS_BG ||
           process.env.POLLINATIONS_IMAGE_ENABLED ||
           process.env.POLLINATIONS_ENABLED ||
-          'false',
-      ).toLowerCase() === 'true';
+          "false",
+      ).toLowerCase() === "true";
 
     if (usePollinations) {
       const seed = this.seedFromText(inputText);
-      const prompt = [
-        'premium football betting background',
-        'ultra luxury sportsbook',
-        'black gold purple',
-        'cinematic stadium',
-        'dramatic lighting',
-        'professional football player',
-        'sports broadcast style',
-        'luxury esports design',
-        'clean center composition',
-        'dark space for overlay',
-        'no text',
-        'no logos',
-        'no watermark',
-        'no letters',
-        'no numbers',
-      ].join(', ');
+      const prompt = inputText.includes(",")
+        ? inputText
+        : [
+            "premium football betting background",
+            "ultra luxury sportsbook",
+            "black gold purple",
+            "cinematic stadium",
+            "dramatic lighting",
+            "professional football player",
+            "sports broadcast style",
+            "luxury esports design",
+            "clean center composition",
+            "dark space for overlay",
+            "no text",
+            "no logos",
+            "no watermark",
+            "no letters",
+            "no numbers",
+          ].join(", ");
 
       const url =
         `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
         `?width=${this.width}` +
         `&height=${this.height}` +
-        `&model=${encodeURIComponent(process.env.POLLINATIONS_MODEL || 'flux')}` +
+        `&model=${encodeURIComponent(process.env.POLLINATIONS_MODEL || "flux")}` +
         `&seed=${seed}` +
         `&nologo=true`;
 
       try {
         const response = await axios.get(url, {
-          responseType: 'arraybuffer',
+          responseType: "arraybuffer",
           timeout: 45000,
-          headers: { 'User-Agent': 'Oddix/1.0' },
+          headers: { "User-Agent": "Oddix/1.0" },
         });
 
         return sharp(Buffer.from(response.data))
-          .resize(this.width, this.height, { fit: 'cover' })
+          .resize(this.width, this.height, { fit: "cover" })
           .png()
           .toBuffer();
       } catch (error: any) {
-        this.logger.warn(`Pollinations falhou. Usando fundo local: ${error?.message || 'erro desconhecido'}`);
+        this.logger.warn(
+          `Pollinations falhou. Usando fundo local: ${error?.message || "erro desconhecido"}`,
+        );
       }
     }
 
@@ -222,7 +240,7 @@ export class OddixImageService {
         const opacity = 0.045 + (i % 4) * 0.018;
         return `<line x1="${x}" y1="0" x2="${x - 180}" y2="${this.height}" stroke="#facc15" stroke-width="2" opacity="${opacity}"/>`;
       })
-      .join('');
+      .join("");
 
     const dots = Array.from({ length: 58 })
       .map((_, i) => {
@@ -232,7 +250,7 @@ export class OddixImageService {
         const o = 0.05 + (i % 5) * 0.025;
         return `<circle cx="${x}" cy="${y}" r="${r}" fill="#facc15" opacity="${o}"/>`;
       })
-      .join('');
+      .join("");
 
     const svg = `
       <svg width="${this.width}" height="${this.height}" xmlns="http://www.w3.org/2000/svg">
@@ -271,27 +289,42 @@ export class OddixImageService {
   }
 
   private singleOverlaySvg(input: OddixVipCardInput) {
-    const home = this.escape(this.short(input.homeTeam, 17));
-    const away = this.escape(this.short(input.awayTeam, 17));
-    const league = this.escape(this.short(input.league, 40));
-    const market = this.escape(this.short(input.market || 'Entrada Oddix', 24).toUpperCase());
-    const odd = this.escape(String(input.odd ?? '-'));
-    const confidenceRaw = String(input.confidence ?? '-');
-    const confidence = this.escape(confidenceRaw.includes('%') ? confidenceRaw : `${confidenceRaw}%`);
-    const risk = this.escape(this.short(input.risk || 'Médio', 13));
+    const home = this.escape(this.short(input.homeTeam, 18));
+    const away = this.escape(this.short(input.awayTeam, 18));
+    const league = this.escape(this.short(input.league, 42));
+    const market = this.escape(
+      this.short(input.market || "Entrada Oddix", 24).toUpperCase(),
+    );
+    const odd = this.escape(String(input.odd ?? "-"));
+    const confidence = this.escape(input.confidenceLabel || "Alta");
+    const edge = this.escape(input.edge || "+12%");
+    const headline = this.escape(input.headline || "💎 ENTRADA PREMIUM");
+    const subheadline = this.escape(
+      input.subheadline || "Mercado identificado pela IA",
+    );
+    const vipBadge = this.escape(input.vipBadge || "ODDIX PRO AI");
+    const valueLabel = this.escape(input.valueLabel || "Valor positivo");
+    const risk = this.escape(this.short(input.risk || "Médio", 13));
 
-    const tipLinesArray = this.wrapText(input.tip, 24, 2);
-    const tipFontSize = tipLinesArray.length > 1 ? 41 : 45;
-    const firstTipY = tipLinesArray.length > 1 ? 270 : 292;
+    const tipClean = String(input.tip || "")
+      .replace(/^Pré-jogo:\s*/i, "")
+      .replace(/^Pre-jogo:\s*/i, "")
+      .trim();
+
+    const tipLinesArray = this.wrapText(tipClean, 19, 3);
+    const tipFontSize =
+      tipLinesArray.length >= 3 ? 36 : tipLinesArray.length === 2 ? 42 : 50;
+    const firstTipY =
+      tipLinesArray.length >= 3 ? 247 : tipLinesArray.length === 2 ? 270 : 292;
 
     const tipLines = tipLinesArray
       .map(
         (line, index) =>
-          `<text x="508" y="${firstTipY + index * 47}" text-anchor="middle" class="mainTip" font-size="${tipFontSize}" fill="#ffffff">${this.escape(
+          `<text x="508" y="${firstTipY + index * 43}" text-anchor="middle" class="mainTip" font-size="${tipFontSize}" fill="#ffffff">${this.escape(
             line.toUpperCase(),
           )}</text>`,
       )
-      .join('');
+      .join("");
 
     return Buffer.from(`
       <svg width="${this.width}" height="${this.height}" xmlns="http://www.w3.org/2000/svg">
@@ -306,12 +339,18 @@ export class OddixImageService {
             <stop offset="100%" stop-color="#22c55e"/>
           </linearGradient>
           <linearGradient id="purple" x1="0" x2="1">
-            <stop offset="0%" stop-color="#4c1d95"/>
+            <stop offset="0%" stop-color="#172554"/>
+            <stop offset="55%" stop-color="#4c1d95"/>
             <stop offset="100%" stop-color="#7c3aed"/>
+          </linearGradient>
+          <linearGradient id="panel" x1="0" x2="1">
+            <stop offset="0%" stop-color="rgba(0,0,0,.72)"/>
+            <stop offset="50%" stop-color="rgba(8,8,14,.58)"/>
+            <stop offset="100%" stop-color="rgba(0,0,0,.72)"/>
           </linearGradient>
           <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity=".85"/></filter>
           <filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="#facc15" flood-opacity=".80"/></filter>
-          <filter id="softGlow"><feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#22c55e" flood-opacity=".45"/></filter>
+          <filter id="greenGlow"><feDropShadow dx="0" dy="0" stdDeviation="11" flood-color="#22c55e" flood-opacity=".55"/></filter>
           <style>
             .title{font-family:Impact,Arial Black,Arial,sans-serif;font-weight:900;letter-spacing:2px}
             .heavy{font-family:Arial Black,Arial,sans-serif;font-weight:900}
@@ -321,29 +360,30 @@ export class OddixImageService {
           </style>
         </defs>
 
-        <rect x="18" y="18" width="980" height="479" rx="34" fill="rgba(0,0,0,.54)" stroke="url(#gold)" stroke-width="5" filter="url(#shadow)"/>
-        <rect x="38" y="38" width="940" height="439" rx="28" fill="rgba(8,8,14,.58)" stroke="rgba(250,204,21,.30)" stroke-width="2"/>
+        <rect x="18" y="18" width="980" height="479" rx="34" fill="rgba(0,0,0,.56)" stroke="url(#gold)" stroke-width="5" filter="url(#shadow)"/>
+        <rect x="38" y="38" width="940" height="439" rx="28" fill="url(#panel)" stroke="rgba(250,204,21,.30)" stroke-width="2"/>
         <rect x="55" y="55" width="906" height="405" rx="24" fill="rgba(0,0,0,.18)" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
 
-        <text x="108" y="88" text-anchor="start" class="title" font-size="46" fill="#ffffff">ODDIX</text>
-        <text x="274" y="88" text-anchor="start" class="title" font-size="46" fill="url(#gold)" filter="url(#glow)">VIP</text>
-        <text x="508" y="91" text-anchor="middle" class="small" font-size="21" fill="#ddd6fe">${league}</text>
+        <text x="108" y="78" text-anchor="start" class="title" font-size="34" fill="url(#gold)" filter="url(#glow)">${vipBadge}</text>
+        <text x="108" y="107" text-anchor="start" class="small" font-size="17" fill="#ffffff">${headline}</text>
+        <text x="508" y="86" text-anchor="middle" class="small" font-size="20" fill="#ddd6fe">${league}</text>
+        <text x="508" y="112" text-anchor="middle" class="small" font-size="15" fill="#fef3c7">${subheadline}</text>
 
         <rect x="734" y="55" width="206" height="52" rx="18" fill="url(#purple)" stroke="rgba(255,255,255,.18)"/>
-        <text x="837" y="88" text-anchor="middle" class="small" font-size="20" fill="#facc15">${market}</text>
+        <text x="837" y="88" text-anchor="middle" class="small" font-size="19" fill="#facc15">${market}</text>
 
-        <rect x="62" y="128" width="220" height="198" rx="30" fill="rgba(255,255,255,.08)" stroke="rgba(250,204,21,.30)" stroke-width="2"/>
-        <rect x="734" y="128" width="220" height="198" rx="30" fill="rgba(255,255,255,.08)" stroke="rgba(250,204,21,.30)" stroke-width="2"/>
-        <circle cx="172" cy="203" r="74" fill="rgba(0,0,0,.28)" stroke="rgba(250,204,21,.22)" stroke-width="2"/>
-        <circle cx="844" cy="203" r="74" fill="rgba(0,0,0,.28)" stroke="rgba(250,204,21,.22)" stroke-width="2"/>
-        <text x="172" y="304" text-anchor="middle" class="heavy" font-size="23" fill="#ffffff">${home}</text>
-        <text x="844" y="304" text-anchor="middle" class="heavy" font-size="23" fill="#ffffff">${away}</text>
+        <rect x="62" y="128" width="220" height="198" rx="30" fill="rgba(255,255,255,.08)" stroke="rgba(250,204,21,.36)" stroke-width="2"/>
+        <rect x="734" y="128" width="220" height="198" rx="30" fill="rgba(255,255,255,.08)" stroke="rgba(250,204,21,.36)" stroke-width="2"/>
+        <circle cx="172" cy="203" r="88" fill="rgba(0,0,0,.30)" stroke="rgba(250,204,21,.26)" stroke-width="2"/>
+        <circle cx="844" cy="203" r="88" fill="rgba(0,0,0,.30)" stroke="rgba(250,204,21,.26)" stroke-width="2"/>
+        <text x="172" y="315" text-anchor="middle" class="heavy" font-size="22" fill="#ffffff">${home}</text>
+        <text x="844" y="315" text-anchor="middle" class="heavy" font-size="22" fill="#ffffff">${away}</text>
 
-        <circle cx="508" cy="171" r="42" fill="rgba(250,204,21,.16)" stroke="url(#gold)" stroke-width="4" filter="url(#glow)"/>
-        <text x="508" y="187" text-anchor="middle" class="title" font-size="35" fill="#ffffff">VS</text>
+        <circle cx="508" cy="164" r="34" fill="rgba(250,204,21,.15)" stroke="url(#gold)" stroke-width="3" filter="url(#glow)"/>
+        <text x="508" y="177" text-anchor="middle" class="title" font-size="29" fill="#ffffff">VS</text>
 
-        <rect x="300" y="222" width="416" height="134" rx="30" fill="rgba(0,0,0,.50)" stroke="rgba(250,204,21,.42)" stroke-width="2" filter="url(#shadow)"/>
-        <rect x="316" y="238" width="384" height="102" rx="24" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+        <rect x="300" y="218" width="416" height="138" rx="30" fill="rgba(0,0,0,.54)" stroke="rgba(250,204,21,.46)" stroke-width="2" filter="url(#shadow)"/>
+        <rect x="316" y="235" width="384" height="104" rx="24" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
         ${tipLines}
 
         <g filter="url(#shadow)">
@@ -351,13 +391,14 @@ export class OddixImageService {
           <text x="194" y="404" text-anchor="middle" class="text" font-size="20" fill="#1f1300">ODD</text>
           <text x="194" y="439" text-anchor="middle" class="heavy" font-size="39" fill="#ffffff">${odd}</text>
 
-          <rect x="340" y="374" width="260" height="78" rx="22" fill="url(#green)" filter="url(#softGlow)"/>
-          <text x="470" y="404" text-anchor="middle" class="text" font-size="20" fill="#052e16">CONFIANÇA</text>
-          <text x="470" y="439" text-anchor="middle" class="heavy" font-size="39" fill="#ffffff">${confidence}</text>
+          <rect x="340" y="374" width="260" height="78" rx="22" fill="url(#green)" filter="url(#greenGlow)"/>
+          <text x="470" y="404" text-anchor="middle" class="text" font-size="18" fill="#052e16">EDGE IA</text>
+          <text x="470" y="439" text-anchor="middle" class="heavy" font-size="39" fill="#ffffff">${edge}</text>
 
           <rect x="632" y="374" width="302" height="78" rx="22" fill="rgba(255,255,255,.10)" stroke="rgba(250,204,21,.40)" stroke-width="2"/>
-          <text x="783" y="404" text-anchor="middle" class="text" font-size="20" fill="#facc15">RISCO</text>
-          <text x="783" y="438" text-anchor="middle" class="heavy" font-size="34" fill="#ffffff">${risk}</text>
+          <text x="783" y="400" text-anchor="middle" class="text" font-size="18" fill="#facc15">CONFIANÇA</text>
+          <text x="783" y="432" text-anchor="middle" class="heavy" font-size="30" fill="#ffffff">${confidence}</text>
+          <text x="783" y="454" text-anchor="middle" class="small" font-size="13" fill="#ddd6fe">${valueLabel} • Risco ${risk}</text>
         </g>
       </svg>
     `);
@@ -365,17 +406,32 @@ export class OddixImageService {
 
   async createVipCard(input: OddixVipCardInput): Promise<string | null> {
     try {
-      const outputPath = path.join(this.outputDir(), `vip-card-${Date.now()}.png`);
-      const background = await this.createBackground(`${input.homeTeam}-${input.awayTeam}-${input.tip}`);
+      const outputPath = path.join(
+        this.outputDir(),
+        `vip-card-${Date.now()}.png`,
+      );
+      const background = await this.createBackground(
+        input.visualPrompt ||
+          `${input.homeTeam}-${input.awayTeam}-${input.tip}-${input.theme || "VIP"}`,
+      );
       const overlay = this.singleOverlaySvg(input);
-      const homeLogo = await this.logoBuffer(input.homeLogo, input.homeTeam, 140);
-      const awayLogo = await this.logoBuffer(input.awayLogo, input.awayTeam, 140);
+      const logoSize = 180;
+      const homeLogo = await this.logoBuffer(
+        input.homeLogo,
+        input.homeTeam,
+        logoSize,
+      );
+      const awayLogo = await this.logoBuffer(
+        input.awayLogo,
+        input.awayTeam,
+        logoSize,
+      );
 
       await sharp(background)
-        .resize(this.width, this.height, { fit: 'cover' })
+        .resize(this.width, this.height, { fit: "cover" })
         .composite([
-          { input: homeLogo, left: 102, top: 133 },
-          { input: awayLogo, left: 774, top: 133 },
+          { input: homeLogo, left: 82, top: 113 },
+          { input: awayLogo, left: 754, top: 113 },
           { input: overlay, left: 0, top: 0 },
         ])
         .png()
@@ -383,24 +439,36 @@ export class OddixImageService {
 
       return outputPath;
     } catch (error: any) {
-      this.logger.error(`Erro ao criar card VIP: ${error?.message || 'erro desconhecido'}`);
+      this.logger.error(
+        `Erro ao criar card VIP: ${error?.message || "erro desconhecido"}`,
+      );
       return null;
     }
   }
 
   private multipleOverlaySvg(input: OddixVipMultipleCardInput) {
-    const title = this.escape(this.short(input.title || 'ODDIX BOOST VIP', 24));
-    const oddTotal = this.escape(String(input.oddTotal ?? '-'));
+    const title = this.escape(this.short(input.title || "ODDIX BOOST VIP", 24));
+    const oddTotal = this.escape(String(input.oddTotal ?? "-"));
     const selections = input.selections.slice(0, 4);
 
     const rows = selections
       .map((selection, index) => {
         const y = 122 + index * 76;
-        const game = this.escape(this.short(`${selection.homeTeam} x ${selection.awayTeam}`, 34));
+        const game = this.escape(
+          this.short(`${selection.homeTeam} x ${selection.awayTeam}`, 34),
+        );
         const tip = this.escape(this.short(selection.tip, 28).toUpperCase());
-        const odd = this.escape(String(selection.odd ?? '-'));
-        const confidenceValue = selection.confidence ? String(selection.confidence) : '';
-        const confidence = this.escape(confidenceValue ? (confidenceValue.includes('%') ? confidenceValue : `${confidenceValue}%`) : '');
+        const odd = this.escape(String(selection.odd ?? "-"));
+        const confidenceValue = selection.confidence
+          ? String(selection.confidence)
+          : "";
+        const confidence = this.escape(
+          confidenceValue
+            ? confidenceValue.includes("%")
+              ? confidenceValue
+              : `${confidenceValue}%`
+            : "",
+        );
 
         return `
           <rect x="54" y="${y}" width="732" height="62" rx="18" fill="rgba(0,0,0,.46)" stroke="rgba(250,204,21,.26)" stroke-width="2"/>
@@ -408,13 +476,13 @@ export class OddixImageService {
           <text x="88" y="${y + 40}" text-anchor="middle" class="heavy" font-size="23" fill="#111827">${index + 1}</text>
           <text x="126" y="${y + 25}" class="heavy" font-size="20" fill="#ffffff">${game}</text>
           <text x="126" y="${y + 51}" class="text" font-size="20" fill="#facc15">${tip}</text>
-          <text x="652" y="${y + 51}" text-anchor="end" class="small" font-size="16" fill="#c4b5fd">${confidence || 'Oddix IA'}</text>
+          <text x="652" y="${y + 51}" text-anchor="end" class="small" font-size="16" fill="#c4b5fd">${confidence || "Oddix IA"}</text>
           <rect x="806" y="${y}" width="146" height="62" rx="18" fill="url(#green)" filter="url(#shadow)"/>
           <text x="879" y="${y + 25}" text-anchor="middle" class="text" font-size="16" fill="#052e16">ODD</text>
           <text x="879" y="${y + 52}" text-anchor="middle" class="heavy" font-size="30" fill="#ffffff">${odd}</text>
         `;
       })
-      .join('');
+      .join("");
 
     return Buffer.from(`
       <svg width="${this.width}" height="${this.height}" xmlns="http://www.w3.org/2000/svg">
@@ -436,21 +504,30 @@ export class OddixImageService {
     `);
   }
 
-  async createVipMultipleCard(input: OddixVipMultipleCardInput): Promise<string | null> {
+  async createVipMultipleCard(
+    input: OddixVipMultipleCardInput,
+  ): Promise<string | null> {
     try {
-      const outputPath = path.join(this.outputDir(), `vip-multiple-card-${Date.now()}.png`);
-      const background = await this.createBackground(`${input.title}-${input.oddTotal}`);
+      const outputPath = path.join(
+        this.outputDir(),
+        `vip-multiple-card-${Date.now()}.png`,
+      );
+      const background = await this.createBackground(
+        `${input.title}-${input.oddTotal}`,
+      );
       const overlay = this.multipleOverlaySvg(input);
 
       await sharp(background)
-        .resize(this.width, this.height, { fit: 'cover' })
+        .resize(this.width, this.height, { fit: "cover" })
         .composite([{ input: overlay, left: 0, top: 0 }])
         .png()
         .toFile(outputPath);
 
       return outputPath;
     } catch (error: any) {
-      this.logger.error(`Erro ao criar card múltipla VIP: ${error?.message || 'erro desconhecido'}`);
+      this.logger.error(
+        `Erro ao criar card múltipla VIP: ${error?.message || "erro desconhecido"}`,
+      );
       return null;
     }
   }

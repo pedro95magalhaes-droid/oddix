@@ -5,6 +5,8 @@ import { FootballService } from "../football/football.service";
 import { AiService } from "../ai/ai.service";
 import { WhatsappWebService } from "../whatsapp-web/whatsapp-web.service";
 import { OddixImageService } from "./oddix-image.service";
+import { OddixCreativeService } from "./oddix-creative.service";
+import { OddixCopyService } from "./oddix-copy.service";
 
 type PregameStage = "early" | "main" | "final";
 
@@ -26,10 +28,15 @@ export class PregameCronService {
     private readonly aiService: AiService,
     private readonly whatsappWebService: WhatsappWebService,
     private readonly oddixImageService: OddixImageService,
+    private readonly oddixCreativeService: OddixCreativeService,
+    private readonly oddixCopyService: OddixCopyService,
   ) {}
 
   private enabled() {
-    return String(process.env.ODDIX_PREGAME_ENABLED || "true").toLowerCase() === "true";
+    return (
+      String(process.env.ODDIX_PREGAME_ENABLED || "true").toLowerCase() ===
+      "true"
+    );
   }
 
   private vipLink() {
@@ -41,19 +48,31 @@ export class PregameCronService {
   }
 
   private minConfidence() {
-    return Number(process.env.ODDIX_PREGAME_MIN_CONFIDENCE || process.env.ODDIX_MIN_CONFIDENCE || 72);
+    return Number(
+      process.env.ODDIX_PREGAME_MIN_CONFIDENCE ||
+        process.env.ODDIX_MIN_CONFIDENCE ||
+        72,
+    );
   }
 
   private minOdd() {
-    return Number(process.env.ODDIX_PREGAME_MIN_ODD || process.env.ODDIX_MIN_ODD || 1.2);
+    return Number(
+      process.env.ODDIX_PREGAME_MIN_ODD || process.env.ODDIX_MIN_ODD || 1.2,
+    );
   }
 
   private maxOdd() {
-    return Number(process.env.ODDIX_PREGAME_MAX_ODD || process.env.ODDIX_MAX_ODD || 3.0);
+    return Number(
+      process.env.ODDIX_PREGAME_MAX_ODD || process.env.ODDIX_MAX_ODD || 3.0,
+    );
   }
 
   private priorityOnly() {
-    return String(process.env.ODDIX_PREGAME_PRIORITY_ONLY || "true").toLowerCase() === "true";
+    return (
+      String(
+        process.env.ODDIX_PREGAME_PRIORITY_ONLY || "true",
+      ).toLowerCase() === "true"
+    );
   }
 
   private formatDateKey(date: Date) {
@@ -115,6 +134,18 @@ export class PregameCronService {
       "mls",
       "world cup",
       "euro",
+      "copa do nordeste",
+      "copa verde",
+      "paulista",
+      "carioca",
+      "cearense",
+      "baiano",
+      "mineiro",
+      "gaucho",
+      "gaúcho",
+      "pernambucano",
+      "paranaense",
+      "goiano",
     ]);
   }
 
@@ -158,6 +189,9 @@ export class PregameCronService {
       "segunda b",
       "relegation group",
       "rebaixamento",
+      "esoccer",
+      "simulado",
+      "simulated",
     ]);
   }
 
@@ -240,7 +274,8 @@ export class PregameCronService {
     if (!tip) return { ok: false, reason: "sem tip" };
     if (odd < this.minOdd()) return { ok: false, reason: `odd baixa ${odd}` };
     if (odd > this.maxOdd()) return { ok: false, reason: `odd alta ${odd}` };
-    if (confidence < this.minConfidence()) return { ok: false, reason: `confiança baixa ${confidence}` };
+    if (confidence < this.minConfidence())
+      return { ok: false, reason: `confiança baixa ${confidence}` };
 
     const normalizedTip = this.normalize(tip);
 
@@ -300,12 +335,19 @@ export class PregameCronService {
       "🔒 No VIP sai análise completa, card premium e entradas primeiro.",
       this.vipLink() ? "👇 Entre no VIP:" : "",
       this.vipLink(),
-    ].filter(Boolean).join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
   }
 
   private createVipMessage(game: any, bet: any, stage: PregameStage) {
     const kickoff = this.formatKickoff(game?.fixture?.date);
-    const label = stage === "early" ? "PRÉVIA" : stage === "main" ? "PRÉ-JOGO" : "ENTRADA FINAL";
+    const label =
+      stage === "early"
+        ? "PRÉVIA"
+        : stage === "main"
+          ? "PRÉ-JOGO"
+          : "ENTRADA FINAL";
 
     return [
       `🔥 *ODDIX VIP | ${label}*`,
@@ -323,7 +365,9 @@ export class PregameCronService {
       this.shortAnalysis(bet.analysis),
       "",
       "💵 Gestão: 0.5 a 1 unidade. Sem all-in.",
-    ].filter(Boolean).join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
   }
 
   private shortAnalysis(text: any) {
@@ -386,7 +430,8 @@ export class PregameCronService {
       .filter((item: any) => item.stage)
       .filter((item: any) => this.isPriorityGame(item.game))
       .sort((a: any, b: any) => {
-        if (b.leagueScore !== a.leagueScore) return b.leagueScore - a.leagueScore;
+        if (b.leagueScore !== a.leagueScore)
+          return b.leagueScore - a.leagueScore;
         return a.minutes - b.minutes;
       }) as Candidate[];
   }
@@ -398,7 +443,10 @@ export class PregameCronService {
     try {
       const date = this.todayKey();
       const fixtures = await this.footballService.getFixtures(date);
-      const candidates = this.buildCandidates(fixtures).slice(0, this.maxPerRun());
+      const candidates = this.buildCandidates(fixtures).slice(
+        0,
+        this.maxPerRun(),
+      );
 
       if (!candidates.length) {
         this.logger.log("⏭️ Pré-jogo: nenhum jogo elegível na janela atual.");
@@ -413,16 +461,25 @@ export class PregameCronService {
         if (!fixtureId) continue;
 
         if (await this.alreadySent(fixtureId, stage)) {
-          this.logger.log(`⏭️ Pré-jogo já enviado para este estágio: fixtureId=${fixtureId} | stage=${stage}`);
+          this.logger.log(
+            `⏭️ Pré-jogo já enviado para este estágio: fixtureId=${fixtureId} | stage=${stage}`,
+          );
           continue;
         }
 
-        if (stage !== "final" && await this.alreadySentAnyPregame(fixtureId)) {
-          this.logger.log(`⏭️ Pré-jogo já enviado anteriormente: fixtureId=${fixtureId}`);
+        if (
+          stage !== "final" &&
+          (await this.alreadySentAnyPregame(fixtureId))
+        ) {
+          this.logger.log(
+            `⏭️ Pré-jogo já enviado anteriormente: fixtureId=${fixtureId}`,
+          );
           continue;
         }
 
-        const rawBet = await this.aiService.generateBet(this.pregamePayload(game));
+        const rawBet = await this.aiService.generateBet(
+          this.pregamePayload(game),
+        );
         const bet = {
           ...rawBet,
           tip: this.cleanTip(rawBet?.tip),
@@ -433,11 +490,30 @@ export class PregameCronService {
 
         const quality = this.qualityAllowed(bet);
         if (!quality.ok) {
-          this.logger.log(`⏭️ Pré-jogo reprovado ${bet.homeTeam} x ${bet.awayTeam}: ${quality.reason}`);
+          this.logger.log(
+            `⏭️ Pré-jogo reprovado ${bet.homeTeam} x ${bet.awayTeam}: ${quality.reason}`,
+          );
           continue;
         }
 
-        const analysisTag = `ODDIX_PREGAME_${stage.toUpperCase()} | ${bet.analysis || "Pré-jogo validado pela IA Oddix."}`;
+        const creative = this.oddixCreativeService.generate({
+          homeTeam: bet.homeTeam,
+          awayTeam: bet.awayTeam,
+          league: bet.league,
+          tip: bet.tip,
+          market: bet.markets?.[0]?.market || "Pré-jogo",
+          odd: bet.odd,
+          confidence: bet.confidence,
+          risk: bet.risk || "Médio",
+          stage,
+        });
+
+        const analysisTag = [
+          `ODDIX_PREGAME_${stage.toUpperCase()}`,
+          `EDGE_IA_${creative.edge}`,
+          creative.theme,
+          bet.analysis || "Pré-jogo validado pela IA Oddix.",
+        ].join(" | ");
 
         await this.prisma.bet.create({
           data: {
@@ -451,7 +527,9 @@ export class PregameCronService {
             risk: bet.risk || "Médio",
             analysis: analysisTag,
             status: "open",
-            gameDate: game.fixture?.date ? new Date(game.fixture.date) : new Date(),
+            gameDate: game.fixture?.date
+              ? new Date(game.fixture.date)
+              : new Date(),
             homeLogo: game.teams?.home?.logo || null,
             awayLogo: game.teams?.away?.logo || null,
             leagueLogo: game.league?.logo || null,
@@ -465,10 +543,42 @@ export class PregameCronService {
 
         await this.whatsappWebService.sendButtonText({
           target: "free",
-          text: this.createFreeMessage(game, bet, stage),
+          text: this.oddixCopyService.freeTeaser({
+            homeTeam: bet.homeTeam,
+            awayTeam: bet.awayTeam,
+            league: bet.league,
+            tip: bet.tip,
+            odd: bet.odd,
+            risk: bet.risk || "Médio",
+            stage,
+            creative,
+            vipLink: this.vipLink(),
+          }),
           buttonText: "QUERO SER VIP",
           url: this.vipLink(),
         });
+
+        const kickoff = this.formatKickoff(game?.fixture?.date);
+
+        await this.whatsappWebService.sendText(
+          [
+            this.oddixCopyService.vipBefore({
+              homeTeam: bet.homeTeam,
+              awayTeam: bet.awayTeam,
+              league: bet.league,
+              tip: bet.tip,
+              odd: bet.odd,
+              risk: bet.risk || "Médio",
+              stage,
+              creative,
+              vipLink: this.vipLink(),
+            }),
+            kickoff ? `⏰ Horário: ${kickoff}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          "vip",
+        );
 
         const imagePath = await this.oddixImageService.createVipCard({
           homeTeam: bet.homeTeam,
@@ -485,22 +595,67 @@ export class PregameCronService {
           status: "PRÉ-JOGO",
           elapsed: null,
           source: game.provider || "fixtures",
+          headline: creative.headline,
+          subheadline: creative.subheadline,
+          vipBadge: creative.vipBadge,
+          edge: creative.edge,
+          confidenceLabel: creative.confidenceLabel,
+          valueLabel: creative.valueLabel,
+          theme: creative.theme,
+          visualPrompt: creative.visualPrompt,
         });
 
         if (imagePath) {
           await this.whatsappWebService.sendImageFile({
             filePath: imagePath,
-            caption: this.createVipMessage(game, bet, stage),
+            caption: [
+              this.oddixCopyService.vipCaption({
+                homeTeam: bet.homeTeam,
+                awayTeam: bet.awayTeam,
+                league: bet.league,
+                tip: bet.tip,
+                odd: bet.odd,
+                risk: bet.risk || "Médio",
+                stage,
+                creative,
+                vipLink: this.vipLink(),
+              }),
+              "",
+              "📌 *Leitura Oddix:*",
+              this.shortAnalysis(bet.analysis),
+            ].join("\n"),
             target: "vip",
           });
         } else {
-          await this.whatsappWebService.sendText(this.createVipMessage(game, bet, stage), "vip");
+          await this.whatsappWebService.sendText(
+            [
+              this.oddixCopyService.vipCaption({
+                homeTeam: bet.homeTeam,
+                awayTeam: bet.awayTeam,
+                league: bet.league,
+                tip: bet.tip,
+                odd: bet.odd,
+                risk: bet.risk || "Médio",
+                stage,
+                creative,
+                vipLink: this.vipLink(),
+              }),
+              "",
+              "📌 *Leitura Oddix:*",
+              this.shortAnalysis(bet.analysis),
+            ].join("\n"),
+            "vip",
+          );
         }
 
-        this.logger.log(`✅ Pré-jogo enviado: ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip} | stage=${stage}`);
+        this.logger.log(
+          `✅ Pré-jogo enviado: ${bet.homeTeam} x ${bet.awayTeam} | ${stage} | ${creative.theme} | ${creative.edge}`,
+        );
       }
     } catch (error: any) {
-      this.logger.error(`❌ Erro no cron pré-jogo: ${error?.message || "erro desconhecido"}`);
+      this.logger.error(
+        `❌ Erro no cron pré-jogo: ${error?.message || "erro desconhecido"}`,
+      );
     }
   }
 }
