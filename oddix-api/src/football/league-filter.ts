@@ -224,6 +224,13 @@ const HARD_LOW_LEAGUE_PATTERNS = [
   /\bqualification\b/,
   /\bj league 2\/3\b/,
   /\bplacement matches\b/,
+  /\bindo\s*d[234]\b/,
+  /\bindonesia\s*d[234]\b/,
+  /\bpanama\s*lp\b/,
+  /\bbra\s*lp\b/,
+  /\bliga\s*4\b/,
+  /\bd4\b/,
+  /\bd3\b/,
 ];
 
 const WEAK_COUNTRY_PATTERNS = [
@@ -252,6 +259,13 @@ const WEAK_COUNTRY_PATTERNS = [
   /\bvietnam\b/,
   /\baruba\b/,
   /\bsierra leone\b/,
+  /\bindonesia\b/,
+  /\bmyanmar\b/,
+  /\bcambodia\b/,
+  /\bnepal\b/,
+  /\bbangladesh\b/,
+  /\bpanama\b/,
+  /\blaos\b/,
 ];
 
 const LOW_QUALITY_PATTERNS = [
@@ -294,13 +308,29 @@ function explicitLeagueScore(item: OddixFixtureLike) {
   if (has(WEAK_COUNTRY_PATTERNS, text)) return 0;
 
   const rules: Array<[RegExp, number]> = [
-    [/\buefa champions league\b|\bchampions league\b.*\buefa\b/, 100],
+    // Competições internacionais premium
+    [/\buefa champions league\b|\bchampions league\b.*\buefa\b|\bchampions league\b/, 100],
     [/\bcopa libertadores\b|\blibertadores\b/, 99],
     [/\buefa europa league\b|\beuropa league\b/, 94],
     [/\buefa conference league\b|\bconference league\b/, 91],
-    [/\bsudamericana\b|\bsul americana\b/, 89],
+    [/\bsudamericana\b|\bsul americana\b|\bcopa sudamericana\b/, 89],
+    [/\brecopa sudamericana\b|\brecopa sul americana\b/, 86],
+    [/\bfifa club world cup\b|\bclub world cup\b|\bmundial de clubes\b/, 92],
+    [/\bworld cup qualifiers\b|\beliminatorias\b.*\bcopa\b|\bqualifiers\b.*\bworld cup\b/, 88],
+    [/\bcopa america\b|\bcopa am[eé]rica\b|\bconmebol copa america\b/, 90],
+    [/\beurocopa\b|\buefa euro\b|\beuro\b.*\bqualifiers\b|\beuropean championship\b/, 90],
+    [/\buefa nations league\b|\bnations league\b/, 87],
+
+    // Copas nacionais e regionais relevantes
     [/\bcopa do brasil\b/, 88],
     [/\bcopa do nordeste\b/, 82],
+    [/\bfa cup\b|\befl cup\b|\bcarabao cup\b/, 83],
+    [/\bcopa del rey\b|\bspanish cup\b/, 83],
+    [/\bcoppa italia\b|\bitalian cup\b/, 83],
+    [/\bdfb pokal\b|\bgerman cup\b/, 83],
+    [/\bcoupe de france\b|\bfrench cup\b/, 82],
+    [/\btaca de portugal\b|\btaça de portugal\b|\bportuguese cup\b/, 81],
+    [/\bcopa argentina\b/, 80],
 
     [/\bbrasileirao serie a\b|\bbrasileirao a\b|\bbrasileiro serie a\b|\bbrasil serie a\b|\bbrazil serie a\b/, 93],
     [/\bbrasileirao serie b\b|\bbrasileirao b\b|\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b/, 88],
@@ -370,7 +400,7 @@ export function isOddixPriorityLeague(item: OddixFixtureLike) {
 
 export function isOddixSafeSecondaryLeague(item: OddixFixtureLike) {
   if (isOddixBlockedLeague(item)) return false;
-  return getOddixFixtureQualityScore(item) >= Number(process.env.ODDIX_MIN_SECONDARY_SCORE || 65);
+  return getOddixFixtureQualityScore(item) >= Number(process.env.ODDIX_MIN_SECONDARY_SCORE || 70);
 }
 
 export function isOddixLeagueAllowed(item: OddixFixtureLike) {
@@ -380,7 +410,8 @@ export function isOddixLeagueAllowed(item: OddixFixtureLike) {
   const strictPriorityOnly = process.env.ODDIX_STRICT_PRIORITY_ONLY !== 'false';
   if (strictPriorityOnly) return isOddixPriorityLeague(item);
 
-  return true;
+  const minAllowedScore = Number(process.env.ODDIX_MIN_ALLOWED_LEAGUE_SCORE || 70);
+  return explicitLeagueScore(item) >= minAllowedScore;
 }
 
 export function getOddixFixtureQualityScore(item: OddixFixtureLike) {
@@ -427,8 +458,8 @@ export function getOddixFixtureQualityScore(item: OddixFixtureLike) {
 export function getOddixFixtureQualityLabel(item: OddixFixtureLike) {
   const score = getOddixFixtureQualityScore(item);
   if (score >= 90) return 'premium';
-  if (score >= 75) return 'boa';
-  if (score >= 60) return 'normal';
+  if (score >= 80) return 'excelente';
+  if (score >= 70) return 'boa';
   if (score > 0) return 'fraca';
   return 'bloqueada';
 }
@@ -486,7 +517,7 @@ export function isOddixFinishedFixture(item: OddixFixtureLike) {
 export function isOddixDashboardFixtureAllowed(item: OddixFixtureLike, hideFinishedAfterHours = 0) {
   if (!isOddixLeagueAllowed(item)) return false;
 
-  const minScore = Number(process.env.ODDIX_DASHBOARD_MIN_SCORE || 75);
+  const minScore = Number(process.env.ODDIX_DASHBOARD_MIN_SCORE || 70);
   if (getOddixFixtureQualityScore(item) < minScore) return false;
 
   const showFinished = process.env.ODDIX_DASHBOARD_SHOW_FINISHED === 'true';
