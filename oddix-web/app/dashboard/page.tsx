@@ -491,19 +491,84 @@ function aliasTeamName(value: any) {
   return aliases[normalized] || normalized;
 }
 
+function normalizeTextLoose(value: any) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isFrontendLeagueAllowed(game: any) {
+  const text = normalizeTextLoose([
+    game?.league?.name,
+    game?.league?.country,
+    game?.teams?.home?.name,
+    game?.teams?.away?.name,
+  ].filter(Boolean).join(" "));
+
+  const isFifaOrSelection =
+    text.includes("fifa") ||
+    text.includes("world cup") ||
+    text.includes("copa do mundo") ||
+    text.includes("international") ||
+    text.includes("selecao") ||
+    text.includes("selecoes") ||
+    text.includes("national team");
+
+  const blocked = [
+    "placement play off",
+    "placement playoffs",
+    "placement play offs",
+    "jogo de colocacao",
+    "playoffs de colocacao",
+    "play off de colocacao",
+    "relegation group",
+    "rebaixamento",
+    "u17",
+    "u18",
+    "u19",
+    "u20",
+    "u21",
+    "u23",
+    "sub 17",
+    "sub 18",
+    "sub 19",
+    "sub 20",
+    "sub 21",
+    "sub 23",
+    "women",
+    "feminino",
+    "feminina",
+    "reserve",
+    "reserves",
+    "esoccer",
+    "simulado",
+    "simulated",
+  ];
+
+  if (blocked.some((word) => text.includes(word))) return false;
+
+  const isFriendly = text.includes("friendly") || text.includes("friendlies") || text.includes("amistoso");
+  if (isFriendly && !isFifaOrSelection) return false;
+
+  return true;
+}
+
 function stableGameKey(game: any) {
   const home = aliasTeamName(game?.teams?.home?.name);
   const away = aliasTeamName(game?.teams?.away?.name);
+  const day = gameDateKey(game);
 
-  // Chave principal por times normalizados, porque live/fixtures podem vir com IDs diferentes
+  // Chave principal por data + times normalizados, porque live/fixtures podem vir com IDs diferentes
   // e nomes diferentes para o mesmo jogo. Ex.: Birmingham x Louisville City / Birmingham Legion x Louisville City FC.
-  // Como o dashboard busca apenas hoje + amanhã, essa chave é mais eficiente para evitar duplicação visual.
-  if (home && away) return `match-${home}-${away}`;
+  if (home && away && day) return `match-${day}-${home}-${away}`;
 
   const id = game?.fixture?.id;
   if (id) return `fixture-${id}`;
 
-  const day = gameDateKey(game);
   return `${day}-${home}-${away}`;
 }
 
@@ -513,6 +578,7 @@ function mergeGames(groups: any[][]) {
   groups.flat().forEach((raw) => {
     const game = normalizeGame(raw);
     if (!game) return;
+    if (!isFrontendLeagueAllowed(game)) return;
     const key = stableGameKey(game);
     if (!key) return;
 
@@ -804,7 +870,9 @@ export default function Dashboard() {
       const bets = responses[3].status === "fulfilled" ? responses[3].value?.data || [] : [];
       const favs = responses[4].status === "fulfilled" ? responses[4].value?.data || [] : [];
 
+      const allowedDateKeys = new Set([today, tomorrow]);
       const merged = mergeGames([live, fixturesToday, fixturesTomorrow])
+        .filter((game) => allowedDateKeys.has(gameDateKey(game)))
         .filter((game) => safeNumber(game?.oddix?.qualityScore, 0) >= DASHBOARD_MIN_SCORE);
 
       const wonBets = Array.isArray(bets) ? bets.filter((bet: any) => String(bet?.status || "").toLowerCase() === "won").length : 0;

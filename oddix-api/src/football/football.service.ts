@@ -64,16 +64,22 @@ export class FootballService {
   }
 
   private filterAllowedLeagues(fixtures: any[]) {
-    return (fixtures || []).filter((item: any) => isOddixLeagueAllowed(item));
+    return (fixtures || [])
+      .map((item: any) => this.standardizeFixture(item))
+      .filter((item: any) => isOddixLeagueAllowed(item))
+      .filter((item: any) => this.isExtraDashboardLeagueAllowed(item));
   }
 
   private filterDashboardFixtures(fixtures: any[]) {
     const showFinished = process.env.ODDIX_DASHBOARD_SHOW_FINISHED === 'true';
 
-    return (fixtures || []).filter((item: any) => {
-      if (!showFinished && isOddixFinishedFixture(item)) return false;
-      return isOddixDashboardFixtureAllowed(item, this.hideFinishedAfterHours());
-    });
+    return (fixtures || [])
+      .map((item: any) => this.standardizeFixture(item))
+      .filter((item: any) => this.isExtraDashboardLeagueAllowed(item))
+      .filter((item: any) => {
+        if (!showFinished && isOddixFinishedFixture(item)) return false;
+        return isOddixDashboardFixtureAllowed(item, this.hideFinishedAfterHours());
+      });
   }
 
   private apiFootballCooldownMinutes() {
@@ -144,7 +150,7 @@ export class FootballService {
   }
 
   private enrichFixtureForOddix(item: any) {
-    const cleanItem: any = this.stripRawProviderData(item);
+    const cleanItem: any = this.standardizeFixture(this.stripRawProviderData(item));
 
     return {
       ...cleanItem,
@@ -668,7 +674,7 @@ export class FootballService {
     }
 
     const todayKey = this.brazilDateKey();
-    const maxFutureDays = Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 1);
+    const maxFutureDays = Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 2);
     const rangeEnd =
       safeDate === todayKey
         ? new Date(end.getTime() + Math.max(0, maxFutureDays) * 24 * 60 * 60 * 1000)
@@ -1185,8 +1191,12 @@ export class FootballService {
       .replace(/\bec\b/g, ' ')
       .replace(/\bac\b/g, ' ')
       .replace(/\bafc\b/g, ' ')
+      .replace(/\bcf\b/g, ' ')
       .replace(/\bclub\b/g, ' ')
       .replace(/\bclube\b/g, ' ')
+      .replace(/\bcity\b/g, ' ')
+      .replace(/\blegion\b/g, ' ')
+      .replace(/\bunited\b/g, ' ')
       .replace(/\bde\b/g, ' ')
       .replace(/\bdo\b/g, ' ')
       .replace(/\bda\b/g, ' ')
@@ -1225,6 +1235,168 @@ export class FootballService {
 
   private getTeamName(team: any) {
     return String(team?.name || team?.nome || team?.teamName || '').trim();
+  }
+
+  private getTeamLogo(team: any) {
+    return String(team?.logo || team?.logotipo || team?.image || team?.imageUrl || '').trim();
+  }
+
+  private normalizeTextLoose(value: any) {
+    return String(value || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private isExtraDashboardLeagueAllowed(item: any) {
+    const league = this.getLeagueObject(item);
+    const home = this.getHomeTeam(item);
+    const away = this.getAwayTeam(item);
+
+    const text = this.normalizeTextLoose(
+      `${league?.name || league?.nome || ''} ${league?.country || league?.pais || league?.país || ''} ${this.getTeamName(home)} ${this.getTeamName(away)}`,
+    );
+
+    const isFifaOrSelection =
+      text.includes('fifa') ||
+      text.includes('world cup') ||
+      text.includes('copa do mundo') ||
+      text.includes('selecoes') ||
+      text.includes('selecao') ||
+      text.includes('national team') ||
+      text.includes('international');
+
+    const blocked = [
+      'placement play off',
+      'placement playoffs',
+      'placement play offs',
+      'jogo de colocacao',
+      'playoffs de colocacao',
+      'play off de colocacao',
+      'relegation group',
+      'rebaixamento',
+      'u17',
+      'u18',
+      'u19',
+      'u20',
+      'u21',
+      'u23',
+      'sub 17',
+      'sub 18',
+      'sub 19',
+      'sub 20',
+      'sub 21',
+      'sub 23',
+      'women',
+      'feminino',
+      'feminina',
+      'reserves',
+      'reserve',
+      'esoccer',
+      'simulated',
+      'simulado',
+    ];
+
+    if (blocked.some((word) => text.includes(word))) return false;
+
+    const isFriendly = text.includes('friendly') || text.includes('amistoso') || text.includes('friendlies');
+    if (isFriendly && !isFifaOrSelection) return false;
+
+    return true;
+  }
+
+  private standardizeFixture(item: any) {
+    if (!item) return item;
+
+    const fixture = this.getFixtureObject(item);
+    const league = this.getLeagueObject(item);
+    const home = this.getHomeTeam(item);
+    const away = this.getAwayTeam(item);
+    const goals = item?.goals || item?.gols || {};
+    const score = item?.score || item?.placar || {};
+    const status = fixture?.status || {};
+    const odds = item?.odds || item?.chances || {};
+    const options = Array.isArray(odds?.options)
+      ? odds.options
+      : Array.isArray(odds?.opções)
+        ? odds.opções
+        : [];
+
+    const homeGoals = Number(
+      goals?.home ?? goals?.casa ?? score?.fulltime?.home ?? score?.fulltime?.casa ?? score?.['tempo integral']?.home ?? score?.['tempo integral']?.casa ?? 0,
+    );
+    const awayGoals = Number(
+      goals?.away ?? goals?.fora ?? score?.fulltime?.away ?? score?.fulltime?.fora ?? score?.['tempo integral']?.away ?? score?.['tempo integral']?.fora ?? 0,
+    );
+
+    const short = String(status?.short || status?.curto || status?.statusShort || '').toUpperCase();
+    const normalizedShort = short === 'UNK' || short === 'UNKNOWN' || short === '' ? 'NS' : short;
+    const long = String(status?.long || status?.longo || status?.name || status?.nome || '').trim();
+
+    return {
+      provider: item?.provider || item?.provedor || 'unknown',
+      fixture: {
+        id: fixture?.id,
+        externalId: fixture?.externalId || fixture?.external_id || '',
+        date: fixture?.date || fixture?.data || null,
+        timestamp: fixture?.timestamp || fixture?.carimboDeDataHora || fixture?.['carimbo de data/hora'] || null,
+        timezone: fixture?.timezone || fixture?.fuso || fixture?.['fuso horário'] || 'America/Sao_Paulo',
+        status: {
+          long: long || (normalizedShort === 'NS' ? 'Not Started' : ''),
+          short: normalizedShort,
+          elapsed: status?.elapsed ?? status?.decorrido ?? null,
+          extra: status?.extra ?? null,
+        },
+      },
+      league: {
+        id: league?.id || 0,
+        name: league?.name || league?.nome || 'Liga',
+        country: league?.country || league?.pais || league?.país || '',
+        logo: league?.logo || league?.logotipo || '',
+      },
+      teams: {
+        home: {
+          id: home?.id || 0,
+          externalId: home?.externalId || home?.external_id || '',
+          name: this.getTeamName(home) || 'Casa',
+          logo: this.getTeamLogo(home),
+          winner: home?.winner ?? home?.vencedor ?? null,
+        },
+        away: {
+          id: away?.id || 0,
+          externalId: away?.externalId || away?.external_id || '',
+          name: this.getTeamName(away) || 'Fora',
+          logo: this.getTeamLogo(away),
+          winner: away?.winner ?? away?.vencedor ?? null,
+        },
+      },
+      goals: {
+        home: Number.isFinite(homeGoals) ? homeGoals : 0,
+        away: Number.isFinite(awayGoals) ? awayGoals : 0,
+      },
+      score: {
+        fulltime: {
+          home: Number.isFinite(homeGoals) ? homeGoals : 0,
+          away: Number.isFinite(awayGoals) ? awayGoals : 0,
+        },
+      },
+      odds: odds
+        ? {
+            source: odds?.source || odds?.fonte || 'flashscore',
+            bookmaker: odds?.bookmaker || odds?.['casa de apostas'] || 'FlashScore',
+            market: odds?.market || odds?.mercado || '1X2',
+            options: options.map((option: any) => ({
+              name: option?.name || option?.nome || '',
+              odd: Number(option?.odd ?? option?.ímpar ?? option?.impar ?? 0),
+            })).filter((option: any) => option.name && Number.isFinite(option.odd) && option.odd > 0),
+          }
+        : undefined,
+      __oddixCachedAt: item?.__oddixCachedAt,
+      oddix: item?.oddix || {},
+    };
   }
 
   private getFixtureDateValue(item: any) {
@@ -1352,7 +1524,7 @@ export class FootballService {
   }
 
   private fixtureBelongsToBrazilDate(item: any, targetDate: string) {
-    const rawDate = item?.fixture?.date || item?.jogo?.data || item?.fixture?.data;
+    const rawDate = this.getFixtureDateValue(item);
     if (!rawDate) return false;
 
     const parsed = new Date(rawDate);
@@ -1362,7 +1534,7 @@ export class FootballService {
   }
 
   private fixtureStartsInFuture(item: any, minMinutes = -30, maxMinutes = 24 * 60) {
-    const rawDate = item?.fixture?.date || item?.jogo?.data || item?.fixture?.data;
+    const rawDate = this.getFixtureDateValue(item);
     if (!rawDate) return false;
 
     const parsed = new Date(rawDate).getTime();
@@ -1378,27 +1550,12 @@ export class FootballService {
     date = this.normalizeDateKey(date);
 
     /**
-     * O Dashboard/Pré-jogo agora deve puxar somente:
-     * - hoje
-     * - amanhã
-     *
-     * Isso reduz consumo da FlashScore, evita poluição com jogos distantes
-     * e mantém o Oddix focado nos jogos com maior chance de conversão.
-     * Para mudar depois, ajuste ODDIX_DASHBOARD_DAYS_AHEAD.
-     * 1 = hoje + amanhã.
+     * Quando a rota recebe ?date=YYYY-MM-DD, buscamos SOMENTE aquela data.
+     * O frontend já chama hoje e amanhã separadamente. Buscar dias extras aqui
+     * fazia aparecer depois de amanhã e gerava duplicidade no dashboard.
      */
-    const daysAhead = Math.max(
-      1,
-      Math.min(1, Number(process.env.ODDIX_DASHBOARD_DAYS_AHEAD || 1)),
-    );
-
-    const searchDates = Array.from(
-      new Set(
-        Array.from({ length: daysAhead + 1 }, (_, index) =>
-          this.addDays(date, index),
-        ),
-      ),
-    );
+    const requestedDate = date;
+    const searchDates = [requestedDate];
 
     const freshGroups: any[][] = [];
 
@@ -1899,16 +2056,13 @@ export class FootballService {
 
   async getStatistics(fixtureId: string) {
     const cachedForStats: any = await this.getFixtureFromCacheById(fixtureId);
-    let flashScoreStatsError: any = null;
 
     if (cachedForStats?.provider === 'flashscore') {
-      const flashScoreStats = await this.getStatisticsFromFlashScore(fixtureId);
+      const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
 
-      if (flashScoreStats.ok && flashScoreStats.data) {
-        return flashScoreStats.data;
+      if (flashScore.ok && flashScore.data) {
+        return flashScore.data;
       }
-
-      flashScoreStatsError = flashScoreStats.error;
     }
 
     const sportScore6 = await this.getStatisticsFromSportScore6(fixtureId);
@@ -1931,14 +2085,15 @@ export class FootballService {
       return sportScore.data;
     }
 
+    let flashScoreStatsError = 'FlashScore já usada no fixture ou sem estatísticas';
+
     if (cachedForStats?.provider !== 'flashscore') {
-      const flashScoreStats = await this.getStatisticsFromFlashScore(fixtureId);
+      const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
+      flashScoreStatsError = flashScore.error || flashScoreStatsError;
 
-      if (flashScoreStats.ok && flashScoreStats.data) {
-        return flashScoreStats.data;
+      if (flashScore.ok && flashScore.data) {
+        return flashScore.data;
       }
-
-      flashScoreStatsError = flashScoreStats.error;
     }
 
     let apiFootball = { ok: false, data: null, error: 'API-Football poupada' } as any;
@@ -2015,7 +2170,7 @@ export class FootballService {
       apiFootballBlockedUntil: this.apiFootballBlockedUntil?.toISOString() || null,
       liveCacheSeconds: this.liveCacheSeconds(),
       fixturesCacheMinutes: this.fixturesCacheMinutes(),
-      note: 'API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem: FlashScore > SportScore6 > FotMob > SportScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData. Janela do Dashboard: hoje + amanhã.',
+      note: 'API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem: FotMob > SportScore6 > SportScore > FlashScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData.',
 
       cache: {
         responseLength: cache.length,
