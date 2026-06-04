@@ -348,15 +348,10 @@ const styles: Record<string, any> = {
   scoreText: { display: 'block', background: '#020617', color: '#fff', border: '1px solid rgba(34,197,94,.55)', borderRadius: 22, padding: '17px 20px', fontSize: 30, fontWeight: 1000 },
   minuteText: { display: 'inline-block', marginTop: 10, color: '#facc15', fontWeight: 900 },
   liveMinute: { color: '#ef4444' },
-  entryPanel: { maxWidth: 780, margin: '28px auto 0', textAlign: 'center', borderRadius: 30, padding: '24px 28px', background: 'rgba(0,0,0,.66)', border: '1px solid rgba(250,204,21,.34)', boxShadow: '0 18px 50px rgba(0,0,0,.42)' },
-  entryPanelSmall: {},
   entryPanel: { maxWidth: 820, margin: '28px auto 0', textAlign: 'center', borderRadius: 30, padding: '24px 28px', background: 'rgba(0,0,0,.66)', border: '1px solid rgba(250,204,21,.34)', boxShadow: '0 18px 50px rgba(0,0,0,.42)' },
-  entryPanel: undefined,
 };
 
-styles.entryPanel = { maxWidth: 820, margin: '28px auto 0', textAlign: 'center', borderRadius: 30, padding: '24px 28px', background: 'rgba(0,0,0,.66)', border: '1px solid rgba(250,204,21,.34)', boxShadow: '0 18px 50px rgba(0,0,0,.42)' };
 Object.assign(styles, {
-  entryPanel: styles.entryPanel,
   kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, margin: '18px 0', position: 'relative', zIndex: 2 },
   kpiCard: { background: 'rgba(0,0,0,.72)', border: '1px solid rgba(250,204,21,.30)', borderRadius: 24, padding: 20, boxShadow: '0 16px 45px rgba(0,0,0,.32)' },
   contentGrid: { display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18, marginBottom: 18, position: 'relative', zIndex: 2 },
