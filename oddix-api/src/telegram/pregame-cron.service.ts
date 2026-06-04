@@ -319,6 +319,24 @@ export class PregameCronService {
     return !!found;
   }
 
+  private async existingOpenBetForFixture(fixtureId: number) {
+    return this.prisma.bet.findFirst({
+      where: {
+        fixtureId,
+        status: "open",
+      } as any,
+      select: {
+        id: true,
+        tip: true,
+        confidence: true,
+        odd: true,
+      },
+      orderBy: {
+        confidence: "desc",
+      } as any,
+    });
+  }
+
   private createFreeMessage(game: any, bet: any, stage: PregameStage) {
     const kickoff = this.formatKickoff(game?.fixture?.date);
 
@@ -460,6 +478,14 @@ export class PregameCronService {
 
         if (!fixtureId) continue;
 
+        const existingOpenBet = await this.existingOpenBetForFixture(fixtureId);
+        if (existingOpenBet) {
+          this.logger.log(
+            `⏭️ Pré-jogo bloqueado para evitar duplicado: fixtureId=${fixtureId} | betId=${existingOpenBet.id} | tip=${existingOpenBet.tip}`,
+          );
+          continue;
+        }
+
         if (await this.alreadySent(fixtureId, stage)) {
           this.logger.log(
             `⏭️ Pré-jogo já enviado para este estágio: fixtureId=${fixtureId} | stage=${stage}`,
@@ -467,10 +493,7 @@ export class PregameCronService {
           continue;
         }
 
-        if (
-          stage !== "final" &&
-          (await this.alreadySentAnyPregame(fixtureId))
-        ) {
+        if (await this.alreadySentAnyPregame(fixtureId)) {
           this.logger.log(
             `⏭️ Pré-jogo já enviado anteriormente: fixtureId=${fixtureId}`,
           );

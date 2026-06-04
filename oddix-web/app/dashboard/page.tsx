@@ -473,9 +473,18 @@ function normalizeName(value: any) {
 }
 
 function stableGameKey(game: any) {
+  const home = normalizeName(game?.teams?.home?.name);
+  const away = normalizeName(game?.teams?.away?.name);
+  const day = gameDateKey(game);
+
+  // Prioridade para nome + data, porque alguns providers/live podem mandar IDs diferentes
+  // para o mesmo jogo. Isso evita Birmingham x Louisville aparecer duplicado.
+  if (home && away && day) return `match-${day}-${home}-${away}`;
+
   const id = game?.fixture?.id;
   if (id) return `fixture-${id}`;
-  return `${gameDateKey(game)}-${normalizeName(game?.teams?.home?.name)}-${normalizeName(game?.teams?.away?.name)}`;
+
+  return `${day}-${home}-${away}`;
 }
 
 function mergeGames(groups: any[][]) {
@@ -760,13 +769,11 @@ export default function Dashboard() {
       setRefreshing(true);
 
       const tomorrow = dateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
-      const afterTomorrow = dateKey(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
 
       const responses = await Promise.allSettled([
         api.get("/football/live"),
         api.get(`/football/fixtures?date=${today}`),
         api.get(`/football/fixtures?date=${tomorrow}`),
-        api.get(`/football/fixtures?date=${afterTomorrow}`),
         api.get("/bets"),
         api.get("/favorite"),
       ]);
@@ -774,11 +781,10 @@ export default function Dashboard() {
       const live = responses[0].status === "fulfilled" ? responses[0].value?.data || [] : [];
       const fixturesToday = responses[1].status === "fulfilled" ? responses[1].value?.data || [] : [];
       const fixturesTomorrow = responses[2].status === "fulfilled" ? responses[2].value?.data || [] : [];
-      const fixturesAfterTomorrow = responses[3].status === "fulfilled" ? responses[3].value?.data || [] : [];
-      const bets = responses[4].status === "fulfilled" ? responses[4].value?.data || [] : [];
-      const favs = responses[5].status === "fulfilled" ? responses[5].value?.data || [] : [];
+      const bets = responses[3].status === "fulfilled" ? responses[3].value?.data || [] : [];
+      const favs = responses[4].status === "fulfilled" ? responses[4].value?.data || [] : [];
 
-      const merged = mergeGames([live, fixturesToday, fixturesTomorrow, fixturesAfterTomorrow])
+      const merged = mergeGames([live, fixturesToday, fixturesTomorrow])
         .filter((game) => safeNumber(game?.oddix?.qualityScore, 0) >= DASHBOARD_MIN_SCORE);
 
       const wonBets = Array.isArray(bets) ? bets.filter((bet: any) => String(bet?.status || "").toLowerCase() === "won").length : 0;
