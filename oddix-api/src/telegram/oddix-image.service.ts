@@ -289,39 +289,51 @@ export class OddixImageService {
   }
 
   private singleOverlaySvg(input: OddixVipCardInput) {
-    const home = this.escape(this.short(input.homeTeam, 18));
-    const away = this.escape(this.short(input.awayTeam, 18));
+    const home = this.escape(this.short(input.homeTeam, 20));
+    const away = this.escape(this.short(input.awayTeam, 20));
     const league = this.escape(this.short(input.league, 42));
     const market = this.escape(
-      this.short(input.market || "Entrada Oddix", 24).toUpperCase(),
+      this.short(input.market || "ENTRADA", 24).toUpperCase(),
     );
     const odd = this.escape(String(input.odd ?? "-"));
     const confidence = this.escape(input.confidenceLabel || "Alta");
     const edge = this.escape(input.edge || "+12%");
-    const headline = this.escape(input.headline || "🔥 ENTRADA VIP LIBERADA");
-    const subheadline = this.escape(
-      input.subheadline || "Mercado identificado pela IA",
-    );
-    const vipBadge = this.escape(input.vipBadge || "ODDIX BOOST IA");
     const valueLabel = this.escape(input.valueLabel || "Valor positivo");
-    const risk = this.escape(this.short(input.risk || "Médio", 13));
+    const risk = this.escape(this.short(input.risk || "Baixo", 13));
 
-    const tipClean = String(input.tip || "")
+    const statusText = this.cleanText(input.status || "").toLowerCase();
+    const elapsed = input.elapsed !== null && input.elapsed !== undefined && input.elapsed !== "" ? `${input.elapsed}'` : "";
+    const isLive =
+      statusText.includes("live") ||
+      statusText.includes("ao vivo") ||
+      statusText.includes("1h") ||
+      statusText.includes("2h") ||
+      !!elapsed;
+
+    const entryBadge = isLive
+      ? elapsed
+        ? `AO VIVO ${elapsed}`
+        : "AO VIVO"
+      : "ENTRADA VIP";
+
+    const rawTip = String(input.tip || "")
       .replace(/^Pré-jogo:\s*/i, "")
       .replace(/^Pre-jogo:\s*/i, "")
+      .replace(/^Ao vivo:\s*/i, "")
+      .replace(/^Live:\s*/i, "")
+      .replace(/^Entrada:\s*/i, "")
       .trim();
 
-    const tipLinesArray = this.wrapText(tipClean, 19, 3);
-    const tipFontSize =
-      tipLinesArray.length >= 3 ? 36 : tipLinesArray.length === 2 ? 42 : 50;
-    const firstTipY =
-      tipLinesArray.length >= 3 ? 247 : tipLinesArray.length === 2 ? 270 : 292;
+    const normalizedTip = rawTip || "Entrada Oddix";
+    const tipLinesArray = this.wrapText(normalizedTip.toUpperCase(), 17, 3);
+    const tipFontSize = tipLinesArray.length >= 3 ? 40 : tipLinesArray.length === 2 ? 48 : 62;
+    const firstTipY = tipLinesArray.length >= 3 ? 266 : tipLinesArray.length === 2 ? 286 : 310;
 
     const tipLines = tipLinesArray
       .map(
         (line, index) =>
-          `<text x="508" y="${firstTipY + index * 43}" text-anchor="middle" class="mainTip" font-size="${tipFontSize}" fill="#ffffff">${this.escape(
-            line.toUpperCase(),
+          `<text x="508" y="${firstTipY + index * (tipLinesArray.length >= 3 ? 44 : 52)}" text-anchor="middle" class="mainTip" font-size="${tipFontSize}" fill="#ffffff" filter="url(#textShadow)">${this.escape(
+            line,
           )}</text>`,
       )
       .join("");
@@ -330,76 +342,89 @@ export class OddixImageService {
       <svg width="${this.width}" height="${this.height}" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="gold" x1="0" x2="1">
-            <stop offset="0%" stop-color="#f59e0b"/>
-            <stop offset="52%" stop-color="#facc15"/>
-            <stop offset="100%" stop-color="#fde68a"/>
+            <stop offset="0%" stop-color="#f97316"/>
+            <stop offset="48%" stop-color="#facc15"/>
+            <stop offset="100%" stop-color="#fff7ad"/>
+          </linearGradient>
+          <linearGradient id="orange" x1="0" x2="1">
+            <stop offset="0%" stop-color="#f97316"/>
+            <stop offset="100%" stop-color="#facc15"/>
           </linearGradient>
           <linearGradient id="green" x1="0" x2="1">
             <stop offset="0%" stop-color="#15803d"/>
             <stop offset="100%" stop-color="#22c55e"/>
           </linearGradient>
-          <linearGradient id="purple" x1="0" x2="1">
-            <stop offset="0%" stop-color="#172554"/>
-            <stop offset="55%" stop-color="#4c1d95"/>
-            <stop offset="100%" stop-color="#7c3aed"/>
+          <linearGradient id="glass" x1="0" x2="1">
+            <stop offset="0%" stop-color="rgba(0,0,0,.74)"/>
+            <stop offset="50%" stop-color="rgba(7,10,20,.54)"/>
+            <stop offset="100%" stop-color="rgba(0,0,0,.74)"/>
           </linearGradient>
-          <linearGradient id="panel" x1="0" x2="1">
-            <stop offset="0%" stop-color="rgba(0,0,0,.72)"/>
-            <stop offset="50%" stop-color="rgba(8,8,14,.58)"/>
-            <stop offset="100%" stop-color="rgba(0,0,0,.72)"/>
-          </linearGradient>
-          <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity=".85"/></filter>
-          <filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="#facc15" flood-opacity=".80"/></filter>
-          <filter id="greenGlow"><feDropShadow dx="0" dy="0" stdDeviation="11" flood-color="#22c55e" flood-opacity=".55"/></filter>
+          <radialGradient id="centerGlow" cx="50%" cy="53%" r="58%">
+            <stop offset="0%" stop-color="#f59e0b" stop-opacity=".28"/>
+            <stop offset="58%" stop-color="#7c3aed" stop-opacity=".10"/>
+            <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity=".88"/></filter>
+          <filter id="textShadow"><feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#000" flood-opacity=".95"/></filter>
+          <filter id="goldGlow"><feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#facc15" flood-opacity=".72"/></filter>
+          <filter id="greenGlow"><feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="#22c55e" flood-opacity=".55"/></filter>
           <style>
-            .title{font-family:Impact,Arial Black,Arial,sans-serif;font-weight:900;letter-spacing:2px}
+            .impact{font-family:Impact,Arial Black,Arial,sans-serif;font-weight:900;letter-spacing:2px}
             .heavy{font-family:Arial Black,Arial,sans-serif;font-weight:900}
             .text{font-family:Arial,sans-serif;font-weight:800}
-            .mainTip{font-family:Impact,Arial Black,Arial,sans-serif;font-weight:900;letter-spacing:1px}
             .small{font-family:Arial,sans-serif;font-weight:700}
+            .mainTip{font-family:Impact,Arial Black,Arial,sans-serif;font-weight:900;letter-spacing:1.5px}
           </style>
         </defs>
 
-        <rect x="18" y="18" width="980" height="479" rx="34" fill="rgba(0,0,0,.50)" stroke="url(#gold)" stroke-width="6" filter="url(#shadow)"/>
-        <rect x="38" y="38" width="940" height="439" rx="28" fill="url(#panel)" stroke="rgba(250,204,21,.30)" stroke-width="2"/>
-        <rect x="55" y="55" width="906" height="405" rx="24" fill="rgba(0,0,0,.18)" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
+        <rect width="100%" height="100%" fill="rgba(0,0,0,.18)"/>
+        <rect width="100%" height="100%" fill="url(#centerGlow)"/>
+        <path d="M0 0 H1016 V92 C820 58 688 72 566 105 C396 151 222 112 0 170 Z" fill="rgba(0,0,0,.55)"/>
+        <path d="M0 515 H1016 V380 C792 432 642 388 505 356 C330 314 190 358 0 322 Z" fill="rgba(0,0,0,.68)"/>
 
-        <text x="108" y="78" text-anchor="start" class="title" font-size="34" fill="url(#gold)" filter="url(#glow)">${vipBadge}</text>
-        <text x="108" y="107" text-anchor="start" class="small" font-size="17" fill="#ffffff">${headline}</text>
-        <text x="508" y="86" text-anchor="middle" class="small" font-size="20" fill="#ddd6fe">${league}</text>
-        <text x="508" y="112" text-anchor="middle" class="small" font-size="15" fill="#fef3c7">${subheadline}</text>
+        <rect x="18" y="16" width="980" height="483" rx="30" fill="rgba(0,0,0,.14)" stroke="url(#gold)" stroke-width="5" filter="url(#shadow)"/>
+        <rect x="36" y="36" width="944" height="443" rx="24" fill="rgba(0,0,0,.14)" stroke="rgba(255,255,255,.10)" stroke-width="1"/>
 
-        <rect x="734" y="55" width="206" height="52" rx="18" fill="url(#purple)" stroke="rgba(255,255,255,.18)"/>
-        <text x="837" y="88" text-anchor="middle" class="small" font-size="19" fill="#facc15">${market}</text>
+        <text x="508" y="70" text-anchor="middle" class="impact" font-size="46" fill="url(#gold)" filter="url(#goldGlow)">ODDIX VIP PREMIUM</text>
+        <text x="508" y="100" text-anchor="middle" class="small" font-size="18" fill="#fef3c7">${league}</text>
 
-        <rect x="62" y="128" width="220" height="198" rx="30" fill="rgba(255,255,255,.08)" stroke="rgba(250,204,21,.36)" stroke-width="2"/>
-        <rect x="734" y="128" width="220" height="198" rx="30" fill="rgba(255,255,255,.08)" stroke="rgba(250,204,21,.36)" stroke-width="2"/>
-        <circle cx="172" cy="203" r="102" fill="rgba(0,0,0,.30)" stroke="rgba(250,204,21,.26)" stroke-width="2"/>
-        <circle cx="844" cy="203" r="102" fill="rgba(0,0,0,.30)" stroke="rgba(250,204,21,.26)" stroke-width="2"/>
-        <text x="172" y="315" text-anchor="middle" class="heavy" font-size="22" fill="#ffffff">${home}</text>
-        <text x="844" y="315" text-anchor="middle" class="heavy" font-size="22" fill="#ffffff">${away}</text>
+        <g filter="url(#shadow)">
+          <rect x="54" y="112" width="226" height="188" rx="25" fill="rgba(0,0,0,.38)" stroke="rgba(250,204,21,.44)" stroke-width="2"/>
+          <rect x="736" y="112" width="226" height="188" rx="25" fill="rgba(0,0,0,.38)" stroke="rgba(250,204,21,.44)" stroke-width="2"/>
+          <text x="167" y="324" text-anchor="middle" class="heavy" font-size="23" fill="#ffffff" filter="url(#textShadow)">${home}</text>
+          <text x="849" y="324" text-anchor="middle" class="heavy" font-size="23" fill="#ffffff" filter="url(#textShadow)">${away}</text>
+        </g>
 
-        <circle cx="508" cy="164" r="34" fill="rgba(250,204,21,.15)" stroke="url(#gold)" stroke-width="3" filter="url(#glow)"/>
-        <text x="508" y="177" text-anchor="middle" class="title" font-size="29" fill="#ffffff">VS</text>
+        <circle cx="508" cy="156" r="38" fill="rgba(0,0,0,.55)" stroke="url(#gold)" stroke-width="4" filter="url(#goldGlow)"/>
+        <text x="508" y="170" text-anchor="middle" class="impact" font-size="34" fill="#ffffff">VS</text>
 
-        <rect x="300" y="218" width="416" height="138" rx="30" fill="rgba(0,0,0,.54)" stroke="rgba(250,204,21,.46)" stroke-width="2" filter="url(#shadow)"/>
-        <rect x="316" y="235" width="384" height="104" rx="24" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+        <rect x="326" y="116" width="364" height="42" rx="21" fill="url(#orange)" filter="url(#shadow)"/>
+        <text x="508" y="144" text-anchor="middle" class="heavy" font-size="19" fill="#1f1300">🔥 ${this.escape(entryBadge)}</text>
+
+        <rect x="292" y="210" width="432" height="166" rx="30" fill="url(#glass)" stroke="rgba(250,204,21,.72)" stroke-width="3" filter="url(#shadow)"/>
+        <rect x="310" y="229" width="396" height="126" rx="24" fill="rgba(0,0,0,.26)" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
+        <text x="508" y="239" text-anchor="middle" class="small" font-size="15" fill="#facc15">${market}</text>
         ${tipLines}
 
         <g filter="url(#shadow)">
-          <rect x="82" y="374" width="225" height="78" rx="22" fill="url(#gold)"/>
-          <text x="194" y="404" text-anchor="middle" class="text" font-size="20" fill="#1f1300">ODD</text>
-          <text x="194" y="439" text-anchor="middle" class="heavy" font-size="39" fill="#ffffff">${odd}</text>
+          <rect x="64" y="386" width="202" height="72" rx="20" fill="url(#gold)"/>
+          <text x="165" y="412" text-anchor="middle" class="text" font-size="17" fill="#1f1300">ODD</text>
+          <text x="165" y="448" text-anchor="middle" class="heavy" font-size="38" fill="#ffffff">${odd}</text>
 
-          <rect x="340" y="374" width="260" height="78" rx="22" fill="url(#green)" filter="url(#greenGlow)"/>
-          <text x="470" y="404" text-anchor="middle" class="text" font-size="18" fill="#052e16">EDGE IA</text>
-          <text x="470" y="439" text-anchor="middle" class="heavy" font-size="39" fill="#ffffff">${edge}</text>
+          <rect x="304" y="386" width="202" height="72" rx="20" fill="url(#green)" filter="url(#greenGlow)"/>
+          <text x="405" y="412" text-anchor="middle" class="text" font-size="17" fill="#052e16">EDGE IA</text>
+          <text x="405" y="448" text-anchor="middle" class="heavy" font-size="36" fill="#ffffff">${edge}</text>
 
-          <rect x="632" y="374" width="302" height="78" rx="22" fill="rgba(255,255,255,.10)" stroke="rgba(250,204,21,.40)" stroke-width="2"/>
-          <text x="783" y="400" text-anchor="middle" class="text" font-size="18" fill="#facc15">CONFIANÇA</text>
-          <text x="783" y="432" text-anchor="middle" class="heavy" font-size="30" fill="#ffffff">${confidence}</text>
-          <text x="783" y="454" text-anchor="middle" class="small" font-size="13" fill="#ddd6fe">${valueLabel} • Risco ${risk}</text>
+          <rect x="544" y="386" width="202" height="72" rx="20" fill="rgba(255,255,255,.12)" stroke="rgba(250,204,21,.48)" stroke-width="2"/>
+          <text x="645" y="412" text-anchor="middle" class="text" font-size="16" fill="#facc15">CONFIANÇA</text>
+          <text x="645" y="447" text-anchor="middle" class="heavy" font-size="32" fill="#ffffff">${confidence}</text>
+
+          <rect x="784" y="386" width="168" height="72" rx="20" fill="rgba(0,0,0,.52)" stroke="rgba(255,255,255,.16)" stroke-width="1"/>
+          <text x="868" y="416" text-anchor="middle" class="text" font-size="15" fill="#facc15">RISCO</text>
+          <text x="868" y="446" text-anchor="middle" class="heavy" font-size="25" fill="#ffffff">${risk}</text>
         </g>
+
+        <text x="508" y="488" text-anchor="middle" class="small" font-size="13" fill="#fef3c7">${valueLabel} • Parceiro EstrelaBet • 18+ • Jogue com responsabilidade • Aposta não é investimento</text>
       </svg>
     `);
   }
@@ -415,7 +440,7 @@ export class OddixImageService {
           `${input.homeTeam}-${input.awayTeam}-${input.tip}-${input.theme || "VIP"}`,
       );
       const overlay = this.singleOverlaySvg(input);
-      const logoSize = Number(process.env.ODDIX_CARD_LOGO_SIZE || 230);
+      const logoSize = Number(process.env.ODDIX_CARD_LOGO_SIZE || 210);
       const homeLogo = await this.logoBuffer(
         input.homeLogo,
         input.homeTeam,
@@ -430,8 +455,8 @@ export class OddixImageService {
       await sharp(background)
         .resize(this.width, this.height, { fit: "cover" })
         .composite([
-          { input: homeLogo, left: 58, top: 88 },
-          { input: awayLogo, left: 728, top: 88 },
+          { input: homeLogo, left: 62, top: 124 },
+          { input: awayLogo, left: this.width - 62 - logoSize, top: 124 },
           { input: overlay, left: 0, top: 0 },
         ])
         .png()
