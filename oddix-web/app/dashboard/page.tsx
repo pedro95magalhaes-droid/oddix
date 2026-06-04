@@ -292,7 +292,7 @@ function bestOddFromGame(game: any) {
   return Math.min(...valid.filter((odd: number) => odd >= 1.2)) || valid[0];
 }
 
-const DASHBOARD_MIN_SCORE = Number(process.env.NEXT_PUBLIC_ODDIX_DASHBOARD_MIN_SCORE || 75);
+const DASHBOARD_MIN_SCORE = Number(process.env.NEXT_PUBLIC_ODDIX_DASHBOARD_MIN_SCORE || 0);
 
 const ODDIX_MARKET_ROTATION = [
   "total_goals_over_safe",

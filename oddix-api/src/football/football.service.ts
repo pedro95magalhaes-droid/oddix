@@ -1311,64 +1311,12 @@ export class FootballService {
     const cleanItem = this.standardizeFixture(item);
 
     if (!cleanItem) return false;
-    if (!this.isExtraDashboardLeagueAllowed(cleanItem)) return false;
 
-    const league = this.getLeagueObject(cleanItem);
-    const home = this.getHomeTeam(cleanItem);
-    const away = this.getAwayTeam(cleanItem);
-    const text = this.normalizeTextLoose(
-      `${league?.name || league?.nome || ''} ${league?.country || league?.pais || league?.país || ''} ${this.getTeamName(home)} ${this.getTeamName(away)}`,
-    );
-
-    const alwaysAllowedWords = [
-      'fifa',
-      'world cup',
-      'copa do mundo',
-      'international',
-      'national team',
-      'selecao',
-      'selecoes',
-      'libertadores',
-      'sudamericana',
-      'sul americana',
-      'champions league',
-      'europa league',
-      'conference league',
-      'brasileirao',
-      'brasil serie a',
-      'brazil serie a',
-      'brasil serie b',
-      'brazil serie b',
-      'brasil serie c',
-      'brazil serie c',
-      'copa do brasil',
-      'premier league',
-      'la liga',
-      'bundesliga',
-      'serie a',
-      'serie b',
-      'ligue 1',
-      'mls',
-      'liga mx',
-      'argentina primera',
-      'paulista',
-      'carioca',
-      'cearense',
-      'baiano',
-      'goiano',
-      'pernambucano',
-      'mineiro',
-      'gaucho',
-      'paranaense',
-    ];
-
-    if (alwaysAllowedWords.some((word) => text.includes(word))) return true;
-    if (isOddixLeagueAllowed(cleanItem)) return true;
-
-    const quality = getOddixFixtureQualityScore(cleanItem);
-    const qualityThreshold = Number(process.env.ODDIX_DASHBOARD_ALLOW_QUALITY_SCORE || 80);
-
-    return quality >= qualityThreshold;
+    // Correção principal:
+    // O Dashboard NÃO deve esconder jogos por score/leagueAllowed.
+    // Ele só bloqueia lixo real: base, feminino, reservas, eSoccer, simulado
+    // e amistosos fracos. A qualidade fica apenas para ordenar e gerar palpites IA.
+    return this.isExtraDashboardLeagueAllowed(cleanItem);
   }
 
   private standardizeFixture(item: any) {
@@ -1634,11 +1582,17 @@ export class FootballService {
       this.mergeUniqueFixtures(freshGroups),
     );
 
-    if (freshMerged.length > 0) {
+    // Correção V3:
+    // Antes o backend parava aqui quando existiam poucos jogos no cache (ex.: 6).
+    // Assim ele nunca consultava FlashScore/SportScore6 de novo e o dashboard ficava travado.
+    // Agora só usa o cache sozinho quando tiver volume suficiente.
+    const minCacheCount = Number(process.env.ODDIX_FIXTURES_MIN_CACHE_COUNT || 20);
+
+    if (freshMerged.length >= minCacheCount) {
       return this.compactFixtures(freshMerged);
     }
 
-    const providerGroups: any[][] = [];
+    const providerGroups: any[][] = [...freshGroups];
 
     for (const currentDate of searchDates) {
       const flashScore = await this.getFixturesFromFlashScore(currentDate);
