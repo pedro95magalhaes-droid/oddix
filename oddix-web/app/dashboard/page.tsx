@@ -292,7 +292,7 @@ function bestOddFromGame(game: any) {
   return Math.min(...valid.filter((odd: number) => odd >= 1.2)) || valid[0];
 }
 
-const DASHBOARD_MIN_SCORE = Number(process.env.NEXT_PUBLIC_ODDIX_DASHBOARD_MIN_SCORE || 75);
+const DASHBOARD_MIN_SCORE = Number(process.env.NEXT_PUBLIC_ODDIX_DASHBOARD_MIN_SCORE || 60);
 
 const ODDIX_MARKET_ROTATION = [
   "total_goals_over_safe",
@@ -551,6 +551,22 @@ function isFrontendLeagueAllowed(game: any) {
     "esoccer",
     "simulado",
     "simulated",
+    "maranhense 2",
+    "maranhense serie b",
+    "paraense a2",
+    "paulista b",
+    "paulista a2",
+    "paulista a3",
+    "carioca a2",
+    "serie d",
+    "league two",
+    "usl league two",
+    "regionalliga",
+    "oberliga",
+    "niger",
+    "senegal",
+    "gambia",
+    "sierra leone",
   ];
 
   if (blocked.some((word) => text.includes(word))) return false;
