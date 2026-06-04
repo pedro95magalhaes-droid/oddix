@@ -4,6 +4,8 @@ import type { CSSProperties } from "react";
 
 const PRO_LINK = "https://www.asaas.com/c/ghmckkqfrfkan6z1";
 const VIP_LINK = "https://www.asaas.com/c/htvg25um0tpbr7bx";
+const LEGAL_SEAL_DARK = "/selos/estrelabet-responsabilidade-dark.png";
+const LEGAL_SEAL_BLUE = "/selos/estrelabet-responsabilidade-blue.png";
 const ESTRELABET_LINK = process.env.NEXT_PUBLIC_ESTRELABET_LINK || "https://apretailer.com.br/click/6a2102c82bfa8143b57b86d8/182492/359080/subaccount";
 
 export default function PlansPage() {
@@ -145,6 +147,7 @@ export default function PlansPage() {
             <span>🎁 Promoções para novos usuários</span>
             <span>⚠️ Jogue com responsabilidade</span>
           </div>
+          <img src={LEGAL_SEAL_DARK} alt="18+ Jogue com responsabilidade. Aposta não é investimento." style={styles.partnerLegalSeal} />
         </div>
         <button style={styles.partnerButton} onClick={() => window.open(ESTRELABET_LINK, "_blank")}>
           💰 ABRIR ESTRELABET
@@ -206,7 +209,7 @@ export default function PlansPage() {
       <footer style={styles.footer}>
         <strong>ODDIX</strong>
         <span>IA • Gestão • Player Props • WhatsApp VIP</span>
-        <span>Jogue com responsabilidade. Não existe aposta garantida.</span>
+        <img src={LEGAL_SEAL_DARK} alt="18+ Jogue com responsabilidade. Aposta não é investimento." style={styles.footerLegalSeal} />
       </footer>
     </main>
   );
@@ -721,4 +724,22 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
     fontSize: 13,
   },
+  partnerLegalSeal: {
+    width: 520,
+    maxWidth: "100%",
+    height: "auto",
+    display: "block",
+    marginTop: 18,
+    borderRadius: 16,
+    background: "rgba(0,0,0,.20)",
+  },
+  footerLegalSeal: {
+    width: 420,
+    maxWidth: "100%",
+    height: "auto",
+    display: "block",
+    marginTop: 10,
+    opacity: .96,
+  },
+
 };

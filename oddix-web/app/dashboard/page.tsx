@@ -9,6 +9,9 @@ import OddixBoostPremium from "../../components/oddix/OddixBoostPremium";
 import FreeLockModal from "../../components/oddix/FreeLockModal";
 
 const FREE_GROUP_LINK = "https://chat.whatsapp.com/JQuwv77T1b8J6KMlXCEeRb";
+const ESTRELABET_LINK = process.env.NEXT_PUBLIC_ESTRELABET_LINK || "https://apretailer.com.br/click/6a2102c82bfa8143b57b86d8/182492/359080/subaccount";
+const LEGAL_SEAL_DARK = "/selos/estrelabet-responsabilidade-dark.png";
+const LEGAL_SEAL_SMALL = "/selos/estrelabet-responsabilidade-small.png";
 
 type TabKey = "highlights" | "live" | "pregame" | "smart" | "boost" | "playerprops" | "greens";
 
@@ -466,24 +469,41 @@ function normalizeName(value: any) {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\b(fc|sc|ec|afc|cf|club|clube|u20|u21|u23|women|woman|w)\b/g, "")
+    .replace(/\b(fc|sc|ec|afc|cf|club|clube|city|legion|cidade|u20|u21|u23|women|woman|w)\b/g, "")
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function stableGameKey(game: any) {
-  const home = normalizeName(game?.teams?.home?.name);
-  const away = normalizeName(game?.teams?.away?.name);
-  const day = gameDateKey(game);
+function aliasTeamName(value: any) {
+  const normalized = normalizeName(value);
 
-  // Prioridade para nome + data, porque alguns providers/live podem mandar IDs diferentes
-  // para o mesmo jogo. Isso evita Birmingham x Louisville aparecer duplicado.
-  if (home && away && day) return `match-${day}-${home}-${away}`;
+  const aliases: Record<string, string> = {
+    "birmingham": "birmingham",
+    "birmingham legion": "birmingham",
+    "louisville": "louisville",
+    "louisville city": "louisville",
+    "paulinia fu": "paulinia",
+    "operario pr": "operario",
+    "operario": "operario",
+  };
+
+  return aliases[normalized] || normalized;
+}
+
+function stableGameKey(game: any) {
+  const home = aliasTeamName(game?.teams?.home?.name);
+  const away = aliasTeamName(game?.teams?.away?.name);
+
+  // Chave principal por times normalizados, porque live/fixtures podem vir com IDs diferentes
+  // e nomes diferentes para o mesmo jogo. Ex.: Birmingham x Louisville City / Birmingham Legion x Louisville City FC.
+  // Como o dashboard busca apenas hoje + amanhã, essa chave é mais eficiente para evitar duplicação visual.
+  if (home && away) return `match-${home}-${away}`;
 
   const id = game?.fixture?.id;
   if (id) return `fixture-${id}`;
 
+  const day = gameDateKey(game);
   return `${day}-${home}-${away}`;
 }
 
@@ -1014,6 +1034,11 @@ export default function Dashboard() {
     window.location.href = "/";
   }
 
+  function openEstrelaBet(event?: any) {
+    event?.stopPropagation?.();
+    window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer");
+  }
+
   function openSportsButton(action: string) {
     if (action === "dashboard") {
       setActiveTab("highlights");
@@ -1354,6 +1379,14 @@ export default function Dashboard() {
             <p>Receba amostras e chamadas para o VIP.</p>
             <button style={styles.freeButton} onClick={() => window.open(FREE_GROUP_LINK, "_blank")}>Entrar no grupo</button>
           </div>
+
+          <div style={styles.partnerSideCard}>
+            <span style={styles.partnerSideKicker}>Parceiro Oddix</span>
+            <h3>EstrelaBet</h3>
+            <p>Aposte usando o link oficial da Oddix.</p>
+            <button style={styles.partnerSideButton} onClick={() => window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer")}>💰 Apostar agora</button>
+            <img src={LEGAL_SEAL_SMALL} alt="18+ Jogue com responsabilidade. Aposta não é investimento." style={styles.partnerSealImage} />
+          </div>
         </aside>
 
         <section style={styles.mainContent}>
@@ -1414,7 +1447,7 @@ export default function Dashboard() {
       <footer style={styles.footer}>
         <strong>ODDIX</strong>
         <span>IA • Odds • Pré-jogo • Ao vivo • Gestão de banca</span>
-        <span>Jogue com responsabilidade.</span>
+        <img src={LEGAL_SEAL_DARK} alt="18+ Jogue com responsabilidade. Aposta não é investimento." style={styles.footerLegalSeal} />
       </footer>
     </main>
   );
@@ -1948,6 +1981,7 @@ function FeaturedGame({ game, liveTick, onAnalyze }: { game: any; liveTick?: num
         <span>{tip.tip}</span>
         <strong>{quality}%</strong>
       </div>
+      <button style={styles.partnerMiniButton} onClick={(event) => { event.stopPropagation(); window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer"); }}>💰 Apostar na EstrelaBet</button>
     </div>
   );
 }
@@ -2001,6 +2035,7 @@ function GameCard({ game, liveTick = 0, saved, analyzing, onAnalyze, onOpenSaved
         ) : (
           <button style={styles.analyzeButton} onClick={(event) => { event.stopPropagation(); onAnalyze(); }}>{analyzing ? "Abrindo..." : "Ver jogo"}</button>
         )}
+        <button style={styles.betNowButton} onClick={(event) => { event.stopPropagation(); window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer"); }}>💰 Apostar agora</button>
       </div>
     </article>
   );
@@ -2292,7 +2327,10 @@ function BoostSection({ boost, games, onAnalyze }: any) {
                 <span>{pick.confidence}%</span>
                 <span>{pick.risk}</span>
               </div>
-              <button style={styles.rowButton} onClick={() => game && onAnalyze(game, pick)}>Ver análise</button>
+              <div style={styles.boostActionRow}>
+                <button style={styles.rowButton} onClick={() => game && onAnalyze(game, pick)}>Ver análise</button>
+                <button style={styles.rowBetButton} onClick={() => window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer")}>💰 Apostar</button>
+              </div>
             </div>
           );
         })}
@@ -2302,6 +2340,44 @@ function BoostSection({ boost, games, onAnalyze }: any) {
 }
 
 const styles: Record<string, CSSProperties> = {
+
+  partnerMiniButton: {
+    marginTop: 12,
+    width: "100%",
+    border: 0,
+    borderRadius: 999,
+    padding: "11px 14px",
+    background: "linear-gradient(135deg,#facc15,#fb923c)",
+    color: "#111827",
+    fontWeight: 950,
+    cursor: "pointer",
+    boxShadow: "0 10px 24px rgba(250,204,21,.22)",
+  },
+  betNowButton: {
+    border: 0,
+    borderRadius: 999,
+    padding: "11px 14px",
+    background: "linear-gradient(135deg,#facc15,#fb923c)",
+    color: "#111827",
+    fontWeight: 950,
+    cursor: "pointer",
+    boxShadow: "0 10px 24px rgba(250,204,21,.22)",
+  },
+  boostActionRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 10,
+    marginTop: 12,
+  },
+  rowBetButton: {
+    border: 0,
+    borderRadius: 14,
+    padding: "12px 14px",
+    background: "linear-gradient(135deg,#facc15,#fb923c)",
+    color: "#111827",
+    fontWeight: 950,
+    cursor: "pointer",
+  },
 
   playerPropsHero: {
     background: "linear-gradient(135deg,#111827,#4c1d95,#7c3aed)",
@@ -3650,4 +3726,47 @@ const styles: Record<string, CSSProperties> = {
     color: "#6b7280",
     flexWrap: "wrap",
   },
+  partnerSideCard: {
+    background: "linear-gradient(145deg,#07142f,#111827)",
+    border: "1px solid rgba(59,130,246,.28)",
+    borderRadius: 22,
+    padding: 18,
+    color: "#fff",
+    boxShadow: "0 16px 35px rgba(17,24,39,.18)",
+  },
+  partnerSideKicker: {
+    color: "#facc15",
+    fontSize: 11,
+    fontWeight: 950,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
+  partnerSideButton: {
+    width: "100%",
+    marginTop: 10,
+    marginBottom: 12,
+    background: "linear-gradient(135deg,#facc15,#fb923c)",
+    color: "#111827",
+    border: 0,
+    borderRadius: 14,
+    padding: "12px 14px",
+    fontWeight: 950,
+    cursor: "pointer",
+  },
+  partnerSealImage: {
+    width: "100%",
+    height: "auto",
+    display: "block",
+    borderRadius: 12,
+    background: "rgba(255,255,255,.04)",
+  },
+  footerLegalSeal: {
+    width: 360,
+    maxWidth: "100%",
+    height: "auto",
+    display: "block",
+    marginTop: 8,
+    opacity: .95,
+  },
+
 };

@@ -65,7 +65,7 @@ export class ResultsCronService {
       '💰 Fazer entrada / criar conta:',
       link,
       '',
-      '⚠️ Jogue com responsabilidade. Sem all-in.',
+      '⚠️ Jogue com responsabilidade. Aposta não é investimento. Sem all-in.',
     ].join('\n');
   }
 
