@@ -518,9 +518,11 @@ export function isOddixFinishedFixture(item: OddixFixtureLike) {
 }
 
 export function isOddixDashboardFixtureAllowed(item: OddixFixtureLike, hideFinishedAfterHours = 0) {
-  // Dashboard não deve sumir jogos por nota/qualidade.
-  // O filtro forte fica só para IA/palpites. Aqui bloqueia apenas lixo real.
+  // Dashboard deve mostrar somente ligas permitidas.
+  // A V3 liberou demais porque bloqueava só lixo real; agora volta a respeitar
+  // leagueAllowed para não aparecer Niger, Senegal, Regionalliga, ligas baixas etc.
   if (isOddixBlockedLeague(item)) return false;
+  if (!isOddixLeagueAllowed(item)) return false;
 
   const showFinished = process.env.ODDIX_DASHBOARD_SHOW_FINISHED === 'true';
   const isFinished = isOddixFinishedFixture(item);

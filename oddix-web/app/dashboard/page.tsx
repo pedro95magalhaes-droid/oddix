@@ -292,7 +292,7 @@ function bestOddFromGame(game: any) {
   return Math.min(...valid.filter((odd: number) => odd >= 1.2)) || valid[0];
 }
 
-const DASHBOARD_MIN_SCORE = Number(process.env.NEXT_PUBLIC_ODDIX_DASHBOARD_MIN_SCORE || 0);
+const DASHBOARD_MIN_SCORE = Number(process.env.NEXT_PUBLIC_ODDIX_DASHBOARD_MIN_SCORE || 75);
 
 const ODDIX_MARKET_ROTATION = [
   "total_goals_over_safe",
@@ -508,6 +508,10 @@ function isFrontendLeagueAllowed(game: any) {
     game?.teams?.home?.name,
     game?.teams?.away?.name,
   ].filter(Boolean).join(" "));
+
+  // Segurança: se o backend marcou como bloqueada, o frontend não exibe.
+  // Isso evita aparecer Niger, Senegal, Áustria regional, ligas baixas etc.
+  if (game?.oddix?.leagueAllowed === false || game?.oddix?.ligaPermitida === false) return false;
 
   const isFifaOrSelection =
     text.includes("fifa") ||
