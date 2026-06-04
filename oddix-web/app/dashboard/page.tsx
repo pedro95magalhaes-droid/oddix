@@ -3725,6 +3725,8 @@ const styles: Record<string, CSSProperties> = {
     gap: 12,
     color: "#6b7280",
     flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   partnerSideCard: {
     background: "linear-gradient(145deg,#07142f,#111827)",
@@ -3761,11 +3763,12 @@ const styles: Record<string, CSSProperties> = {
     background: "rgba(255,255,255,.04)",
   },
   footerLegalSeal: {
-    width: 360,
-    maxWidth: "100%",
+    width: 260,
+    maxWidth: "42vw",
     height: "auto",
     display: "block",
-    marginTop: 8,
+    marginTop: 0,
+    marginLeft: "auto",
     opacity: .95,
   },
 
