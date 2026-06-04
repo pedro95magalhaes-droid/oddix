@@ -292,7 +292,7 @@ function bestOddFromGame(game: any) {
   return Math.min(...valid.filter((odd: number) => odd >= 1.2)) || valid[0];
 }
 
-const DASHBOARD_MIN_SCORE = Number(process.env.NEXT_PUBLIC_ODDIX_DASHBOARD_MIN_SCORE || 60);
+const DASHBOARD_MIN_SCORE = Number(process.env.NEXT_PUBLIC_ODDIX_DASHBOARD_MIN_SCORE || 0);
 
 const ODDIX_MARKET_ROTATION = [
   "total_goals_over_safe",
@@ -509,10 +509,6 @@ function isFrontendLeagueAllowed(game: any) {
     game?.teams?.away?.name,
   ].filter(Boolean).join(" "));
 
-  // Segurança: se o backend marcou como bloqueada, o frontend não exibe.
-  // Isso evita aparecer Niger, Senegal, Áustria regional, ligas baixas etc.
-  if (game?.oddix?.leagueAllowed === false || game?.oddix?.ligaPermitida === false) return false;
-
   const isFifaOrSelection =
     text.includes("fifa") ||
     text.includes("world cup") ||
@@ -551,22 +547,6 @@ function isFrontendLeagueAllowed(game: any) {
     "esoccer",
     "simulado",
     "simulated",
-    "maranhense 2",
-    "maranhense serie b",
-    "paraense a2",
-    "paulista b",
-    "paulista a2",
-    "paulista a3",
-    "carioca a2",
-    "serie d",
-    "league two",
-    "usl league two",
-    "regionalliga",
-    "oberliga",
-    "niger",
-    "senegal",
-    "gambia",
-    "sierra leone",
   ];
 
   if (blocked.some((word) => text.includes(word))) return false;
@@ -2387,97 +2367,41 @@ function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: 
 }
 
 function BoostSection({ boost, games, onAnalyze }: any) {
-  const picks = boost?.picks || [];
-  const stake = 10;
-  const possibleReturn = safeNumber(boost?.combinedOdd, 0) * stake;
-
   return (
     <section>
-      <div style={styles.betSlipShell}>
-        <div style={styles.betSlipTopGlow} />
-
-        <div style={styles.betSlipHeader}>
-          <div>
-            <span style={styles.betSlipKicker}>ODDIX BOOST VIP</span>
-            <h2 style={styles.betSlipTitle}>Bilhete automático</h2>
-            <p style={styles.betSlipSubtitle}>Múltipla montada com até 3 entradas de maior confiança.</p>
-          </div>
-
-          <div style={styles.betSlipStatusBox}>
-            <span>Bilhete</span>
-            <strong>Aberto</strong>
-          </div>
+      <div style={styles.boostHero}>
+        <div>
+          <span style={styles.sectionKicker}>ODDIX BOOST</span>
+          <h2>Combinada automática VIP</h2>
+          <p>Seleciona até 3 entradas com boa confiança e odd protegida.</p>
         </div>
-
-        <div style={styles.betSlipDivider}>
-          <span />
-          <small>COMBINADA ODDIX</small>
-          <span />
+        <div style={styles.boostOddBox}>
+          <span>Odd combinada</span>
+          <strong>{boost.combinedOdd}</strong>
+          <small>Confiança média {boost.confidence}%</small>
         </div>
+      </div>
 
-        <div style={styles.betSlipSelections}>
-          {picks.map((pick: any, index: number) => {
-            const game = getGameByTip(pick, games);
-            const odd = safeNumber(pick.odd, 1).toFixed(2);
-            const confidence = safeNumber(pick.confidence, 0);
-            const risk = pick.risk || "Médio";
-
-            return (
-              <article key={`${pick.fixtureId || index}-${pick.tip}`} style={styles.betSlipRow}>
-                <div style={styles.betSlipRowLeft}>
-                  <div style={styles.betSlipPickNumber}>{index + 1}</div>
-                  <div>
-                    <div style={styles.betSlipGame}>{pick.game}</div>
-                    <div style={styles.betSlipLeague}>{pick.league || "Oddix IA"}</div>
-                  </div>
-                </div>
-
-                <div style={styles.betSlipMarketBox}>
-                  <span>{pick.market || "Mercado IA"}</span>
-                  <strong>{pick.tip}</strong>
-                </div>
-
-                <div style={styles.betSlipOddBox}>
-                  <span>ODD</span>
-                  <strong>{odd}</strong>
-                </div>
-
-                <div style={styles.betSlipMetaRow}>
-                  <span>Confiança {confidence}%</span>
-                  <span>Risco {risk}</span>
-                  <button style={styles.betSlipMiniButton} onClick={() => game && onAnalyze(game, pick)}>
-                    Análise
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-
-        <div style={styles.betSlipTotals}>
-          <div style={styles.betSlipTotalLine}>
-            <span>Entradas</span>
-            <strong>{picks.length}</strong>
-          </div>
-          <div style={styles.betSlipTotalLine}>
-            <span>Odd combinada</span>
-            <strong>{boost.combinedOdd}</strong>
-          </div>
-          <div style={styles.betSlipTotalLine}>
-            <span>Confiança média</span>
-            <strong>{boost.confidence}%</strong>
-          </div>
-          <div style={styles.betSlipTotalLine}>
-            <span>Simulação R$ {stake.toFixed(2).replace('.', ',')}</span>
-            <strong>R$ {possibleReturn.toFixed(2).replace('.', ',')}</strong>
-          </div>
-        </div>
-
-        <button style={styles.betSlipMainButton} onClick={() => window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer")}>
-          💰 Apostar bilhete na EstrelaBet
-        </button>
-
-        <p style={styles.betSlipWarning}>Jogue com responsabilidade. Apostas envolvem risco e não garantem retorno.</p>
+      <div style={styles.boostSelections}>
+        {boost.picks.map((pick: any, index: number) => {
+          const game = getGameByTip(pick, games);
+          return (
+            <div key={`${pick.fixtureId || index}-${pick.tip}`} style={styles.boostCard}>
+              <span style={styles.smartRank}>{index + 1}</span>
+              <strong>{pick.game}</strong>
+              <p>{pick.tip}</p>
+              <div style={styles.pickMetrics}>
+                <span>Odd {pick.odd}</span>
+                <span>{pick.confidence}%</span>
+                <span>{pick.risk}</span>
+              </div>
+              <div style={styles.boostActionRow}>
+                <button style={styles.rowButton} onClick={() => game && onAnalyze(game, pick)}>Ver análise</button>
+                <button style={styles.rowBetButton} onClick={() => window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer")}>💰 Apostar</button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -3706,182 +3630,38 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
     fontWeight: 800,
   },
-  betSlipShell: {
-    position: "relative",
-    overflow: "hidden",
-    background: "linear-gradient(180deg,#ffffff,#f8fafc)",
-    borderRadius: 28,
-    padding: 0,
-    border: "1px solid #e5e7eb",
-    boxShadow: "0 24px 70px rgba(17,24,39,.14)",
-  },
-  betSlipTopGlow: {
-    height: 8,
-    background: "linear-gradient(90deg,#7c3aed,#facc15,#fb923c)",
-  },
-  betSlipHeader: {
-    padding: "22px 24px 18px",
-    background: "linear-gradient(135deg,#111827,#32106d,#5b21b6)",
+  boostHero: {
+    background: "linear-gradient(135deg,#111827,#4c1d95)",
     color: "white",
+    borderRadius: 26,
+    padding: 24,
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
-    gap: 16,
-    flexWrap: "wrap",
+    gap: 18,
+    marginBottom: 14,
   },
-  betSlipKicker: {
-    display: "inline-flex",
-    letterSpacing: 2,
-    fontSize: 11,
-    fontWeight: 950,
-    color: "#facc15",
-  },
-  betSlipTitle: {
-    margin: "7px 0 5px",
-    fontSize: 28,
-    lineHeight: 1,
-  },
-  betSlipSubtitle: {
-    margin: 0,
-    color: "rgba(255,255,255,.78)",
-    fontWeight: 700,
-  },
-  betSlipStatusBox: {
-    minWidth: 132,
-    background: "rgba(255,255,255,.13)",
-    border: "1px solid rgba(255,255,255,.18)",
-    borderRadius: 18,
-    padding: "12px 16px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
-  betSlipDivider: {
-    display: "grid",
-    gridTemplateColumns: "1fr auto 1fr",
-    alignItems: "center",
-    gap: 12,
-    padding: "14px 24px",
-    color: "#6b7280",
-    fontWeight: 950,
-    letterSpacing: 1.4,
-    fontSize: 11,
-  },
-  betSlipSelections: {
-    padding: "0 18px 14px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-  betSlipRow: {
-    position: "relative",
-    background: "#ffffff",
-    border: "1px solid #e5e7eb",
+  boostOddBox: {
+    minWidth: 190,
+    background: "rgba(255,255,255,.12)",
     borderRadius: 20,
-    padding: 16,
-    display: "grid",
-    gridTemplateColumns: "1.1fr 1.2fr 96px",
-    gap: 14,
-    alignItems: "center",
-    boxShadow: "0 12px 28px rgba(17,24,39,.06)",
-  },
-  betSlipRowLeft: {
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    minWidth: 0,
-  },
-  betSlipPickNumber: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    background: "#7c3aed",
-    color: "white",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: 950,
-    flexShrink: 0,
-  },
-  betSlipGame: {
-    fontWeight: 950,
-    color: "#111827",
-  },
-  betSlipLeague: {
-    marginTop: 3,
-    fontSize: 12,
-    color: "#6b7280",
-    fontWeight: 800,
-  },
-  betSlipMarketBox: {
-    background: "#f8fafc",
-    border: "1px dashed #cbd5e1",
-    borderRadius: 16,
-    padding: "11px 13px",
+    padding: 18,
     display: "flex",
     flexDirection: "column",
-    gap: 4,
+    gap: 6,
   },
-  betSlipOddBox: {
-    background: "linear-gradient(135deg,#facc15,#fb923c)",
-    color: "#111827",
-    borderRadius: 16,
-    padding: "11px 12px",
-    textAlign: "center",
-    boxShadow: "0 12px 24px rgba(251,146,60,.18)",
+  boostSelections: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
+    gap: 14,
   },
-  betSlipMetaRow: {
-    gridColumn: "1 / -1",
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-    alignItems: "center",
-    borderTop: "1px solid #f1f5f9",
-    paddingTop: 12,
-  },
-  betSlipMiniButton: {
-    marginLeft: "auto",
-    border: 0,
-    background: "#111827",
-    color: "white",
-    borderRadius: 12,
-    padding: "8px 12px",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  betSlipTotals: {
-    margin: "0 18px 14px",
-    background: "#0f172a",
-    color: "white",
+  boostCard: {
+    background: "white",
     borderRadius: 22,
     padding: 18,
-    display: "grid",
-    gridTemplateColumns: "repeat(4,1fr)",
-    gap: 12,
-  },
-  betSlipTotalLine: {
+    boxShadow: "0 12px 30px rgba(17,24,39,.07)",
     display: "flex",
     flexDirection: "column",
-    gap: 5,
-  },
-  betSlipMainButton: {
-    margin: "0 18px 12px",
-    width: "calc(100% - 36px)",
-    border: 0,
-    borderRadius: 18,
-    padding: "15px 18px",
-    background: "linear-gradient(135deg,#facc15,#fb923c)",
-    color: "#111827",
-    fontWeight: 950,
-    cursor: "pointer",
-    boxShadow: "0 16px 30px rgba(251,146,60,.2)",
-  },
-  betSlipWarning: {
-    margin: "0 18px 18px",
-    color: "#64748b",
-    fontSize: 12,
-    fontWeight: 700,
-    textAlign: "center",
+    gap: 10,
   },
   analysisPanel: {
     margin: "22px 26px",
