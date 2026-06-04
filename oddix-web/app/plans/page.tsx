@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 
 const PRO_LINK = "https://www.asaas.com/c/ghmckkqfrfkan6z1";
 const VIP_LINK = "https://www.asaas.com/c/htvg25um0tpbr7bx";
+const ESTRELABET_LINK = process.env.NEXT_PUBLIC_ESTRELABET_LINK || "https://apretailer.com.br/click/6a2102c82bfa8143b57b86d8/182492/359080/subaccount";
 
 export default function PlansPage() {
   return (
@@ -19,6 +20,9 @@ export default function PlansPage() {
         <div style={styles.headerActions}>
           <button style={styles.secondaryHeaderButton} onClick={() => (window.location.href = "/dashboard")}>
             Dashboard
+          </button>
+          <button style={styles.secondaryHeaderButton} onClick={() => window.open(ESTRELABET_LINK, "_blank")}>
+            💰 EstrelaBet
           </button>
           <button style={styles.headerButton} onClick={() => window.open(VIP_LINK, "_blank")}>
             Entrar no VIP
@@ -41,6 +45,9 @@ export default function PlansPage() {
             </button>
             <button style={styles.secondaryCta} onClick={() => window.open(PRO_LINK, "_blank")}>
               🔥 QUERO SER PRO
+            </button>
+            <button style={styles.partnerCta} onClick={() => window.open(ESTRELABET_LINK, "_blank")}>
+              💰 APOSTAR NA ESTRELABET
             </button>
           </div>
 
@@ -122,6 +129,26 @@ export default function PlansPage() {
           button="👑 ENTRAR NO VIP AGORA"
           onClick={() => window.open(VIP_LINK, "_blank")}
         />
+      </section>
+
+
+      <section style={styles.partnerSection}>
+        <div style={styles.partnerContent}>
+          <span style={styles.partnerSeal}>🤝 PARCERIA ODDIX + ESTRELABET</span>
+          <h2 style={styles.partnerTitle}>Faça sua entrada com uma casa parceira.</h2>
+          <p style={styles.partnerText}>
+            Use o link oficial da Oddix para criar sua conta na EstrelaBet e acompanhar as entradas com mais praticidade.
+            A Oddix fornece análise, gestão e IA; a aposta é sempre sua decisão.
+          </p>
+          <div style={styles.partnerBadges}>
+            <span>✅ Link oficial de afiliado</span>
+            <span>🎁 Promoções para novos usuários</span>
+            <span>⚠️ Jogue com responsabilidade</span>
+          </div>
+        </div>
+        <button style={styles.partnerButton} onClick={() => window.open(ESTRELABET_LINK, "_blank")}>
+          💰 ABRIR ESTRELABET
+        </button>
       </section>
 
       <section style={styles.compareSection}>
@@ -384,6 +411,53 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 950,
     cursor: "pointer",
   },
+  partnerCta: {
+    background: "linear-gradient(135deg,#facc15,#fb923c)",
+    color: "#111827",
+    border: 0,
+    borderRadius: 18,
+    padding: "16px 22px",
+    fontWeight: 950,
+    cursor: "pointer",
+    boxShadow: "0 14px 34px rgba(250,204,21,.22)",
+  },
+  partnerSection: {
+    position: "relative",
+    zIndex: 2,
+    maxWidth: 1280,
+    margin: "22px auto 34px",
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    gap: 18,
+    alignItems: "center",
+    background: "linear-gradient(135deg,rgba(250,204,21,.16),rgba(251,146,60,.10),rgba(76,29,149,.35))",
+    border: "1px solid rgba(250,204,21,.32)",
+    borderRadius: 30,
+    padding: 26,
+    boxShadow: "0 24px 80px rgba(0,0,0,.32)",
+  },
+  partnerContent: { display: "flex", flexDirection: "column", gap: 10 },
+  partnerSeal: {
+    color: "#facc15",
+    fontSize: 12,
+    fontWeight: 950,
+    letterSpacing: 1.6,
+  },
+  partnerTitle: { margin: 0, fontSize: 34, lineHeight: 1.05 },
+  partnerText: { margin: 0, color: "#ddd6fe", lineHeight: 1.6, maxWidth: 840 },
+  partnerBadges: { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 },
+  partnerButton: {
+    background: "linear-gradient(135deg,#facc15,#fb923c)",
+    color: "#111827",
+    border: 0,
+    borderRadius: 18,
+    padding: "18px 24px",
+    fontWeight: 950,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    boxShadow: "0 14px 34px rgba(250,204,21,.22)",
+  },
+
   trustRow: {
     display: "grid",
     gridTemplateColumns: "repeat(3,1fr)",

@@ -52,6 +52,23 @@ export class ResultsCronService {
     return process.env.ODDIX_VIP_LINK || '';
   }
 
+  private estrelaBetLink() {
+    return process.env.ODDIX_ESTRELABET_LINK || process.env.ESTRELABET_LINK || 'https://apretailer.com.br/click/6a2102c82bfa8143b57b86d8/182492/359080/subaccount';
+  }
+
+  private partnerBetBlock() {
+    const link = this.estrelaBetLink();
+    if (!link) return '';
+    return [
+      '',
+      '🤝 *Parceria Oddix + EstrelaBet*',
+      '💰 Fazer entrada / criar conta:',
+      link,
+      '',
+      '⚠️ Jogue com responsabilidade. Sem all-in.',
+    ].join('\n');
+  }
+
   private async sleepRandom(minMs: number, maxMs: number): Promise<void> {
     const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
     await new Promise((resolve) => setTimeout(resolve, delay));
@@ -517,7 +534,8 @@ export class ResultsCronService {
       '',
       '🔒 No VIP tem odd, card premium, análise, gestão e entradas primeiro.',
       '👇 Aperte abaixo para virar VIP.',
-    ].join('\n');
+      this.partnerBetBlock(),
+    ].filter(Boolean).join('\n');
   }
 
   private createFreeTipMessage(bet: any) {
@@ -530,6 +548,7 @@ export class ResultsCronService {
       `✅ Entrada: *${bet.tip}*`,
       '',
       '🔒 Odd, confiança e análise completa saem apenas no VIP.',
+      this.partnerBetBlock(),
     ].filter(Boolean).join('\n');
   }
 
@@ -547,6 +566,7 @@ export class ResultsCronService {
       '',
       '🤖 Entrada validada pela IA Oddix.',
       '💵 Gestão: até 1 unidade.',
+      this.partnerBetBlock(),
     ].filter(Boolean).join('\n');
   }
 
