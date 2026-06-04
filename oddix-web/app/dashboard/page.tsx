@@ -789,11 +789,10 @@ export default function Dashboard() {
   const liveGames = useMemo(() => games.filter(isGameLive), [games]);
   const futureGames = useMemo(() => games.filter((game) => !isGameLive(game) && !isGameFinished(game)), [games]);
   const finishedGames = useMemo(() => games.filter(isGameFinished), [games]);
-  const greenBets = useMemo(() => {
+  const wonBetsList = useMemo(() => {
     return (savedBets || [])
-      .filter((bet: any) => String(bet?.status || bet?.result || "").toLowerCase() === "won")
-      .sort((a: any, b: any) => new Date(b?.updatedAt || b?.createdAt || 0).getTime() - new Date(a?.updatedAt || a?.createdAt || 0).getTime())
-      .slice(0, 60);
+      .filter((bet: any) => String(bet?.status || "").toLowerCase() === "won")
+      .sort((a: any, b: any) => new Date(b?.updatedAt || b?.createdAt || 0).getTime() - new Date(a?.updatedAt || a?.createdAt || 0).getTime());
   }, [savedBets]);
 
   const leagues = useMemo(() => {
@@ -834,7 +833,7 @@ export default function Dashboard() {
         if (activeTab === "highlights" && safeNumber(game?.oddix?.qualityScore, 0) < DASHBOARD_MIN_SCORE) return false;
         if (activeTab === "smart" && safeNumber(game?.oddix?.qualityScore, 0) < DASHBOARD_MIN_SCORE) return false;
         if (activeTab === "playerprops" && safeNumber(game?.oddix?.qualityScore, 0) < DASHBOARD_MIN_SCORE) return false;
-        if (activeTab === "greens") return false;
+        if (activeTab === "greens" && !isGameFinished(game)) return false;
 
         if (!q) return true;
 
@@ -1335,10 +1334,12 @@ export default function Dashboard() {
           )}
 
           <div style={styles.analysisActions}>
-            <button style={styles.saveButton} onClick={() => openEstrelaBet()}>
-              🎯 Pegar Palpite / Apostar Agora
+            <button style={styles.pickActionButton} onClick={() => window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer")}>
+              🎯 Pegar palpite na EstrelaBet
             </button>
-            <button style={styles.secondaryButton} onClick={() => (window.location.href = "/plans")}>Liberar VIP</button>
+            <button style={styles.secondaryButton} onClick={() => setSelectedAnalysis(null)}>
+              Voltar aos jogos
+            </button>
           </div>
         </section>
       )}
@@ -1367,12 +1368,11 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <TopPickCard
-        tip={displayedSmartTips[0] || localTips[0]}
-        game={getGameByTip(displayedSmartTips[0] || localTips[0], games) || topGames[0]}
+      <TopPickHero
+        tip={displayedSmartTips[0]}
+        game={topGames[0]}
         liveTick={liveTick}
         onAnalyze={(game: any) => openMatchDetail(game)}
-        onBet={openEstrelaBet}
       />
 
       <MarketingBanner
@@ -1407,8 +1407,17 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <section style={styles.featuredStrip}>
-        {topGames.slice(0, 4).map((game) => (
+      <section
+        style={styles.featuredStrip}
+        onWheel={(event) => {
+          const el = event.currentTarget;
+          if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+            el.scrollLeft += event.deltaY;
+            event.preventDefault();
+          }
+        }}
+      >
+        {topGames.slice(0, 14).map((game) => (
           <FeaturedGame key={stableGameKey(game)} game={game} liveTick={liveTick} onAnalyze={() => openMatchDetail(game)} />
         ))}
       </section>
@@ -1489,7 +1498,7 @@ export default function Dashboard() {
           )}
 
           {activeTab === "greens" && (
-            <GreensSection bets={greenBets} onBet={openEstrelaBet} />
+            <GreensSection wonBets={wonBetsList} onBetNow={openEstrelaBet} />
           )}
 
           {activeTab !== "smart" && activeTab !== "boost" && activeTab !== "playerprops" && activeTab !== "greens" && (
@@ -1499,24 +1508,29 @@ export default function Dashboard() {
                   <h2>{getTabTitle(activeTab)}</h2>
                   <p>{filteredGames.length} jogos encontrados</p>
                 </div>
+                <span style={styles.rouletteHint}>Role o mouse para passar os jogos →</span>
               </div>
 
               {loading ? (
                 <div style={styles.emptyBox}>Carregando jogos...</div>
               ) : filteredGames.length ? (
-                <div style={styles.gamesGrid}>
+                <div
+                  style={styles.gamesGrid}
+                  onWheel={(event) => {
+                    const el = event.currentTarget;
+                    if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+                      el.scrollLeft += event.deltaY;
+                      event.preventDefault();
+                    }
+                  }}
+                >
                   {filteredGames.map((game) => (
                     <GameCard
                       key={stableGameKey(game)}
                       game={game}
                       liveTick={liveTick}
-                      saved={isSavedGame(game)}
                       analyzing={analyzingId === game?.fixture?.id}
                       onAnalyze={() => openMatchDetail(game)}
-                      onOpenSaved={() => {
-                        const id = getSavedBetId(game);
-                        if (id) window.location.href = `/dashboard/bet/${id}`;
-                      }}
                     />
                   ))}
                 </div>
@@ -1545,7 +1559,7 @@ function getTabTitle(tab: TabKey) {
     smart: "IA Premium",
     boost: "Combinadas Oddix",
     playerprops: "Player Props IA",
-    greens: "Greens Oddix",
+    greens: "Finalizados / Greens",
   };
   return map[tab];
 }
@@ -1857,7 +1871,7 @@ function MatchDetailPanel({
             Entrada sugerida cruzando placar, minuto, qualidade do jogo, odds disponíveis, escalação e mercados de jogador quando a API retornar dados.
           </p>
           <button style={styles.vipFullButton} onClick={() => onAnalyze(game)}>
-            Ver análise completa
+            🎯 Pegar palpite
           </button>
         </div>
       </div>
@@ -1911,6 +1925,84 @@ function StatsCompare({ label, left, right }: { label: string; left: any; right:
       </div>
       <strong>{right}</strong>
     </div>
+  );
+}
+
+function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
+  const finalGame = game || (tip ? null : null);
+  const finalTip = tip || (finalGame ? smartLocalTip(finalGame) : null);
+  const score = finalGame ? getScore(finalGame) : { home: "-", away: "-" };
+
+  if (!finalGame || !finalTip) return null;
+
+  return (
+    <section style={styles.topPickHero}>
+      <div style={styles.topPickLeft}>
+        <span style={styles.topPickBadge}>🔥 TOP PICK DO DIA</span>
+        <strong>{finalGame?.teams?.home?.name} x {finalGame?.teams?.away?.name}</strong>
+        <small>{finalGame?.league?.name} • {isGameLive(finalGame) ? gameTimeLabel(finalGame, liveTick) : formatDateTime(finalGame?.fixture?.date)}</small>
+      </div>
+
+      <div style={styles.topPickCenter}>
+        <img src={finalGame?.teams?.home?.logo || logoFallback(finalGame?.teams?.home?.name)} style={styles.topPickLogo} />
+        <div style={styles.topPickScore}>{score.home} - {score.away}</div>
+        <img src={finalGame?.teams?.away?.logo || logoFallback(finalGame?.teams?.away?.name)} style={styles.topPickLogo} />
+      </div>
+
+      <div style={styles.topPickRight}>
+        <span>{finalTip.tip}</span>
+        <strong>Odd {finalTip.odd}</strong>
+        <small>{finalTip.confidence}% confiança • {finalTip.risk}</small>
+      </div>
+
+      <button style={styles.topPickButton} onClick={() => onAnalyze(finalGame)}>🎯 Pegar palpite</button>
+    </section>
+  );
+}
+
+function GreensSection({ wonBets, onBetNow }: { wonBets: any[]; onBetNow: () => void }) {
+  const wins = wonBets || [];
+  const totalProfit = wins.reduce((acc, bet: any) => acc + Math.max(0, safeNumber(bet?.odd, 1) - 1), 0);
+
+  return (
+    <section style={styles.greensPanel}>
+      <div style={styles.greensHeader}>
+        <div>
+          <span style={styles.sectionKicker}>🏆 GREENS AUTOMÁTICOS</span>
+          <h2>Apostas que bateram GREEN</h2>
+          <p>Quando o cron marcar a aposta como won, ela aparece aqui automaticamente.</p>
+        </div>
+        <div style={styles.greensStatsBox}>
+          <span>Total Greens</span>
+          <strong>{wins.length}</strong>
+          <small>Lucro estimado +{totalProfit.toFixed(2)}u</small>
+        </div>
+      </div>
+
+      {wins.length ? (
+        <div style={styles.greensGrid}>
+          {wins.slice(0, 12).map((bet: any) => (
+            <article key={bet.id || `${bet.homeTeam}-${bet.awayTeam}-${bet.tip}`} style={styles.greenCard}>
+              <div style={styles.greenTop}>
+                <span>GREEN ✅</span>
+                <strong>+{Math.max(0, safeNumber(bet?.odd, 1) - 1).toFixed(2)}u</strong>
+              </div>
+              <small>{bet.league || "Oddix"}</small>
+              <h3>{bet.homeTeam} x {bet.awayTeam}</h3>
+              <p>{bet.tip}</p>
+              <div style={styles.greenMeta}>
+                <span>Odd {bet.odd || "-"}</span>
+                <span>{bet.homeScore ?? "-"} - {bet.awayScore ?? "-"}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div style={styles.emptyBox}>Nenhum GREEN confirmado ainda. Assim que o cron marcar como won, aparece aqui.</div>
+      )}
+
+      <button style={styles.greensBetButton} onClick={onBetNow}>💰 Apostar agora na EstrelaBet</button>
+    </section>
   );
 }
 
@@ -1987,7 +2079,7 @@ function MarketingBanner({
         <div style={styles.marketingActions}>
           {game && (
             <button style={styles.marketingPrimaryButton} onClick={() => onAnalyze(game)}>
-              Ver análise IA
+              🎯 Pegar palpite
             </button>
           )}
 
@@ -2114,102 +2206,12 @@ function GameCard({ game, liveTick = 0, analyzing, onAnalyze }: any) {
       </div>
 
       <div style={styles.cardActions}>
-        <button style={styles.analyzeButton} onClick={(event) => { event.stopPropagation(); onAnalyze(); }}>{analyzing ? "Abrindo..." : "🎯 Pegar Palpite"}</button>
-        <button style={styles.betNowButton} onClick={(event) => { event.stopPropagation(); window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer"); }}>💰 EstrelaBet</button>
+        <button style={styles.analyzeButton} onClick={(event) => { event.stopPropagation(); onAnalyze(); }}>
+          {analyzing ? "Abrindo..." : "🎯 Pegar palpite"}
+        </button>
+        <button style={styles.betNowButton} onClick={(event) => { event.stopPropagation(); window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer"); }}>💰 Apostar</button>
       </div>
     </article>
-  );
-}
-
-function TopPickCard({ tip, game, liveTick = 0, onAnalyze, onBet }: any) {
-  if (!game && !tip) return null;
-
-  const safeGame = game || {};
-  const pick = tip || smartLocalTip(safeGame);
-  const score = getScore(safeGame);
-
-  return (
-    <section style={styles.topPickSection}>
-      <div style={styles.topPickGlow} />
-      <div style={styles.topPickContent}>
-        <div style={styles.topPickLeft}>
-          <span style={styles.topPickKicker}>🔥 TOP PICK DO DIA</span>
-          <h2>{pick?.game || `${safeGame?.teams?.home?.name || "Casa"} x ${safeGame?.teams?.away?.name || "Fora"}`}</h2>
-          <p>{safeGame?.league?.name || pick?.league || "Oddix IA Premium"} • {gameTimeLabel(safeGame, liveTick)}</p>
-          <div style={styles.topPickTeams}>
-            <img src={safeGame?.teams?.home?.logo || logoFallback(safeGame?.teams?.home?.name || pick?.homeTeam || "Casa")} style={styles.topPickLogo} />
-            <strong>{score.home} x {score.away}</strong>
-            <img src={safeGame?.teams?.away?.logo || logoFallback(safeGame?.teams?.away?.name || pick?.awayTeam || "Fora")} style={styles.topPickLogo} />
-          </div>
-        </div>
-
-        <div style={styles.topPickBetSlip}>
-          <small>Entrada Premium</small>
-          <strong>{pick?.tip || "Entrada protegida Oddix"}</strong>
-          <div style={styles.topPickMetrics}>
-            <span>Odd {pick?.odd || "1.75"}</span>
-            <span>{safeNumber(pick?.confidence, 88)}%</span>
-            <span>{pick?.risk || "Baixo"}</span>
-          </div>
-          <div style={styles.topPickActions}>
-            <button style={styles.topPickMainButton} onClick={() => onAnalyze?.(safeGame)}>🎯 Pegar Palpite</button>
-            <button style={styles.topPickBetButton} onClick={(event) => onBet?.(event)}>💰 Apostar Agora</button>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function GreensSection({ bets, onBet }: any) {
-  const greenBets = Array.isArray(bets) ? bets : [];
-
-  return (
-    <section>
-      <div style={styles.sectionHeader}>
-        <div>
-          <h2>🏆 Greens Oddix</h2>
-          <p>{greenBets.length} entradas batidas automaticamente pelo cron.</p>
-        </div>
-      </div>
-
-      {greenBets.length ? (
-        <div style={styles.greensGrid}>
-          {greenBets.map((bet: any, index: number) => {
-            const profit = Math.max(0, safeNumber(bet?.odd, 1) - 1).toFixed(2);
-
-            return (
-              <article key={bet?.id || index} style={styles.greenCard}>
-                <div style={styles.greenTop}>
-                  <span>✅ GREEN</span>
-                  <strong>+{profit}u</strong>
-                </div>
-                <div style={styles.greenTeams}>
-                  <img src={bet?.homeLogo || logoFallback(bet?.homeTeam || "Casa")} style={styles.greenLogo} />
-                  <div>
-                    <strong>{bet?.homeTeam || "Casa"} x {bet?.awayTeam || "Fora"}</strong>
-                    <small>{bet?.league || "Oddix"}</small>
-                  </div>
-                  <img src={bet?.awayLogo || logoFallback(bet?.awayTeam || "Fora")} style={styles.greenLogo} />
-                </div>
-                <div style={styles.greenPick}>
-                  <small>Entrada batida</small>
-                  <strong>{bet?.tip || "Palpite Oddix"}</strong>
-                </div>
-                <div style={styles.greenMetrics}>
-                  <span>Odd {bet?.odd || "-"}</span>
-                  <span>{bet?.confidence || "-"}%</span>
-                  <span>{bet?.homeScore ?? "-"} x {bet?.awayScore ?? "-"}</span>
-                </div>
-                <button style={styles.greenBetButton} onClick={(event) => onBet?.(event)}>💰 Apostar na EstrelaBet</button>
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <div style={styles.emptyBox}>Nenhum GREEN registrado ainda. Quando o cron marcar status WON, aparece aqui automaticamente.</div>
-      )}
-    </section>
   );
 }
 
@@ -2288,7 +2290,7 @@ function SmartTipsSection({ tips, games, liveTick = 0, onAnalyze }: any) {
                 <span>{tip.confidence}%</span>
                 <span>{tip.risk}</span>
               </div>
-              <button style={styles.rowButton} onClick={() => game && onAnalyze(game, tip)}>Analisar</button>
+              <button style={styles.rowButton} onClick={() => game && onAnalyze(game, tip)}>Pegar palpite</button>
             </div>
           );
         })}
@@ -2449,7 +2451,7 @@ function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: 
                       if (game) onAnalyze(game);
                     }}
                   >
-                    {isPaidPlan ? "Ver análise do jogo" : "🔒 Liberar análise"}
+                    {isPaidPlan ? "🎯 Pegar palpite" : "🔒 Liberar análise"}
                   </button>
                 </div>
               </article>
@@ -2473,39 +2475,43 @@ function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: 
 function BoostSection({ boost, games, onAnalyze }: any) {
   return (
     <section>
-      <div style={styles.boostHero}>
-        <div>
-          <span style={styles.sectionKicker}>ODDIX BOOST</span>
-          <h2>Combinada automática VIP</h2>
-          <p>Seleciona até 3 entradas com boa confiança e odd protegida.</p>
+      <div style={styles.betSlipWrap}>
+        <div style={styles.betSlipHeader}>
+          <div>
+            <span style={styles.sectionKicker}>🎟 ODDIX BOOST</span>
+            <h2>Bilhete combinado VIP</h2>
+            <p>As 3 melhores entradas aparecem em formato de bilhete real para apostar direto.</p>
+          </div>
+          <div style={styles.betSlipOddTotal}>
+            <span>ODD TOTAL</span>
+            <strong>{boost.combinedOdd}</strong>
+            <small>Confiança média {boost.confidence}%</small>
+          </div>
         </div>
-        <div style={styles.boostOddBox}>
-          <span>Odd combinada</span>
-          <strong>{boost.combinedOdd}</strong>
-          <small>Confiança média {boost.confidence}%</small>
-        </div>
-      </div>
 
-      <div style={styles.boostSelections}>
-        {boost.picks.map((pick: any, index: number) => {
-          const game = getGameByTip(pick, games);
-          return (
-            <div key={`${pick.fixtureId || index}-${pick.tip}`} style={styles.boostCard}>
-              <span style={styles.smartRank}>{index + 1}</span>
-              <strong>{pick.game}</strong>
-              <p>{pick.tip}</p>
-              <div style={styles.pickMetrics}>
-                <span>Odd {pick.odd}</span>
-                <span>{pick.confidence}%</span>
-                <span>{pick.risk}</span>
-              </div>
-              <div style={styles.boostActionRow}>
-                <button style={styles.rowButton} onClick={() => game && onAnalyze(game, pick)}>Ver análise</button>
-                <button style={styles.rowBetButton} onClick={() => window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer")}>💰 Apostar</button>
-              </div>
-            </div>
-          );
-        })}
+        <div style={styles.betSlipBody}>
+          {boost.picks.map((pick: any, index: number) => {
+            const game = getGameByTip(pick, games);
+            return (
+              <button key={`${pick.fixtureId || index}-${pick.tip}`} style={styles.betSlipRow} onClick={() => game && onAnalyze(game, pick)}>
+                <span style={styles.betSlipNumber}>{index + 1}</span>
+                <div style={styles.betSlipInfo}>
+                  <strong>{pick.game}</strong>
+                  <span>{pick.tip}</span>
+                  <small>Odd {pick.odd} • {pick.confidence}% • Risco {pick.risk}</small>
+                </div>
+                <span style={styles.betSlipCheck}>✓</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={styles.betSlipFooter}>
+          <button style={styles.betSlipMainButton} onClick={() => window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer")}>
+            💰 Apostar combinada na EstrelaBet
+          </button>
+          <span>Jogue com responsabilidade • 18+ • Aposta não é investimento</span>
+        </div>
       </div>
     </section>
   );
@@ -2697,8 +2703,8 @@ const styles: Record<string, CSSProperties> = {
 
   page: {
     minHeight: "100vh",
-    color: "#111827",
-    background: "#f5f3ff",
+    color: "#f8fafc",
+    background: "radial-gradient(circle at 18% 0%, rgba(124,58,237,.34), transparent 34%), linear-gradient(180deg,#080316 0%,#110724 42%,#080316 100%)",
     fontFamily: "Arial, sans-serif",
   },
   topHeader: {
@@ -2788,11 +2794,12 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
   },
   sportsRail: {
-    background: "linear-gradient(135deg,#6d28d9,#9333ea)",
+    background: "linear-gradient(135deg,#13072c,#4c1d95,#7c3aed)",
     padding: "14px 26px 24px",
     display: "flex",
     gap: 12,
     overflowX: "auto",
+    boxShadow: "0 14px 38px rgba(0,0,0,.20)",
   },
   sportItem: {
     minWidth: 118,
@@ -2812,10 +2819,12 @@ const styles: Record<string, CSSProperties> = {
     margin: "24px 26px 18px",
   },
   heroMain: {
-    background: "white",
+    background: "linear-gradient(135deg,rgba(15,23,42,.98),rgba(46,16,101,.94))",
+    color: "#fff",
+    border: "1px solid rgba(168,85,247,.28)",
     borderRadius: 28,
     padding: 28,
-    boxShadow: "0 18px 45px rgba(17,24,39,.09)",
+    boxShadow: "0 18px 45px rgba(17,24,39,.22)",
   },
   sectionKicker: {
     color: "#7c3aed",
@@ -3257,13 +3266,23 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 0,
   },
   playerCard: {
-    minHeight: 260,
+    minHeight: 300,
     borderRadius: 26,
     overflow: "hidden",
     position: "relative",
-    background: "#111827",
+    background: "linear-gradient(180deg,#12062b,#05010d)",
     border: "1px solid rgba(255,255,255,.18)",
     boxShadow: "0 18px 42px rgba(0,0,0,.32)",
+  },
+  playerPhoto: {
+    position: "absolute",
+    inset: 0,
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    objectPosition: "center top",
+    filter: "saturate(1.25) contrast(1.08)",
+    opacity: .86,
   },
   playerImage: {
     position: "absolute",
@@ -3326,13 +3345,25 @@ const styles: Record<string, CSSProperties> = {
   },
   featuredStrip: {
     margin: "0 26px 20px",
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
+    display: "flex",
     gap: 14,
+    overflowX: "auto",
+    overflowY: "hidden",
+    padding: "4px 4px 14px",
+    scrollSnapType: "x mandatory",
+    position: "sticky",
+    top: 148,
+    zIndex: 12,
+    background: "linear-gradient(180deg,rgba(8,3,22,.96),rgba(8,3,22,.72))",
+    borderRadius: 22,
+    scrollbarWidth: "thin",
   },
   featuredCard: {
     minHeight: 165,
-    background: "linear-gradient(135deg,#2e1065,#7c3aed)",
+    minWidth: 292,
+    scrollSnapAlign: "start",
+    background: "linear-gradient(135deg,rgba(46,16,101,.96),rgba(124,58,237,.84))",
+    border: "1px solid rgba(168,85,247,.45)",
     borderRadius: 24,
     padding: 16,
     color: "white",
@@ -3381,10 +3412,14 @@ const styles: Record<string, CSSProperties> = {
   },
   tabsWrapper: {
     margin: "0 26px 18px",
-    background: "white",
+    background: "rgba(255,255,255,.96)",
     borderRadius: 18,
-    boxShadow: "0 10px 30px rgba(17,24,39,.06)",
+    boxShadow: "0 10px 30px rgba(17,24,39,.10)",
     overflowX: "auto",
+    position: "sticky",
+    top: 86,
+    zIndex: 13,
+    backdropFilter: "blur(14px)",
   },
   tabs: {
     display: "flex",
@@ -3421,6 +3456,12 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     flexDirection: "column",
     gap: 14,
+    position: "sticky",
+    top: 108,
+    alignSelf: "start",
+    maxHeight: "calc(100vh - 122px)",
+    overflowY: "auto",
+    paddingRight: 4,
   },
   searchCard: {
     background: "white",
@@ -3496,30 +3537,33 @@ const styles: Record<string, CSSProperties> = {
     gap: 16,
     overflowX: "auto",
     overflowY: "hidden",
-    padding: "4px 4px 18px",
+    padding: "6px 6px 18px",
     scrollSnapType: "x mandatory",
-    WebkitOverflowScrolling: "touch",
+    scrollbarWidth: "thin",
+    scrollBehavior: "smooth",
   },
   gameCard: {
-    minWidth: 318,
-    maxWidth: 318,
+    minWidth: 310,
+    maxWidth: 310,
     scrollSnapAlign: "start",
-    background: "linear-gradient(145deg,#ffffff,#f8fafc)",
-    borderRadius: 24,
+    background: "linear-gradient(180deg,rgba(30,16,66,.98),rgba(12,7,27,.98))",
+    color: "#fff",
+    borderRadius: 22,
     padding: 16,
-    boxShadow: "0 16px 38px rgba(17,24,39,.10)",
-    border: "1px solid rgba(124,58,237,.14)",
+    boxShadow: "0 18px 42px rgba(0,0,0,.22)",
+    border: "1px solid rgba(168,85,247,.38)",
     cursor: "pointer",
   },
   gameCardLive: {
-    minWidth: 318,
-    maxWidth: 318,
+    minWidth: 310,
+    maxWidth: 310,
     scrollSnapAlign: "start",
-    background: "linear-gradient(145deg,#fff7f7,#ffffff)",
-    borderRadius: 24,
+    background: "linear-gradient(180deg,rgba(55,18,18,.98),rgba(30,16,66,.98))",
+    color: "#fff",
+    borderRadius: 22,
     padding: 16,
-    boxShadow: "0 16px 38px rgba(239,68,68,.16)",
-    border: "1px solid rgba(239,68,68,.38)",
+    boxShadow: "0 18px 42px rgba(239,68,68,.18)",
+    border: "1px solid rgba(239,68,68,.45)",
     cursor: "pointer",
   },
   cardTop: {
@@ -3610,8 +3654,7 @@ const styles: Record<string, CSSProperties> = {
   },
   cardActions: {
     marginTop: 13,
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
+    display: "flex",
     gap: 8,
   },
   analyzeButton: {
@@ -3951,164 +3994,81 @@ const styles: Record<string, CSSProperties> = {
     position: "fixed",
     right: 16,
     bottom: 14,
-    width: 142,
-    maxWidth: "34vw",
+    zIndex: 60,
+    width: 170,
+    maxWidth: "32vw",
     height: "auto",
     display: "block",
-    opacity: .92,
-    zIndex: 80,
-    borderRadius: 10,
-    boxShadow: "0 12px 30px rgba(0,0,0,.22)",
+    opacity: .96,
+    filter: "drop-shadow(0 12px 24px rgba(0,0,0,.35))",
   },
 
-  topPickSection: {
-    position: "relative",
-    margin: "0 26px 22px",
-    borderRadius: 30,
-    overflow: "hidden",
-    background: "linear-gradient(135deg,#09090b,#1e1b4b 48%,#431407)",
-    color: "white",
-    boxShadow: "0 24px 60px rgba(17,24,39,.28)",
-    border: "1px solid rgba(250,204,21,.22)",
+  rouletteHint: {
+    color: "#c4b5fd",
+    fontSize: 13,
+    fontWeight: 800,
   },
-  topPickGlow: {
-    position: "absolute",
-    inset: 0,
-    background: "radial-gradient(circle at 20% 10%,rgba(250,204,21,.24),transparent 32%),radial-gradient(circle at 90% 80%,rgba(34,197,94,.18),transparent 30%)",
-    pointerEvents: "none",
-  },
-  topPickContent: {
-    position: "relative",
-    display: "grid",
-    gridTemplateColumns: "1.1fr .9fr",
-    gap: 22,
-    padding: 26,
-  },
-  topPickLeft: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
-  topPickKicker: {
-    color: "#facc15",
+  pickActionButton: {
+    background: "linear-gradient(135deg,#facc15,#fb923c)",
+    color: "#111827",
+    border: 0,
+    borderRadius: 14,
+    padding: "12px 16px",
     fontWeight: 950,
-    letterSpacing: 1.4,
-    fontSize: 12,
-    textTransform: "uppercase",
+    cursor: "pointer",
   },
-  topPickTeams: {
-    display: "flex",
+  topPickHero: {
+    margin: "0 26px 18px",
+    minHeight: 104,
+    display: "grid",
+    gridTemplateColumns: "1.15fr auto 1fr auto",
     alignItems: "center",
-    gap: 16,
-    marginTop: 8,
-  },
-  topPickLogo: {
-    width: 68,
-    height: 68,
-    objectFit: "contain",
-    borderRadius: 18,
-    background: "rgba(255,255,255,.08)",
-    padding: 8,
-  },
-  topPickBetSlip: {
-    background: "rgba(255,255,255,.10)",
-    border: "1px solid rgba(255,255,255,.16)",
+    gap: 18,
+    padding: "18px 22px",
     borderRadius: 26,
-    padding: 20,
-    backdropFilter: "blur(12px)",
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-  topPickMetrics: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3,1fr)",
-    gap: 8,
-  },
-  topPickActions: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 10,
-    marginTop: 4,
-  },
-  topPickMainButton: {
-    border: 0,
-    borderRadius: 16,
-    padding: "13px 14px",
-    background: "linear-gradient(135deg,#7c3aed,#a855f7)",
     color: "white",
-    fontWeight: 950,
-    cursor: "pointer",
+    background: "linear-gradient(135deg,rgba(9,9,11,.98),rgba(46,16,101,.96))",
+    border: "1px solid rgba(250,204,21,.55)",
+    boxShadow: "0 18px 55px rgba(250,204,21,.12)",
   },
-  topPickBetButton: {
-    border: 0,
-    borderRadius: 16,
-    padding: "13px 14px",
-    background: "linear-gradient(135deg,#facc15,#fb923c)",
-    color: "#111827",
-    fontWeight: 950,
-    cursor: "pointer",
-  },
-  greensGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill,minmax(292px,1fr))",
-    gap: 14,
-  },
-  greenCard: {
-    background: "linear-gradient(145deg,#052e16,#064e3b)",
-    color: "white",
-    borderRadius: 24,
-    padding: 16,
+  topPickLeft: { display: "flex", flexDirection: "column", gap: 6 },
+  topPickBadge: { color: "#facc15", fontWeight: 950, letterSpacing: 1 },
+  topPickCenter: { display: "flex", alignItems: "center", gap: 12 },
+  topPickLogo: { width: 52, height: 52, objectFit: "contain", background: "rgba(255,255,255,.08)", borderRadius: 16, padding: 7 },
+  topPickScore: { background: "#020617", border: "1px solid rgba(255,255,255,.16)", borderRadius: 16, padding: "10px 14px", fontWeight: 950 },
+  topPickRight: { display: "flex", flexDirection: "column", gap: 5 },
+  topPickButton: { background: "linear-gradient(135deg,#facc15,#fb923c)", color: "#111827", border: 0, borderRadius: 16, padding: "14px 20px", fontWeight: 950, cursor: "pointer" },
+  greensPanel: {
+    background: "linear-gradient(180deg,rgba(6,78,59,.96),rgba(6,35,28,.98))",
     border: "1px solid rgba(34,197,94,.35)",
-    boxShadow: "0 18px 38px rgba(5,46,22,.22)",
+    borderRadius: 26,
+    padding: 22,
+    color: "#fff",
+    boxShadow: "0 18px 45px rgba(34,197,94,.15)",
   },
-  greenTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    color: "#bbf7d0",
-    fontWeight: 950,
-    marginBottom: 12,
+  greensHeader: { display: "flex", justifyContent: "space-between", gap: 18, alignItems: "center", marginBottom: 18 },
+  greensStatsBox: { background: "rgba(0,0,0,.24)", border: "1px solid rgba(34,197,94,.32)", borderRadius: 18, padding: 16, minWidth: 180, display: "flex", flexDirection: "column", gap: 5 },
+  greensGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 14 },
+  greenCard: { background: "rgba(0,0,0,.28)", border: "1px solid rgba(34,197,94,.34)", borderRadius: 20, padding: 16, boxShadow: "0 12px 30px rgba(0,0,0,.18)" },
+  greenTop: { display: "flex", justifyContent: "space-between", color: "#4ade80", fontWeight: 950, marginBottom: 8 },
+  greenMeta: { display: "flex", justifyContent: "space-between", gap: 10, color: "#bbf7d0", fontWeight: 800 },
+  greensBetButton: { marginTop: 18, width: "100%", background: "linear-gradient(135deg,#facc15,#fb923c)", color: "#111827", border: 0, borderRadius: 16, padding: "14px 18px", fontWeight: 950, cursor: "pointer" },
+  betSlipWrap: {
+    background: "linear-gradient(180deg,#111827,#080316)",
+    color: "white",
+    borderRadius: 28,
+    padding: 24,
+    border: "1px solid rgba(250,204,21,.35)",
+    boxShadow: "0 22px 60px rgba(0,0,0,.22)",
   },
-  greenTeams: {
-    display: "grid",
-    gridTemplateColumns: "44px 1fr 44px",
-    gap: 10,
-    alignItems: "center",
-  },
-  greenLogo: {
-    width: 44,
-    height: 44,
-    objectFit: "contain",
-    background: "rgba(255,255,255,.10)",
-    borderRadius: 12,
-    padding: 5,
-  },
-  greenPick: {
-    marginTop: 14,
-    background: "rgba(0,0,0,.22)",
-    borderRadius: 16,
-    padding: 12,
-    display: "flex",
-    flexDirection: "column",
-    gap: 5,
-  },
-  greenMetrics: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 12,
-  },
-  greenBetButton: {
-    marginTop: 13,
-    width: "100%",
-    border: 0,
-    borderRadius: 16,
-    padding: "12px 14px",
-    background: "linear-gradient(135deg,#facc15,#fb923c)",
-    color: "#111827",
-    fontWeight: 950,
-    cursor: "pointer",
-  },
+  betSlipHeader: { display: "flex", justifyContent: "space-between", gap: 18, alignItems: "center", borderBottom: "1px dashed rgba(250,204,21,.35)", paddingBottom: 18 },
+  betSlipOddTotal: { minWidth: 210, background: "linear-gradient(135deg,#facc15,#fb923c)", color: "#111827", borderRadius: 22, padding: 18, display: "flex", flexDirection: "column", gap: 5, fontWeight: 950 },
+  betSlipBody: { display: "flex", flexDirection: "column", gap: 12, marginTop: 18 },
+  betSlipRow: { display: "grid", gridTemplateColumns: "44px 1fr auto", gap: 14, alignItems: "center", textAlign: "left", background: "rgba(255,255,255,.07)", color: "white", border: "1px solid rgba(255,255,255,.12)", borderRadius: 18, padding: 14, cursor: "pointer" },
+  betSlipNumber: { width: 36, height: 36, borderRadius: 999, background: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 950 },
+  betSlipInfo: { display: "flex", flexDirection: "column", gap: 4 },
+  betSlipCheck: { color: "#22c55e", fontSize: 24, fontWeight: 950 },
+  betSlipFooter: { marginTop: 18, display: "flex", flexDirection: "column", gap: 10, color: "#c4b5fd", textAlign: "center" },
+  betSlipMainButton: { width: "100%", background: "linear-gradient(135deg,#facc15,#fb923c)", color: "#111827", border: 0, borderRadius: 16, padding: "15px 18px", fontWeight: 950, cursor: "pointer" },
 
 };
