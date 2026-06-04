@@ -193,7 +193,9 @@ const BRAZIL_LOW_DIVISION_PATTERNS = [
 ];
 
 const HARD_LOW_LEAGUE_PATTERNS = [
-  ...BRAZIL_LOW_DIVISION_PATTERNS,
+  // Mantém a lista brasileira declarada sem bloquear o Dashboard.
+  // Se quiser bloquear divisões brasileiras depois, troque [] por ...BRAZIL_LOW_DIVISION_PATTERNS.
+  ...BRAZIL_LOW_DIVISION_PATTERNS.filter(() => false),
   /\bprimera b metropolitana\b/,
   /\bargentina\s*primera\s*b\b/,
   /\bprimera b\b/,
@@ -304,7 +306,8 @@ function explicitLeagueScore(item: OddixFixtureLike) {
   const text = normalizeText(getOddixLeagueText(item));
   if (!text) return 0;
 
-  if (has(HARD_LOW_LEAGUE_PATTERNS, text)) return 0;
+  // Divisões inferiores não somem mais do Dashboard.
+  // Elas só recebem nota menor quando não casam com uma liga priorizada.
   if (has(WEAK_COUNTRY_PATTERNS, text)) return 0;
 
   const rules: Array<[RegExp, number]> = [
@@ -335,8 +338,8 @@ function explicitLeagueScore(item: OddixFixtureLike) {
     [/\bbrasileirao serie a\b|\bbrasileirao a\b|\bbrasileiro serie a\b|\bbrasil serie a\b|\bbrazil serie a\b/, 93],
     [/\bbrasileirao serie b\b|\bbrasileirao b\b|\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b/, 88],
 
-    // Estaduais principais liberados, mas divisões inferiores são bloqueadas antes.
-    [/\bpaulista\b|\bcarioca\b|\bmineiro\b|\bgaucho\b|\bparanaense\b|\bpernambucano\b|\bcearense\b|\bbaiano\b|\bgoiano\b|\bcatarinense\b|\bpotiguar\b|\bparaense\b|\balagoano\b|\bsergipano\b|\bmaranhense\b|\bbrasiliense\b/, 76],
+    // Estaduais e divisões regionais brasileiras liberadas no Dashboard.
+    [/\bpaulista\s*b\b|\bpaulista\s*a2\b|\bpaulista\s*a3\b|\bpaulista\b|\bcarioca\b|\bmineiro\b|\bgaucho\b|\bparanaense\b|\bpernambucano\b|\bcearense\b|\bbaiano\b|\bgoiano\b|\bcatarinense\b|\bpotiguar\b|\bparaense\b|\balagoano\b|\bsergipano\b|\bmaranhense\b|\bbrasiliense\b/, 76],
 
     // Inglaterra / Alemanha / Europa — ficam liberadas quando a API trouxer jogos.
     [/\bengland\b.*\bpremier league\b|\binglaterra\b.*\bpremier league\b|\bepl\b/, 98],
@@ -384,10 +387,9 @@ export function isOddixBlockedLeague(item: OddixFixtureLike) {
 
   if (has(HARD_BLOCKED_PATTERNS, fullText)) return true;
 
-  // Divisões inferiores e ligas ruins sempre bloqueadas.
-  if (has(HARD_LOW_LEAGUE_PATTERNS, fullText)) return true;
-
-  const blockLowQuality = process.env.ODDIX_BLOCK_LOW_QUALITY_LEAGUES !== 'false';
+  // O Dashboard deve esconder somente lixo real.
+  // Divisões inferiores/regionais não são mais bloqueadas aqui; apenas perdem nota para IA.
+  const blockLowQuality = process.env.ODDIX_BLOCK_LOW_QUALITY_LEAGUES === 'true';
   if (blockLowQuality && has(LOW_QUALITY_PATTERNS, fullText)) return true;
 
   return false;
@@ -407,10 +409,10 @@ export function isOddixLeagueAllowed(item: OddixFixtureLike) {
   if (process.env.ODDIX_LEAGUE_FILTER_ENABLED === 'false') return true;
   if (isOddixBlockedLeague(item)) return false;
 
-  const strictPriorityOnly = process.env.ODDIX_STRICT_PRIORITY_ONLY !== 'false';
+  const strictPriorityOnly = process.env.ODDIX_STRICT_PRIORITY_ONLY === 'true';
   if (strictPriorityOnly) return isOddixPriorityLeague(item);
 
-  const minAllowedScore = Number(process.env.ODDIX_MIN_ALLOWED_LEAGUE_SCORE || 70);
+  const minAllowedScore = Number(process.env.ODDIX_MIN_ALLOWED_LEAGUE_SCORE || 1);
   return explicitLeagueScore(item) >= minAllowedScore;
 }
 
@@ -438,7 +440,8 @@ export function getOddixFixtureQualityScore(item: OddixFixtureLike) {
   if ((league?.logo || league?.logotipo) && explicitScore >= 70) score += 2;
   if ((home?.logo || home?.logotipo) && (away?.logo || away?.logotipo) && explicitScore >= 70) score += 3;
 
-  if (has(HARD_LOW_LEAGUE_PATTERNS, fullText)) score = 0;
+  if (has(HARD_LOW_LEAGUE_PATTERNS, fullText) && explicitScore === 0) score = Math.min(score, 45);
+  if (has(HARD_LOW_LEAGUE_PATTERNS, fullText) && explicitScore > 0) score = Math.max(45, score - 8);
   if (has(WEAK_COUNTRY_PATTERNS, fullText) && explicitScore === 0) score = Math.min(score, 45);
   if (/\b(ii|b)\b/.test(teamsText) || /\b2\b/.test(teamsText)) score -= 10;
   if (/\bunknown\b|\bdesconhecido\b|\bliga nao informada\b/.test(leagueText)) score -= 18;
@@ -515,10 +518,9 @@ export function isOddixFinishedFixture(item: OddixFixtureLike) {
 }
 
 export function isOddixDashboardFixtureAllowed(item: OddixFixtureLike, hideFinishedAfterHours = 0) {
-  if (!isOddixLeagueAllowed(item)) return false;
-
-  const minScore = Number(process.env.ODDIX_DASHBOARD_MIN_SCORE || 70);
-  if (getOddixFixtureQualityScore(item) < minScore) return false;
+  // Dashboard não deve sumir jogos por nota/qualidade.
+  // O filtro forte fica só para IA/palpites. Aqui bloqueia apenas lixo real.
+  if (isOddixBlockedLeague(item)) return false;
 
   const showFinished = process.env.ODDIX_DASHBOARD_SHOW_FINISHED === 'true';
   const isFinished = isOddixFinishedFixture(item);
@@ -531,10 +533,10 @@ export function isOddixDashboardFixtureAllowed(item: OddixFixtureLike, hideFinis
   const fixtureTime = new Date(rawDate).getTime();
   if (Number.isNaN(fixtureTime)) return false;
 
-  const maxPastHours = Number(process.env.ODDIX_DASHBOARD_MAX_PAST_HOURS || 2);
+  const maxPastHours = Number(process.env.ODDIX_DASHBOARD_MAX_PAST_HOURS || 24);
   const minDate = Date.now() - maxPastHours * 60 * 60 * 1000;
 
-  const maxFutureDays = Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 2);
+  const maxFutureDays = Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 3);
   const maxDate = Date.now() + maxFutureDays * 24 * 60 * 60 * 1000;
 
   if (isFinished && showFinished && hideFinishedAfterHours > 0) {
