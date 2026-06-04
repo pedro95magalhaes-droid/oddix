@@ -38,14 +38,21 @@ export class MarketingImageService {
     const customPrompt = params.visualPrompt || params.prompt;
 
     const prompts = [
-      `luxury football betting banner, horizontal 1062x515, black and gold sportsbook design, two generic players far left and far right, clean dark center, elegant gold glow, premium cinematic stadium, no text, no logos, no numbers`,
-      `premium football betting background, horizontal 1062x515, dark navy stadium, blue rim light, subtle gold accents, two generic players on edges, clean betting panel center, sophisticated sportsbook promo, no text, no logos`,
-      `cinematic elite betting banner, horizontal 1062x515, black graphite background, soft red and gold lighting, players on far sides, center empty for odds overlay, luxury sports marketing style, no text, no badges`,
-      `minimal luxury football promo background, horizontal 1062x515, dark stadium, black marble texture, gold smoke, two shadow football players on edges, clean center, premium betting advertisement, no text, no logo`,
+      `ultra premium sportsbook advertisement, horizontal 1062x515, millionaire tipster thumbnail style, dramatic football stadium at night, two generic football players on sides, orange gold lighting, smoke, sparks, dark empty center for odds overlay, no text, no logos, no numbers`,
+      `aggressive football betting banner, horizontal 1062x515, luxury sportsbook commercial, giant generic player left and right, black and gold, cinematic smoke, high contrast, clean center, no readable text, no watermark`,
+      `elite VIP betting poster background, horizontal 1062x515, black graphite, red orange gold lighting, stadium floodlights, players on edges, center empty for market overlay, no text, no badges`,
+      `premium football promo background, horizontal 1062x515, millionaire betting style, black marble and gold smoke, dramatic stadium, two shadow football players, clean center, no text, no logo`,
     ];
 
     const prompt =
-      customPrompt || prompts[((params.variation || 1) - 1) % prompts.length];
+      customPrompt ||
+      [
+        prompts[((params.variation || 1) - 1) % prompts.length],
+        params.homeTeam && params.awayTeam ? `${params.homeTeam} versus ${params.awayTeam}` : "",
+        params.league || "",
+      ]
+        .filter(Boolean)
+        .join(", ");
 
     return this.generateWithPollinations(prompt, "simple", 1062, 515);
   }
@@ -60,10 +67,10 @@ export class MarketingImageService {
     const customPrompt = params?.visualPrompt || params?.prompt;
 
     const prompts = [
-      `vertical premium football accumulator betting background, 1080x1350, black and gold luxury sportsbook style, clean dark rows area, elegant glow, no text, no logos`,
-      `vertical VIP betting multiple background, dark navy stadium, gold accents, premium panels area, subtle smoke, professional sportsbook design, no text, no numbers`,
-      `vertical football tipster premium background, black graphite, orange gold glow, empty rows for bet slip, luxury sport marketing, no logos, no text`,
-      `vertical elegant betting coupon background, dark stadium, clean center, gold lines, sophisticated VIP accumulator style, no text, no badges`,
+      `vertical premium football accumulator betting background, 1080x1350, black and gold luxury sportsbook style, dramatic stadium, smoke, sparks, empty rows area for betting slip overlay, no text, no logos`,
+      `vertical VIP betting multiple background, 1080x1350, millionaire tipster style, dark navy stadium, orange gold accents, premium panels area, no text, no numbers`,
+      `vertical football tipster premium background, 1080x1350, black graphite, orange gold glow, empty center rows for bet slip, luxury sportsbook marketing, no logos, no text`,
+      `vertical aggressive betting coupon background, 1080x1350, stadium lights, gold lines, cinematic smoke, premium VIP accumulator style, no text, no badges`,
     ];
 
     const prompt =

@@ -48,7 +48,7 @@ export class OddixCreativeService {
       theme,
       headline: this.headline(theme, input),
       subheadline: this.subheadline(input),
-      vipBadge: input.isFree ? "ODDIX FREE" : "ODDIX PRO AI",
+      vipBadge: input.isFree ? "ODDIX FREE" : "ODDIX BOOST IA",
       edge,
       confidenceLabel: this.confidenceLabel(input.confidence),
       valueLabel: this.valueLabel(edge),
@@ -93,14 +93,14 @@ export class OddixCreativeService {
   private headline(theme: OddixCreativeTheme, input: OddixCreativeInput) {
     const stage = String(input.stage || "").toLowerCase();
 
-    if (stage === "final") return "🔥 ENTRADA FINAL";
-    if (theme === "VIP_GOLD") return "💎 ENTRADA PREMIUM";
-    if (theme === "VIP_CHAMPIONS") return "🏆 LINHA FORTE";
+    if (stage === "final") return "🔥 ENTRADA FINAL VIP";
+    if (theme === "VIP_GOLD") return "💎 ENTRADA VIP LIBERADA";
+    if (theme === "VIP_CHAMPIONS") return "🏆 LINHA PESADA DA IA";
     if (theme === "VIP_DARK") return "⚡ MERCADO PROTEGIDO";
-    if (theme === "VIP_PRO") return "🤖 IA ODDIX PRO";
-    if (theme === "VIP_GREEN") return "🎯 CAÇA GREEN";
+    if (theme === "VIP_PRO") return "🤖 IA ODDIX ENCONTROU VALOR";
+    if (theme === "VIP_GREEN") return "🎯 CAÇA GREEN ATIVADA";
     if (theme === "VIP_ELITE") return "🚀 VALOR ENCONTRADO";
-    if (theme === "VIP_LUXURY") return "💰 SINAL VIP";
+    if (theme === "VIP_LUXURY") return "💰 SINAL VIP PREMIUM";
     return "🔥 ODDIX BOOST";
   }
 
@@ -159,44 +159,64 @@ export class OddixCreativeService {
   }
 
   private visualPrompt(theme: OddixCreativeTheme, input: OddixCreativeInput) {
+    const homeTeam = this.safePrompt(input.homeTeam || "home team");
+    const awayTeam = this.safePrompt(input.awayTeam || "away team");
+    const league = this.safePrompt(input.league || "football league");
+    const market = this.safePrompt(input.market || input.tip || "sports betting pick");
+
     const base = [
-      "premium football betting poster",
-      "horizontal banner",
-      "cinematic stadium",
-      "luxury sportsbook marketing",
-      "clean center for overlay",
-      "two generic football players",
-      "no text",
-      "no logos",
-      "no watermark",
+      "ultra premium sportsbook advertisement",
+      "millionaire tipster thumbnail style",
+      "high contrast football betting poster",
+      "dramatic night stadium",
+      "two generic professional football players",
+      "home side player giant on the left",
+      "away side player giant on the right",
+      "celebration and intensity",
+      "orange gold lighting",
+      "cinematic smoke",
+      "sparks and particles",
+      "luxury betting campaign",
+      "sportsbook commercial look",
+      "aggressive premium composition",
+      "dark empty center area for overlay",
+      "clean space for odds and market text",
+      "ultra realistic",
+      "sharp details",
+      "4k",
+      "no readable text",
       "no letters",
       "no numbers",
+      "no watermark",
+      "no brand logos",
+      "no real player faces",
     ];
 
     const themePrompt: Record<OddixCreativeTheme, string[]> = {
-      VIP_GOLD: ["black and gold", "luxury glow", "premium VIP"],
-      VIP_CHAMPIONS: [
-        "champions league style",
-        "blue gold lights",
-        "epic stadium",
-      ],
-      VIP_DARK: ["dark graphite", "red gold accents", "aggressive premium"],
-      VIP_PRO: ["futuristic AI sports", "neon cyan gold", "data glow"],
-      VIP_GREEN: ["green neon energy", "winner mood", "high contrast"],
-      VIP_ELITE: ["elite sportsbook", "orange gold glow", "cinematic smoke"],
-      VIP_LUXURY: ["black marble", "soft gold smoke", "elegant premium"],
-      VIP_GAMER: [
-        "esports football style",
-        "neon green purple",
-        "gamer energy",
-      ],
+      VIP_GOLD: ["black and gold", "luxury glow", "premium VIP", "gold rim light"],
+      VIP_CHAMPIONS: ["champions final atmosphere", "blue and gold stadium lights", "epic matchday"],
+      VIP_DARK: ["dark graphite", "red and gold accents", "aggressive shadows", "dramatic contrast"],
+      VIP_PRO: ["futuristic AI sports analytics", "data glow", "neon cyan and gold details"],
+      VIP_GREEN: ["green winner energy", "gold glow", "high contrast winning mood"],
+      VIP_ELITE: ["elite sportsbook", "orange gold glow", "cinematic smoke explosion"],
+      VIP_LUXURY: ["black marble", "soft gold smoke", "expensive premium betting look"],
+      VIP_GAMER: ["gamer football style", "neon green and purple", "esports energy", "electric lighting"],
     };
 
     return [
       ...base,
       ...themePrompt[theme],
-      input.league || "football match",
+      `${homeTeam} versus ${awayTeam}`,
+      league,
+      market,
     ].join(", ");
+  }
+
+  private safePrompt(value: any) {
+    return String(value || "")
+      .replace(/[^a-zA-Z0-9À-ÿ\s:.-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   private seedFromText(text: string) {

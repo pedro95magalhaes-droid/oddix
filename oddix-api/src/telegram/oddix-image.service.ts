@@ -185,16 +185,16 @@ export class OddixImageService {
       const prompt = inputText.includes(",")
         ? inputText
         : [
-            "premium football betting background",
-            "ultra luxury sportsbook",
-            "black gold purple",
-            "cinematic stadium",
-            "dramatic lighting",
-            "professional football player",
-            "sports broadcast style",
-            "luxury esports design",
-            "clean center composition",
-            "dark space for overlay",
+            "ultra premium sportsbook advertisement",
+            "millionaire tipster thumbnail style",
+            "dramatic football stadium at night",
+            "two generic football players on the sides",
+            "orange gold lighting",
+            "cinematic smoke",
+            "sparks and particles",
+            "high contrast",
+            "luxury betting campaign",
+            "dark empty center for overlay",
             "no text",
             "no logos",
             "no watermark",
@@ -298,11 +298,11 @@ export class OddixImageService {
     const odd = this.escape(String(input.odd ?? "-"));
     const confidence = this.escape(input.confidenceLabel || "Alta");
     const edge = this.escape(input.edge || "+12%");
-    const headline = this.escape(input.headline || "💎 ENTRADA PREMIUM");
+    const headline = this.escape(input.headline || "🔥 ENTRADA VIP LIBERADA");
     const subheadline = this.escape(
       input.subheadline || "Mercado identificado pela IA",
     );
-    const vipBadge = this.escape(input.vipBadge || "ODDIX PRO AI");
+    const vipBadge = this.escape(input.vipBadge || "ODDIX BOOST IA");
     const valueLabel = this.escape(input.valueLabel || "Valor positivo");
     const risk = this.escape(this.short(input.risk || "Médio", 13));
 
@@ -360,7 +360,7 @@ export class OddixImageService {
           </style>
         </defs>
 
-        <rect x="18" y="18" width="980" height="479" rx="34" fill="rgba(0,0,0,.56)" stroke="url(#gold)" stroke-width="5" filter="url(#shadow)"/>
+        <rect x="18" y="18" width="980" height="479" rx="34" fill="rgba(0,0,0,.50)" stroke="url(#gold)" stroke-width="6" filter="url(#shadow)"/>
         <rect x="38" y="38" width="940" height="439" rx="28" fill="url(#panel)" stroke="rgba(250,204,21,.30)" stroke-width="2"/>
         <rect x="55" y="55" width="906" height="405" rx="24" fill="rgba(0,0,0,.18)" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
 
@@ -374,8 +374,8 @@ export class OddixImageService {
 
         <rect x="62" y="128" width="220" height="198" rx="30" fill="rgba(255,255,255,.08)" stroke="rgba(250,204,21,.36)" stroke-width="2"/>
         <rect x="734" y="128" width="220" height="198" rx="30" fill="rgba(255,255,255,.08)" stroke="rgba(250,204,21,.36)" stroke-width="2"/>
-        <circle cx="172" cy="203" r="88" fill="rgba(0,0,0,.30)" stroke="rgba(250,204,21,.26)" stroke-width="2"/>
-        <circle cx="844" cy="203" r="88" fill="rgba(0,0,0,.30)" stroke="rgba(250,204,21,.26)" stroke-width="2"/>
+        <circle cx="172" cy="203" r="102" fill="rgba(0,0,0,.30)" stroke="rgba(250,204,21,.26)" stroke-width="2"/>
+        <circle cx="844" cy="203" r="102" fill="rgba(0,0,0,.30)" stroke="rgba(250,204,21,.26)" stroke-width="2"/>
         <text x="172" y="315" text-anchor="middle" class="heavy" font-size="22" fill="#ffffff">${home}</text>
         <text x="844" y="315" text-anchor="middle" class="heavy" font-size="22" fill="#ffffff">${away}</text>
 
@@ -415,7 +415,7 @@ export class OddixImageService {
           `${input.homeTeam}-${input.awayTeam}-${input.tip}-${input.theme || "VIP"}`,
       );
       const overlay = this.singleOverlaySvg(input);
-      const logoSize = 180;
+      const logoSize = Number(process.env.ODDIX_CARD_LOGO_SIZE || 230);
       const homeLogo = await this.logoBuffer(
         input.homeLogo,
         input.homeTeam,
@@ -430,8 +430,8 @@ export class OddixImageService {
       await sharp(background)
         .resize(this.width, this.height, { fit: "cover" })
         .composite([
-          { input: homeLogo, left: 82, top: 113 },
-          { input: awayLogo, left: 754, top: 113 },
+          { input: homeLogo, left: 58, top: 88 },
+          { input: awayLogo, left: 728, top: 88 },
           { input: overlay, left: 0, top: 0 },
         ])
         .png()
