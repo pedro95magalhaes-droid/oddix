@@ -37,10 +37,7 @@ export type OddixCreativeResult = {
 @Injectable()
 export class OddixCreativeService {
   generate(input: OddixCreativeInput): OddixCreativeResult {
-    const seed = this.seedFromText(
-      `${input.homeTeam}-${input.awayTeam}-${input.league}-${input.tip}-${input.odd}`,
-    );
-
+    const seed = this.seedFromText(`${input.homeTeam}-${input.awayTeam}-${input.league}-${input.tip}-${input.odd}`);
     const theme = this.pickTheme(input, seed);
     const edge = this.calculateEdge(input, seed);
 
@@ -48,7 +45,7 @@ export class OddixCreativeService {
       theme,
       headline: this.headline(theme, input),
       subheadline: this.subheadline(input),
-      vipBadge: input.isFree ? "ODDIX FREE" : "ODDIX VIP PREMIUM",
+      vipBadge: input.isFree ? "ODDIX FREE" : "ODDIX VIP",
       edge,
       confidenceLabel: this.confidenceLabel(input.confidence),
       valueLabel: this.valueLabel(edge),
@@ -56,69 +53,40 @@ export class OddixCreativeService {
     };
   }
 
-  private pickTheme(
-    input: OddixCreativeInput,
-    seed: number,
-  ): OddixCreativeTheme {
+  private pickTheme(input: OddixCreativeInput, seed: number): OddixCreativeTheme {
     const tip = this.normalize(input.tip);
     const odd = Number(input.odd || 0);
     const confidence = Number(input.confidence || 0);
 
-    if (tip.includes("escanteio") || tip.includes("corner"))
-      return "VIP_CHAMPIONS";
+    if (tip.includes("escanteio") || tip.includes("corner")) return "VIP_CHAMPIONS";
     if (tip.includes("cartao") || tip.includes("card")) return "VIP_DARK";
-    if (
-      tip.includes("player") ||
-      tip.includes("chute") ||
-      tip.includes("finalizacao")
-    )
-      return "VIP_GAMER";
+    if (tip.includes("player") || tip.includes("chute") || tip.includes("finalizacao")) return "VIP_GAMER";
     if (odd >= 2) return "VIP_ELITE";
     if (confidence >= 84) return "VIP_GREEN";
 
-    const themes: OddixCreativeTheme[] = [
-      "VIP_GOLD",
-      "VIP_CHAMPIONS",
-      "VIP_DARK",
-      "VIP_PRO",
-      "VIP_GREEN",
-      "VIP_ELITE",
-      "VIP_LUXURY",
-      "VIP_GAMER",
-    ];
-
+    const themes: OddixCreativeTheme[] = ["VIP_GOLD", "VIP_CHAMPIONS", "VIP_DARK", "VIP_PRO", "VIP_GREEN", "VIP_ELITE", "VIP_LUXURY", "VIP_GAMER"];
     return themes[seed % themes.length];
   }
 
   private headline(theme: OddixCreativeTheme, input: OddixCreativeInput) {
     const stage = String(input.stage || "").toLowerCase();
-
-    if (stage === "final") return "🔥 ENTRADA FINAL VIP";
-    if (theme === "VIP_GOLD") return "💎 ENTRADA VIP LIBERADA";
-    if (theme === "VIP_CHAMPIONS") return "🏆 LINHA PESADA DA IA";
-    if (theme === "VIP_DARK") return "⚡ MERCADO PROTEGIDO";
-    if (theme === "VIP_PRO") return "🤖 IA ODDIX ENCONTROU VALOR";
-    if (theme === "VIP_GREEN") return "🎯 CAÇA GREEN ATIVADA";
-    if (theme === "VIP_ELITE") return "🚀 VALOR ENCONTRADO";
-    if (theme === "VIP_LUXURY") return "💰 SINAL VIP PREMIUM";
-    return "🔥 ODDIX BOOST";
+    if (stage === "final") return "ENTRADA FINAL VIP";
+    if (stage === "early") return "PRÉ-JOGO PREMIUM";
+    if (theme === "VIP_CHAMPIONS") return "LINHA PESADA DA IA";
+    if (theme === "VIP_DARK") return "MERCADO PROTEGIDO";
+    if (theme === "VIP_PRO") return "VALOR ENCONTRADO";
+    if (theme === "VIP_GREEN") return "CAÇA GREEN ATIVADA";
+    if (theme === "VIP_ELITE") return "BOOST VIP LIBERADO";
+    if (theme === "VIP_LUXURY") return "SINAL VIP PREMIUM";
+    return "ENTRADA VIP LIBERADA";
   }
 
   private subheadline(input: OddixCreativeInput) {
     const tip = this.normalize(input.tip);
-
-    if (tip.includes("escanteio") || tip.includes("corner")) {
-      return "Pressão ofensiva e tendência de volume";
-    }
-
-    if (tip.includes("gol") || tip.includes("over") || tip.includes("under")) {
-      return "Linha validada pela leitura estatística";
-    }
-
-    if (tip.includes("chute") || tip.includes("finalizacao")) {
-      return "Mercado de volume identificado pela IA";
-    }
-
+    if (tip.includes("escanteio") || tip.includes("corner")) return "Pressão ofensiva e volume de jogo";
+    if (tip.includes("gol") || tip.includes("over") || tip.includes("under")) return "Linha validada pela leitura estatística";
+    if (tip.includes("chute") || tip.includes("finalizacao")) return "Mercado de volume identificado pela IA";
+    if (tip.includes("empate") || tip.includes("dupla")) return "Entrada protegida pela leitura da IA";
     return "Oportunidade acima da média detectada";
   }
 
@@ -126,35 +94,27 @@ export class OddixCreativeService {
     const odd = Number(input.odd || 1.5);
     const confidence = Number(input.confidence || 75);
     const risk = this.normalize(input.risk);
-
     let edge = Math.round((confidence - 65) * 0.55 + (odd - 1.4) * 8);
-
     if (risk.includes("baixo")) edge += 3;
     if (risk.includes("alto")) edge -= 4;
-
     edge += seed % 4;
-    edge = Math.max(8, Math.min(edge, 24));
-
+    edge = Math.max(8, Math.min(edge, 28));
     return `+${edge}%`;
   }
 
   private confidenceLabel(confidence: any) {
     const value = Number(confidence || 0);
-
     if (value >= 84) return "Alta";
     if (value >= 76) return "Boa";
     if (value >= 70) return "Moderada";
-
     return "Controlada";
   }
 
   private valueLabel(edge: string) {
     const value = Number(String(edge).replace(/[^0-9]/g, ""));
-
     if (value >= 20) return "Valor muito alto";
     if (value >= 15) return "Valor alto";
     if (value >= 10) return "Valor positivo";
-
     return "Valor controlado";
   }
 
@@ -168,24 +128,15 @@ export class OddixCreativeService {
       "ultra premium sports betting poster",
       "luxury bookmaker advertisement",
       "millionaire tipster thumbnail style",
-      "two realistic generic football players occupying 70 percent of the image",
-      "home side player giant on the left",
-      "away side player giant on the right",
+      "two generic professional football players occupying 70 percent of the image",
+      "large player on the left and large player on the right",
       "dramatic night stadium",
-      "high contrast football betting poster",
-      "celebration and intensity",
-      "orange gold lighting",
-      "cinematic smoke",
-      "sparks and particles",
-      "luxury betting campaign",
-      "sportsbook commercial look",
-      "aggressive premium composition",
-      "dark empty center area for betting slip overlay",
-      "clean central space for odds and market text",
-      "players visible behind overlay",
-      "ultra realistic",
-      "sharp details",
-      "4k",
+      "cinematic floodlights",
+      "orange gold glow",
+      "smoke sparks particles",
+      "high contrast commercial sports design",
+      "empty dark center space for betting slip overlay",
+      "ultra realistic 4k sharp details",
       "no readable text",
       "no letters",
       "no numbers",
@@ -195,23 +146,17 @@ export class OddixCreativeService {
     ];
 
     const themePrompt: Record<OddixCreativeTheme, string[]> = {
-      VIP_GOLD: ["black and gold", "luxury glow", "premium VIP", "gold rim light"],
-      VIP_CHAMPIONS: ["champions final atmosphere", "blue and gold stadium lights", "epic matchday"],
-      VIP_DARK: ["dark graphite", "red and gold accents", "aggressive shadows", "dramatic contrast"],
-      VIP_PRO: ["futuristic AI sports analytics", "data glow", "neon cyan and gold details"],
+      VIP_GOLD: ["black and gold premium lighting", "luxury sportsbook style"],
+      VIP_CHAMPIONS: ["champions final atmosphere", "blue and gold stadium lights"],
+      VIP_DARK: ["dark graphite", "red orange gold accents", "aggressive shadows"],
+      VIP_PRO: ["futuristic AI sports analytics", "cyan and gold data glow"],
       VIP_GREEN: ["green winner energy", "gold glow", "high contrast winning mood"],
-      VIP_ELITE: ["elite sportsbook", "orange gold glow", "cinematic smoke explosion"],
+      VIP_ELITE: ["elite sportsbook", "orange gold explosion", "cinematic smoke"],
       VIP_LUXURY: ["black marble", "soft gold smoke", "expensive premium betting look"],
-      VIP_GAMER: ["gamer football style", "neon green and purple", "esports energy", "electric lighting"],
+      VIP_GAMER: ["gamer football style", "neon green and purple", "electric lighting"],
     };
 
-    return [
-      ...base,
-      ...themePrompt[theme],
-      `${homeTeam} versus ${awayTeam}`,
-      league,
-      market,
-    ].join(", ");
+    return [...base, ...themePrompt[theme], `${homeTeam} versus ${awayTeam}`, league, market].join(", ");
   }
 
   private safePrompt(value: any) {
@@ -223,20 +168,14 @@ export class OddixCreativeService {
 
   private seedFromText(text: string) {
     let hash = 0;
-
     for (let i = 0; i < text.length; i++) {
       hash = (hash << 5) - hash + text.charCodeAt(i);
       hash |= 0;
     }
-
     return Math.abs(hash);
   }
 
   private normalize(value: any) {
-    return String(value || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim();
+    return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
   }
 }
