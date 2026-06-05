@@ -1801,6 +1801,83 @@ function TeamLogo({ game, side }: { game: any; side: "home" | "away" }) {
 
 
 
+
+function hasRealStatsAvailable(stats: any) {
+  if (!stats) return false;
+  if (stats.simulated === true) return false;
+  if (stats.available === false) return false;
+  if (!Array.isArray(stats.teams) || stats.teams.length < 2) return false;
+
+  return stats.teams.some((team: any) => {
+    const list = team?.statistics || team?.stats || [];
+    return Array.isArray(list) && list.some((item: any) => {
+      const value = item?.value ?? item?.stat ?? item?.val;
+      return value !== null && value !== undefined && value !== '';
+    });
+  });
+}
+
+function NoRealStatsPanel() {
+  return (
+    <div
+      style={{
+        minHeight: 260,
+        borderRadius: 22,
+        border: '1px solid rgba(250,204,21,.28)',
+        background: 'linear-gradient(135deg, rgba(17,24,39,.96), rgba(46,16,101,.88))',
+        display: 'grid',
+        placeItems: 'center',
+        padding: 28,
+        textAlign: 'center',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,.08)',
+      }}
+    >
+      <div style={{ maxWidth: 520 }}>
+        <div
+          style={{
+            width: 68,
+            height: 68,
+            margin: '0 auto 16px',
+            borderRadius: 22,
+            display: 'grid',
+            placeItems: 'center',
+            background: 'linear-gradient(135deg, rgba(250,204,21,.22), rgba(124,58,237,.22))',
+            border: '1px solid rgba(250,204,21,.38)',
+            fontSize: 30,
+          }}
+        >
+          📊
+        </div>
+        <strong style={{ display: 'block', color: '#fff', fontSize: 22, marginBottom: 8 }}>
+          Estatísticas reais indisponíveis
+        </strong>
+        <p style={{ color: 'rgba(255,255,255,.74)', fontWeight: 700, lineHeight: 1.55, margin: 0 }}>
+          A API ainda não retornou dados oficiais deste jogo. A Oddix não vai exibir estatística simulada como dado real.
+        </p>
+        <div
+          style={{
+            marginTop: 18,
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ padding: '8px 12px', borderRadius: 999, background: 'rgba(255,255,255,.08)', color: '#facc15', fontWeight: 900 }}>
+            aguardando chutes
+          </span>
+          <span style={{ padding: '8px 12px', borderRadius: 999, background: 'rgba(255,255,255,.08)', color: '#facc15', fontWeight: 900 }}>
+            aguardando escanteios
+          </span>
+          <span style={{ padding: '8px 12px', borderRadius: 999, background: 'rgba(255,255,255,.08)', color: '#facc15', fontWeight: 900 }}>
+            aguardando posse
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function getStatFromApi(stats: any, teamIndex: number, labels: string[]) {
   const team = stats?.teams?.[teamIndex];
 
@@ -1989,8 +2066,9 @@ function MatchDetailPanel({
 }) {
   const game = data?.game;
   const stats = data?.stats;
+  const hasRealStats = hasRealStatsAvailable(stats);
   const score = getScore(game);
-  const fastStats = getFastStats(game, stats);
+  const fastStats = getFastStats(game, hasRealStats ? stats : null);
   const tip = smartLocalTip(game);
   const marketGroups = buildMarketGroups(game);
 
@@ -2040,15 +2118,21 @@ function MatchDetailPanel({
       <div style={styles.matchBodyGrid}>
         <div style={styles.matchStatsBox}>
           <div style={styles.matchStatsHeader}>
-            <strong>ESTATÍSTICAS AO VIVO</strong>
-            <span>{data?.loadingStats ? "Carregando..." : stats?.available ? "Dados reais" : "Dados rápidos"}</span>
+            <strong>ESTATÍSTICAS OFICIAIS</strong>
+            <span>{data?.loadingStats ? "Carregando..." : hasRealStats ? "Dados reais" : "Indisponível"}</span>
           </div>
 
-          <StatsCompare label="Cartões" left={fastStats.cardsHome} right={fastStats.cardsAway} />
-          <StatsCompare label="Chutes" left={fastStats.shotsHome} right={fastStats.shotsAway} />
-          <StatsCompare label="Chutes a gol" left={fastStats.shotsOnHome} right={fastStats.shotsOnAway} />
-          <StatsCompare label="Escanteios" left={fastStats.cornersHome} right={fastStats.cornersAway} />
-          <StatsCompare label="Posse de bola" left={fastStats.possessionHome} right={fastStats.possessionAway} />
+          {hasRealStats ? (
+            <>
+              <StatsCompare label="Cartões" left={fastStats.cardsHome} right={fastStats.cardsAway} />
+              <StatsCompare label="Chutes" left={fastStats.shotsHome} right={fastStats.shotsAway} />
+              <StatsCompare label="Chutes a gol" left={fastStats.shotsOnHome} right={fastStats.shotsOnAway} />
+              <StatsCompare label="Escanteios" left={fastStats.cornersHome} right={fastStats.cornersAway} />
+              <StatsCompare label="Posse de bola" left={fastStats.possessionHome} right={fastStats.possessionAway} />
+            </>
+          ) : (
+            <NoRealStatsPanel />
+          )}
 
           <div style={styles.attackRow}>
             <div>
@@ -2075,7 +2159,9 @@ function MatchDetailPanel({
             <span>{tip.risk}</span>
           </div>
           <p>
-            Entrada sugerida cruzando placar, minuto, qualidade do jogo, odds disponíveis, escalação e mercados de jogador quando a API retornar dados.
+            {hasRealStats
+              ? "Entrada sugerida cruzando placar, minuto, qualidade do jogo, odds disponíveis e estatísticas oficiais da API."
+              : "Estatísticas oficiais ainda indisponíveis. A IA usa apenas placar, horário, liga, odds disponíveis e score de qualidade, sem inventar dados."}
           </p>
           <button style={styles.vipFullButton} onClick={() => onAnalyze(game)}>
             🎯 Pegar palpite
