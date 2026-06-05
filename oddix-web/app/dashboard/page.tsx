@@ -1219,6 +1219,191 @@ export default function Dashboard() {
 
   return (
     <main className="oddix-dashboard" style={styles.page}>
+      <style jsx global>{`
+        .oddix-dashboard {
+          max-width: 100vw;
+          overflow-x: hidden;
+        }
+
+        .oddix-info-metric {
+          background: linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.06)) !important;
+          border: 1px solid rgba(250,204,21,.32) !important;
+          color: #ffffff !important;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 12px 28px rgba(0,0,0,.22) !important;
+        }
+
+        .oddix-info-metric span {
+          color: rgba(255,255,255,.78);
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: .6px;
+          font-weight: 900;
+        }
+
+        .oddix-info-metric strong {
+          color: #facc15;
+          font-size: 24px;
+          line-height: 1;
+          text-shadow: 0 0 18px rgba(250,204,21,.28);
+        }
+
+        .oddix-featured-strip,
+        .oddix-games-grid {
+          overflow-x: hidden !important;
+        }
+
+        .oddix-featured-strip {
+          display: grid !important;
+          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
+          max-height: none !important;
+          overflow-y: visible !important;
+        }
+
+        .oddix-games-grid {
+          display: grid !important;
+          grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)) !important;
+          max-height: none !important;
+          overflow-y: visible !important;
+        }
+
+        @media (max-width: 1180px) {
+          .oddix-hero-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-hero-main {
+            grid-template-columns: 1fr 330px !important;
+            min-height: 340px !important;
+          }
+
+          .oddix-vip-panel {
+            min-height: 180px !important;
+          }
+
+          .oddix-top-widgets-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-layout {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-sidebar {
+            position: relative !important;
+            top: auto !important;
+            max-height: none !important;
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 860px) {
+          .oddix-top-header {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+            padding: 16px !important;
+          }
+
+          .oddix-brand {
+            width: 100% !important;
+            justify-content: center !important;
+          }
+
+          .oddix-header-actions {
+            width: 100% !important;
+            justify-content: center !important;
+            flex-wrap: wrap !important;
+          }
+
+          .oddix-sports-rail {
+            padding: 10px 14px 14px !important;
+            gap: 8px !important;
+          }
+
+          .oddix-hero-grid,
+          .oddix-top-widgets,
+          .oddix-featured-strip,
+          .oddix-tabs-wrapper,
+          .oddix-layout,
+          .oddix-footer,
+          .oddix-top-pick-hero,
+          .oddix-marketing-banner {
+            margin-left: 14px !important;
+            margin-right: 14px !important;
+          }
+
+          .oddix-hero-main {
+            grid-template-columns: 1fr !important;
+            padding: 28px 20px 0 !important;
+            min-height: auto !important;
+            text-align: center !important;
+          }
+
+          .oddix-hero-text {
+            max-width: 100% !important;
+            padding-right: 0 !important;
+          }
+
+          .oddix-hero-text h1 {
+            font-size: 30px !important;
+            line-height: 1.08 !important;
+          }
+
+          .oddix-hero-player-box {
+            min-width: 0 !important;
+            height: 250px !important;
+          }
+
+          .oddix-hero-player {
+            height: 270px !important;
+            width: 100% !important;
+            transform: none !important;
+          }
+
+          .oddix-top-pick-hero {
+            grid-template-columns: 1fr !important;
+            text-align: center !important;
+            gap: 14px !important;
+          }
+
+          .oddix-marketing-banner {
+            grid-template-columns: 1fr !important;
+            padding: 22px !important;
+          }
+
+          .oddix-sidebar {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-games-grid,
+          .oddix-featured-strip {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-tabs {
+            min-width: max-content !important;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .oddix-hero-text h1 {
+            font-size: 25px !important;
+          }
+
+          .oddix-info-metric strong {
+            font-size: 20px;
+          }
+
+          .oddix-top-pick-hero {
+            padding: 14px !important;
+          }
+
+          .oddix-game-card {
+            min-height: auto !important;
+          }
+        }
+      `}</style>
       <FreeLockModal
         open={freeLockOpen}
         onClose={() => setFreeLockOpen(false)}
@@ -1588,7 +1773,7 @@ function getTabTitle(tab: TabKey) {
 
 function InfoMetric({ label, value }: { label: string; value: any }) {
   return (
-    <div style={styles.infoMetric}>
+    <div className="oddix-info-metric" style={styles.infoMetric}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -1958,7 +2143,7 @@ function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
   if (!finalGame || !finalTip) return null;
 
   return (
-    <section style={styles.topPickHero}>
+    <section className="oddix-top-pick-hero" style={styles.topPickHero}>
       <div style={styles.topPickPremiumBadge}>
         <span>🏆</span>
         <div>
@@ -2063,7 +2248,7 @@ function MarketingBanner({
   const score = game ? getScore(game) : { home: "-", away: "-" };
 
   return (
-    <section style={styles.marketingBanner}>
+    <section className="oddix-marketing-banner" style={styles.marketingBanner}>
       <div style={styles.marketingGlow} />
 
       <div style={styles.marketingContent}>
@@ -2216,7 +2401,7 @@ function GameCard({ game, liveTick = 0, analyzing, onAnalyze }: any) {
   const live = isGameLive(game);
 
   return (
-    <article style={live ? styles.gameCardLive : styles.gameCard} onClick={onAnalyze}>
+    <article className="oddix-game-card" style={live ? styles.gameCardLive : styles.gameCard} onClick={onAnalyze}>
       <div style={styles.cardTop}>
         <span style={live ? styles.liveBadge : styles.statusBadge}>{getStatusLabel(game, liveTick)}</span>
         <span style={styles.qualityBadge}>{qualityBadge(quality)} {quality}</span>
@@ -2862,17 +3047,17 @@ const styles: Record<string, CSSProperties> = {
   },
   heroGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 300px",
-    gap: 18,
-    margin: "24px 26px 18px",
+    gridTemplateColumns: "minmax(0, 1fr) 280px",
+    gap: 14,
+    margin: "22px 26px 18px",
     alignItems: "stretch",
   },
   heroMain: {
     position: "relative",
     overflow: "hidden",
-    minHeight: 360,
+    minHeight: 390,
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 420px",
+    gridTemplateColumns: "minmax(0, 1fr) 460px",
     alignItems: "center",
     gap: 12,
     background: "radial-gradient(circle at 78% 46%, rgba(250,204,21,.20), transparent 28%), radial-gradient(circle at 70% 30%, rgba(124,58,237,.58), transparent 36%), linear-gradient(135deg,rgba(12,8,26,.99),rgba(46,16,101,.94))",
@@ -2890,8 +3075,8 @@ const styles: Record<string, CSSProperties> = {
   },
   heroPlayerBox: {
     position: "relative",
-    height: 330,
-    minWidth: 360,
+    height: 365,
+    minWidth: 390,
     display: "flex",
     alignItems: "flex-end",
     justifyContent: "center",
@@ -2909,8 +3094,8 @@ const styles: Record<string, CSSProperties> = {
   heroPlayerImage: {
     position: "relative",
     zIndex: 2,
-    height: 350,
-    width: "118%",
+    height: 390,
+    width: "125%",
     objectFit: "contain",
     objectPosition: "center bottom",
     transform: "translateX(-16px)",
@@ -2930,13 +3115,15 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 18,
   },
   infoMetric: {
-    background: "#f5f3ff",
-    border: "1px solid #ede9fe",
+    background: "linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.06))",
+    border: "1px solid rgba(250,204,21,.32)",
     borderRadius: 18,
     padding: 16,
     display: "flex",
     flexDirection: "column",
     gap: 6,
+    color: "#fff",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,.16), 0 12px 28px rgba(0,0,0,.22)",
   },
   vipPanel: {
     background: "linear-gradient(180deg,rgba(31,10,70,.98),rgba(10,4,24,.98))",
@@ -3434,12 +3621,12 @@ const styles: Record<string, CSSProperties> = {
   },
   featuredStrip: {
     margin: "0 26px 20px",
-    display: "flex",
-    flexDirection: "column",
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
     gap: 14,
     overflowX: "hidden",
-    overflowY: "auto",
-    maxHeight: 540,
+    overflowY: "visible",
+    maxHeight: "none",
     padding: "10px 10px 16px",
     scrollSnapType: "y proximity",
     position: "relative",
@@ -3637,7 +3824,7 @@ const styles: Record<string, CSSProperties> = {
   },
   gamesGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(310px, 1fr))",
     gap: 18,
     overflowX: "hidden",
     overflowY: "visible",
@@ -4217,9 +4404,9 @@ const styles: Record<string, CSSProperties> = {
   },
   topPickHero: {
     margin: "0 26px 20px",
-    minHeight: 112,
+    minHeight: 118,
     display: "grid",
-    gridTemplateColumns: "220px minmax(260px, 1.25fr) minmax(260px, 1.4fr) 96px 92px 160px",
+    gridTemplateColumns: "minmax(190px,.9fr) minmax(280px,1.15fr) minmax(280px,1.25fr) 92px 92px minmax(150px,.55fr)",
     gap: 16,
     alignItems: "center",
     background: "linear-gradient(135deg,rgba(20,12,38,.98),rgba(4,5,15,.98))",
