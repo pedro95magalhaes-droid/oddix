@@ -1266,6 +1266,30 @@ export default function Dashboard() {
           overflow-y: visible !important;
         }
 
+
+
+        @media (max-width: 980px) {
+          .oddix-vip-results-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-vip-results-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .oddix-vip-results {
+            margin-left: 12px !important;
+            margin-right: 12px !important;
+            padding: 18px !important;
+          }
+
+          .oddix-vip-results-metrics {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
         @media (max-width: 1180px) {
           .oddix-hero-grid {
             grid-template-columns: 1fr !important;
@@ -1592,6 +1616,15 @@ export default function Dashboard() {
           const game = getGameByTip(tip, games);
           if (game) openMatchDetail(game);
         }}
+        onUpgrade={() => (window.location.href = "/plans")}
+      />
+
+
+      <VipResultsSection
+        won={stats?.wonBets || 0}
+        lost={stats?.lostBets || 0}
+        roi={stats?.roi || 0}
+        recentBets={wonBetsList.slice(0, 5)}
         onUpgrade={() => (window.location.href = "/plans")}
       />
 
@@ -2987,6 +3020,201 @@ function BoostSection({ boost, games, onAnalyze }: any) {
         </div>
       </div>
     </section>
+  );
+}
+
+
+function VipResultsSection({ won, lost, roi, recentBets, onUpgrade }: { won: number; lost: number; roi: number; recentBets: any[]; onUpgrade: () => void }) {
+  const total = safeNumber(won, 0) + safeNumber(lost, 0);
+  const winRate = total > 0 ? Math.round((safeNumber(won, 0) / total) * 100) : 0;
+  const lastResults = recentBets?.length ? recentBets : Array.from({ length: Math.min(5, safeNumber(won, 0)) }, (_, index) => ({ id: index }));
+
+  return (
+    <section
+      className="oddix-vip-results"
+      style={{
+        margin: "0 26px 20px",
+        padding: 24,
+        borderRadius: 28,
+        position: "relative",
+        overflow: "hidden",
+        background:
+          "radial-gradient(circle at 12% 10%, rgba(250,204,21,.22), transparent 28%), radial-gradient(circle at 88% 0%, rgba(124,58,237,.28), transparent 30%), linear-gradient(135deg, rgba(6,7,20,.98), rgba(17,24,39,.96))",
+        border: "1px solid rgba(250,204,21,.24)",
+        boxShadow: "0 24px 80px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.08)",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          right: -80,
+          top: -90,
+          width: 260,
+          height: 260,
+          borderRadius: "999px",
+          background: "rgba(250,204,21,.12)",
+          filter: "blur(10px)",
+        }}
+      />
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.15fr) minmax(280px, .85fr)",
+          gap: 18,
+          alignItems: "stretch",
+          position: "relative",
+          zIndex: 1,
+        }}
+        className="oddix-vip-results-grid"
+      >
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+            <div
+              style={{
+                width: 54,
+                height: 54,
+                borderRadius: 18,
+                display: "grid",
+                placeItems: "center",
+                background: "linear-gradient(135deg, #facc15, #f97316)",
+                color: "#111827",
+                fontSize: 28,
+                boxShadow: "0 16px 40px rgba(250,204,21,.28)",
+              }}
+            >
+              👑
+            </div>
+            <div>
+              <span
+                style={{
+                  display: "inline-flex",
+                  padding: "5px 10px",
+                  borderRadius: 999,
+                  background: "rgba(34,197,94,.14)",
+                  border: "1px solid rgba(34,197,94,.24)",
+                  color: "#86efac",
+                  fontSize: 11,
+                  fontWeight: 950,
+                  letterSpacing: 0.6,
+                }}
+              >
+                PERFORMANCE REAL
+              </span>
+              <h2 style={{ margin: "8px 0 2px", color: "#fff", fontSize: 26, lineHeight: 1 }}>
+                RESULTADOS VIP
+              </h2>
+              <p style={{ margin: 0, color: "rgba(255,255,255,.68)", fontWeight: 700 }}>
+                Prova social para quem quer entrar no time premium da Oddix.
+              </p>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+              gap: 12,
+            }}
+            className="oddix-vip-results-metrics"
+          >
+            <VipMetric title="GREENS" value={won} color="#22c55e" subtitle="confirmados" />
+            <VipMetric title="REDS" value={lost} color="#ef4444" subtitle="controlados" />
+            <VipMetric title="WIN RATE" value={`${winRate}%`} color="#facc15" subtitle="assertividade" />
+            <VipMetric title="ROI" value={`${roi}%`} color="#a78bfa" subtitle="performance" />
+          </div>
+        </div>
+
+        <div
+          style={{
+            borderRadius: 24,
+            padding: 18,
+            background: "linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04))",
+            border: "1px solid rgba(255,255,255,.12)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,.08)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginBottom: 14 }}>
+            <div>
+              <strong style={{ display: "block", color: "#fff", fontSize: 16 }}>Últimos resultados</strong>
+              <small style={{ color: "rgba(255,255,255,.58)", fontWeight: 800 }}>Histórico VIP recente</small>
+            </div>
+            <span
+              style={{
+                borderRadius: 999,
+                padding: "7px 10px",
+                background: "rgba(34,197,94,.16)",
+                color: "#86efac",
+                border: "1px solid rgba(34,197,94,.24)",
+                fontWeight: 950,
+                fontSize: 11,
+              }}
+            >
+              LIVE TRACKING
+            </span>
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            {lastResults.slice(0, 5).map((bet: any, idx: number) => (
+              <div
+                key={bet?.id || idx}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderRadius: 16,
+                  background: "rgba(34,197,94,.10)",
+                  border: "1px solid rgba(34,197,94,.18)",
+                }}
+              >
+                <span style={{ color: "#dcfce7", fontWeight: 900 }}>🟢 GREEN</span>
+                <small style={{ color: "rgba(255,255,255,.62)", fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {bet?.homeTeam && bet?.awayTeam ? `${bet.homeTeam} x ${bet.awayTeam}` : "Entrada Oddix VIP"}
+                </small>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={onUpgrade}
+            style={{
+              width: "100%",
+              marginTop: 14,
+              border: 0,
+              borderRadius: 16,
+              padding: "13px 16px",
+              background: "linear-gradient(135deg, #facc15, #f97316)",
+              color: "#111827",
+              fontWeight: 950,
+              cursor: "pointer",
+              boxShadow: "0 14px 36px rgba(250,204,21,.24)",
+            }}
+          >
+            QUERO ACESSAR O VIP
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function VipMetric({ title, value, color, subtitle }: { title: string; value: any; color: string; subtitle?: string }) {
+  return (
+    <div
+      style={{
+        padding: 16,
+        borderRadius: 20,
+        background: "rgba(255,255,255,.06)",
+        border: "1px solid rgba(255,255,255,.10)",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,.07)",
+      }}
+    >
+      <div style={{ color, fontSize: 34, fontWeight: 950, lineHeight: 1 }}>{value}</div>
+      <div style={{ color: "#fff", fontWeight: 950, marginTop: 8, fontSize: 12, letterSpacing: .6 }}>{title}</div>
+      {subtitle ? <small style={{ color: "rgba(255,255,255,.52)", fontWeight: 800 }}>{subtitle}</small> : null}
+    </div>
   );
 }
 
