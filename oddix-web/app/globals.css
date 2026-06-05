@@ -426,130 +426,48 @@ img {
   }
 }
 
-
-/* Melhorias premium adicionadas: Hero, bilhete Top Pick, resultados e Player Props */
-.oddix-premium-ticket {
-  isolation: isolate;
-}
-
-.oddix-ticket-glow {
-  position: absolute;
-  inset: -40% auto auto -10%;
-  width: 340px;
-  height: 340px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(255,255,255,.25), transparent 62%);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.oddix-results-strip small,
-.oddix-player-props-spotlight small {
-  color: rgba(255,255,255,.72);
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: .7px;
-  text-transform: uppercase;
-}
-
-.oddix-results-strip strong {
-  color: #facc15;
-  font-size: 28px;
-  line-height: 1;
-}
-
-.oddix-results-strip em {
-  color: rgba(255,255,255,.64);
-  font-style: normal;
-  font-size: 12px;
-}
-
-.oddix-top-pick-hero strong {
-  text-shadow: 0 8px 22px rgba(0,0,0,.28);
-}
-
-.oddix-player-props-spotlight h2 {
-  margin: 4px 0 6px;
-  font-size: 28px;
-}
-
-.oddix-player-props-spotlight p {
-  margin: 0;
-  color: rgba(255,255,255,.68);
-  max-width: 680px;
-}
-
-.oddix-player-props-spotlight article span {
-  color: #facc15;
-  font-size: 13px;
-  font-weight: 950;
-}
-
-.oddix-player-props-spotlight article strong {
-  font-size: 17px;
-  line-height: 1.25;
-}
-
-.oddix-player-props-spotlight article div {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.oddix-player-props-spotlight article b {
-  background: rgba(250,204,21,.14);
-  border: 1px solid rgba(250,204,21,.20);
-  border-radius: 999px;
-  padding: 7px 10px;
-  color: #fde68a;
-  font-size: 12px;
-}
-
+/* Oddix VIP marketing + Entradas Quentes */
 @media (max-width: 1180px) {
-  .oddix-results-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  .oddix-vip-marketing-strip {
+    grid-template-columns: 1fr !important;
+    margin-left: 18px !important;
+    margin-right: 18px !important;
   }
 
-  .oddix-player-props-spotlight > div:last-child {
-    grid-template-columns: 1fr !important;
+  .oddix-hot-entries {
+    margin-left: 18px !important;
+    margin-right: 18px !important;
   }
 }
 
-@media (max-width: 900px) {
-  .oddix-results-strip,
-  .oddix-player-props-spotlight {
-    margin-left: 12px !important;
-    margin-right: 12px !important;
+@media (max-width: 860px) {
+  .oddix-vip-marketing-strip,
+  .oddix-hot-entries {
+    margin-left: 14px !important;
+    margin-right: 14px !important;
   }
 
-  .oddix-top-pick-hero {
-    grid-template-columns: 1fr !important;
-    text-align: center !important;
-    padding: 18px !important;
+  .oddix-vip-marketing-strip > div:nth-child(2) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
-  .oddix-top-pick-hero img {
-    margin: 0 auto;
-  }
-
-  .oddix-player-props-spotlight > div:first-child {
+  .oddix-hot-entries > div:first-child {
     flex-direction: column !important;
     align-items: flex-start !important;
   }
 }
 
-@media (max-width: 640px) {
-  .oddix-results-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 10px !important;
-  }
-
-  .oddix-results-strip strong {
-    font-size: 22px;
-  }
-
-  .oddix-player-props-spotlight {
+@media (max-width: 520px) {
+  .oddix-vip-marketing-strip,
+  .oddix-hot-entries {
+    margin-left: 10px !important;
+    margin-right: 10px !important;
     padding: 16px !important;
     border-radius: 22px !important;
+  }
+
+  .oddix-vip-marketing-strip > div:nth-child(2),
+  .oddix-hot-entries > div:last-child {
+    grid-template-columns: 1fr !important;
   }
 }
