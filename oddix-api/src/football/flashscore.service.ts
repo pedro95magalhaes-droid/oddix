@@ -411,7 +411,15 @@ export class FlashScoreService {
 
   async getStats(matchId: string): Promise<ProviderResult<any | null>> {
     const response = await this.request('/api/flashscore/v2/matches/match/stats', { match_id: matchId });
-    if (!response.ok) return { ok: false, data: null, error: response.error };
+
+    if (!response.ok || !response.data) {
+      return {
+        ok: false,
+        data: null,
+        error: response.error || 'FlashScore não retornou estatísticas',
+      };
+    }
+
     return { ok: true, data: response.data, error: null };
   }
 
@@ -435,11 +443,70 @@ export class FlashScoreService {
 
   private extractStatRows(data: any): any[] {
     if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.statistics)) return data.statistics;
-    if (Array.isArray(data?.stats)) return data.stats;
-    if (Array.isArray(data?.data?.statistics)) return data.data.statistics;
-    if (Array.isArray(data?.data?.stats)) return data.data.stats;
-    if (Array.isArray(data?.response?.statistics)) return data.response.statistics;
+
+    const candidates = [
+      data?.statistics,
+      data?.stats,
+      data?.matchStats,
+      data?.match_stats,
+      data?.items,
+      data?.rows,
+      data?.data,
+      data?.DATA,
+      data?.response,
+      data?.result,
+      data?.payload,
+      data?.data?.statistics,
+      data?.data?.stats,
+      data?.data?.matchStats,
+      data?.data?.match_stats,
+      data?.data?.items,
+      data?.data?.rows,
+      data?.DATA?.statistics,
+      data?.DATA?.stats,
+      data?.DATA?.matchStats,
+      data?.DATA?.match_stats,
+      data?.response?.statistics,
+      data?.response?.stats,
+      data?.response?.matchStats,
+      data?.response?.match_stats,
+      data?.result?.statistics,
+      data?.result?.stats,
+      data?.result?.matchStats,
+      data?.payload?.statistics,
+      data?.payload?.stats,
+      data?.payload?.matchStats,
+    ];
+
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) return candidate;
+    }
+
+    // Alguns endpoints retornam grupos/seções: [{ groupName, statistics: [...] }]
+    const sectionSources = [
+      data?.data?.groups,
+      data?.DATA?.groups,
+      data?.response?.groups,
+      data?.groups,
+      data?.data?.sections,
+      data?.DATA?.sections,
+      data?.response?.sections,
+      data?.sections,
+    ];
+
+    for (const source of sectionSources) {
+      if (!Array.isArray(source)) continue;
+      const rows = source.flatMap((section: any) => {
+        if (Array.isArray(section?.statistics)) return section.statistics;
+        if (Array.isArray(section?.stats)) return section.stats;
+        if (Array.isArray(section?.items)) return section.items;
+        if (Array.isArray(section?.rows)) return section.rows;
+        return [];
+      });
+
+      if (rows.length) return rows;
+    }
+
     return [];
   }
 
@@ -451,16 +518,79 @@ export class FlashScoreService {
   }
 
   private normalizeStatType(name: any) {
-    const n = String(name || '').toLowerCase();
+    const n = String(name || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
     if (n.includes('possession') || n.includes('posse')) return 'Ball Possession';
     if (n.includes('corner') || n.includes('escante')) return 'Corner Kicks';
-    if (n.includes('shots on') || n.includes('on target') || n.includes('chutes no gol')) return 'Shots on Goal';
-    if (n.includes('shot') || n.includes('chute') || n.includes('finaliza')) return 'Total Shots';
+    if (n.includes('shots on') || n.includes('on target') || n.includes('target') || n.includes('chutes no gol')) return 'Shots on Goal';
+    if (n.includes('shot') || n.includes('chute') || n.includes('finaliza') || n.includes('attempt')) return 'Total Shots';
     if (n.includes('yellow') || n.includes('amarelo')) return 'Yellow Cards';
     if (n.includes('red') || n.includes('vermelho')) return 'Red Cards';
     if (n.includes('foul') || n.includes('falta')) return 'Fouls';
-    if (n.includes('offside')) return 'Offsides';
+    if (n.includes('offside') || n.includes('impedimento')) return 'Offsides';
+    if (n.includes('attack') || n.includes('ataque')) return 'Attacks';
+    if (n.includes('dangerous') || n.includes('perigoso')) return 'Dangerous Attacks';
+
     return String(name || 'Stat');
+  }
+
+  private readStatName(row: any) {
+    return (
+      row?.name ||
+      row?.type ||
+      row?.title ||
+      row?.statName ||
+      row?.stat_name ||
+      row?.label ||
+      row?.key ||
+      row?.category ||
+      row?.incidentType ||
+      row?.text ||
+      'Stat'
+    );
+  }
+
+  private readHomeStatValue(row: any) {
+    return (
+      row?.home ??
+      row?.homeValue ??
+      row?.homeTeam ??
+      row?.valueHome ??
+      row?.home_value ??
+      row?.homeStat ??
+      row?.home_stat ??
+      row?.values?.home ??
+      row?.value?.home ??
+      row?.home?.value ??
+      row?.home?.stat ??
+      row?.home?.display ??
+      row?.participants?.home ??
+      row?.competitors?.home ??
+      row?.[0]
+    );
+  }
+
+  private readAwayStatValue(row: any) {
+    return (
+      row?.away ??
+      row?.awayValue ??
+      row?.awayTeam ??
+      row?.valueAway ??
+      row?.away_value ??
+      row?.awayStat ??
+      row?.away_stat ??
+      row?.values?.away ??
+      row?.value?.away ??
+      row?.away?.value ??
+      row?.away?.stat ??
+      row?.away?.display ??
+      row?.participants?.away ??
+      row?.competitors?.away ??
+      row?.[1]
+    );
   }
 
   mapStatsToOddix(fixtureId: string, statsData: any) {
@@ -469,24 +599,32 @@ export class FlashScoreService {
     const awayStats: any[] = [];
 
     for (const row of rows) {
-      const type = this.normalizeStatType(row?.name || row?.type || row?.title || row?.statName);
-      const home = this.statNumber(row?.home ?? row?.homeValue ?? row?.homeTeam ?? row?.valueHome);
-      const away = this.statNumber(row?.away ?? row?.awayValue ?? row?.awayTeam ?? row?.valueAway);
+      if (!row || typeof row !== 'object') continue;
+
+      const type = this.normalizeStatType(this.readStatName(row));
+      const home = this.statNumber(this.readHomeStatValue(row));
+      const away = this.statNumber(this.readAwayStatValue(row));
 
       if (home !== null) homeStats.push({ type, value: home });
       if (away !== null) awayStats.push({ type, value: away });
     }
 
+    const available = homeStats.length > 0 || awayStats.length > 0;
+
     return {
-      available: homeStats.length > 0 || awayStats.length > 0,
+      available,
       simulated: false,
       fixtureId,
       source: 'flashscore',
-      message: homeStats.length > 0 || awayStats.length > 0 ? 'Estatísticas reais da FlashScore.' : 'Sem estatísticas reais disponíveis na FlashScore.',
-      teams: [
-        { team: { id: 0, name: 'Casa', logo: '' }, statistics: homeStats },
-        { team: { id: 0, name: 'Fora', logo: '' }, statistics: awayStats },
-      ],
+      message: available
+        ? 'Estatísticas reais da FlashScore.'
+        : 'Sem estatísticas reais disponíveis na FlashScore.',
+      teams: available
+        ? [
+            { team: { id: 0, name: 'Casa', logo: '' }, statistics: homeStats },
+            { team: { id: 0, name: 'Fora', logo: '' }, statistics: awayStats },
+          ]
+        : [],
       raw: statsData,
     };
   }
