@@ -239,6 +239,30 @@ export class ResultsCronService {
     );
   }
 
+  private shouldTreatStaleLiveAsFinished(params: {
+    statusShort: string;
+    statusLong: string;
+    elapsed: any;
+    fixtureDate: any;
+  }) {
+    const short = String(params.statusShort || "").toUpperCase();
+    const long = this.normalize(params.statusLong || "");
+    const elapsed = Number(params.elapsed || 0);
+    const hoursSinceGame = this.hoursSinceDate(params.fixtureDate);
+
+    if (this.isFinished(short, long)) return true;
+    if (this.isCanceled(short, long)) return false;
+
+    // Alguns providers ficam travados em 2H/90+ e nunca mandam FT.
+    // Depois de 2h do início, se já passou de 89', tratamos como finalizado
+    // para resolver mercados de gols pelo placar real e não deixar OPEN eterno.
+    if (["2H", "LIVE", "IN_PLAY"].includes(short) && elapsed >= 89 && hoursSinceGame >= 2) {
+      return true;
+    }
+
+    return false;
+  }
+
   private isCanceled(statusShort: string, statusLong: string) {
     const short = String(statusShort || "").toUpperCase();
     const long = this.normalize(statusLong);
@@ -1132,32 +1156,68 @@ export class ResultsCronService {
           continue;
         }
 
-        const fixture = await this.footballService.getFixtureById(fixtureId);
+        let fixture = await this.footballService.getFixtureById(fixtureId);
+
+        if (!fixture) {
+          fixture = await this.footballService.findFixtureByTeamsAndDate(
+            bet.homeTeam,
+            bet.awayTeam,
+            bet.gameDate || bet.createdAt,
+          );
+        }
 
         if (!fixture) {
           if (betAgeHours >= maxHours) {
             await this.closeBetSilently(
               bet,
               "expired",
-              "fixture não encontrado e passou do limite",
+              "fixture não encontrado por ID nem por times/data e passou do limite",
             );
           }
 
           this.logger.warn(
-            `⚠️ Fixture não encontrado para bet aberta: ${bet.homeTeam} x ${bet.awayTeam} | fixtureId=${fixtureId}`,
+            `⚠️ Fixture não encontrado por ID nem por times/data: ${bet.homeTeam} x ${bet.awayTeam} | fixtureId=${fixtureId}`,
           );
           continue;
         }
 
-        const statusShort = String(fixture?.fixture?.status?.short || "");
-        const statusLong = String(fixture?.fixture?.status?.long || "");
-        const fixtureDate =
+        let statusShort = String(fixture?.fixture?.status?.short || "");
+        let statusLong = String(fixture?.fixture?.status?.long || "");
+        let fixtureDate =
           fixture?.fixture?.date || bet?.gameDate || bet?.createdAt;
-        const hoursSinceGame = this.hoursSinceDate(fixtureDate);
+        let hoursSinceGame = this.hoursSinceDate(fixtureDate);
         const staleHours = this.staleOpenBetHours();
 
-        if (
+        const shouldRefreshByTeams =
           !this.isFinished(statusShort, statusLong) &&
+          !this.isCanceled(statusShort, statusLong) &&
+          hoursSinceGame >= 2;
+
+        if (shouldRefreshByTeams) {
+          const foundByTeams = await this.footballService.findFixtureByTeamsAndDate(
+            bet.homeTeam,
+            bet.awayTeam,
+            bet.gameDate || fixtureDate || bet.createdAt,
+          );
+
+          if (foundByTeams) {
+            fixture = foundByTeams;
+            statusShort = String(fixture?.fixture?.status?.short || "");
+            statusLong = String(fixture?.fixture?.status?.long || "");
+            fixtureDate = fixture?.fixture?.date || bet?.gameDate || bet?.createdAt;
+            hoursSinceGame = this.hoursSinceDate(fixtureDate);
+          }
+        }
+
+        const inferredFinished = this.shouldTreatStaleLiveAsFinished({
+          statusShort,
+          statusLong,
+          elapsed: fixture?.fixture?.status?.elapsed,
+          fixtureDate,
+        });
+
+        if (
+          !inferredFinished &&
           !this.isCanceled(statusShort, statusLong) &&
           hoursSinceGame >= staleHours
         ) {
@@ -1178,8 +1238,9 @@ export class ResultsCronService {
           continue;
         }
 
-        const finished = this.isFinished(statusShort, statusLong);
-        const stats = await this.footballService.getStatistics(fixtureId);
+        const finished = inferredFinished;
+        const statsFixtureId = String(fixture?.fixture?.id || fixtureId);
+        const stats = await this.footballService.getStatistics(statsFixtureId);
         const statTotals = this.extractStatTotals(stats);
         const goals = this.getGoals(fixture);
 

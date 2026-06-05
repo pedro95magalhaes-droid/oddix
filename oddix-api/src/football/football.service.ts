@@ -2287,6 +2287,133 @@ export class FootballService {
     return cached || null;
   }
 
+
+  async findFixtureByTeamsAndDate(
+    homeTeam: string,
+    awayTeam: string,
+    gameDate?: Date | string | null,
+  ) {
+    const targetDate = gameDate ? new Date(gameDate) : new Date();
+    const safeTargetDate =
+      targetDate instanceof Date && !Number.isNaN(targetDate.getTime())
+        ? targetDate
+        : new Date();
+
+    const targetDateKey = this.brazilDateKey(safeTargetDate);
+    const searchDates = [
+      this.addDays(targetDateKey, -1),
+      targetDateKey,
+      this.addDays(targetDateKey, 1),
+    ];
+
+    const targetHome = this.normalizeName(homeTeam || "");
+    const targetAway = this.normalizeName(awayTeam || "");
+
+    if (!targetHome || !targetAway) return null;
+
+    const isNameMatch = (expected: string, actual: string) => {
+      if (!expected || !actual) return false;
+      if (expected === actual) return true;
+      if (expected.length >= 5 && actual.includes(expected)) return true;
+      if (actual.length >= 5 && expected.includes(actual)) return true;
+
+      const expectedChunks = expected.match(/[a-z0-9]{3,}/g) || [];
+      const actualChunks = actual.match(/[a-z0-9]{3,}/g) || [];
+      if (!expectedChunks.length || !actualChunks.length) return false;
+
+      const hits = expectedChunks.filter((chunk) => actualChunks.some((item) => item.includes(chunk) || chunk.includes(item))).length;
+      return hits >= Math.max(1, Math.ceil(expectedChunks.length * 0.55));
+    };
+
+    const scoreCandidate = (raw: any) => {
+      const item = this.standardizeFixture(raw);
+      if (!item) return -1;
+
+      const home = this.normalizeName(this.getTeamName(this.getHomeTeam(item)));
+      const away = this.normalizeName(this.getTeamName(this.getAwayTeam(item)));
+      const direct = isNameMatch(targetHome, home) && isNameMatch(targetAway, away);
+      const swapped = isNameMatch(targetHome, away) && isNameMatch(targetAway, home);
+      if (!direct && !swapped) return -1;
+
+      const rawDate = this.getFixtureDateValue(item);
+      const fixtureTime = rawDate ? new Date(rawDate).getTime() : 0;
+      const targetTime = safeTargetDate.getTime();
+      const diffHours = fixtureTime && !Number.isNaN(fixtureTime)
+        ? Math.abs(fixtureTime - targetTime) / 1000 / 60 / 60
+        : 999;
+
+      // Aposta pode ter sido salva no live com horário ligeiramente diferente do provider.
+      if (diffHours > 30) return -1;
+
+      const statusShort = String(item?.fixture?.status?.short || "").toUpperCase();
+      const statusLong = String(item?.fixture?.status?.long || "");
+      const finished = this.isFinishedStatus(statusShort, statusLong) ? 100 : 0;
+      const scoreKnown =
+        item?.goals?.home !== null &&
+        item?.goals?.home !== undefined &&
+        item?.goals?.away !== null &&
+        item?.goals?.away !== undefined
+          ? 35
+          : 0;
+      const providerScore = this.fixtureQualityScore(item);
+      const dateScore = Math.max(0, 30 - diffHours);
+      const orientationScore = direct ? 20 : 8;
+
+      return finished + scoreKnown + providerScore + dateScore + orientationScore;
+    };
+
+    const providerGroups: any[][] = [];
+
+    for (const date of searchDates) {
+      const cached = await this.getFixturesFromCache(date);
+      if (cached.length > 0) providerGroups.push(cached);
+
+      const flashScore = await this.getFixturesFromFlashScore(date);
+      if (flashScore.ok && flashScore.data.length > 0) providerGroups.push(flashScore.data);
+
+      const fotmob = await this.getFixturesFromFotmob(date);
+      if (fotmob.ok && fotmob.data.length > 0) providerGroups.push(fotmob.data);
+
+      const sportScore = await this.getFixturesFromSportScore(date);
+      if (sportScore.ok && sportScore.data.length > 0) providerGroups.push(sportScore.data);
+
+      const allScores = await this.getFixturesFromAllScores(date);
+      if (allScores.ok && allScores.data.length > 0) providerGroups.push(allScores.data);
+
+      const sportsDb = await this.getFixturesFromSportsDb(date);
+      if (sportsDb.ok && sportsDb.data.length > 0) providerGroups.push(sportsDb.data);
+
+      if (this.getApiFootballKey() && !this.isApiFootballBlocked()) {
+        const apiFootball = await this.getFixturesFromApiFootball(date);
+        if (apiFootball.ok && apiFootball.data.length > 0) providerGroups.push(apiFootball.data);
+      }
+
+      const sportmonks = await this.getFixturesFromSportmonks(date);
+      if (sportmonks.ok && sportmonks.data.length > 0) providerGroups.push(sportmonks.data);
+
+      const footballData = await this.getFixturesFromFootballData(date);
+      if (footballData.ok && footballData.data.length > 0) providerGroups.push(footballData.data);
+    }
+
+    const sportScore6 = await this.getFixturesFromSportScore6(targetDateKey);
+    if (sportScore6.ok && sportScore6.data.length > 0) providerGroups.push(sportScore6.data);
+
+    const candidates = this.mergeUniqueFixtures(providerGroups)
+      .map((item: any) => this.standardizeFixture(item))
+      .map((item: any) => ({ item, score: scoreCandidate(item) }))
+      .filter((entry: any) => entry.score >= 0)
+      .sort((a: any, b: any) => b.score - a.score);
+
+    const best = candidates[0]?.item || null;
+
+    if (best) {
+      await this.saveFixturesCache([best]);
+      return this.enrichFixtureForOddix(best);
+    }
+
+    return null;
+  }
+
   async getLeagues() {
     const apiKey = this.getSportmonksKey();
     if (!apiKey) return [];
