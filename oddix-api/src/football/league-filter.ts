@@ -236,6 +236,11 @@ const HARD_LOW_LEAGUE_PATTERNS = [
 ];
 
 const WEAK_COUNTRY_PATTERNS = [
+  /\balgeria\b/,
+  /\bargelia\b/,
+  /\bargélia\b/,
+  /\btunisia\b/,
+  /\btunisia\b/,
   /\bsudan\b/,
   /\bsudao\b/,
   /\bsudão\b/,
@@ -268,6 +273,103 @@ const WEAK_COUNTRY_PATTERNS = [
   /\bbangladesh\b/,
   /\bpanama\b/,
   /\blaos\b/,
+];
+
+
+const LIVE_BLOCKED_COUNTRY_PATTERNS = [
+  /algeria/,
+  /argelia/,
+  /argélia/,
+  /argelia\s*:\s*ligue\s*1/,
+  /algeria\s*:\s*ligue\s*1/,
+  /tunisia/,
+  /tunisia\s*:\s*ligue\s*1/,
+  /tunisia\s*:\s*professional\s*league/,
+  /tunisia\s*:\s*ligue\s*professionnelle/,
+  /tunisia\s*ligue\s*1/,
+  /tunisia\s*professional\s*league/,
+  /tunisia\s*ligue\s*professionnelle/,
+  /tunisia\s*ligue\s*pro/,
+  /tunisia\s*pro/,
+  /tunisia\s*1/,
+  /tunisia\s*2/,
+  /tunisia\s*division/,
+  /tunisia\s*cup/,
+  /tunisia\s*super\s*cup/,
+  /tunisia\s*play\s*off/,
+  /tunisia\s*playoff/,
+  /tunisia\s*championship/,
+  /tunisia\s*championship\s*group/,
+  /tunisia\s*relegation/,
+  /tunisia\s*relegation\s*group/,
+  /tunisia\s*promotion/,
+  /tunisia\s*promotion\s*group/,
+  /tunisia\s*reserve/,
+  /tunisia\s*u\d{2}/,
+  /tunisia\s*women/,
+  /tunisia\s*feminino/,
+  /tunisia\s*feminina/,
+  /tunisia\s*female/,
+  /tunisia\s*amateur/,
+  /tunisia\s*friendly/,
+  /tunisia\s*amistoso/,
+  /tunisia\s*simulated/,
+  /tunisia\s*simulado/,
+  /tunisia\s*esoccer/,
+  /sudan/,
+  /sudao/,
+  /sudão/,
+  /eth[ií]opia/,
+  /etiopia/,
+  /etiópia/,
+  /dr congo/,
+  /rd congo/,
+  /congo/,
+  /libya/,
+  /libia/,
+  /líbia/,
+  /irn/,
+  /iran/,
+  /ira/,
+  /iraq/,
+  /iraque/,
+  /irã/,
+  /finland/,
+  /finlandia/,
+  /finlândia/,
+  /vietnam/,
+  /aruba/,
+  /sierra leone/,
+  /indonesia/,
+  /myanmar/,
+  /cambodia/,
+  /nepal/,
+  /bangladesh/,
+  /panama/,
+  /laos/,
+];
+
+const LIVE_ALLOWED_PREMIUM_PATTERNS = [
+  /uefa champions league|champions league/,
+  /copa libertadores|libertadores/,
+  /uefa europa league|europa league/,
+  /uefa conference league|conference league/,
+  /sudamericana|sul americana|copa sudamericana/,
+  /brasileirao serie a|brasileirao a|brasileiro serie a|brasil serie a|brazil serie a/,
+  /brasileirao serie b|brasileirao b|brasileiro serie b|brasil serie b|brazil serie b/,
+  /copa do brasil/,
+  /premier league/,
+  /efl championship|championship.*england|england.*championship/,
+  /la liga|laliga/,
+  /bundesliga/,
+  /serie a.*italy|italy.*serie a|italia.*serie a|it[aá]lia.*serie a/,
+  /ligue 1.*france|france.*ligue 1|franca.*ligue 1|frança.*ligue 1/,
+  /primeira liga|liga portugal/,
+  /eredivisie/,
+  /argentina primera division|primera division argentina|liga profesional/,
+  /liga mx/,
+  /major league soccer|mls/,
+  /fifa|world cup|copa do mundo|nations league|euro/,
 ];
 
 const LOW_QUALITY_PATTERNS = [
@@ -379,6 +481,39 @@ function explicitLeagueScore(item: OddixFixtureLike) {
   }
 
   return 0;
+}
+
+
+export function isOddixLiveBlockedLeague(item: OddixFixtureLike) {
+  const fullText = normalizeText(getOddixFullSearchText(item));
+  if (!fullText) return false;
+
+  if (isOddixBlockedLeague(item)) return true;
+  if (has(LIVE_BLOCKED_COUNTRY_PATTERNS, fullText)) return true;
+  if (has(HARD_LOW_LEAGUE_PATTERNS, fullText)) return true;
+
+  const blockLowQualityLive = process.env.ODDIX_LIVE_BLOCK_LOW_QUALITY_LEAGUES !== 'false';
+  if (blockLowQualityLive && has(LOW_QUALITY_PATTERNS, fullText)) return true;
+
+  return false;
+}
+
+export function isOddixLivePremiumLeague(item: OddixFixtureLike) {
+  const fullText = normalizeText(getOddixFullSearchText(item));
+  if (!fullText) return false;
+
+  if (isOddixLiveBlockedLeague(item)) return false;
+  if (has(LIVE_ALLOWED_PREMIUM_PATTERNS, fullText)) return true;
+
+  const minLiveScore = Number(process.env.ODDIX_LIVE_MIN_PREMIUM_LEAGUE_SCORE || 82);
+  return explicitLeagueScore(item) >= minLiveScore;
+}
+
+export function getOddixLiveQualityLabel(item: OddixFixtureLike, hasRealStats = false) {
+  if (isOddixLiveBlockedLeague(item)) return 'bloqueada';
+  if (hasRealStats && isOddixLivePremiumLeague(item)) return 'live-premium';
+  if (isOddixLivePremiumLeague(item)) return 'live-limitada';
+  return 'live-bloqueada';
 }
 
 export function isOddixBlockedLeague(item: OddixFixtureLike) {
