@@ -1,10 +1,10 @@
-import { Injectable } from '@nestjs/common';
-import { MarketsService } from '../markets/markets.service';
-import { OddsService } from '../odds/odds.service';
-import { OddixConfidenceEngineService } from './oddix-confidence-engine.service';
-import { OddixBoostV2Service } from './oddix-boost-v2.service';
+import { Injectable } from "@nestjs/common";
+import { MarketsService } from "../markets/markets.service";
+import { OddsService } from "../odds/odds.service";
+import { OddixConfidenceEngineService } from "./oddix-confidence-engine.service";
+import { OddixBoostV2Service } from "./oddix-boost-v2.service";
 
-type RiskLevel = 'Baixo' | 'Médio' | 'Alto';
+type RiskLevel = "Baixo" | "Médio" | "Alto";
 
 @Injectable()
 export class AiService {
@@ -17,12 +17,16 @@ export class AiService {
   ) {}
 
   async generateBet(game: any) {
-    const homeTeam = game.homeTeam || game.teams?.home?.name || 'Time Casa';
-    const awayTeam = game.awayTeam || game.teams?.away?.name || 'Time Visitante';
-    const league = game.leagueName || game.league?.name || game.league || 'Liga';
+    const homeTeam = game.homeTeam || game.teams?.home?.name || "Time Casa";
+    const awayTeam =
+      game.awayTeam || game.teams?.away?.name || "Time Visitante";
+    const league =
+      game.leagueName || game.league?.name || game.league || "Liga";
 
-    const statusShort = game.status?.short || game.fixture?.status?.short || '';
-    const elapsed = Number(game.status?.elapsed || game.fixture?.status?.elapsed || 0);
+    const statusShort = game.status?.short || game.fixture?.status?.short || "";
+    const elapsed = Number(
+      game.status?.elapsed || game.fixture?.status?.elapsed || 0,
+    );
 
     const score = game.score || game.goals || {};
     const homeGoals = Number(score.home ?? score?.fulltime?.home ?? 0);
@@ -47,6 +51,10 @@ export class AiService {
     // a IA deixa de usar apenas seed simulada e passa a ponderar posse,
     // finalizações, chutes no gol, escanteios e cartões reais.
     context = this.applyRealStatsToContext(context, game);
+    context = {
+      ...context,
+      ...this.getLiveQualityGate(context, league),
+    };
 
     const realOdds = await this.oddsService.getBestOdds({
       homeTeam,
@@ -55,11 +63,11 @@ export class AiService {
     });
 
     const playerProps = realOdds.filter((pick: any) =>
-      String(pick.marketKey || '').startsWith('player_'),
+      String(pick.marketKey || "").startsWith("player_"),
     );
 
-    const gameOdds = realOdds.filter((pick: any) =>
-      !String(pick.marketKey || '').startsWith('player_'),
+    const gameOdds = realOdds.filter(
+      (pick: any) => !String(pick.marketKey || "").startsWith("player_"),
     );
 
     const flatMarkets = this.marketsService.getFlatMarkets();
@@ -85,7 +93,9 @@ export class AiService {
 
         const tip = this.sanitizeTip(rawTip, homeTeam, awayTeam, context);
         const realOdd = this.findRealOddForMarket(gameOdds, market.key, tip);
-        const odd = realOdd?.odd || this.generateOdd(market.key, confidence, context, marketSeed);
+        const odd =
+          realOdd?.odd ||
+          this.generateOdd(market.key, confidence, context, marketSeed);
         const risk = this.getRisk(confidence, market.key, context);
 
         return {
@@ -97,7 +107,7 @@ export class AiService {
           confidence,
           risk,
           bookmaker: realOdd?.bookmaker || null,
-          oddsSource: realOdd ? 'the-odds-api' : 'oddix-estimada',
+          oddsSource: realOdd ? "the-odds-api" : "oddix-estimada",
           isRealOdd: !!realOdd,
           reason: this.generateProfessionalReason(
             market.name,
@@ -115,54 +125,86 @@ export class AiService {
 
     const bestMarkets = generatedMarkets
       .sort((a, b) => {
-        const scoreA = this.marketScore(a.confidence, a.odd, a.risk, context, a.key);
-        const scoreB = this.marketScore(b.confidence, b.odd, b.risk, context, b.key);
+        const scoreA = this.marketScore(
+          a.confidence,
+          a.odd,
+          a.risk,
+          context,
+          a.key,
+        );
+        const scoreB = this.marketScore(
+          b.confidence,
+          b.odd,
+          b.risk,
+          context,
+          b.key,
+        );
         return scoreB - scoreA;
       })
       .slice(0, 5);
 
     const playerPropMarkets = playerProps
+      .filter(() => !context.isLive || context.realStatsAvailable === true)
       .filter((prop: any) => {
-        const key = String(prop.marketKey || '');
-        if (key === 'player_goal_scorer_anytime' && process.env.ODDIX_ALLOW_ANYTIME_SCORER !== 'true') return false;
-        return ['player_shots_on_target', 'player_shots', 'player_assists', 'player_goal_scorer_anytime'].includes(key);
+        const key = String(prop.marketKey || "");
+        if (
+          key === "player_goal_scorer_anytime" &&
+          process.env.ODDIX_ALLOW_ANYTIME_SCORER !== "true"
+        )
+          return false;
+        return [
+          "player_shots_on_target",
+          "player_shots",
+          "player_assists",
+          "player_goal_scorer_anytime",
+        ].includes(key);
       })
       .filter((prop: any) => Number(prop.odd || 0) >= 1.18)
-      .filter((prop: any) => Number(prop.odd || 0) <= Number(process.env.ODDIX_PLAYER_PROP_MAX_ODD || 3.0))
+      .filter(
+        (prop: any) =>
+          Number(prop.odd || 0) <=
+          Number(process.env.ODDIX_PLAYER_PROP_MAX_ODD || 3.0),
+      )
       .map((prop: any, index: number) => {
-        const key = String(prop.marketKey || '');
-        const isSot = key === 'player_shots_on_target';
-        const isShots = key === 'player_shots';
-        const isAssist = key === 'player_assists';
-        const isScorer = key === 'player_goal_scorer_anytime';
+        const key = String(prop.marketKey || "");
+        const isSot = key === "player_shots_on_target";
+        const isShots = key === "player_shots";
+        const isAssist = key === "player_assists";
+        const isScorer = key === "player_goal_scorer_anytime";
         const odd = Number(prop.odd || 0);
 
         let confidence = isSot
           ? 88 - index
           : isShots
-          ? 85 - index
-          : isAssist
-          ? 76 - index
-          : 72 - index;
+            ? 85 - index
+            : isAssist
+              ? 76 - index
+              : 72 - index;
 
-        if (context.isLive && context.elapsed > 0 && context.elapsed <= 70) confidence += 2;
+        if (context.isLive && context.elapsed > 0 && context.elapsed <= 70)
+          confidence += 2;
         if (context.shotTrend >= 70 && (isSot || isShots)) confidence += 3;
         if (odd >= 2.4) confidence -= 4;
         if (odd >= 2.8) confidence -= 5;
         if (isScorer) confidence -= 8;
 
-        confidence = Math.max(isSot ? 76 : isShots ? 74 : 68, Math.min(91, Math.round(confidence)));
+        confidence = Math.max(
+          isSot ? 76 : isShots ? 74 : 68,
+          Math.min(91, Math.round(confidence)),
+        );
 
-        const risk = (isScorer || odd >= 2.65
-          ? 'Alto'
-          : confidence >= 82 && odd <= 2.15
-          ? 'Baixo'
-          : 'Médio') as RiskLevel;
+        const risk = (
+          isScorer || odd >= 2.65
+            ? "Alto"
+            : confidence >= 82 && odd <= 2.15
+              ? "Baixo"
+              : "Médio"
+        ) as RiskLevel;
 
         return {
           key,
-          category: 'Player Props',
-          market: prop.marketName || 'Player Props',
+          category: "Player Props",
+          market: prop.marketName || "Player Props",
           player: prop.player || prop.playerName || null,
           playerPhoto: prop.playerPhoto || prop.photo || null,
           tip: prop.tip,
@@ -170,7 +212,7 @@ export class AiService {
           confidence,
           risk,
           bookmaker: prop.bookmaker,
-          oddsSource: prop.source || 'the-odds-api',
+          oddsSource: prop.source || "the-odds-api",
           isRealOdd: true,
           point: prop.point ?? null,
           eventId: prop.eventId ?? null,
@@ -179,24 +221,50 @@ export class AiService {
       });
 
     const mergedMarkets = [...playerPropMarkets, ...bestMarkets]
-      .filter((market) => market.risk !== 'Alto')
-      .filter((market) => Number(market.confidence || 0) >= 70)
+      .filter((market) => market.risk !== "Alto")
+      .filter(
+        (market) =>
+          Number(market.confidence || 0) >=
+          Number(context.minSendConfidence || 70),
+      )
       .sort((a, b) => {
-        const scoreA = this.marketScore(a.confidence, a.odd, a.risk, context, a.key);
-        const scoreB = this.marketScore(b.confidence, b.odd, b.risk, context, b.key);
+        const scoreA = this.marketScore(
+          a.confidence,
+          a.odd,
+          a.risk,
+          context,
+          a.key,
+        );
+        const scoreB = this.marketScore(
+          b.confidence,
+          b.odd,
+          b.risk,
+          context,
+          b.key,
+        );
         return scoreB - scoreA;
       })
       .slice(0, 5);
 
-    const fallback = this.safeFallbackMarket(homeTeam, awayTeam, league, context);
+    const fallback = this.safeFallbackMarket(
+      homeTeam,
+      awayTeam,
+      league,
+      context,
+    );
     fallback.tip = this.sanitizeTip(fallback.tip, homeTeam, awayTeam, context);
 
     const rawFinalMarkets = mergedMarkets.length ? mergedMarkets : [fallback];
 
     const finalMarkets = this.oddixBoostV2.selectBestMarkets(
       rawFinalMarkets
-        .map((market: any) => this.applyConfidenceEngine(market, context, homeTeam, awayTeam, game))
-        .filter((market: any) => market.oddixEngine?.send || Number(market.confidence || 0) >= 80),
+        .map((market: any) =>
+          this.applyConfidenceEngine(market, context, homeTeam, awayTeam, game),
+        )
+        .filter(
+          (market: any) =>
+            market.oddixEngine?.send || Number(market.confidence || 0) >= 80,
+        ),
       {
         isLive: context.isLive,
         elapsed: context.elapsed,
@@ -207,9 +275,19 @@ export class AiService {
       5,
     );
 
-    const safeFinalMarkets = finalMarkets.length
-      ? finalMarkets
-      : [this.applyConfidenceEngine(fallback, context, homeTeam, awayTeam, game)];
+    const safeFinalMarkets = context.liveQualityBlocked
+      ? [this.buildBlockedLiveMarket(homeTeam, awayTeam, league, context)]
+      : finalMarkets.length
+        ? finalMarkets
+        : [
+            this.applyConfidenceEngine(
+              fallback,
+              context,
+              homeTeam,
+              awayTeam,
+              game,
+            ),
+          ];
 
     const best = safeFinalMarkets[0];
 
@@ -219,14 +297,23 @@ export class AiService {
       homeTeam,
       awayTeam,
       league,
-      status: 'open',
+      status: "open",
       sources: {
-        matchData: game.provider || game.sources?.matchData || 'api-football/sportmonks',
-        odds: safeFinalMarkets.some((market: any) => market.isRealOdd) ? 'the-odds-api' : 'oddix-estimada',
-        confidenceEngine: 'oddix-confidence-engine-v1',
+        matchData:
+          game.provider || game.sources?.matchData || "api-football/sportmonks",
+        odds: safeFinalMarkets.some((market: any) => market.isRealOdd)
+          ? "the-odds-api"
+          : "oddix-estimada",
+        confidenceEngine: "oddix-confidence-engine-v1",
         realOddsCount: realOdds.length,
         playerPropsCount: playerPropMarkets.length,
-        estimatedOddsCount: safeFinalMarkets.filter((market: any) => !market.isRealOdd).length,
+        estimatedOddsCount: safeFinalMarkets.filter(
+          (market: any) => !market.isRealOdd,
+        ).length,
+        realStatsAvailable: context.realStatsAvailable === true,
+        liveQualityLevel: context.liveQualityLevel || "PREMATCH",
+        liveQualityBlocked: context.liveQualityBlocked === true,
+        liveQualityReason: context.liveQualityReason || null,
       },
 
       tip: this.sanitizeTip(best.tip, homeTeam, awayTeam, context),
@@ -234,11 +321,11 @@ export class AiService {
       confidence: best.confidence,
       risk: best.risk,
       engineScore: best.oddixEngine?.score ?? best.confidence,
-      engineLevel: best.oddixEngine?.level || 'BOM',
-      engineCategory: best.oddixEngine?.category || 'SAFE',
+      engineLevel: best.oddixEngine?.level || "BOM",
+      engineCategory: best.oddixEngine?.category || "SAFE",
       dominanceHome: best.oddixEngine?.dominanceHome ?? 50,
       dominanceAway: best.oddixEngine?.dominanceAway ?? 50,
-      dominantTeam: best.oddixEngine?.dominantTeam || 'Jogo equilibrado',
+      dominantTeam: best.oddixEngine?.dominantTeam || "Jogo equilibrado",
       engineReasons: best.oddixEngine?.reasons || [],
 
       markets: safeFinalMarkets.map((market) => ({
@@ -274,32 +361,39 @@ export class AiService {
     };
   }
 
-
   private mapGeneratedMarketToOddsKeys(key: string) {
     const map: Record<string, string[]> = {
-      resultado_final: ['h2h'],
-      total_gols: ['totals'],
-      ao_vivo: ['totals'],
-      ambas_marcam: ['btts'],
-      handicap_asiatico: ['spreads'],
-      handicap_europeu: ['spreads'],
+      resultado_final: ["h2h"],
+      total_gols: ["totals"],
+      ao_vivo: ["totals"],
+      ambas_marcam: ["btts"],
+      handicap_asiatico: ["spreads"],
+      handicap_europeu: ["spreads"],
     };
 
     return map[key] || [];
   }
 
-  private findRealOddForMarket(realOdds: any[], marketKey: string, generatedTip: string) {
+  private findRealOddForMarket(
+    realOdds: any[],
+    marketKey: string,
+    generatedTip: string,
+  ) {
     const allowedKeys = this.mapGeneratedMarketToOddsKeys(marketKey);
     if (!allowedKeys.length) return null;
 
     const normalizedTip = this.normalizeText(generatedTip);
-    const candidates = (realOdds || []).filter((odd) => allowedKeys.includes(odd.marketKey));
+    const candidates = (realOdds || []).filter((odd) =>
+      allowedKeys.includes(odd.marketKey),
+    );
 
     if (!candidates.length) return null;
 
     const exact = candidates.find((odd) => {
       const tip = this.normalizeText(odd.tip);
-      return tip && (normalizedTip.includes(tip) || tip.includes(normalizedTip));
+      return (
+        tip && (normalizedTip.includes(tip) || tip.includes(normalizedTip))
+      );
     });
 
     if (exact) return exact;
@@ -338,31 +432,205 @@ export class AiService {
   }
 
   private normalizeText(text: any) {
-    return String(text || '')
+    return String(text || "")
       .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, ' ')
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
       .trim();
+  }
+
+  private isPremiumLiveLeague(league: any) {
+    const normalized = this.normalizeText(league);
+
+    const premiumWords = [
+      "brasileirao",
+      "brasil serie a",
+      "brazil serie a",
+      "brasil serie b",
+      "brazil serie b",
+      "copa do brasil",
+      "libertadores",
+      "sudamericana",
+      "sul americana",
+      "champions league",
+      "europa league",
+      "conference league",
+      "premier league",
+      "championship",
+      "la liga",
+      "bundesliga",
+      "serie a",
+      "serie b",
+      "ligue 1",
+      "primeira liga",
+      "eredivisie",
+      "mls",
+      "liga mx",
+      "argentina primera",
+      "copa argentina",
+      "world cup",
+      "copa america",
+      "euro",
+    ];
+
+    return premiumWords.some((word) => normalized.includes(word));
+  }
+
+  private getLiveQualityGate(context: any, league: any) {
+    if (!context.isLive) {
+      return {
+        liveQualityLevel: "PREMATCH",
+        liveQualityBlocked: false,
+        liveQualityReason: null,
+        minSendConfidence: 70,
+        liveConfidenceCap: 95,
+      };
+    }
+
+    const hasRealStats = context.realStatsAvailable === true;
+    const premiumLeague = this.isPremiumLiveLeague(league);
+
+    if (hasRealStats) {
+      return {
+        liveQualityLevel: "PREMIUM",
+        liveQualityBlocked: false,
+        liveQualityReason: "Estatísticas reais disponíveis.",
+        minSendConfidence: 80,
+        liveConfidenceCap: 95,
+      };
+    }
+
+    if (!premiumLeague) {
+      return {
+        liveQualityLevel: "BLOCKED",
+        liveQualityBlocked: true,
+        liveQualityReason:
+          "Live bloqueado: liga sem estatísticas reais e fora da lista premium.",
+        minSendConfidence: 999,
+        liveConfidenceCap: 0,
+      };
+    }
+
+    return {
+      liveQualityLevel: "LIMITED",
+      liveQualityBlocked: false,
+      liveQualityReason:
+        "Live limitado: sem estatísticas reais. Apenas mercados conservadores.",
+      minSendConfidence: 80,
+      liveConfidenceCap: 68,
+    };
+  }
+
+  private requiresRealStatsMarket(key: any, tip?: any) {
+    const normalizedKey = this.normalizeText(key);
+    const normalizedTip = this.normalizeText(tip);
+    const text = `${normalizedKey} ${normalizedTip}`;
+
+    return (
+      normalizedKey.startsWith("player_") ||
+      text.includes("escanteio") ||
+      text.includes("corner") ||
+      text.includes("chute") ||
+      text.includes("finalizacao") ||
+      text.includes("finalização") ||
+      text.includes("shots") ||
+      text.includes("sot") ||
+      text.includes("cartao") ||
+      text.includes("cartão") ||
+      text.includes("yellow") ||
+      text.includes("assistencia") ||
+      text.includes("assistência")
+    );
+  }
+
+  private isConservativeLiveWithoutStatsMarket(market: any) {
+    const key = this.normalizeText(market?.key);
+    const tip = this.normalizeText(market?.tip);
+
+    if (this.requiresRealStatsMarket(key, tip)) return false;
+
+    const allowedKeys = [
+      "dupla_chance",
+      "empate_anula",
+      "handicap_asiatico",
+      "handicap_europeu",
+      "total_gols",
+    ];
+    if (!allowedKeys.includes(key)) return false;
+
+    if (key === "total_gols") {
+      return tip.includes("under") || tip.includes("menos de");
+    }
+
+    return true;
+  }
+
+  private capMarketForLiveWithoutStats(market: any, context: any) {
+    if (!context?.isLive || context.realStatsAvailable === true) return market;
+
+    const cap = Number(context.liveConfidenceCap ?? 68);
+    const confidence = Math.min(Number(market?.confidence || 0), cap);
+
+    return {
+      ...market,
+      confidence,
+      risk: confidence >= 65 ? "Médio" : "Alto",
+      reason:
+        `${market?.reason || ""} Live sem estatísticas reais: confiança limitada a ${cap}% e mercados agressivos bloqueados.`.trim(),
+    };
+  }
+
+  private buildBlockedLiveMarket(
+    homeTeam: string,
+    awayTeam: string,
+    league: string,
+    context: any,
+  ) {
+    return {
+      key: "blocked_live_no_stats",
+      category: "Bloqueado",
+      market: "Live bloqueado",
+      tip: "SEM ENTRADA: jogo ao vivo sem estatísticas reais",
+      odd: 0,
+      confidence: 0,
+      risk: "Alto" as RiskLevel,
+      bookmaker: null,
+      oddsSource: "blocked",
+      isRealOdd: false,
+      oddixEngine: {
+        send: false,
+        score: 0,
+        confidence: 0,
+        risk: "Alto",
+        level: "BLOQUEADO",
+        category: "NO_BET",
+        dominanceHome: 50,
+        dominanceAway: 50,
+        dominantTeam: "Sem leitura segura",
+        reasons: [context.liveQualityReason || "Live sem estatísticas reais."],
+      },
+      reason: `Oddix bloqueou ${homeTeam} x ${awayTeam} (${league}). ${context.liveQualityReason || "Sem estatísticas reais para leitura ao vivo."}`,
+    };
   }
 
   private isConditionalTip(tip: string) {
     const normalized = this.normalizeText(tip);
 
     return (
-      normalized.includes('entrada ao vivo somente') ||
-      normalized.includes('somente se') ||
-      normalized.includes('ritmo ofensivo') ||
-      normalized.includes('ritmo confirmar') ||
-      normalized.includes('aguardar') ||
-      normalized.includes('evitar 1o tempo') ||
-      normalized.includes('jogo ja em andamento') ||
-      normalized.includes('exposicao controlada')
+      normalized.includes("entrada ao vivo somente") ||
+      normalized.includes("somente se") ||
+      normalized.includes("ritmo ofensivo") ||
+      normalized.includes("ritmo confirmar") ||
+      normalized.includes("aguardar") ||
+      normalized.includes("evitar 1o tempo") ||
+      normalized.includes("jogo ja em andamento") ||
+      normalized.includes("exposicao controlada")
     );
   }
 
   private getSafeRealTip(homeTeam: string, awayTeam: string, context: any) {
-    const livePrefix = context.isLive ? 'Ao vivo: ' : '';
+    const livePrefix = context.isLive ? "Ao vivo: " : "";
 
     if (context.isLive) {
       if (context.elapsed >= 70) {
@@ -379,7 +647,7 @@ export class AiService {
     }
 
     if (context.goalTrend >= 72) {
-      return 'Over 1.5 gols';
+      return "Over 1.5 gols";
     }
 
     if (context.favorite === awayTeam) {
@@ -389,7 +657,12 @@ export class AiService {
     return `${homeTeam} ou empate`;
   }
 
-  private sanitizeTip(tip: string, homeTeam: string, awayTeam: string, context: any) {
+  private sanitizeTip(
+    tip: string,
+    homeTeam: string,
+    awayTeam: string,
+    context: any,
+  ) {
     if (!tip || this.isConditionalTip(tip)) {
       return this.getSafeRealTip(homeTeam, awayTeam, context);
     }
@@ -407,11 +680,11 @@ export class AiService {
     awayGoals: number;
     seed: number;
   }) {
-    const isLive = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'].includes(
+    const isLive = ["1H", "2H", "HT", "ET", "BT", "P", "LIVE", "INT"].includes(
       data.statusShort,
     );
 
-    const isFinished = ['FT', 'AET', 'PEN'].includes(data.statusShort);
+    const isFinished = ["FT", "AET", "PEN"].includes(data.statusShort);
 
     const totalGoals = data.homeGoals + data.awayGoals;
     const goalDifference = Math.abs(data.homeGoals - data.awayGoals);
@@ -444,40 +717,54 @@ export class AiService {
         homeStrength >= awayStrength + 5
           ? data.homeTeam
           : awayStrength >= homeStrength + 5
-          ? data.awayTeam
-          : 'equilibrado',
+            ? data.awayTeam
+            : "equilibrado",
       underdog:
         homeStrength >= awayStrength + 5
           ? data.awayTeam
           : awayStrength >= homeStrength + 5
-          ? data.homeTeam
-          : 'nenhum',
+            ? data.homeTeam
+            : "nenhum",
       gamePhase: this.getGamePhase(data.statusShort, data.elapsed),
       matchTempo: this.getMatchTempo(data.elapsed, totalGoals, goalTrend),
+      realStatsAvailable: false,
+      liveQualityLevel: isLive ? "LIMITED" : "PREMATCH",
+      liveQualityBlocked: false,
+      liveQualityReason: null,
+      minSendConfidence: isLive ? 80 : 70,
+      liveConfidenceCap: 95,
     };
   }
 
   private extractStatValue(stats: any[], aliases: string[]) {
     const normalize = (value: any) =>
-      String(value || '')
+      String(value || "")
         .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
         .trim();
 
     const wanted = aliases.map((item) => normalize(item));
 
     const row = (stats || []).find((item: any) => {
-      const type = normalize(item?.type || item?.name || item?.title || item?.statName);
+      const type = normalize(
+        item?.type || item?.name || item?.title || item?.statName,
+      );
       return wanted.some((alias) => type.includes(alias));
     });
 
     if (!row) return null;
 
     const rawValue = row?.value ?? row?.home ?? row?.away ?? row?.total ?? null;
-    if (rawValue === null || rawValue === undefined || rawValue === '') return null;
+    if (rawValue === null || rawValue === undefined || rawValue === "")
+      return null;
 
-    const parsed = Number(String(rawValue).replace('%', '').replace(',', '.').replace(/[^0-9.-]/g, ''));
+    const parsed = Number(
+      String(rawValue)
+        .replace("%", "")
+        .replace(",", ".")
+        .replace(/[^0-9.-]/g, ""),
+    );
     return Number.isFinite(parsed) ? parsed : null;
   }
 
@@ -496,7 +783,9 @@ export class AiService {
     for (const candidate of candidates) {
       if (Array.isArray(candidate?.teams)) return candidate.teams;
       if (Array.isArray(candidate)) {
-        const looksLikeOddixTeams = candidate.some((item: any) => Array.isArray(item?.statistics));
+        const looksLikeOddixTeams = candidate.some((item: any) =>
+          Array.isArray(item?.statistics),
+        );
         if (looksLikeOddixTeams) return candidate;
       }
     }
@@ -511,18 +800,49 @@ export class AiService {
     const homeStats = teams[0]?.statistics || teams[0]?.stats || [];
     const awayStats = teams[1]?.statistics || teams[1]?.stats || [];
 
-    const get = (stats: any[], aliases: string[]) => this.extractStatValue(stats, aliases);
+    const get = (stats: any[], aliases: string[]) =>
+      this.extractStatValue(stats, aliases);
 
-    const possessionHome = get(homeStats, ['Ball Possession', 'posse']);
-    const possessionAway = get(awayStats, ['Ball Possession', 'posse']);
-    const shotsTotalHome = get(homeStats, ['Total Shots', 'finalizacoes', 'chutes totais']);
-    const shotsTotalAway = get(awayStats, ['Total Shots', 'finalizacoes', 'chutes totais']);
-    const shotsOnGoalHome = get(homeStats, ['Shots on Goal', 'chutes no gol', 'on target']);
-    const shotsOnGoalAway = get(awayStats, ['Shots on Goal', 'chutes no gol', 'on target']);
-    const cornersHome = get(homeStats, ['Corner Kicks', 'escanteios', 'corners']);
-    const cornersAway = get(awayStats, ['Corner Kicks', 'escanteios', 'corners']);
-    const yellowCardsHome = get(homeStats, ['Yellow Cards', 'cartoes amarelos']);
-    const yellowCardsAway = get(awayStats, ['Yellow Cards', 'cartoes amarelos']);
+    const possessionHome = get(homeStats, ["Ball Possession", "posse"]);
+    const possessionAway = get(awayStats, ["Ball Possession", "posse"]);
+    const shotsTotalHome = get(homeStats, [
+      "Total Shots",
+      "finalizacoes",
+      "chutes totais",
+    ]);
+    const shotsTotalAway = get(awayStats, [
+      "Total Shots",
+      "finalizacoes",
+      "chutes totais",
+    ]);
+    const shotsOnGoalHome = get(homeStats, [
+      "Shots on Goal",
+      "chutes no gol",
+      "on target",
+    ]);
+    const shotsOnGoalAway = get(awayStats, [
+      "Shots on Goal",
+      "chutes no gol",
+      "on target",
+    ]);
+    const cornersHome = get(homeStats, [
+      "Corner Kicks",
+      "escanteios",
+      "corners",
+    ]);
+    const cornersAway = get(awayStats, [
+      "Corner Kicks",
+      "escanteios",
+      "corners",
+    ]);
+    const yellowCardsHome = get(homeStats, [
+      "Yellow Cards",
+      "cartoes amarelos",
+    ]);
+    const yellowCardsAway = get(awayStats, [
+      "Yellow Cards",
+      "cartoes amarelos",
+    ]);
 
     const hasAnyRealStat = [
       possessionHome,
@@ -563,17 +883,31 @@ export class AiService {
     if (!stats) return context;
 
     const elapsed = Math.max(1, Number(context.elapsed || 0));
-    const paceMultiplier = context.isLive ? Math.max(0.45, Math.min(1.25, 90 / elapsed)) : 1;
+    const paceMultiplier = context.isLive
+      ? Math.max(0.45, Math.min(1.25, 90 / elapsed))
+      : 1;
 
-    const totalShots = Number(stats.shotsTotalHome || 0) + Number(stats.shotsTotalAway || 0);
-    const totalShotsOnGoal = Number(stats.shotsOnGoalHome || 0) + Number(stats.shotsOnGoalAway || 0);
-    const totalCorners = Number(stats.cornersHome || 0) + Number(stats.cornersAway || 0);
-    const totalCards = Number(stats.yellowCardsHome || 0) + Number(stats.yellowCardsAway || 0);
+    const totalShots =
+      Number(stats.shotsTotalHome || 0) + Number(stats.shotsTotalAway || 0);
+    const totalShotsOnGoal =
+      Number(stats.shotsOnGoalHome || 0) + Number(stats.shotsOnGoalAway || 0);
+    const totalCorners =
+      Number(stats.cornersHome || 0) + Number(stats.cornersAway || 0);
+    const totalCards =
+      Number(stats.yellowCardsHome || 0) + Number(stats.yellowCardsAway || 0);
 
-    const projectedShots = context.isLive ? totalShots * paceMultiplier : totalShots;
-    const projectedShotsOnGoal = context.isLive ? totalShotsOnGoal * paceMultiplier : totalShotsOnGoal;
-    const projectedCorners = context.isLive ? totalCorners * paceMultiplier : totalCorners;
-    const projectedCards = context.isLive ? totalCards * paceMultiplier : totalCards;
+    const projectedShots = context.isLive
+      ? totalShots * paceMultiplier
+      : totalShots;
+    const projectedShotsOnGoal = context.isLive
+      ? totalShotsOnGoal * paceMultiplier
+      : totalShotsOnGoal;
+    const projectedCorners = context.isLive
+      ? totalCorners * paceMultiplier
+      : totalCorners;
+    const projectedCards = context.isLive
+      ? totalCards * paceMultiplier
+      : totalCards;
 
     const possessionHome = stats.possessionHome ?? context.possessionHome;
     const possessionAway = stats.possessionAway ?? context.possessionAway;
@@ -613,64 +947,90 @@ export class AiService {
         dominanceHome >= dominanceAway + 12
           ? context.homeTeam
           : dominanceAway >= dominanceHome + 12
-          ? context.awayTeam
-          : 'Jogo equilibrado',
+            ? context.awayTeam
+            : "Jogo equilibrado",
       shotTrend: Math.max(
         context.shotTrend,
         this.trendFromStat(projectedShots + projectedShotsOnGoal * 1.8, 24, 50),
       ),
-      cornerTrend: Math.max(context.cornerTrend, this.trendFromStat(projectedCorners, 9, 50)),
-      cardTrend: Math.max(context.cardTrend, this.trendFromStat(projectedCards, 5, 45)),
+      cornerTrend: Math.max(
+        context.cornerTrend,
+        this.trendFromStat(projectedCorners, 9, 50),
+      ),
+      cardTrend: Math.max(
+        context.cardTrend,
+        this.trendFromStat(projectedCards, 5, 45),
+      ),
       goalTrend: Math.max(
         context.goalTrend,
-        this.trendFromStat(projectedShotsOnGoal * 2 + projectedShots * 0.35, 12, 48),
+        this.trendFromStat(
+          projectedShotsOnGoal * 2 + projectedShots * 0.35,
+          12,
+          48,
+        ),
       ),
     };
   }
 
   private getGamePhase(statusShort: string, elapsed: number) {
-    if (statusShort === 'HT') return 'intervalo';
-    if (['FT', 'AET', 'PEN'].includes(statusShort)) return 'finalizado';
-    if (elapsed > 75) return 'reta final';
-    if (elapsed > 45) return 'segundo tempo';
-    if (elapsed > 0) return 'primeiro tempo';
-    return 'pré-jogo';
+    if (statusShort === "HT") return "intervalo";
+    if (["FT", "AET", "PEN"].includes(statusShort)) return "finalizado";
+    if (elapsed > 75) return "reta final";
+    if (elapsed > 45) return "segundo tempo";
+    if (elapsed > 0) return "primeiro tempo";
+    return "pré-jogo";
   }
 
-  private getMatchTempo(elapsed: number, totalGoals: number, goalTrend: number) {
+  private getMatchTempo(
+    elapsed: number,
+    totalGoals: number,
+    goalTrend: number,
+  ) {
     if (!elapsed) {
-      if (goalTrend >= 72) return 'tendente a gols';
-      if (goalTrend <= 54) return 'mais controlado';
-      return 'neutro';
+      if (goalTrend >= 72) return "tendente a gols";
+      if (goalTrend <= 54) return "mais controlado";
+      return "neutro";
     }
 
-    if (totalGoals >= 3 && elapsed <= 70) return 'aberto';
-    if (totalGoals === 0 && elapsed >= 35) return 'travado';
-    if (totalGoals <= 1 && elapsed >= 60) return 'controlado';
+    if (totalGoals >= 3 && elapsed <= 70) return "aberto";
+    if (totalGoals === 0 && elapsed >= 35) return "travado";
+    if (totalGoals <= 1 && elapsed >= 60) return "controlado";
 
-    return 'equilibrado';
+    return "equilibrado";
   }
 
   private isMarketAllowed(market: any, context: any) {
     if (!market) return false;
 
-    const blockedAlways = ['placar_correto', 'jogadores', 'bet_builder'];
+    const blockedAlways = ["placar_correto", "jogadores", "bet_builder"];
     if (blockedAlways.includes(market.key)) return false;
 
-    if (market.risk === 'Alto') return false;
+    if (market.risk === "Alto") return false;
     if (market.confidence < 68) return false;
     if (Number(market.odd) > 2.35 && market.confidence < 78) return false;
 
     if (context.isFinished) return false;
 
+    if (context.isLive && context.liveQualityBlocked) return false;
+
+    if (context.isLive && context.realStatsAvailable !== true) {
+      if (!this.isConservativeLiveWithoutStatsMarket(market)) return false;
+      if (Number(market.odd || 0) > 2.0) return false;
+    }
+
     if (context.isLive && context.elapsed >= 75) {
-      const allowedLate = ['total_gols', 'escanteios', 'chutes_no_gol', 'chutes'];
+      const allowedLate = [
+        "total_gols",
+        "escanteios",
+        "chutes_no_gol",
+        "chutes",
+      ];
       if (!allowedLate.includes(market.key)) return false;
       if (market.confidence < 76) return false;
     }
 
-    if (market.key === 'resultado_final' && context.balance < 22) return false;
-    if (market.key === 'multipla') return false;
+    if (market.key === "resultado_final" && context.balance < 22) return false;
+    if (market.key === "multipla") return false;
 
     return true;
   }
@@ -690,35 +1050,44 @@ export class AiService {
 
     let bonus = 0;
 
-    if (key === 'player_shots_on_target') bonus += 42;
-    if (key === 'player_shots') bonus += 34;
-    if (key === 'player_assists') bonus += 18;
-    if (key === 'escanteios') bonus += 24;
-    if (key === 'chutes_no_gol') bonus += 22;
-    if (key === 'chutes') bonus += 20;
-    if (key === 'total_gols') bonus += 8;
+    if (key === "player_shots_on_target") bonus += 42;
+    if (key === "player_shots") bonus += 34;
+    if (key === "player_assists") bonus += 18;
+    if (key === "escanteios") bonus += 24;
+    if (key === "chutes_no_gol") bonus += 22;
+    if (key === "chutes") bonus += 20;
+    if (key === "total_gols") bonus += 8;
 
-    if (key === 'dupla_chance') bonus -= 8;
-    if (key === 'empate_anula') bonus -= 6;
-    if (key === 'resultado_final') bonus -= 14;
-    if (key === 'ambas_marcam') bonus -= 8;
-    if (key === 'handicap_asiatico') bonus += 2;
+    if (key === "dupla_chance") bonus -= 8;
+    if (key === "empate_anula") bonus -= 6;
+    if (key === "resultado_final") bonus -= 14;
+    if (key === "ambas_marcam") bonus -= 8;
+    if (key === "handicap_asiatico") bonus += 2;
 
-    if (key === 'total_gols') bonus += context.goalTrend >= 70 ? 8 : 3;
-    if (key === 'escanteios') bonus += context.cornerTrend >= 70 ? 5 : -5;
-    if (key === 'cartoes') bonus += context.cardTrend >= 68 ? 4 : -6;
-    if (key === 'chutes' || key === 'chutes_no_gol') bonus += context.shotTrend >= 70 ? 4 : -5;
+    if (key === "total_gols") bonus += context.goalTrend >= 70 ? 8 : 3;
+    if (key === "escanteios") bonus += context.cornerTrend >= 70 ? 5 : -5;
+    if (key === "cartoes") bonus += context.cardTrend >= 68 ? 4 : -6;
+    if (key === "chutes" || key === "chutes_no_gol")
+      bonus += context.shotTrend >= 70 ? 4 : -5;
 
-    if (key === 'resultado_final') bonus += context.balance >= 22 ? 4 : -20;
-    if (key === 'ambas_marcam') bonus += context.goalTrend >= 72 ? 3 : -8;
+    if (key === "resultado_final") bonus += context.balance >= 22 ? 4 : -20;
+    if (key === "ambas_marcam") bonus += context.goalTrend >= 72 ? 3 : -8;
 
-    if (context.isLive && key === 'ao_vivo') bonus += 6;
+    if (context.isLive && key === "ao_vivo") bonus += 6;
     if (context.isLive && context.elapsed >= 75) bonus -= 8;
+    if (context.isLive && context.realStatsAvailable !== true) {
+      bonus -= this.isConservativeLiveWithoutStatsMarket({ key }) ? 10 : 45;
+    }
 
     return confidence + odd * 2.2 + bonus - riskPenalty[risk];
   }
 
-  private generateConfidence(key: string, index: number, context: any, seed: number) {
+  private generateConfidence(
+    key: string,
+    index: number,
+    context: any,
+    seed: number,
+  ) {
     const base: Record<string, number> = {
       total_gols: 74,
       dupla_chance: 76,
@@ -740,45 +1109,48 @@ export class AiService {
 
     let value = base[key] ?? 58;
 
-    if (key === 'total_gols' || key === 'ao_vivo') {
+    if (key === "total_gols" || key === "ao_vivo") {
       if (context.goalTrend >= 72) value += 7;
       if (context.goalTrend <= 55) value += 4;
-      if (context.matchTempo === 'travado') value += 6;
+      if (context.matchTempo === "travado") value += 6;
       if (context.totalGoals >= 3 && context.elapsed >= 60) value -= 7;
     }
 
-    if (key === 'dupla_chance') {
+    if (key === "dupla_chance") {
       value += context.balance >= 10 ? 8 : 3;
       if (context.isLive && context.elapsed >= 70) value += 5;
     }
 
-    if (key === 'empate_anula') {
+    if (key === "empate_anula") {
       value += context.balance >= 12 ? 8 : 2;
     }
 
-    if (key === 'handicap_asiatico') {
+    if (key === "handicap_asiatico") {
       value += context.balance >= 10 ? 7 : 2;
     }
 
-    if (key === 'resultado_final') {
+    if (key === "resultado_final") {
       value += context.balance >= 22 ? 10 : -12;
     }
 
-    if (key === 'ambas_marcam') {
+    if (key === "ambas_marcam") {
       value += context.goalTrend >= 74 ? 7 : -8;
     }
 
-    if (key === 'escanteios') value += Math.round((context.cornerTrend - 60) * 0.25);
-    if (key === 'cartoes') value += Math.round((context.cardTrend - 60) * 0.22);
-    if (key === 'chutes' || key === 'chutes_no_gol') value += Math.round((context.shotTrend - 60) * 0.22);
+    if (key === "escanteios")
+      value += Math.round((context.cornerTrend - 60) * 0.25);
+    if (key === "cartoes") value += Math.round((context.cardTrend - 60) * 0.22);
+    if (key === "chutes" || key === "chutes_no_gol")
+      value += Math.round((context.shotTrend - 60) * 0.22);
 
     if (context.isLive) {
       if (context.elapsed < 12) value -= 5;
       if (context.elapsed >= 75) value -= 4;
-      if (key === 'total_gols' && context.matchTempo === 'aberto') value += 5;
-      if (key === 'total_gols' && context.matchTempo === 'controlado') value += 6;
-      if (key === 'ao_vivo') value += 4;
-      if (key === 'placar_correto') value -= 20;
+      if (key === "total_gols" && context.matchTempo === "aberto") value += 5;
+      if (key === "total_gols" && context.matchTempo === "controlado")
+        value += 6;
+      if (key === "ao_vivo") value += 4;
+      if (key === "placar_correto") value -= 20;
     }
 
     if (context.isFinished) value -= 30;
@@ -788,7 +1160,12 @@ export class AiService {
     return Math.max(35, Math.min(91, value + variation));
   }
 
-  private generateOdd(key: string, confidence: number, context: any, seed: number) {
+  private generateOdd(
+    key: string,
+    confidence: number,
+    context: any,
+    seed: number,
+  ) {
     const baseOdds: Record<string, number> = {
       total_gols: 1.55,
       dupla_chance: 1.38,
@@ -819,26 +1196,45 @@ export class AiService {
     return Number(Math.max(1.25, Math.min(2.45, odd)).toFixed(2));
   }
 
-  private generateTip(key: string, homeTeam: string, awayTeam: string, context: any, seed: number) {
-    const livePrefix = context.isLive ? 'Ao vivo: ' : '';
-    const favorite = context.favorite === 'equilibrado' ? homeTeam : context.favorite;
+  private generateTip(
+    key: string,
+    homeTeam: string,
+    awayTeam: string,
+    context: any,
+    seed: number,
+  ) {
+    const livePrefix = context.isLive ? "Ao vivo: " : "";
+    const favorite =
+      context.favorite === "equilibrado" ? homeTeam : context.favorite;
 
     const safeGoalLine =
       context.goalTrend >= 72
-        ? this.pickBySeed(['Over 1.5 gols', 'Over 2.0 gols asiático'], seed + 1)
-        : this.pickBySeed(['Under 3.5 gols', 'Under 4.5 gols'], seed + 2);
+        ? this.pickBySeed(["Over 1.5 gols", "Over 2.0 gols asiático"], seed + 1)
+        : this.pickBySeed(["Under 3.5 gols", "Under 4.5 gols"], seed + 2);
 
-    const cornerLine = this.pickBySeed(['Over 7.5 escanteios', 'Over 8.5 escanteios'], seed + 3);
-    const cardLine = this.pickBySeed(['Over 2.5 cartões', 'Over 3.5 cartões'], seed + 4);
-    const shotLine = this.pickBySeed(['Over 18.5 chutes totais', 'Over 20.5 chutes totais'], seed + 5);
-    const shotOnTargetLine = this.pickBySeed(['Over 5.5 chutes no gol', 'Over 6.5 chutes no gol'], seed + 6);
+    const cornerLine = this.pickBySeed(
+      ["Over 7.5 escanteios", "Over 8.5 escanteios"],
+      seed + 3,
+    );
+    const cardLine = this.pickBySeed(
+      ["Over 2.5 cartões", "Over 3.5 cartões"],
+      seed + 4,
+    );
+    const shotLine = this.pickBySeed(
+      ["Over 18.5 chutes totais", "Over 20.5 chutes totais"],
+      seed + 5,
+    );
+    const shotOnTargetLine = this.pickBySeed(
+      ["Over 5.5 chutes no gol", "Over 6.5 chutes no gol"],
+      seed + 6,
+    );
 
     const liveRealTip =
       context.totalGoals <= 1
-        ? 'Under 3.5 gols'
+        ? "Under 3.5 gols"
         : context.totalGoals >= 3
-        ? 'Over 3.5 gols'
-        : 'Over 1.5 gols';
+          ? "Over 3.5 gols"
+          : "Over 1.5 gols";
 
     const tips: Record<string, string> = {
       resultado_final:
@@ -868,8 +1264,8 @@ export class AiService {
       chutes: `${livePrefix}${shotLine}`,
       chutes_no_gol: `${livePrefix}${shotOnTargetLine}`,
       primeiro_tempo:
-        context.gamePhase === 'pré-jogo'
-          ? 'Over 0.5 gol no 1º tempo'
+        context.gamePhase === "pré-jogo"
+          ? "Over 0.5 gol no 1º tempo"
           : `${livePrefix}Under 3.5 gols`,
       aposta_simples: `${livePrefix}${safeGoalLine}`,
       multipla: `Dupla chance + ${safeGoalLine}`,
@@ -886,37 +1282,53 @@ export class AiService {
   }
 
   private getRisk(confidence: number, key?: string, context?: any): RiskLevel {
-    if (['placar_correto', 'multipla', 'bet_builder', 'jogadores'].includes(key || '')) {
-      return 'Alto';
+    if (
+      ["placar_correto", "multipla", "bet_builder", "jogadores"].includes(
+        key || "",
+      )
+    ) {
+      return "Alto";
     }
 
-    if (key === 'resultado_final' && context?.balance < 22) return 'Alto';
+    if (key === "resultado_final" && context?.balance < 22) return "Alto";
 
     if (context?.isLive && context.elapsed >= 75) {
-      if (confidence >= 82 && ['dupla_chance', 'empate_anula', 'total_gols'].includes(key || '')) {
-        return 'Médio';
+      if (
+        confidence >= 82 &&
+        ["dupla_chance", "empate_anula", "total_gols"].includes(key || "")
+      ) {
+        return "Médio";
       }
-      return 'Alto';
+      return "Alto";
     }
 
-    if (confidence >= 80) return 'Baixo';
-    if (confidence >= 70) return 'Médio';
+    if (confidence >= 80) return "Baixo";
+    if (confidence >= 70) return "Médio";
 
-    return 'Alto';
+    return "Alto";
   }
 
-  private safeFallbackMarket(homeTeam: string, awayTeam: string, league: string, context: any) {
-    const favorite = context.favorite === 'equilibrado' ? homeTeam : context.favorite;
+  private safeFallbackMarket(
+    homeTeam: string,
+    awayTeam: string,
+    league: string,
+    context: any,
+  ) {
+    const favorite =
+      context.favorite === "equilibrado" ? homeTeam : context.favorite;
     const tip = this.getSafeRealTip(homeTeam, awayTeam, context);
 
+    const liveWithoutStats =
+      context.isLive && context.realStatsAvailable !== true;
+
     return {
-      key: 'total_gols',
-      category: 'Protegido',
-      market: 'Total de gols',
-      tip,
-      odd: context.isLive ? 1.48 : 1.55,
-      confidence: 74,
-      risk: 'Médio' as RiskLevel,
+      key: liveWithoutStats ? "dupla_chance" : "total_gols",
+      category: liveWithoutStats ? "Live limitado" : "Protegido",
+      market: liveWithoutStats ? "Entrada conservadora" : "Total de gols",
+      tip: liveWithoutStats ? `${favorite} ou empate` : tip,
+      odd: liveWithoutStats ? 1.35 : context.isLive ? 1.48 : 1.55,
+      confidence: liveWithoutStats ? 62 : 74,
+      risk: liveWithoutStats ? ("Médio" as RiskLevel) : ("Médio" as RiskLevel),
       reason: `Mercado real escolhido como fallback para ${homeTeam} x ${awayTeam} (${league}). O modelo evitou entradas condicionais e priorizou uma linha mensurável para validação GREEN/RED. Referência técnica: ${favorite}.`,
     };
   }
@@ -931,41 +1343,52 @@ export class AiService {
     realOdd?: any,
   ) {
     const phase =
-      context.gamePhase === 'pré-jogo'
-        ? 'pré-jogo'
+      context.gamePhase === "pré-jogo"
+        ? "pré-jogo"
         : `momento atual da partida (${context.gamePhase})`;
 
     const scoreText = context.isLive
       ? ` Placar atual: ${context.homeGoals}x${context.awayGoals}.`
-      : '';
+      : "";
 
     const oddsText = realOdd
       ? ` Odd real encontrada na The Odds API via ${realOdd.bookmaker}.`
-      : ' Odd estimada pela Oddix porque não houve linha real compatível na The Odds API.';
+      : " Odd estimada pela Oddix porque não houve linha real compatível na The Odds API.";
 
     return `Mercado de ${market} selecionado para ${homeTeam} x ${awayTeam} com base no ${phase}, equilíbrio técnico, tendência de gols ${context.goalTrend}/100, escanteios ${context.cornerTrend}/100, cartões ${context.cardTrend}/100 e finalizações ${context.shotTrend}/100.${scoreText}${oddsText} Confiança estimada em ${confidence}% e risco ${risk}.`;
   }
 
   private generateMultiples(markets: any[], context: any) {
     const safe = markets
-      .filter((market) => market.risk !== 'Alto')
+      .filter((market) => market.risk !== "Alto")
       .filter((market) => market.confidence >= 70)
       .filter((market) => Number(market.odd) <= 2.1)
       .filter((market) => !this.isConditionalTip(market.tip))
+      .filter(
+        (market) => !context.isLive || context.realStatsAvailable === true,
+      )
       .slice(0, 4);
 
     const conservative = safe.slice(0, 2);
     const moderate = safe.slice(0, 3);
     const aggressive = safe.slice(0, 4);
 
-    const build = (name: string, items: any[], risk: RiskLevel, stake: string) => {
-      const combinedOdd = items.reduce((acc, item) => acc * Number(item.odd || 1), 1);
+    const build = (
+      name: string,
+      items: any[],
+      risk: RiskLevel,
+      stake: string,
+    ) => {
+      const combinedOdd = items.reduce(
+        (acc, item) => acc * Number(item.odd || 1),
+        1,
+      );
 
       return {
         name,
         selections: items.map((item) => ({
           market: item.market,
-          tip: this.sanitizeTip(item.tip, '', '', context),
+          tip: this.sanitizeTip(item.tip, "", "", context),
           odd: item.odd,
           confidence: item.confidence,
           risk: item.risk,
@@ -974,22 +1397,38 @@ export class AiService {
         risk,
         stake,
         note:
-          risk === 'Baixo'
-            ? 'Múltipla protegida, indicada para controle de banca.'
-            : risk === 'Médio'
-            ? 'Múltipla equilibrada. Use stake reduzida.'
-            : 'Múltipla agressiva. Use apenas valor simbólico.',
+          risk === "Baixo"
+            ? "Múltipla protegida, indicada para controle de banca."
+            : risk === "Médio"
+              ? "Múltipla equilibrada. Use stake reduzida."
+              : "Múltipla agressiva. Use apenas valor simbólico.",
       };
     };
 
     return {
-      conservative: build('Múltipla Conservadora', conservative, 'Baixo', '0.5 unidade'),
-      moderate: build('Múltipla Moderada', moderate, 'Médio', '0.25 unidade'),
-      aggressive: build('Múltipla Agressiva', aggressive, 'Alto', '0.10 unidade'),
+      conservative: build(
+        "Múltipla Conservadora",
+        conservative,
+        "Baixo",
+        "0.5 unidade",
+      ),
+      moderate: build("Múltipla Moderada", moderate, "Médio", "0.25 unidade"),
+      aggressive: build(
+        "Múltipla Agressiva",
+        aggressive,
+        "Alto",
+        "0.10 unidade",
+      ),
     };
   }
 
-  private applyConfidenceEngine(market: any, context: any, homeTeam: string, awayTeam: string, game: any) {
+  private applyConfidenceEngine(
+    market: any,
+    context: any,
+    homeTeam: string,
+    awayTeam: string,
+    game: any,
+  ) {
     const oddsMeta = this.extractOddsMetaFromGame(game, market);
     const dominanceHint = this.buildDominanceHint(context, game);
 
@@ -1023,22 +1462,53 @@ export class AiService {
       yellowCardsAway: dominanceHint.yellowCardsAway,
     });
 
-    const confidence = Math.max(Number(market.confidence || 0), engine.confidence);
-    const risk = engine.risk === 'Alto' && confidence >= 90 ? 'Médio' : engine.risk;
+    const rawConfidence = Math.max(
+      Number(market.confidence || 0),
+      engine.confidence,
+    );
+    const cappedMarket = this.capMarketForLiveWithoutStats(
+      {
+        ...market,
+        confidence: rawConfidence,
+        risk:
+          engine.risk === "Alto" && rawConfidence >= 90 ? "Médio" : engine.risk,
+      },
+      context,
+    );
+
+    const confidence = Number(cappedMarket.confidence || 0);
+    const risk = cappedMarket.risk as RiskLevel;
+    const blockedByStats =
+      context.isLive &&
+      context.realStatsAvailable !== true &&
+      !this.isConservativeLiveWithoutStatsMarket(cappedMarket);
 
     return {
-      ...market,
+      ...cappedMarket,
       confidence,
       risk,
-      oddixEngine: engine,
-      engineScore: engine.score,
-      engineLevel: engine.level,
-      engineCategory: engine.category,
+      oddixEngine: {
+        ...engine,
+        send: blockedByStats ? false : engine.send,
+        score: blockedByStats ? Math.min(engine.score, 40) : engine.score,
+        level: blockedByStats ? "BLOQUEADO" : engine.level,
+        category: blockedByStats ? "NO_BET" : engine.category,
+        reasons: blockedByStats
+          ? [
+              ...(engine.reasons || []),
+              "Mercado exige estatísticas reais e foi bloqueado no live.",
+            ]
+          : engine.reasons,
+      },
+      engineScore: blockedByStats ? Math.min(engine.score, 40) : engine.score,
+      engineLevel: blockedByStats ? "BLOQUEADO" : engine.level,
+      engineCategory: blockedByStats ? "NO_BET" : engine.category,
       dominanceHome: engine.dominanceHome,
       dominanceAway: engine.dominanceAway,
       dominantTeam: engine.dominantTeam,
       engineReasons: engine.reasons,
-      reason: `${market.reason || ''} Score Oddix ${engine.score}/100 (${engine.level}). ${engine.reasons.join(' ')}`.trim(),
+      reason:
+        `${cappedMarket.reason || ""} Score Oddix ${engine.score}/100 (${engine.level}). ${engine.reasons.join(" ")}`.trim(),
     };
   }
 
@@ -1051,12 +1521,21 @@ export class AiService {
       null;
 
     const options = Array.isArray(rawOdds?.options) ? rawOdds.options : [];
-    const normalizedTip = this.normalizeText(market?.tip || '');
+    const normalizedTip = this.normalizeText(market?.tip || "");
 
     const option =
-      options.find((item: any) => this.normalizeText(item?.name).includes(normalizedTip)) ||
-      options.find((item: any) => Number(item?.rate?.decimal || 0) === Number(market?.odd || 0)) ||
-      options.find((item: any) => Number(item?.rate?.decimal || 0) >= 1.35 && Number(item?.rate?.decimal || 0) <= 2.3) ||
+      options.find((item: any) =>
+        this.normalizeText(item?.name).includes(normalizedTip),
+      ) ||
+      options.find(
+        (item: any) =>
+          Number(item?.rate?.decimal || 0) === Number(market?.odd || 0),
+      ) ||
+      options.find(
+        (item: any) =>
+          Number(item?.rate?.decimal || 0) >= 1.35 &&
+          Number(item?.rate?.decimal || 0) <= 2.3,
+      ) ||
       options[0] ||
       null;
 
@@ -1070,6 +1549,26 @@ export class AiService {
 
   private buildDominanceHint(context: any, game: any) {
     const raw = game?.allScoresRaw || game?.raw || game || {};
+
+    if (context.isLive && context.realStatsAvailable !== true) {
+      return {
+        possessionHome: 50,
+        possessionAway: 50,
+        attacksHome: 0,
+        attacksAway: 0,
+        dangerousAttacksHome: 0,
+        dangerousAttacksAway: 0,
+        shotsTotalHome: 0,
+        shotsTotalAway: 0,
+        shotsOnGoalHome: 0,
+        shotsOnGoalAway: 0,
+        cornersHome: 0,
+        cornersAway: 0,
+        yellowCardsHome: 0,
+        yellowCardsAway: 0,
+      };
+    }
+
     const homeScore = Number(context.homeStrength || 60);
     const awayScore = Number(context.awayStrength || 60);
     const totalStrength = Math.max(1, homeScore + awayScore);
@@ -1079,23 +1578,52 @@ export class AiService {
     const gameTime = Number(raw?.gameTime || context.elapsed || 0);
     const hasLiveMomentum = gameTime > 0;
 
-    const baseShots = hasLiveMomentum ? Math.max(8, Math.round((context.shotTrend || 60) / 4)) : 10;
-    const baseCorners = hasLiveMomentum ? Math.max(3, Math.round((context.cornerTrend || 55) / 10)) : 4;
-    const baseDangerous = hasLiveMomentum ? Math.max(35, Math.round((context.shotTrend || 60) + (context.cornerTrend || 55) / 2)) : 45;
+    const baseShots = hasLiveMomentum
+      ? Math.max(8, Math.round((context.shotTrend || 60) / 4))
+      : 10;
+    const baseCorners = hasLiveMomentum
+      ? Math.max(3, Math.round((context.cornerTrend || 55) / 10))
+      : 4;
+    const baseDangerous = hasLiveMomentum
+      ? Math.max(
+          35,
+          Math.round(
+            (context.shotTrend || 60) + (context.cornerTrend || 55) / 2,
+          ),
+        )
+      : 45;
 
     return {
-      possessionHome: Number(context.possessionHome ?? Math.round(45 + (homeShare - 0.5) * 30)),
-      possessionAway: Number(context.possessionAway ?? Math.round(45 + (awayShare - 0.5) * 30)),
+      possessionHome: Number(
+        context.possessionHome ?? Math.round(45 + (homeShare - 0.5) * 30),
+      ),
+      possessionAway: Number(
+        context.possessionAway ?? Math.round(45 + (awayShare - 0.5) * 30),
+      ),
       attacksHome: Math.round(baseDangerous * homeShare * 1.45),
       attacksAway: Math.round(baseDangerous * awayShare * 1.45),
       dangerousAttacksHome: Math.round(baseDangerous * homeShare),
       dangerousAttacksAway: Math.round(baseDangerous * awayShare),
-      shotsTotalHome: Number(context.shotsTotalHome ?? Math.round(baseShots * homeShare)),
-      shotsTotalAway: Number(context.shotsTotalAway ?? Math.round(baseShots * awayShare)),
-      shotsOnGoalHome: Number(context.shotsOnGoalHome ?? Math.max(1, Math.round(baseShots * homeShare * 0.38))),
-      shotsOnGoalAway: Number(context.shotsOnGoalAway ?? Math.max(1, Math.round(baseShots * awayShare * 0.38))),
-      cornersHome: Number(context.cornersHome ?? Math.round(baseCorners * homeShare)),
-      cornersAway: Number(context.cornersAway ?? Math.round(baseCorners * awayShare)),
+      shotsTotalHome: Number(
+        context.shotsTotalHome ?? Math.round(baseShots * homeShare),
+      ),
+      shotsTotalAway: Number(
+        context.shotsTotalAway ?? Math.round(baseShots * awayShare),
+      ),
+      shotsOnGoalHome: Number(
+        context.shotsOnGoalHome ??
+          Math.max(1, Math.round(baseShots * homeShare * 0.38)),
+      ),
+      shotsOnGoalAway: Number(
+        context.shotsOnGoalAway ??
+          Math.max(1, Math.round(baseShots * awayShare * 0.38)),
+      ),
+      cornersHome: Number(
+        context.cornersHome ?? Math.round(baseCorners * homeShare),
+      ),
+      cornersAway: Number(
+        context.cornersAway ?? Math.round(baseCorners * awayShare),
+      ),
       yellowCardsHome: Number(context.yellowCardsHome ?? 1),
       yellowCardsAway: Number(context.yellowCardsAway ?? 1),
     };
@@ -1110,32 +1638,46 @@ export class AiService {
     bestMarkets: any[];
     multiples?: any;
   }) {
-    const { homeTeam, awayTeam, league, context, best, bestMarkets, multiples } = data;
+    const {
+      homeTeam,
+      awayTeam,
+      league,
+      context,
+      best,
+      bestMarkets,
+      multiples,
+    } = data;
 
     const favoriteText =
-      context.favorite === 'equilibrado'
-        ? 'não há favorito claro pelo modelo'
+      context.favorite === "equilibrado"
+        ? "não há favorito claro pelo modelo"
         : `${context.favorite} aparece com leve vantagem`;
 
     const gameMoment = context.isLive
       ? `A partida está ao vivo, em fase de ${context.gamePhase}, com placar ${context.homeGoals}x${context.awayGoals}.`
       : context.isFinished
-      ? `A partida já está finalizada.`
-      : `A partida ainda não começou.`;
+        ? `A partida já está finalizada.`
+        : `A partida ainda não começou.`;
+
+    const statsNote = context.isLive
+      ? context.realStatsAvailable
+        ? "A leitura ao vivo usa estatísticas reais disponíveis no provider."
+        : `A leitura ao vivo foi limitada porque não há estatísticas reais disponíveis. ${context.liveQualityReason || ""}`.trim()
+      : "";
 
     const marketList = bestMarkets
       .map(
         (market, index) =>
-          `${index + 1}. ${market.market}: ${market.tip} | odd ${market.odd} (${market.isRealOdd ? 'real' : 'estimada'}) | confiança ${market.confidence}% | risco ${market.risk}`,
+          `${index + 1}. ${market.market}: ${market.tip} | odd ${market.odd} (${market.isRealOdd ? "real" : "estimada"}) | confiança ${market.confidence}% | risco ${market.risk}`,
       )
-      .join('\n');
+      .join("\n");
 
     return `Análise Oddix — ${homeTeam} x ${awayTeam} (${league}).
 
 ${gameMoment}
 
 Leitura:
-O modelo priorizou mercados protegidos, evitando placar correto, bet builder agressivo e resultado seco sem vantagem clara. Neste confronto, ${favoriteText}. Tendência de gols ${context.goalTrend}/100, escanteios ${context.cornerTrend}/100, cartões ${context.cardTrend}/100 e finalizações ${context.shotTrend}/100${context.realStatsAvailable ? ' com leitura de estatísticas reais do jogo.' : '. '}
+O modelo priorizou mercados protegidos, evitando placar correto, bet builder agressivo e resultado seco sem vantagem clara. Neste confronto, ${favoriteText}. Tendência de gols ${context.goalTrend}/100, escanteios ${context.cornerTrend}/100, cartões ${context.cardTrend}/100 e finalizações ${context.shotTrend}/100${context.realStatsAvailable ? " com leitura de estatísticas reais do jogo." : ". "}
 
 Entrada principal:
 ${best.tip} | odd ${best.odd} | confiança ${best.confidence}% | risco ${best.risk}.
@@ -1144,8 +1686,8 @@ Mercados recomendados:
 ${marketList}
 
 Múltiplas:
-Conservadora: ${multiples?.conservative?.selections?.map((s: any) => s.tip).join(' + ') || 'Sem múltipla segura'} | odd ${multiples?.conservative?.combinedOdd || '-'}.
-Moderada: ${multiples?.moderate?.selections?.map((s: any) => s.tip).join(' + ') || 'Sem múltipla segura'} | odd ${multiples?.moderate?.combinedOdd || '-'}.
+Conservadora: ${multiples?.conservative?.selections?.map((s: any) => s.tip).join(" + ") || "Sem múltipla segura"} | odd ${multiples?.conservative?.combinedOdd || "-"}.
+Moderada: ${multiples?.moderate?.selections?.map((s: any) => s.tip).join(" + ") || "Sem múltipla segura"} | odd ${multiples?.moderate?.combinedOdd || "-"}.
 
 Fontes:
 Dados do jogo: FlashScore como principal, SportScore6/FotMob como fallback. Odds: The Odds API quando disponível; caso contrário, odd marcada como estimada.
@@ -1155,7 +1697,9 @@ Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou 
   }
 
   async generateBestMultipleFromGames(games: any[]) {
-    const bets = await Promise.all((games || []).map((game) => this.generateBet(game)));
+    const bets = await Promise.all(
+      (games || []).map((game) => this.generateBet(game)),
+    );
 
     const generated = bets
       .filter(Boolean)
@@ -1163,7 +1707,7 @@ Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou 
         const bestMarket = Array.isArray(bet.markets)
           ? bet.markets.find(
               (m: any) =>
-                m.risk !== 'Alto' &&
+                m.risk !== "Alto" &&
                 Number(m.confidence) >= 70 &&
                 Number(m.odd) <= 2.1 &&
                 !this.isConditionalTip(m.tip),
@@ -1173,20 +1717,25 @@ Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou 
         return {
           game: `${bet.homeTeam} x ${bet.awayTeam}`,
           league: bet.league,
-          market: bestMarket?.market || 'Melhor entrada',
-          tip: this.sanitizeTip(bestMarket?.tip || bet.tip, bet.homeTeam, bet.awayTeam, {
-            isLive: false,
-            goalTrend: 60,
-            favorite: bet.homeTeam,
-            totalGoals: 0,
-          }),
+          market: bestMarket?.market || "Melhor entrada",
+          tip: this.sanitizeTip(
+            bestMarket?.tip || bet.tip,
+            bet.homeTeam,
+            bet.awayTeam,
+            {
+              isLive: false,
+              goalTrend: 60,
+              favorite: bet.homeTeam,
+              totalGoals: 0,
+            },
+          ),
           odd: Number(bestMarket?.odd || bet.odd || 1),
           confidence: Number(bestMarket?.confidence || bet.confidence || 0),
-          risk: bestMarket?.risk || bet.risk || 'Médio',
+          risk: bestMarket?.risk || bet.risk || "Médio",
         };
       })
       .filter((item: any) => item.tip && item.odd > 1)
-      .filter((item: any) => item.risk !== 'Alto')
+      .filter((item: any) => item.risk !== "Alto")
       .filter((item: any) => item.confidence >= 70)
       .filter((item: any) => item.odd <= 2.1)
       .filter((item: any) => !this.isConditionalTip(item.tip))
@@ -1214,7 +1763,12 @@ Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou 
     const moderate = uniqueGames.slice(0, 3);
     const aggressive = uniqueGames.slice(0, 4);
 
-    const build = (name: string, selections: any[], risk: RiskLevel, stake: string) => {
+    const build = (
+      name: string,
+      selections: any[],
+      risk: RiskLevel,
+      stake: string,
+    ) => {
       const combinedOdd = selections.reduce(
         (acc, item) => acc * Number(item.odd || 1),
         1,
@@ -1237,18 +1791,33 @@ Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou 
         risk,
         stake,
         note:
-          risk === 'Baixo'
-            ? 'Múltipla com jogos diferentes e mercados protegidos.'
-            : risk === 'Médio'
-            ? 'Múltipla equilibrada, com stake reduzida.'
-            : 'Múltipla agressiva, usar stake simbólica.',
+          risk === "Baixo"
+            ? "Múltipla com jogos diferentes e mercados protegidos."
+            : risk === "Médio"
+              ? "Múltipla equilibrada, com stake reduzida."
+              : "Múltipla agressiva, usar stake simbólica.",
       };
     };
 
     const result = {
-      conservative: build('Múltipla Conservadora do Dia', conservative, 'Baixo', '0.5 unidade'),
-      moderate: build('Múltipla Moderada do Dia', moderate, 'Médio', '0.25 unidade'),
-      aggressive: build('Múltipla Agressiva do Dia', aggressive, 'Alto', '0.10 unidade'),
+      conservative: build(
+        "Múltipla Conservadora do Dia",
+        conservative,
+        "Baixo",
+        "0.5 unidade",
+      ),
+      moderate: build(
+        "Múltipla Moderada do Dia",
+        moderate,
+        "Médio",
+        "0.25 unidade",
+      ),
+      aggressive: build(
+        "Múltipla Agressiva do Dia",
+        aggressive,
+        "Alto",
+        "0.10 unidade",
+      ),
     };
 
     return {
@@ -1257,8 +1826,8 @@ Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou 
         result.conservative.selections.length >= 2
           ? result.conservative
           : result.moderate.selections.length >= 2
-          ? result.moderate
-          : null,
+            ? result.moderate
+            : null,
     };
   }
 }
