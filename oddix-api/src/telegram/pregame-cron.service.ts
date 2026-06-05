@@ -51,7 +51,7 @@ export class PregameCronService {
     return Number(
       process.env.ODDIX_PREGAME_MIN_CONFIDENCE ||
         process.env.ODDIX_MIN_CONFIDENCE ||
-        72,
+        80,
     );
   }
 
@@ -63,7 +63,7 @@ export class PregameCronService {
 
   private maxOdd() {
     return Number(
-      process.env.ODDIX_PREGAME_MAX_ODD || process.env.ODDIX_MAX_ODD || 3.0,
+      process.env.ODDIX_PREGAME_MAX_ODD || process.env.ODDIX_MAX_ODD || 2.0,
     );
   }
 
@@ -286,6 +286,21 @@ export class PregameCronService {
       "expulsao",
       "bet builder agressivo",
       "resultado exato",
+      "primeiro gol",
+      "proximo gol",
+      "próximo gol",
+      "next goal",
+      "first goal",
+      "over 10.5 escanteios",
+      "over 11.5 escanteios",
+      "over 12.5 escanteios",
+      "mais de 10.5 escanteios",
+      "mais de 11.5 escanteios",
+      "mais de 12.5 escanteios",
+      "over 8.5 chutes no gol",
+      "over 9.5 chutes no gol",
+      "mais de 8.5 chutes no gol",
+      "mais de 9.5 chutes no gol",
     ];
 
     if (blockedMarkets.some((word) => normalizedTip.includes(word))) {
@@ -515,6 +530,15 @@ export class PregameCronService {
         if (!quality.ok) {
           this.logger.log(
             `⏭️ Pré-jogo reprovado ${bet.homeTeam} x ${bet.awayTeam}: ${quality.reason}`,
+          );
+          continue;
+        }
+
+        const premiumConfidence = Number(bet?.confidence || 0);
+        const premiumOdd = Number(bet?.odd || 0);
+        if (premiumConfidence < 80 || premiumOdd > 2.0) {
+          this.logger.log(
+            `⏭️ Quality Gate Premium pré-jogo: ${bet.homeTeam} x ${bet.awayTeam} | Conf=${premiumConfidence} | Odd=${premiumOdd}`,
           );
           continue;
         }

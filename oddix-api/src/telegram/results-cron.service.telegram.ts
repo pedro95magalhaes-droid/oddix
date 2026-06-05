@@ -735,7 +735,6 @@ export class ResultsCronService {
       where: { id: bet.id },
       data: {
         status,
-        result: status,
         analysis: String(bet?.analysis || '').includes(`ODDIX_${status.toUpperCase()}`)
           ? bet?.analysis
           : `${String(bet?.analysis || '').trim()} | ODDIX_${status.toUpperCase()}: ${reason}`.trim(),
@@ -773,7 +772,7 @@ export class ResultsCronService {
   @Cron('*/5 * * * *')
   async checkOpenBetsResults() {
     try {
-      const maxHours = Number(process.env.ODDIX_MAX_OPEN_BET_HOURS || 72);
+      const maxHours = Number(process.env.ODDIX_MAX_OPEN_BET_HOURS || 24);
       const expiredCount = await this.expireOldOpenBets(maxHours);
 
       if (expiredCount > 0) {
@@ -875,7 +874,6 @@ export class ResultsCronService {
           where: { id: bet.id },
           data: {
             status: resolved.result,
-            result: resolved.result,
             homeScore: goals.homeGoals,
             awayScore: goals.awayGoals,
             statusShort: statusShort || null,
