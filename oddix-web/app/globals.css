@@ -1,11 +1,95 @@
+:root {
+  --oddix-bg: #02020a;
+  --oddix-card: #090817;
+  --oddix-purple: #7b3cff;
+  --oddix-gold: #ffd515;
+  --oddix-green: #13f26b;
+  --oddix-muted: #b9b4ce;
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
-  background: #020402;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(123, 60, 255, 0.18), transparent 28%),
+    radial-gradient(circle at 82% 0%, rgba(255, 213, 21, 0.10), transparent 24%),
+    linear-gradient(180deg, #02020a 0%, #060512 50%, #02020a 100%);
+  color: #fff;
   overflow-x: hidden;
 }
 
 * {
   box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button {
+  transition: transform 0.18s ease, filter 0.18s ease, border-color 0.18s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+img {
+  max-width: 100%;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #ffd515, #7b3cff);
+  border-radius: 999px;
+}
+
+/* Ajustes globais do dashboard Oddix premium */
+[style] .teamSmall img,
+.teamSmall img {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 1280px) {
+  main {
+    grid-template-columns: 210px minmax(0, 1fr) !important;
+  }
+
+  main > section:nth-of-type(1) {
+    display: none !important;
+  }
+}
+
+@media (max-width: 980px) {
+  main {
+    display: block !important;
+  }
+
+  aside {
+    position: relative !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  section {
+    max-width: 100% !important;
+  }
 }
