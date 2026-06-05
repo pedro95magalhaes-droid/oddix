@@ -1219,14 +1219,14 @@ export default function Dashboard() {
     : 0;
 
   return (
-    <main style={styles.page}>
+    <main className="oddix-dashboard" style={styles.page}>
       <FreeLockModal
         open={freeLockOpen}
         onClose={() => setFreeLockOpen(false)}
         onUpgrade={() => (window.location.href = "/plans")}
       />
-      <header style={styles.topHeader}>
-        <div style={styles.brand} onClick={() => (window.location.href = "/dashboard")}>
+      <header className="oddix-top-header" style={styles.topHeader}>
+        <div className="oddix-brand" style={styles.brand} onClick={() => (window.location.href = "/dashboard")}>
           <img
             src="/logo-oddix-horizontal.png"
             alt="ODDIX TIPSTER IA"
@@ -1234,7 +1234,7 @@ export default function Dashboard() {
           />
         </div>
 
-        <div style={styles.headerActions}>
+        <div className="oddix-header-actions" style={styles.headerActions}>
           <button style={styles.headerPill}>Plano {plan}</button>
           <button style={styles.headerButton} onClick={() => openSportsButton("live")}>Ao vivo</button>
           
@@ -1244,7 +1244,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <section style={styles.sportsRail}>
+      <section className="oddix-sports-rail" style={styles.sportsRail}>
         {[
           { label: "⚽ Futebol", action: "dashboard" },
           { label: "🔴 Ao Vivo", action: "live" },
@@ -1345,9 +1345,9 @@ export default function Dashboard() {
         </section>
       )}
 
-      <section style={styles.heroGrid}>
-        <div style={styles.heroMain}>
-          <div style={styles.heroTextBlock}>
+      <section className="oddix-hero-grid" style={styles.heroGrid}>
+        <div className="oddix-hero-main" style={styles.heroMain}>
+          <div className="oddix-hero-text" style={styles.heroTextBlock}>
             <span style={styles.sectionKicker}>ODDIX SMART BETTING</span>
             <h1>Inteligência artificial transformando dados em GREEN todos os dias.</h1>
             <p>
@@ -1361,13 +1361,13 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div style={styles.heroPlayerBox}>
+          <div className="oddix-hero-player-box" style={styles.heroPlayerBox}>
             <div style={styles.heroPlayerGlow} />
-            <img src={ODDIX_PLAYER_IMAGE} alt="Jogador Oddix" style={styles.heroPlayerImage} />
+            <img className="oddix-hero-player" src={ODDIX_PLAYER_IMAGE} alt="Jogador Oddix" style={styles.heroPlayerImage} />
           </div>
         </div>
 
-        <div style={styles.vipPanel}>
+        <div className="oddix-vip-panel" style={styles.vipPanel}>
           <span>Oddix Boost</span>
           <strong>{boost.combinedOdd}</strong>
           <small>Odd combinada estimada</small>
@@ -1391,8 +1391,8 @@ export default function Dashboard() {
         onVip={() => (window.location.href = "/plans")}
       />
 
-      <section style={{ margin: "0 26px 20px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr", gap: 18 }}>
+      <section className="oddix-top-widgets" style={{ margin: "0 26px 20px" }}>
+        <div className="oddix-top-widgets-grid" style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr", gap: 18 }}>
           <Top5Tips
             tips={top5Tips}
             onOpen={(tip: any) => {
@@ -1416,6 +1416,7 @@ export default function Dashboard() {
       </section>
 
       <section
+        className="oddix-featured-strip"
         style={styles.featuredStrip}
         onWheel={(event) => {
           const el = event.currentTarget;
@@ -1430,8 +1431,8 @@ export default function Dashboard() {
         ))}
       </section>
 
-      <section style={styles.tabsWrapper}>
-        <div style={styles.tabs}>
+      <section className="oddix-tabs-wrapper" style={styles.tabsWrapper}>
+        <div className="oddix-tabs" style={styles.tabs}>
           {[
             { key: "highlights", label: "Destaques" },
             { key: "live", label: "Ao vivo" },
@@ -1452,8 +1453,8 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <section style={styles.layout}>
-        <aside style={styles.sidebar}>
+      <section className="oddix-layout" style={styles.layout}>
+        <aside className="oddix-sidebar" style={styles.sidebar}>
           <div style={styles.searchCard}>
             <strong>Filtros</strong>
             <input style={styles.searchInput} placeholder="Buscar time ou liga" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -1486,7 +1487,7 @@ export default function Dashboard() {
           </div>
         </aside>
 
-        <section style={styles.mainContent}>
+        <section className="oddix-main-content" style={styles.mainContent}>
           {activeTab === "smart" && (
             <SmartTipsSection tips={displayedSmartTips} games={games} liveTick={liveTick} onAnalyze={openMatchDetail} />
           )}
@@ -1511,7 +1512,7 @@ export default function Dashboard() {
 
           {activeTab !== "smart" && activeTab !== "boost" && activeTab !== "playerprops" && activeTab !== "greens" && (
             <>
-              <div style={styles.sectionHeader}>
+              <div className="oddix-section-header" style={styles.sectionHeader}>
                 <div>
                   <h2>{getTabTitle(activeTab)}</h2>
                   <p>{filteredGames.length} jogos encontrados</p>
@@ -1523,6 +1524,7 @@ export default function Dashboard() {
                 <div style={styles.emptyBox}>Carregando jogos...</div>
               ) : filteredGames.length ? (
                 <div
+                  className="oddix-games-grid"
                   style={styles.gamesGrid}
                   onWheel={(event) => {
                     const el = event.currentTarget;
@@ -1550,7 +1552,7 @@ export default function Dashboard() {
         </section>
       </section>
 
-      <footer style={styles.footer}>
+      <footer className="oddix-footer" style={styles.footer}>
         <div style={styles.footerBrand}>
           <strong>ODDIX IA™</strong>
           <span>Palpites inteligentes para pré-jogo, ao vivo e gestão de banca.</span>
@@ -2257,7 +2259,7 @@ function SmartTipsSection({ tips, games, liveTick = 0, onAnalyze }: any) {
 
   return (
     <section>
-      <div style={styles.sectionHeader}>
+      <div className="oddix-section-header" style={styles.sectionHeader}>
         <div>
           <h2>IA Premium com Odds</h2>
           <p>Ao clicar em IA Premium, veja primeiro os jogos ao vivo com estatísticas rápidas e depois as entradas ranqueadas.</p>

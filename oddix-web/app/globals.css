@@ -93,3 +93,335 @@ img {
     max-width: 100% !important;
   }
 }
+
+/* Responsividade premium do Dashboard Oddix
+   Mantém o layout rico no PC e reorganiza tudo em tablet/celular. */
+.oddix-dashboard {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+.oddix-dashboard button,
+.oddix-dashboard a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.oddix-dashboard img {
+  max-width: 100%;
+  height: auto;
+}
+
+.oddix-sports-rail,
+.oddix-tabs,
+.oddix-featured-strip,
+.oddix-games-grid {
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1360px) {
+  .oddix-hero-grid {
+    grid-template-columns: minmax(0, 1fr) 260px !important;
+    margin-left: 18px !important;
+    margin-right: 18px !important;
+  }
+
+  .oddix-hero-main {
+    grid-template-columns: minmax(0, 1fr) 330px !important;
+    padding: 32px 26px !important;
+  }
+
+  .oddix-hero-player-box {
+    min-width: 280px !important;
+    height: 300px !important;
+  }
+
+  .oddix-hero-player {
+    height: 315px !important;
+  }
+
+  .oddix-layout {
+    grid-template-columns: 280px minmax(0, 1fr) !important;
+    margin-left: 18px !important;
+    margin-right: 18px !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  .oddix-top-header {
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .oddix-brand {
+    width: 240px !important;
+    min-width: 220px !important;
+    height: 68px !important;
+  }
+
+  .oddix-header-actions {
+    max-width: calc(100vw - 290px) !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+    padding-bottom: 4px !important;
+  }
+
+  .oddix-header-actions button {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+
+  .oddix-hero-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .oddix-vip-panel {
+    min-height: 160px !important;
+  }
+
+  .oddix-top-widgets-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .oddix-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .oddix-sidebar {
+    position: relative !important;
+    top: auto !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 14px !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  .oddix-main-content {
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 900px) {
+  body {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(123, 60, 255, 0.22), transparent 30%),
+      linear-gradient(180deg, #02020a 0%, #060512 100%) !important;
+  }
+
+  .oddix-top-header {
+    position: sticky !important;
+    top: 0 !important;
+    padding: 10px 12px !important;
+    flex-direction: column !important;
+  }
+
+  .oddix-brand {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 62px !important;
+    border-radius: 18px !important;
+  }
+
+  .oddix-header-actions {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    gap: 8px !important;
+  }
+
+  .oddix-header-actions button {
+    padding: 9px 12px !important;
+    font-size: 13px !important;
+  }
+
+  .oddix-sports-rail {
+    padding: 10px 12px 12px !important;
+    gap: 8px !important;
+  }
+
+  .oddix-sports-rail button {
+    min-width: max-content !important;
+    height: 42px !important;
+    padding: 0 13px !important;
+    border-radius: 14px !important;
+    font-size: 13px !important;
+  }
+
+  .oddix-hero-grid,
+  .oddix-top-widgets,
+  .oddix-layout,
+  .oddix-featured-strip,
+  .oddix-tabs-wrapper,
+  .oddix-footer {
+    margin-left: 12px !important;
+    margin-right: 12px !important;
+  }
+
+  .oddix-hero-main {
+    min-height: auto !important;
+    grid-template-columns: 1fr !important;
+    padding: 26px 18px 0 !important;
+    border-radius: 24px !important;
+    text-align: center !important;
+  }
+
+  .oddix-hero-text {
+    max-width: 100% !important;
+    padding-right: 0 !important;
+  }
+
+  .oddix-hero-main h1 {
+    font-size: clamp(30px, 8vw, 46px) !important;
+    line-height: 1.04 !important;
+    margin: 10px 0 12px !important;
+  }
+
+  .oddix-hero-main p {
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+  }
+
+  .oddix-hero-player-box {
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 250px !important;
+    margin-top: 6px !important;
+  }
+
+  .oddix-hero-player {
+    width: 100% !important;
+    height: 270px !important;
+    transform: translateX(0) !important;
+  }
+
+  .oddix-vip-panel {
+    border-radius: 22px !important;
+    padding: 18px !important;
+  }
+
+  .oddix-tabs {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+    padding-bottom: 8px !important;
+  }
+
+  .oddix-tabs button {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+
+  .oddix-sidebar {
+    grid-template-columns: 1fr !important;
+  }
+
+  .oddix-section-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
+  .oddix-games-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    overflow: visible !important;
+  }
+
+  .oddix-featured-strip {
+    padding-bottom: 10px !important;
+  }
+
+  .oddix-footer {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 18px !important;
+    padding: 22px 18px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .oddix-dashboard {
+    font-size: 14px !important;
+  }
+
+  .oddix-hero-grid,
+  .oddix-top-widgets,
+  .oddix-layout,
+  .oddix-featured-strip,
+  .oddix-tabs-wrapper,
+  .oddix-footer {
+    margin-left: 10px !important;
+    margin-right: 10px !important;
+  }
+
+  .oddix-hero-main {
+    padding: 22px 14px 0 !important;
+    border-radius: 22px !important;
+  }
+
+  .oddix-hero-main h1 {
+    font-size: clamp(28px, 9vw, 38px) !important;
+  }
+
+  .oddix-hero-player-box {
+    height: 210px !important;
+  }
+
+  .oddix-hero-player {
+    height: 230px !important;
+  }
+
+  .oddix-vip-panel strong {
+    font-size: 42px !important;
+  }
+
+  .oddix-top-widgets {
+    margin-bottom: 14px !important;
+  }
+
+  .oddix-featured-strip,
+  .oddix-games-grid {
+    gap: 12px !important;
+  }
+
+  .oddix-games-grid > * {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .oddix-main-content,
+  .oddix-sidebar {
+    min-width: 0 !important;
+  }
+
+  .oddix-footer img {
+    max-width: 220px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .oddix-header-actions button,
+  .oddix-sports-rail button,
+  .oddix-tabs button {
+    font-size: 12px !important;
+  }
+
+  .oddix-hero-main h1 {
+    font-size: 28px !important;
+  }
+
+  .oddix-hero-main p {
+    font-size: 13px !important;
+  }
+
+  .oddix-hero-player-box {
+    height: 190px !important;
+  }
+
+  .oddix-hero-player {
+    height: 205px !important;
+  }
+}
