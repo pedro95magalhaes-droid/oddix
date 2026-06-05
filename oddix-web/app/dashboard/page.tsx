@@ -794,6 +794,13 @@ export default function Dashboard() {
       .sort((a: any, b: any) => new Date(b?.updatedAt || b?.createdAt || 0).getTime() - new Date(a?.updatedAt || a?.createdAt || 0).getTime());
   }, [savedBets]);
 
+  const recentResultBets = useMemo(() => {
+    return (savedBets || [])
+      .filter((bet: any) => ["won", "lost"].includes(String(bet?.status || "").toLowerCase()))
+      .sort((a: any, b: any) => new Date(b?.updatedAt || b?.createdAt || 0).getTime() - new Date(a?.updatedAt || a?.createdAt || 0).getTime())
+      .slice(0, 5);
+  }, [savedBets]);
+
   const leagues = useMemo(() => {
     return Array.from(new Set(games.map((game) => game?.league?.name).filter(Boolean))).sort();
   }, [games]);
@@ -1624,7 +1631,7 @@ export default function Dashboard() {
         won={stats?.wonBets || 0}
         lost={stats?.lostBets || 0}
         roi={stats?.roi || 0}
-        recentBets={wonBetsList.slice(0, 5)}
+        recentBets={recentResultBets}
         onUpgrade={() => (window.location.href = "/plans")}
       />
 
@@ -3027,7 +3034,9 @@ function BoostSection({ boost, games, onAnalyze }: any) {
 function VipResultsSection({ won, lost, roi, recentBets, onUpgrade }: { won: number; lost: number; roi: number; recentBets: any[]; onUpgrade: () => void }) {
   const total = safeNumber(won, 0) + safeNumber(lost, 0);
   const winRate = total > 0 ? Math.round((safeNumber(won, 0) / total) * 100) : 0;
-  const lastResults = recentBets?.length ? recentBets : Array.from({ length: Math.min(5, safeNumber(won, 0)) }, (_, index) => ({ id: index }));
+  const lastResults = recentBets?.length
+    ? recentBets
+    : Array.from({ length: Math.min(5, safeNumber(won, 0)) }, (_, index) => ({ id: index, status: "won" }));
 
   return (
     <section
@@ -3155,26 +3164,36 @@ function VipResultsSection({ won, lost, roi, recentBets, onUpgrade }: { won: num
           </div>
 
           <div style={{ display: "grid", gap: 8 }}>
-            {lastResults.slice(0, 5).map((bet: any, idx: number) => (
-              <div
-                key={bet?.id || idx}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  padding: "10px 12px",
-                  borderRadius: 16,
-                  background: "rgba(34,197,94,.10)",
-                  border: "1px solid rgba(34,197,94,.18)",
-                }}
-              >
-                <span style={{ color: "#dcfce7", fontWeight: 900 }}>🟢 GREEN</span>
-                <small style={{ color: "rgba(255,255,255,.62)", fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {bet?.homeTeam && bet?.awayTeam ? `${bet.homeTeam} x ${bet.awayTeam}` : "Entrada Oddix VIP"}
-                </small>
-              </div>
-            ))}
+            {lastResults.slice(0, 5).map((bet: any, idx: number) => {
+              const status = String(bet?.status || "won").toLowerCase();
+              const isGreen = status === "won";
+              const resultLabel = isGreen ? "GREEN" : "RED";
+              const resultEmoji = isGreen ? "🟢" : "🔴";
+              const resultColor = isGreen ? "#dcfce7" : "#fee2e2";
+              const resultBg = isGreen ? "rgba(34,197,94,.10)" : "rgba(239,68,68,.12)";
+              const resultBorder = isGreen ? "rgba(34,197,94,.18)" : "rgba(239,68,68,.20)";
+
+              return (
+                <div
+                  key={bet?.id || idx}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    padding: "10px 12px",
+                    borderRadius: 16,
+                    background: resultBg,
+                    border: `1px solid ${resultBorder}`,
+                  }}
+                >
+                  <span style={{ color: resultColor, fontWeight: 900 }}>{resultEmoji} {resultLabel}</span>
+                  <small style={{ color: "rgba(255,255,255,.72)", fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {bet?.homeTeam && bet?.awayTeam ? `${bet.homeTeam} x ${bet.awayTeam}` : "Entrada Oddix VIP"}
+                  </small>
+                </div>
+              );
+            })}
           </div>
 
           <button
