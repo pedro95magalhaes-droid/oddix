@@ -6,7 +6,7 @@ export class BetsService {
   constructor(private readonly prisma: PrismaService) {}
 
   private maxOpenBetHours() {
-    return Number(process.env.ODDIX_MAX_OPEN_BET_HOURS || 72);
+    return Number(process.env.ODDIX_MAX_OPEN_BET_HOURS || 24);
   }
 
   private recentResultDays() {
@@ -100,20 +100,39 @@ export class BetsService {
     const maxOpenHours = this.maxOpenBetHours();
     const cutoff = new Date(Date.now() - maxOpenHours * 60 * 60 * 1000);
 
-    const result = await this.prisma.bet.updateMany({
+    // IMPORTANTE:
+    // O model Bet do Prisma NÃO possui campo `result`.
+    // O resultado/estado da aposta deve ficar somente em `status`.
+    // O motivo da limpeza fica em `analysis` para auditoria.
+    const oldOpenBets = await this.prisma.bet.findMany({
       where: {
         status: 'open',
         createdAt: { lt: cutoff },
       },
-      data: {
-        status: 'expired',
-        result: 'expired',
-      } as any,
+      select: {
+        id: true,
+        analysis: true,
+      },
     });
+
+    await Promise.all(
+      oldOpenBets.map((bet) => {
+        const currentAnalysis = String(bet.analysis || '').trim();
+        const cleanupTag = `ODDIX_EXPIRED_OPEN_${maxOpenHours}H`;
+
+        return this.prisma.bet.update({
+          where: { id: bet.id },
+          data: {
+            status: 'expired',
+            analysis: currentAnalysis ? `${currentAnalysis} | ${cleanupTag}` : cleanupTag,
+          } as any,
+        });
+      }),
+    );
 
     return {
       success: true,
-      expired: result.count || 0,
+      expired: oldOpenBets.length,
       maxOpenHours,
       message: 'Bets abertas antigas foram expiradas e não aparecem mais no dashboard.',
     };
