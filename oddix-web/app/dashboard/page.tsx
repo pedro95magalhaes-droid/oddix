@@ -4723,7 +4723,7 @@ const styles: Record<string, CSSProperties> = {
   betSlipInfo: { display: "flex", flexDirection: "column", gap: 4 },
   betSlipCheck: { color: "#22c55e", fontSize: 24, fontWeight: 950 },
   betSlipFooter: { marginTop: 18, display: "flex", flexDirection: "column", gap: 10, color: "#c4b5fd", textAlign: "center" },
-  betSlipMainButton: { width: "100%", background: "linear-gradient(135deg,#facc15,#fb923c)", color: "#111827", border: 0, borderRadius: 16, padding: "15px 18px", fontWeight: 950, cursor: "pointer" },,
+  betSlipMainButton: { width: "100%", background: "linear-gradient(135deg,#facc15,#fb923c)", color: "#111827", border: 0, borderRadius: 16, padding: "15px 18px", fontWeight: 950, cursor: "pointer" },
 
   vipMarketingStrip: {
     margin: "0 26px 20px",
