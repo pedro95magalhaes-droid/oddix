@@ -2379,44 +2379,77 @@ export class FootballService {
   async getStatisticsFromFlashScore(fixtureId: string) {
     const cachedRaw = await this.getFixtureFromCacheById(fixtureId);
     const cached = cachedRaw as any;
+    const provider = String(cached?.provider || cached?.provedor || '').toLowerCase();
     const externalId =
       cached?.fixture?.externalId ||
+      cached?.fixture?.external_id ||
+      cached?.fixture?.externalID ||
+      cached?.fixture?.match_id ||
+      cached?.fixture?.matchId ||
+      cached?.flashScoreRaw?.match_id ||
       cached?.flashScoreRaw?.id ||
-      cached?.fixture?.id;
+      cached?.flashScoreRaw?.eventId ||
+      cached?.flashScoreRaw?.matchId ||
+      null;
 
-    if (!externalId || cached?.provider !== "flashscore") {
+    if (!cached) {
       return {
         ok: false,
         data: null,
-        error: "Fixture não é FlashScore ou não possui externalId",
+        error: `Fixture ${fixtureId} não encontrado no cache`,
+      };
+    }
+
+    if (!provider.includes('flashscore')) {
+      return {
+        ok: false,
+        data: null,
+        error: `Fixture não é FlashScore. provider=${provider || 'unknown'}`,
+      };
+    }
+
+    if (!externalId) {
+      return {
+        ok: false,
+        data: null,
+        error: `Fixture FlashScore sem externalId. fixtureId=${fixtureId}`,
       };
     }
 
     try {
-      const response = await this.flashScoreService.getStats(
-        String(externalId),
-      );
-      if (!response.ok || !response.data)
+      const response = await this.flashScoreService.getStats(String(externalId));
+
+      if (!response.ok || !response.data) {
         return {
           ok: false,
           data: null,
-          error: response.error || "Sem stats FlashScore",
+          error:
+            response.error ||
+            `FlashScore não retornou stats para match_id=${externalId}`,
         };
+      }
 
       const stats = this.flashScoreService.mapStatsToOddix(
         fixtureId,
         response.data,
       );
+
       return {
         ok: stats.available,
-        data: stats,
-        error: stats.available ? null : "Sem estatísticas reais na FlashScore",
+        data: {
+          ...stats,
+          fixtureId,
+          flashScoreId: String(externalId),
+        },
+        error: stats.available
+          ? null
+          : `Sem estatísticas reais na FlashScore para match_id=${externalId}`,
       };
     } catch (error: any) {
       return {
         ok: false,
         data: null,
-        error: error?.message || "Erro ao buscar stats FlashScore",
+        error: error?.message || 'Erro ao buscar stats FlashScore',
       };
     }
   }

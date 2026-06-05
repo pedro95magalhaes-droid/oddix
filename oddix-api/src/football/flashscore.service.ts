@@ -410,17 +410,52 @@ export class FlashScoreService {
   }
 
   async getStats(matchId: string): Promise<ProviderResult<any | null>> {
-    const response = await this.request('/api/flashscore/v2/matches/match/stats', { match_id: matchId });
+    const cleanMatchId = String(matchId || '').trim();
 
-    if (!response.ok || !response.data) {
+    if (!cleanMatchId) {
       return {
         ok: false,
         data: null,
-        error: response.error || 'FlashScore não retornou estatísticas',
+        error: 'match_id FlashScore vazio',
       };
     }
 
-    return { ok: true, data: response.data, error: null };
+    const attempts = [
+      { match_id: cleanMatchId },
+      { id: cleanMatchId },
+      { event_id: cleanMatchId },
+      { matchId: cleanMatchId },
+    ];
+
+    const errors: any[] = [];
+
+    for (const params of attempts) {
+      const response = await this.request(
+        '/api/flashscore/v2/matches/match/stats',
+        params,
+      );
+
+      if (!response.ok) {
+        errors.push(response.error || `falha params=${JSON.stringify(params)}`);
+        continue;
+      }
+
+      const mapped = this.mapStatsToOddix(cleanMatchId, response.data);
+
+      if (mapped.available) {
+        return { ok: true, data: response.data, error: null };
+      }
+
+      errors.push(`sem linhas de estatística params=${JSON.stringify(params)}`);
+    }
+
+    return {
+      ok: false,
+      data: null,
+      error:
+        errors.filter(Boolean).join(' | ') ||
+        'FlashScore não retornou estatísticas reais',
+    };
   }
 
   async getLineups(matchId: string): Promise<ProviderResult<any | null>> {
@@ -442,9 +477,8 @@ export class FlashScoreService {
   }
 
   private extractStatRows(data: any): any[] {
-    if (Array.isArray(data)) return data;
-
-    const candidates = [
+    const directArrays = [
+      data,
       data?.statistics,
       data?.stats,
       data?.matchStats,
@@ -478,11 +512,12 @@ export class FlashScoreService {
       data?.payload?.matchStats,
     ];
 
-    for (const candidate of candidates) {
-      if (Array.isArray(candidate)) return candidate;
+    for (const candidate of directArrays) {
+      if (Array.isArray(candidate) && this.looksLikeStatRows(candidate)) {
+        return candidate;
+      }
     }
 
-    // Alguns endpoints retornam grupos/seções: [{ groupName, statistics: [...] }]
     const sectionSources = [
       data?.data?.groups,
       data?.DATA?.groups,
@@ -496,15 +531,80 @@ export class FlashScoreService {
 
     for (const source of sectionSources) {
       if (!Array.isArray(source)) continue;
+
       const rows = source.flatMap((section: any) => {
         if (Array.isArray(section?.statistics)) return section.statistics;
         if (Array.isArray(section?.stats)) return section.stats;
         if (Array.isArray(section?.items)) return section.items;
         if (Array.isArray(section?.rows)) return section.rows;
+        if (Array.isArray(section?.matchStats)) return section.matchStats;
         return [];
       });
 
-      if (rows.length) return rows;
+      if (this.looksLikeStatRows(rows)) return rows;
+    }
+
+    const recursiveRows = this.findStatRowsDeep(data);
+    return recursiveRows;
+  }
+
+  private looksLikeStatRows(rows: any[]): boolean {
+    if (!Array.isArray(rows) || rows.length === 0) return false;
+
+    return rows.some((row: any) => {
+      if (!row || typeof row !== 'object') return false;
+
+      const name = this.readStatName(row);
+      const home = this.readHomeStatValue(row);
+      const away = this.readAwayStatValue(row);
+
+      return (
+        (name && name !== 'Stat') &&
+        (home !== undefined || away !== undefined)
+      );
+    });
+  }
+
+  private findStatRowsDeep(input: any, depth = 0): any[] {
+    if (!input || depth > 5) return [];
+
+    if (Array.isArray(input)) {
+      if (this.looksLikeStatRows(input)) return input;
+
+      for (const item of input) {
+        const found = this.findStatRowsDeep(item, depth + 1);
+        if (found.length) return found;
+      }
+
+      return [];
+    }
+
+    if (typeof input !== 'object') return [];
+
+    const priorityKeys = [
+      'statistics',
+      'stats',
+      'matchStats',
+      'match_stats',
+      'items',
+      'rows',
+      'groups',
+      'sections',
+      'data',
+      'DATA',
+      'response',
+      'result',
+      'payload',
+    ];
+
+    for (const key of priorityKeys) {
+      const found = this.findStatRowsDeep(input?.[key], depth + 1);
+      if (found.length) return found;
+    }
+
+    for (const value of Object.values(input)) {
+      const found = this.findStatRowsDeep(value, depth + 1);
+      if (found.length) return found;
     }
 
     return [];
