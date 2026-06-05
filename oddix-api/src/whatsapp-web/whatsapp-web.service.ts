@@ -30,6 +30,23 @@ export class WhatsappWebService implements OnModuleInit {
     return process.env.WHATSAPP_WEB_SESSION_DIR || path.join(process.cwd(), 'whatsapp-session');
   }
 
+  private resetSessionDir() {
+    const dir = this.sessionDir();
+
+    try {
+      if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+
+      fs.mkdirSync(dir, { recursive: true });
+      this.lastQr = null;
+
+      this.logger.warn(`Sessão WhatsApp limpa em: ${dir}`);
+    } catch (error: any) {
+      this.logger.error(`Erro ao limpar sessão WhatsApp: ${error?.message || error}`);
+    }
+  }
+
   private vipGroupJid() {
     return process.env.WHATSAPP_WEB_GROUP_VIP || process.env.ODDIX_VIP_GROUP_ID || '';
   }
@@ -85,6 +102,7 @@ export class WhatsappWebService implements OnModuleInit {
         if (qr) {
           this.lastQr = qr;
           this.logger.log('Escaneie o QR Code abaixo com o WhatsApp:');
+          this.logger.log('QR também disponível em /whatsapp-web/qr-page');
           qrcode.generate(qr, { small: true });
         }
 
@@ -105,11 +123,18 @@ export class WhatsappWebService implements OnModuleInit {
 
           if (shouldReconnect) {
             setTimeout(() => this.connect(), 5000);
-          } else {
-            this.logger.warn(
-              'Sessão do WhatsApp foi deslogada. Apague whatsapp-session e escaneie novo QR Code.',
-            );
+            return;
           }
+
+          this.logger.warn(
+            'Sessão do WhatsApp foi deslogada. Limpando whatsapp-session e gerando novo QR Code...',
+          );
+
+          this.resetSessionDir();
+
+          setTimeout(() => {
+            this.connect();
+          }, 3000);
         }
       });
     } catch (error: any) {
