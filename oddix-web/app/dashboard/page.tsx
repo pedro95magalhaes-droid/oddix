@@ -1560,6 +1560,13 @@ export default function Dashboard() {
         </div>
       </section>
 
+      <ResultsSnapshot
+        stats={stats}
+        liveGames={liveGames.length}
+        smartTips={displayedSmartTips.length}
+        openBets={savedBets.filter((bet: any) => String(bet?.status || "").toLowerCase() === "open").length}
+      />
+
       <TopPickHero
         tip={displayedSmartTips[0]}
         game={topGames[0]}
@@ -1598,6 +1605,15 @@ export default function Dashboard() {
           />
         </div>
       </section>
+
+      <PlayerPropsSpotlight
+        props={playerPropsTips}
+        isPaidPlan={isPaidPlan}
+        onUpgrade={() => {
+          if (isPaidPlan) setActiveTab("playerprops");
+          else window.location.href = "/plans";
+        }}
+      />
 
       <section
         className="oddix-featured-strip"
@@ -2221,6 +2237,28 @@ function StatsCompare({ label, left, right }: { label: string; left: any; right:
   );
 }
 
+function getLiveQualityBadge(game: any) {
+  const quality = String(game?.oddix?.qualityLabel || "").toLowerCase();
+  const score = safeNumber(game?.oddix?.qualityScore, 0);
+  const live = isGameLive(game);
+
+  if (!live) {
+    if (score >= 85) return { label: "PRÉ-JOGO PREMIUM", color: "#facc15", bg: "rgba(250,204,21,.14)" };
+    if (score >= 70) return { label: "PRÉ-JOGO BOM", color: "#a78bfa", bg: "rgba(167,139,250,.14)" };
+    return { label: "AGUARDANDO MERCADO", color: "#94a3b8", bg: "rgba(148,163,184,.12)" };
+  }
+
+  if (quality.includes("premium") || score >= 88) {
+    return { label: "LIVE PREMIUM", color: "#22c55e", bg: "rgba(34,197,94,.16)" };
+  }
+
+  if (quality.includes("boa") || quality.includes("excelente") || score >= 72) {
+    return { label: "LIVE LIMITADO", color: "#facc15", bg: "rgba(250,204,21,.14)" };
+  }
+
+  return { label: "SEM STATS REAIS", color: "#fb7185", bg: "rgba(251,113,133,.14)" };
+}
+
 function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
   const finalGame = game || (tip ? null : null);
   const finalTip = tip || (finalGame ? smartLocalTip(finalGame) : null);
@@ -2228,13 +2266,18 @@ function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
 
   if (!finalGame || !finalTip) return null;
 
+  const badge = getLiveQualityBadge(finalGame);
+  const confidence = Math.min(100, Math.max(0, safeNumber(finalTip.confidence, 0)));
+
   return (
-    <section className="oddix-top-pick-hero" style={styles.topPickHero}>
+    <section className="oddix-top-pick-hero oddix-premium-ticket" style={styles.topPickHero}>
+      <div className="oddix-ticket-glow" />
+
       <div style={styles.topPickPremiumBadge}>
-        <span>🏆</span>
+        <span style={{ fontSize: 34 }}>🏆</span>
         <div>
           <strong>TOP PICK DO DIA</strong>
-          <small>Entrada principal filtrada pela IA</small>
+          <small>Bilhete principal filtrado pela IA Oddix</small>
         </div>
       </div>
 
@@ -2242,7 +2285,7 @@ function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
         <img src={finalGame?.teams?.home?.logo || logoFallback(finalGame?.teams?.home?.name)} style={styles.topPickLogo} />
         <div style={styles.topPickTeams}>
           <strong>{finalGame?.teams?.home?.name}</strong>
-          <span>x</span>
+          <span style={{ color: "#facc15", fontWeight: 1000 }}>{score.home} x {score.away}</span>
           <strong>{finalGame?.teams?.away?.name}</strong>
           <small>{finalGame?.league?.name} • {isGameLive(finalGame) ? gameTimeLabel(finalGame, liveTick) : formatDateTime(finalGame?.fixture?.date)}</small>
         </div>
@@ -2250,25 +2293,97 @@ function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
       </div>
 
       <div style={styles.topPickSelection}>
-        <span>Entrada IA</span>
+        <span style={{ ...styles.liveQualityPill, color: badge.color, background: badge.bg }}>{badge.label}</span>
+        <small>Entrada IA</small>
         <strong>{finalTip.tip}</strong>
-        <small>{finalTip.risk} • mercado protegido</small>
+        <em>{finalTip.risk} • mercado protegido</em>
       </div>
 
       <div style={styles.topPickOddBox}>
-        <span>Odd</span>
+        <span>ODD</span>
         <strong>{finalTip.odd}</strong>
+        <small>alvo</small>
       </div>
 
       <div style={styles.topPickConfidence}>
-        <strong>{finalTip.confidence}%</strong>
+        <strong>{confidence}%</strong>
         <span>IA</span>
       </div>
 
-      <button style={styles.topPickButton} onClick={() => onAnalyze(finalGame)}>🎯 Pegar palpite</button>
+      <button style={styles.topPickButton} onClick={() => onAnalyze(finalGame)}>🎯 Abrir bilhete</button>
     </section>
   );
 }
+
+function ResultsSnapshot({ stats, liveGames, smartTips, openBets }: any) {
+  const won = safeNumber(stats?.wonBets, 0);
+  const lost = safeNumber(stats?.lostBets, 0);
+  const totalFinished = won + lost;
+  const winRate = totalFinished ? Math.round((won / totalFinished) * 100) : 0;
+
+  const cards = [
+    { label: "GREENS", value: won, tag: "confirmados", icon: "✅" },
+    { label: "REDS", value: lost, tag: "controle de risco", icon: "❌" },
+    { label: "WIN RATE", value: `${winRate}%`, tag: "assertividade", icon: "📈" },
+    { label: "OPEN", value: openBets, tag: "em monitoramento", icon: "⏱️" },
+    { label: "AO VIVO", value: liveGames, tag: "jogos agora", icon: "🔴" },
+    { label: "TIPS IA", value: smartTips, tag: "seleções premium", icon: "🤖" },
+  ];
+
+  return (
+    <section className="oddix-results-strip" style={styles.resultsStrip}>
+      {cards.map((card) => (
+        <div key={card.label} style={styles.resultMetricCard}>
+          <span style={styles.resultMetricIcon}>{card.icon}</span>
+          <small>{card.label}</small>
+          <strong>{card.value}</strong>
+          <em>{card.tag}</em>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function PlayerPropsSpotlight({ props, isPaidPlan, onUpgrade }: any) {
+  const list = (props || []).slice(0, 3);
+
+  return (
+    <section className="oddix-player-props-spotlight" style={styles.playerPropsSpotlight}>
+      <div style={styles.playerPropsSpotlightHead}>
+        <div>
+          <span style={styles.sectionKicker}>PLAYER PROPS IA</span>
+          <h2>Props em destaque</h2>
+          <p>Mercados de jogador aparecem apenas quando houver dados úteis de escalação, odds ou tendência real.</p>
+        </div>
+        <button style={styles.vipFullButton} onClick={onUpgrade}>
+          {isPaidPlan ? "Ver Player Props" : "Liberar VIP"}
+        </button>
+      </div>
+
+      {list.length ? (
+        <div style={styles.playerPropsSpotlightGrid}>
+          {list.map((item: any, index: number) => (
+            <article key={`${item.fixtureId || index}-${item.tip || item.selection || index}`} style={styles.playerPropsSpotlightCard}>
+              <span>{item.player || item.playerName || `Jogador ${index + 1}`}</span>
+              <strong>{item.tip || item.selection || item.market || "Linha de jogador"}</strong>
+              <div>
+                <b>Odd {item.odd || "-"}</b>
+                <b>{safeNumber(item.confidence, 0)}%</b>
+              </div>
+              <small>{item.game || item.league || "Mercado validado pela IA"}</small>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div style={styles.playerPropsEmptyPremium}>
+          <strong>🚧 Aguardando Player Props reais</strong>
+          <span>Assim que a API retornar escalações/odds de jogador, a Oddix libera chutes no gol, finalizações e assistências.</span>
+        </div>
+      )}
+    </section>
+  );
+}
+
 
 function GreensSection({ wonBets, onBetNow }: { wonBets: any[]; onBetNow: () => void }) {
   const wins = wonBets || [];
@@ -3141,17 +3256,17 @@ const styles: Record<string, CSSProperties> = {
   heroMain: {
     position: "relative",
     overflow: "hidden",
-    minHeight: 390,
+    minHeight: 470,
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 460px",
+    gridTemplateColumns: "minmax(0, 1fr) 520px",
     alignItems: "center",
-    gap: 12,
-    background: "radial-gradient(circle at 78% 46%, rgba(250,204,21,.20), transparent 28%), radial-gradient(circle at 70% 30%, rgba(124,58,237,.58), transparent 36%), linear-gradient(135deg,rgba(12,8,26,.99),rgba(46,16,101,.94))",
+    gap: 18,
+    background: "radial-gradient(circle at 82% 50%, rgba(250,204,21,.30), transparent 31%), radial-gradient(circle at 68% 26%, rgba(124,58,237,.68), transparent 38%), linear-gradient(135deg,rgba(12,8,26,.99),rgba(46,16,101,.94))",
     color: "#fff",
-    border: "1px solid rgba(250,204,21,.34)",
-    borderRadius: 30,
-    padding: "38px 32px 34px",
-    boxShadow: "0 28px 80px rgba(0,0,0,.34)",
+    border: "1px solid rgba(250,204,21,.42)",
+    borderRadius: 34,
+    padding: "46px 38px 34px",
+    boxShadow: "0 32px 90px rgba(0,0,0,.40), inset 0 1px 0 rgba(255,255,255,.10)",
   },
   heroTextBlock: {
     position: "relative",
@@ -3161,31 +3276,31 @@ const styles: Record<string, CSSProperties> = {
   },
   heroPlayerBox: {
     position: "relative",
-    height: 365,
-    minWidth: 390,
+    height: 440,
+    minWidth: 470,
     display: "flex",
     alignItems: "flex-end",
     justifyContent: "center",
   },
   heroPlayerGlow: {
     position: "absolute",
-    width: 420,
-    height: 420,
+    width: 520,
+    height: 520,
     borderRadius: 999,
-    background: "radial-gradient(circle, rgba(250,204,21,.22), rgba(124,58,237,.55), transparent 68%)",
+    background: "radial-gradient(circle, rgba(250,204,21,.28), rgba(124,58,237,.58), transparent 70%)",
     filter: "blur(2px)",
-    bottom: -90,
-    right: -42,
+    bottom: -110,
+    right: -54,
   },
   heroPlayerImage: {
     position: "relative",
     zIndex: 2,
-    height: 390,
-    width: "125%",
+    height: 470,
+    width: "135%",
     objectFit: "contain",
     objectPosition: "center bottom",
-    transform: "translateX(-16px)",
-    filter: "drop-shadow(0 28px 36px rgba(0,0,0,.55)) drop-shadow(0 0 24px rgba(250,204,21,.22))",
+    transform: "translateX(18px)",
+    filter: "drop-shadow(0 32px 42px rgba(0,0,0,.62)) drop-shadow(0 0 28px rgba(250,204,21,.25))",
   },
   sectionKicker: {
     color: "#7c3aed",
@@ -4337,10 +4452,12 @@ const styles: Record<string, CSSProperties> = {
   },
 
   topPickPremiumBadge: {
+    position: "relative",
+    zIndex: 2,
     display: "flex",
     alignItems: "center",
     gap: 12,
-    color: "#facc15",
+    color: "#fff7ed",
     fontWeight: 1000,
     lineHeight: 1.05,
     textTransform: "uppercase",
@@ -4363,35 +4480,115 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 0,
   },
   topPickSelection: {
+    position: "relative",
+    zIndex: 2,
     display: "flex",
     flexDirection: "column",
-    gap: 4,
-    borderLeft: "1px solid rgba(255,255,255,.12)",
+    gap: 5,
+    borderLeft: "1px solid rgba(255,255,255,.18)",
     paddingLeft: 18,
     minWidth: 0,
   },
   topPickOddBox: {
+    position: "relative",
+    zIndex: 2,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
     gap: 2,
-    minHeight: 70,
-    borderRadius: 18,
-    background: "rgba(255,255,255,.06)",
-    border: "1px solid rgba(255,255,255,.10)",
+    minHeight: 86,
+    borderRadius: 22,
+    background: "rgba(17,24,39,.92)",
+    border: "1px solid rgba(250,204,21,.45)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,.10)",
   },
   topPickConfidence: {
-    width: 76,
-    height: 76,
+    position: "relative",
+    zIndex: 2,
+    width: 88,
+    height: 88,
     borderRadius: 999,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    border: "4px solid #13f26b",
-    color: "#13f26b",
-    boxShadow: "0 0 24px rgba(19,242,107,.22)",
+    border: "4px solid #22c55e",
+    background: "rgba(4,120,87,.20)",
+    color: "#86efac",
+    boxShadow: "0 0 28px rgba(34,197,94,.30)",
+  },
+
+  liveQualityPill: {
+    alignSelf: "flex-start",
+    border: "1px solid rgba(255,255,255,.22)",
+    borderRadius: 999,
+    padding: "7px 10px",
+    fontSize: 11,
+    fontWeight: 1000,
+    letterSpacing: .7,
+    textTransform: "uppercase",
+  },
+  resultsStrip: {
+    margin: "0 26px 18px",
+    display: "grid",
+    gridTemplateColumns: "repeat(6,minmax(0,1fr))",
+    gap: 12,
+  },
+  resultMetricCard: {
+    background: "linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.045))",
+    border: "1px solid rgba(250,204,21,.24)",
+    borderRadius: 22,
+    padding: "16px 14px",
+    color: "#fff",
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    boxShadow: "0 16px 36px rgba(0,0,0,.22)",
+  },
+  resultMetricIcon: {
+    fontSize: 22,
+    marginBottom: 4,
+  },
+  playerPropsSpotlight: {
+    margin: "0 26px 20px",
+    borderRadius: 28,
+    padding: 22,
+    background: "radial-gradient(circle at 12% 0%, rgba(250,204,21,.20), transparent 26%), linear-gradient(135deg,rgba(20,12,38,.98),rgba(76,29,149,.82))",
+    border: "1px solid rgba(250,204,21,.22)",
+    color: "#fff",
+    boxShadow: "0 20px 52px rgba(0,0,0,.28)",
+  },
+  playerPropsSpotlightHead: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 18,
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  playerPropsSpotlightGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+    gap: 14,
+  },
+  playerPropsSpotlightCard: {
+    background: "rgba(0,0,0,.30)",
+    border: "1px solid rgba(255,255,255,.12)",
+    borderRadius: 22,
+    padding: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 9,
+  },
+  playerPropsEmptyPremium: {
+    background: "rgba(0,0,0,.28)",
+    border: "1px solid rgba(255,255,255,.12)",
+    borderRadius: 22,
+    padding: 18,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    color: "#e5e7eb",
   },
   footer: {
     margin: "26px",
@@ -4490,17 +4687,19 @@ const styles: Record<string, CSSProperties> = {
   },
   topPickHero: {
     margin: "0 26px 20px",
-    minHeight: 118,
+    minHeight: 150,
+    position: "relative",
+    overflow: "hidden",
     display: "grid",
-    gridTemplateColumns: "minmax(190px,.9fr) minmax(280px,1.15fr) minmax(280px,1.25fr) 92px 92px minmax(150px,.55fr)",
+    gridTemplateColumns: "minmax(180px,.85fr) minmax(280px,1.15fr) minmax(300px,1.25fr) 120px 104px minmax(160px,.55fr)",
     gap: 16,
     alignItems: "center",
-    background: "linear-gradient(135deg,rgba(20,12,38,.98),rgba(4,5,15,.98))",
-    border: "1px solid rgba(250,204,21,.55)",
-    borderRadius: 26,
-    padding: "16px 18px",
+    background: "radial-gradient(circle at 20% 0%, rgba(255,255,255,.18), transparent 20%), linear-gradient(135deg,#fb923c 0%,#f97316 28%,#7c2d12 66%,#090514 100%)",
+    border: "1px solid rgba(250,204,21,.68)",
+    borderRadius: 30,
+    padding: "20px 22px",
     color: "#fff",
-    boxShadow: "0 18px 50px rgba(250,204,21,.10), 0 24px 60px rgba(0,0,0,.30)",
+    boxShadow: "0 24px 68px rgba(249,115,22,.22), 0 24px 70px rgba(0,0,0,.34)",
   },
   topPickLeft: {
     display: "none",
@@ -4512,13 +4711,13 @@ const styles: Record<string, CSSProperties> = {
     display: "none",
   },
   topPickLogo: {
-    width: 46,
-    height: 46,
+    width: 58,
+    height: 58,
     objectFit: "contain",
-    background: "rgba(255,255,255,.08)",
-    border: "1px solid rgba(255,255,255,.12)",
-    borderRadius: 14,
-    padding: 6,
+    background: "rgba(255,255,255,.12)",
+    border: "1px solid rgba(255,255,255,.18)",
+    borderRadius: 18,
+    padding: 7,
   },
   topPickScore: {
     display: "none",
@@ -4527,14 +4726,16 @@ const styles: Record<string, CSSProperties> = {
     display: "none",
   },
   topPickButton: {
-    height: 50,
+    position: "relative",
+    zIndex: 2,
+    height: 56,
     border: 0,
-    borderRadius: 16,
-    background: "linear-gradient(135deg,#facc15,#fb923c)",
+    borderRadius: 18,
+    background: "linear-gradient(135deg,#facc15,#fff7ad)",
     color: "#111827",
     fontWeight: 1000,
     cursor: "pointer",
-    boxShadow: "0 14px 30px rgba(250,204,21,.25)",
+    boxShadow: "0 16px 34px rgba(250,204,21,.30)",
   },
   greensPanel: {
     background: "linear-gradient(180deg,rgba(6,78,59,.96),rgba(6,35,28,.98))",
