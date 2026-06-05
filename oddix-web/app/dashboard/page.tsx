@@ -174,26 +174,17 @@ function isFinishedStatus(status: string) {
 
 function isGameLive(game: any) {
   const status = getStatusShort(game);
-  const elapsed = safeNumber(game?.fixture?.status?.elapsed, 0);
-  const extra = safeNumber(game?.fixture?.status?.extra, 0);
 
   if (isFinishedStatus(status)) return false;
   if (!isLiveStatus(status)) return false;
-  if (elapsed >= 90) return false;
-  if (elapsed >= 85 && extra > 0) return false;
 
   return true;
 }
 
 function isGameFinished(game: any) {
   const status = getStatusShort(game);
-  const elapsed = safeNumber(game?.fixture?.status?.elapsed, 0);
-  const extra = safeNumber(game?.fixture?.status?.extra, 0);
 
-  if (isFinishedStatus(status)) return true;
-  if (elapsed >= 90) return true;
-  if (elapsed >= 85 && extra > 0) return true;
-  return false;
+  return isFinishedStatus(status);
 }
 
 function gameDateKey(game: any) {
@@ -218,7 +209,7 @@ function getLiveClockParts(game: any, tick = 0) {
     return { minute: 45, second: 0, extra, running: false };
   }
 
-  if (!rawLive || apiElapsed >= 90 || (apiElapsed >= 85 && extra > 0)) {
+  if (!rawLive) {
     return { minute: apiElapsed, second: 0, extra, running: false };
   }
 
@@ -629,11 +620,18 @@ function getGameByTip(tip: any, games: any[]) {
 
   const home = normalizeName(tip?.homeTeam || tip?.game?.split(" x ")?.[0]);
   const away = normalizeName(tip?.awayTeam || tip?.game?.split(" x ")?.[1]);
+
+  if (!home || !away) return null;
+
   return games.find((game) => {
     const gh = normalizeName(game?.teams?.home?.name);
     const ga = normalizeName(game?.teams?.away?.name);
-    return gh.includes(home) || home.includes(gh) || ga.includes(away) || away.includes(ga);
-  });
+
+    const homeMatches = gh.includes(home) || home.includes(gh);
+    const awayMatches = ga.includes(away) || away.includes(ga);
+
+    return homeMatches && awayMatches;
+  }) || null;
 }
 
 
@@ -817,10 +815,8 @@ export default function Dashboard() {
   }, [smartTips, localTips]);
 
   const playerPropsTips = useMemo(() => {
-    const realProps = extractPlayerPropsFromTips(displayedSmartTips);
-    if (realProps.length) return realProps;
-    return buildEstimatedPlayerPropsFromGames(topGames);
-  }, [displayedSmartTips, topGames]);
+    return extractPlayerPropsFromTips(displayedSmartTips);
+  }, [displayedSmartTips]);
 
   const filteredGames = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -861,11 +857,13 @@ export default function Dashboard() {
       setRefreshing(true);
 
       const tomorrow = dateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
+      const dayAfterTomorrow = dateKey(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
 
       const responses = await Promise.allSettled([
         api.get("/football/live"),
         api.get(`/football/fixtures?date=${today}`),
         api.get(`/football/fixtures?date=${tomorrow}`),
+        api.get(`/football/fixtures?date=${dayAfterTomorrow}`),
         api.get("/bets"),
         api.get("/favorite"),
       ]);
@@ -873,11 +871,12 @@ export default function Dashboard() {
       const live = responses[0].status === "fulfilled" ? responses[0].value?.data || [] : [];
       const fixturesToday = responses[1].status === "fulfilled" ? responses[1].value?.data || [] : [];
       const fixturesTomorrow = responses[2].status === "fulfilled" ? responses[2].value?.data || [] : [];
-      const bets = responses[3].status === "fulfilled" ? responses[3].value?.data || [] : [];
-      const favs = responses[4].status === "fulfilled" ? responses[4].value?.data || [] : [];
+      const fixturesDayAfterTomorrow = responses[3].status === "fulfilled" ? responses[3].value?.data || [] : [];
+      const bets = responses[4].status === "fulfilled" ? responses[4].value?.data || [] : [];
+      const favs = responses[5].status === "fulfilled" ? responses[5].value?.data || [] : [];
 
-      const allowedDateKeys = new Set([today, tomorrow]);
-      const merged = mergeGames([live, fixturesToday, fixturesTomorrow])
+      const allowedDateKeys = new Set([today, tomorrow, dayAfterTomorrow]);
+      const merged = mergeGames([live, fixturesToday, fixturesTomorrow, fixturesDayAfterTomorrow])
         .filter((game) => allowedDateKeys.has(gameDateKey(game)))
         .filter((game) => safeNumber(game?.oddix?.qualityScore, 0) >= DASHBOARD_MIN_SCORE);
 
@@ -1421,7 +1420,7 @@ export default function Dashboard() {
         onWheel={(event) => {
           const el = event.currentTarget;
           if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
-            el.scrollLeft += event.deltaY;
+            el.scrollTop += event.deltaY;
             event.preventDefault();
           }
         }}
@@ -1517,7 +1516,7 @@ export default function Dashboard() {
                   <h2>{getTabTitle(activeTab)}</h2>
                   <p>{filteredGames.length} jogos encontrados</p>
                 </div>
-                <span style={styles.rouletteHint}>Role o mouse para passar os jogos →</span>
+                <span style={styles.rouletteHint}>Role para ver mais jogos ↓</span>
               </div>
 
               {loading ? (
@@ -1529,7 +1528,7 @@ export default function Dashboard() {
                   onWheel={(event) => {
                     const el = event.currentTarget;
                     if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
-                      el.scrollLeft += event.deltaY;
+                      el.scrollTop += event.deltaY;
                       event.preventDefault();
                     }
                   }}
@@ -3436,11 +3435,13 @@ const styles: Record<string, CSSProperties> = {
   featuredStrip: {
     margin: "0 26px 20px",
     display: "flex",
+    flexDirection: "column",
     gap: 14,
-    overflowX: "auto",
-    overflowY: "hidden",
-    padding: "6px 6px 16px",
-    scrollSnapType: "x mandatory",
+    overflowX: "hidden",
+    overflowY: "auto",
+    maxHeight: 540,
+    padding: "10px 10px 16px",
+    scrollSnapType: "y proximity",
     position: "relative",
     zIndex: 8,
     background: "linear-gradient(180deg,rgba(14,6,31,.96),rgba(8,3,22,.90))",
@@ -3451,7 +3452,8 @@ const styles: Record<string, CSSProperties> = {
   },
   featuredCard: {
     minHeight: 165,
-    minWidth: 292,
+    width: "100%",
+    minWidth: 0,
     scrollSnapAlign: "start",
     background: "linear-gradient(135deg,rgba(46,16,101,.96),rgba(124,58,237,.84))",
     border: "1px solid rgba(168,85,247,.45)",
@@ -3634,21 +3636,23 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 14,
   },
   gamesGrid: {
-    display: "flex",
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
     gap: 18,
-    overflowX: "auto",
-    overflowY: "hidden",
+    overflowX: "hidden",
+    overflowY: "visible",
     padding: "8px 6px 20px",
-    scrollSnapType: "x mandatory",
+    scrollSnapType: "none",
     scrollbarWidth: "thin",
     scrollBehavior: "smooth",
     minHeight: 345,
   },
   gameCard: {
-    minWidth: 330,
-    maxWidth: 330,
+    width: "100%",
+    minWidth: 0,
+    maxWidth: "100%",
     minHeight: 322,
-    scrollSnapAlign: "start",
+    scrollSnapAlign: "none",
     background: "linear-gradient(180deg,rgba(30,16,66,.98),rgba(9,5,20,.99))",
     color: "#fff",
     borderRadius: 24,
@@ -3658,10 +3662,11 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
   gameCardLive: {
-    minWidth: 330,
-    maxWidth: 330,
+    width: "100%",
+    minWidth: 0,
+    maxWidth: "100%",
     minHeight: 322,
-    scrollSnapAlign: "start",
+    scrollSnapAlign: "none",
     background: "linear-gradient(180deg,rgba(88,28,28,.98),rgba(30,16,66,.98))",
     color: "#fff",
     borderRadius: 24,
