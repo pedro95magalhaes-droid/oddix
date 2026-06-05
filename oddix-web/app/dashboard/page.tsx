@@ -842,7 +842,7 @@ export default function Dashboard() {
             <section style={styles.bottomGrid}>
               <PerformanceCard stats={dashboardStats} />
               <GreensCard wonBets={wonBetsList} tips={displayedSmartTips} />
-              <PlayerPropsCard props={playerPropsTips} isPaidPlan={isPaidPlan} onOpen={(prop) => {
+              <PlayerPropsCard props={playerPropsTips} isPaidPlan={isPaidPlan} onOpen={(prop: Tip) => {
                 const game = getGameByTip(prop, games);
                 if (game) analyzeGame(game, prop);
                 else if (!isPaidPlan) setFreeLockOpen(true);
