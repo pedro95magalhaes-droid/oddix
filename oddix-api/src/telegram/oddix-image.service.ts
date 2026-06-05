@@ -94,33 +94,7 @@ export class OddixImageService {
       .trim();
   }
 
-  private splitTip(value: any) {
-    const text = this.stripPrefixTip(value).toUpperCase();
-    const normalized = this.normalize(text);
-
-    const overUnder = text.match(/^(OVER|UNDER)\s+([0-9]+(?:[.,][0-9]+)?)(.*)$/i);
-    if (overUnder) {
-      const top = `${overUnder[1]} ${overUnder[2]}`.replace(".", ",");
-      const bottom = this.cleanText(overUnder[3] || "").replace(/^DE\s+/i, "");
-      return { top, bottom: bottom || "ENTRADA ODDIX" };
-    }
-
-    const firstWords = text.split(" ");
-    if (firstWords.length > 4) {
-      return {
-        top: firstWords.slice(0, 3).join(" "),
-        bottom: firstWords.slice(3).join(" "),
-      };
-    }
-
-    if (normalized.includes("empate")) {
-      return { top: text.replace(/\s+OU\s+/i, " OU "), bottom: "DUPLA CHANCE" };
-    }
-
-    return { top: text, bottom: "ENTRADA ODDIX" };
-  }
-
-  private wrapText(value: any, maxCharsPerLine = 22, maxLines = 2) {
+  private wrapText(value: any, maxCharsPerLine = 26, maxLines = 2) {
     const words = this.cleanText(value).split(" ").filter(Boolean);
     const lines: string[] = [];
     let current = "";
@@ -140,15 +114,6 @@ export class OddixImageService {
     return lines.slice(0, maxLines);
   }
 
-  private seedFromText(text: string) {
-    let hash = 0;
-    for (let i = 0; i < text.length; i++) {
-      hash = (hash << 5) - hash + text.charCodeAt(i);
-      hash |= 0;
-    }
-    return Math.abs(hash);
-  }
-
   private initials(name: string) {
     return String(name || "OD")
       .split(/\s+/)
@@ -156,6 +121,36 @@ export class OddixImageService {
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase())
       .join("");
+  }
+
+  private ticketCode(input: string) {
+    let hash = 0;
+    for (let i = 0; i < input.length; i++) {
+      hash = (hash << 5) - hash + input.charCodeAt(i);
+      hash |= 0;
+    }
+    return `ODX-${Math.abs(hash).toString().slice(0, 8).padStart(8, "0")}`;
+  }
+
+  private formatOdd(value: any) {
+    const parsed = Number(String(value ?? "").replace(",", "."));
+    if (!Number.isFinite(parsed) || parsed <= 0) return String(value ?? "-");
+    return parsed.toFixed(2);
+  }
+
+  private formatConfidence(value: any, label?: any) {
+    if (label) return this.cleanText(label);
+    if (value === null || value === undefined || value === "") return "Alta";
+    const text = String(value);
+    return text.includes("%") ? text : `${text}%`;
+  }
+
+  private stageLabel(input: OddixVipCardInput) {
+    const status = this.normalize(input.status);
+    const tip = this.normalize(input.tip);
+    if (status.includes("live") || status.includes("ao vivo") || tip.startsWith("ao vivo")) return "AO VIVO";
+    if (String(input.headline || "").toLowerCase().includes("final")) return "ENTRADA FINAL";
+    return "ENTRADA VIP";
   }
 
   private async downloadImage(url?: string): Promise<Buffer | null> {
@@ -181,7 +176,6 @@ export class OddixImageService {
           fit: "contain",
           background: { r: 0, g: 0, b: 0, alpha: 0 },
         })
-        .modulate({ brightness: 1.2, saturation: 1.15 })
         .png()
         .toBuffer();
     }
@@ -195,297 +189,305 @@ export class OddixImageService {
             <stop offset="42%" stop-color="#f59e0b"/>
             <stop offset="100%" stop-color="#7c2d12"/>
           </linearGradient>
-          <filter id="s"><feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#000" flood-opacity=".9"/></filter>
+          <filter id="s"><feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#000" flood-opacity=".65"/></filter>
         </defs>
-        <path d="M${size / 2} 8 L${size - 18} ${size * 0.32} L${size - 40} ${size - 18} L${size / 2} ${size - 4} L40 ${size - 18} L18 ${size * 0.32} Z" fill="url(#g)" stroke="#fff7ad" stroke-width="5" filter="url(#s)"/>
-        <text x="50%" y="58%" text-anchor="middle" font-family="Impact,Arial Black,Arial" font-size="${Math.round(size * 0.28)}" fill="#111827">${initials}</text>
+        <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 5}" fill="url(#g)" stroke="#fff7ad" stroke-width="5" filter="url(#s)"/>
+        <text x="50%" y="58%" text-anchor="middle" font-family="Arial Black,Arial" font-size="${Math.round(size * 0.26)}" fill="#111827">${initials}</text>
       </svg>
     `;
     return sharp(Buffer.from(svg)).png().toBuffer();
   }
 
-  private async createBackground(inputText: string): Promise<Buffer> {
-    const usePollinations =
-      String(
-        process.env.ODDIX_USE_POLLINATIONS_BG ||
-          process.env.POLLINATIONS_IMAGE_ENABLED ||
-          process.env.POLLINATIONS_ENABLED ||
-          "false",
-      ).toLowerCase() === "true";
+  private playerCandidatePaths() {
+    return [
+      process.env.ODDIX_PLAYER_IMAGE_PATH || "",
+      path.join(process.cwd(), "public", "images", "oddix-player.png"),
+      path.join(process.cwd(), "..", "oddix-web", "public", "images", "oddix-player.png"),
+      path.join(process.cwd(), "oddix-web", "public", "images", "oddix-player.png"),
+      path.join(process.cwd(), "src", "public", "images", "oddix-player.png"),
+    ].filter(Boolean);
+  }
 
-    if (usePollinations) {
-      const seed = this.seedFromText(inputText);
-      const prompt = inputText.includes(",")
-        ? inputText
-        : [
-            "ultra premium sports betting poster",
-            "luxury bookmaker advertisement",
-            "millionaire tipster thumbnail style",
-            "dramatic football stadium at night",
-            "two generic professional football players occupying the left and right sides",
-            "players large visible bodies",
-            "orange gold stadium lights",
-            "cinematic smoke and sparks",
-            "dark center empty space for betting slip overlay",
-            "high contrast commercial composition",
-            "ultra realistic 4k",
-            "no text no words no numbers no watermark no brand logos",
-          ].join(", ");
+  private async oddixPlayerBuffer(width = 286, height = 385): Promise<Buffer | null> {
+    const candidates = this.playerCandidatePaths();
 
-      const url =
-        `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
-        `?width=${this.width}` +
-        `&height=${this.height}` +
-        `&model=${encodeURIComponent(process.env.POLLINATIONS_MODEL || "flux")}` +
-        `&seed=${seed}` +
-        `&nologo=true` +
-        `&enhance=true`;
-
+    for (const candidate of candidates) {
       try {
-        const response = await axios.get(url, {
-          responseType: "arraybuffer",
-          timeout: 55000,
-          headers: { "User-Agent": "Oddix/2.0" },
-        });
-
-        return sharp(Buffer.from(response.data))
-          .resize(this.width, this.height, { fit: "cover" })
-          .modulate({ brightness: 0.92, saturation: 1.12 })
+        if (!fs.existsSync(candidate)) continue;
+        return await sharp(candidate)
+          .resize(width, height, {
+            fit: "contain",
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+          })
           .png()
           .toBuffer();
       } catch (error: any) {
-        this.logger.warn(`Pollinations falhou. Usando fundo local premium v3: ${error?.message || "erro"}`);
+        this.logger.warn(`Falha ao carregar jogador Oddix em ${candidate}: ${error?.message || error}`);
       }
     }
 
-    return this.createFallbackBackground(inputText);
+    this.logger.warn("Jogador Oddix não encontrado. Defina ODDIX_PLAYER_IMAGE_PATH ou copie oddix-player.png para public/images.");
+    return null;
   }
 
-  private async createFallbackBackground(inputText: string): Promise<Buffer> {
-    const seed = this.seedFromText(inputText);
-    const sparks = Array.from({ length: 85 })
-      .map((_, i) => {
-        const x = (seed + i * 97) % this.width;
-        const y = (seed + i * 151) % this.height;
-        const r = 1 + (i % 4);
-        const o = 0.15 + (i % 5) * 0.045;
-        return `<circle cx="${x}" cy="${y}" r="${r}" fill="#fbbf24" opacity="${o}"/>`;
-      })
-      .join("");
-
+  private async createBetSlipBackground(): Promise<Buffer> {
     const svg = `
       <svg width="${this.width}" height="${this.height}" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stop-color="#030005"/>
-            <stop offset="35%" stop-color="#111827"/>
-            <stop offset="60%" stop-color="#3b0764"/>
-            <stop offset="100%" stop-color="#050505"/>
+            <stop offset="0%" stop-color="#05020b"/>
+            <stop offset="40%" stop-color="#12072a"/>
+            <stop offset="70%" stop-color="#2b0b4f"/>
+            <stop offset="100%" stop-color="#05020b"/>
           </linearGradient>
-          <radialGradient id="left" cx="8%" cy="44%" r="46%"><stop offset="0%" stop-color="#1d4ed8" stop-opacity=".78"/><stop offset="100%" stop-color="#000" stop-opacity="0"/></radialGradient>
-          <radialGradient id="right" cx="92%" cy="42%" r="48%"><stop offset="0%" stop-color="#dc2626" stop-opacity=".64"/><stop offset="100%" stop-color="#000" stop-opacity="0"/></radialGradient>
-          <radialGradient id="gold" cx="50%" cy="10%" r="70%"><stop offset="0%" stop-color="#f59e0b" stop-opacity=".62"/><stop offset="100%" stop-color="#000" stop-opacity="0"/></radialGradient>
+          <radialGradient id="gold" cx="35%" cy="0%" r="70%">
+            <stop offset="0%" stop-color="#facc15" stop-opacity=".42"/>
+            <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+          </radialGradient>
+          <radialGradient id="purple" cx="90%" cy="42%" r="58%">
+            <stop offset="0%" stop-color="#7c3aed" stop-opacity=".65"/>
+            <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+          </radialGradient>
           <filter id="blur"><feGaussianBlur stdDeviation="18"/></filter>
         </defs>
         <rect width="100%" height="100%" fill="url(#bg)"/>
-        <rect width="100%" height="100%" fill="url(#left)"/>
-        <rect width="100%" height="100%" fill="url(#right)"/>
         <rect width="100%" height="100%" fill="url(#gold)"/>
-        <ellipse cx="210" cy="252" rx="150" ry="270" fill="#0f172a" opacity=".78" filter="url(#blur)"/>
-        <ellipse cx="806" cy="252" rx="150" ry="270" fill="#160b31" opacity=".78" filter="url(#blur)"/>
-        <path d="M118 510 C140 365 132 230 192 108 C232 38 308 40 340 112 C386 220 352 390 392 515" fill="#111827" opacity=".78"/>
-        <path d="M898 510 C876 365 884 230 824 108 C784 38 708 40 676 112 C630 220 664 390 624 515" fill="#111827" opacity=".78"/>
-        <path d="M0 382 C230 322 386 340 508 360 C650 386 768 386 1016 318 L1016 515 L0 515 Z" fill="#000" opacity=".30"/>
-        <g>${sparks}</g>
-        <rect width="100%" height="100%" fill="rgba(0,0,0,.10)"/>
+        <rect width="100%" height="100%" fill="url(#purple)"/>
+        <ellipse cx="816" cy="272" rx="170" ry="260" fill="#000" opacity=".36" filter="url(#blur)"/>
+        <path d="M0 430 C210 390 340 410 508 425 C680 441 812 410 1016 370 L1016 515 L0 515 Z" fill="#000" opacity=".32"/>
       </svg>
     `;
+
     return sharp(Buffer.from(svg)).png().toBuffer();
   }
 
-  private stageLabel(input: OddixVipCardInput) {
-    const status = this.normalize(input.status);
-    const tip = this.normalize(input.tip);
-    if (status.includes("live") || status.includes("ao vivo") || tip.startsWith("ao vivo")) return "AO VIVO";
-    if (String(input.headline || "").toLowerCase().includes("final")) return "ENTRADA FINAL";
-    return "ENTRADA VIP";
-  }
-
-  private singleOverlaySvg(input: OddixVipCardInput) {
-    const home = this.escape(this.short(input.homeTeam, 19));
-    const away = this.escape(this.short(input.awayTeam, 19));
-    const league = this.escape(this.short(input.league, 40));
-    const market = this.escape(this.short(input.market || "Mercado IA", 24).toUpperCase());
-    const odd = this.escape(String(input.odd ?? "-"));
-    const confidence = this.escape(input.confidenceLabel || "Alta");
-    const edge = this.escape(input.edge || "+12%");
-    const risk = this.escape(this.short(input.risk || "Baixo", 12));
-    const valueLabel = this.escape(input.valueLabel || "Valor positivo");
+  private betSlipOverlaySvg(input: OddixVipCardInput, hasPlayer = true) {
+    const home = this.escape(this.short(input.homeTeam, 24));
+    const away = this.escape(this.short(input.awayTeam, 24));
+    const league = this.escape(this.short(input.league, 44));
+    const market = this.escape(this.short(input.market || "Mercado IA", 28).toUpperCase());
+    const tip = this.stripPrefixTip(input.tip).toUpperCase();
+    const tipLines = this.wrapText(tip, 30, 3);
+    const odd = this.escape(this.formatOdd(input.odd));
+    const confidence = this.escape(this.formatConfidence(input.confidence, input.confidenceLabel));
+    const risk = this.escape(this.short(input.risk || "Baixo", 14));
+    const stake = this.escape(this.short(input.stake || "1 unidade", 18));
     const stage = this.escape(this.stageLabel(input));
-    const tipSplit = this.splitTip(input.tip);
-    const topLines = this.wrapText(tipSplit.top, 14, 2);
-    const bottomLines = this.wrapText(tipSplit.bottom, 20, 2);
-    const topFont = topLines.length > 1 ? 55 : 70;
-    const bottomFont = bottomLines.length > 1 ? 30 : 36;
+    const code = this.escape(this.ticketCode(`${input.homeTeam}-${input.awayTeam}-${input.tip}-${input.odd}`));
+    const valueLabel = this.escape(input.valueLabel || "Entrada validada pela IA Oddix");
 
-    const topText = topLines
-      .map((line, index) => `<text x="508" y="${194 + index * 62}" text-anchor="middle" class="impact" font-size="${topFont}" fill="#ffffff" stroke="#000" stroke-width="3" paint-order="stroke">${this.escape(line)}</text>`)
+    const tipText = tipLines
+      .map((line, index) => `<text x="110" y="${232 + index * 34}" class="impact" font-size="30" fill="#111827">${this.escape(line)}</text>`)
       .join("");
-    const bottomText = bottomLines
-      .map((line, index) => `<text x="508" y="${292 + index * 37}" text-anchor="middle" class="heavy" font-size="${bottomFont}" fill="#facc15" stroke="#000" stroke-width="2" paint-order="stroke">${this.escape(line)}</text>`)
-      .join("");
+
+    const rightShade = hasPlayer ? "rgba(0,0,0,.10)" : "rgba(0,0,0,.26)";
 
     return Buffer.from(`
       <svg width="${this.width}" height="${this.height}" xmlns="http://www.w3.org/2000/svg">
         <defs>
+          <linearGradient id="ticket" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#fffaf0"/>
+            <stop offset="53%" stop-color="#fff7df"/>
+            <stop offset="100%" stop-color="#f4e7c3"/>
+          </linearGradient>
           <linearGradient id="gold" x1="0" x2="1"><stop offset="0%" stop-color="#ff7a18"/><stop offset="50%" stop-color="#facc15"/><stop offset="100%" stop-color="#fff7ad"/></linearGradient>
-          <linearGradient id="green" x1="0" x2="1"><stop offset="0%" stop-color="#15803d"/><stop offset="100%" stop-color="#22c55e"/></linearGradient>
-          <linearGradient id="dark" x1="0" x2="1"><stop offset="0%" stop-color="rgba(0,0,0,.78)"/><stop offset="50%" stop-color="rgba(0,0,0,.44)"/><stop offset="100%" stop-color="rgba(0,0,0,.78)"/></linearGradient>
-          <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000" flood-opacity=".85"/></filter>
-          <filter id="goldGlow"><feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#facc15" flood-opacity=".85"/></filter>
-          <filter id="greenGlow"><feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#22c55e" flood-opacity=".65"/></filter>
+          <linearGradient id="green" x1="0" x2="1"><stop offset="0%" stop-color="#047857"/><stop offset="100%" stop-color="#22c55e"/></linearGradient>
+          <filter id="shadow"><feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity=".72"/></filter>
+          <filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#facc15" flood-opacity=".72"/></filter>
           <style>
-            .impact{font-family:Impact,Arial Black,Arial,sans-serif;font-weight:900;letter-spacing:2px}
+            .impact{font-family:Impact,Arial Black,Arial,sans-serif;font-weight:900;letter-spacing:.8px}
             .heavy{font-family:Arial Black,Arial,sans-serif;font-weight:900}
             .text{font-family:Arial,sans-serif;font-weight:800}
             .small{font-family:Arial,sans-serif;font-weight:700}
+            .regular{font-family:Arial,sans-serif;font-weight:600}
           </style>
         </defs>
 
-        <!-- ODDIX PREMIUM CARD V3 - confirmar no Render -->
-        <rect x="0" y="0" width="1016" height="515" fill="rgba(0,0,0,.12)"/>
-        <rect x="18" y="18" width="980" height="479" rx="30" fill="none" stroke="url(#gold)" stroke-width="6" filter="url(#goldGlow)"/>
-
-        <rect x="270" y="42" width="476" height="60" rx="20" fill="rgba(0,0,0,.54)" stroke="rgba(250,204,21,.34)" filter="url(#shadow)"/>
-        <text x="508" y="82" text-anchor="middle" class="impact" font-size="38" fill="url(#gold)" filter="url(#goldGlow)">ODDIX VIP</text>
-        <text x="508" y="116" text-anchor="middle" class="small" font-size="18" fill="#ffffff" stroke="#000" stroke-width="2" paint-order="stroke">${league}</text>
-
-        <rect x="352" y="126" width="312" height="44" rx="22" fill="url(#gold)" filter="url(#shadow)"/>
-        <text x="508" y="155" text-anchor="middle" class="heavy" font-size="19" fill="#130a00">${stage}</text>
-
-        <text x="152" y="345" text-anchor="middle" class="heavy" font-size="25" fill="#ffffff" stroke="#000" stroke-width="3" paint-order="stroke">${home}</text>
-        <text x="864" y="345" text-anchor="middle" class="heavy" font-size="25" fill="#ffffff" stroke="#000" stroke-width="3" paint-order="stroke">${away}</text>
-        <text x="508" y="148" text-anchor="middle" class="impact" font-size="25" fill="#ffffff" opacity=".0">VS</text>
-        <circle cx="508" cy="250" r="30" fill="rgba(0,0,0,.72)" stroke="#facc15" stroke-width="3" filter="url(#goldGlow)"/>
-        <text x="508" y="260" text-anchor="middle" class="impact" font-size="25" fill="#fff">VS</text>
-
-        <rect x="280" y="176" width="456" height="156" rx="30" fill="url(#dark)" stroke="rgba(250,204,21,.56)" stroke-width="3" filter="url(#shadow)"/>
-        <text x="508" y="209" text-anchor="middle" class="text" font-size="17" fill="#facc15">${market}</text>
-        ${topText}
-        ${bottomText}
+        <rect x="0" y="0" width="1016" height="515" fill="rgba(0,0,0,.08)"/>
 
         <g filter="url(#shadow)">
-          <rect x="62" y="386" width="206" height="70" rx="21" fill="url(#gold)"/>
-          <text x="165" y="413" text-anchor="middle" class="text" font-size="18" fill="#1f1300">ODD</text>
-          <text x="165" y="447" text-anchor="middle" class="impact" font-size="40" fill="#ffffff">${odd}</text>
-
-          <rect x="304" y="386" width="208" height="70" rx="21" fill="url(#green)" filter="url(#greenGlow)"/>
-          <text x="408" y="413" text-anchor="middle" class="text" font-size="17" fill="#052e16">EDGE IA</text>
-          <text x="408" y="447" text-anchor="middle" class="impact" font-size="38" fill="#ffffff">${edge}</text>
-
-          <rect x="548" y="386" width="196" height="70" rx="21" fill="rgba(0,0,0,.64)" stroke="rgba(250,204,21,.62)" stroke-width="2"/>
-          <text x="646" y="413" text-anchor="middle" class="text" font-size="17" fill="#facc15">CONFIANÇA</text>
-          <text x="646" y="445" text-anchor="middle" class="heavy" font-size="30" fill="#fff">${confidence}</text>
-
-          <rect x="782" y="386" width="172" height="70" rx="21" fill="rgba(0,0,0,.64)" stroke="rgba(255,255,255,.24)" stroke-width="2"/>
-          <text x="868" y="413" text-anchor="middle" class="text" font-size="17" fill="#facc15">RISCO</text>
-          <text x="868" y="445" text-anchor="middle" class="heavy" font-size="28" fill="#fff">${risk}</text>
+          <rect x="42" y="34" width="690" height="447" rx="28" fill="url(#ticket)"/>
+          <circle cx="42" cy="258" r="18" fill="#17062d"/>
+          <circle cx="732" cy="258" r="18" fill="#1d0735"/>
+          <path d="M636 56 L636 458" stroke="#b79a55" stroke-width="3" stroke-dasharray="10 10" opacity=".72"/>
         </g>
 
-        <rect x="220" y="468" width="576" height="25" rx="12" fill="rgba(0,0,0,.58)"/>
-        <text x="508" y="486" text-anchor="middle" class="small" font-size="13" fill="#fff7ad">${valueLabel} • Parceiro EstrelaBet • 18+ • Jogue com responsabilidade</text>
+        <rect x="60" y="52" width="554" height="54" rx="18" fill="#111827"/>
+        <text x="82" y="87" class="impact" font-size="30" fill="url(#gold)" filter="url(#glow)">ODDIX VIP BET SLIP</text>
+        <text x="514" y="83" class="small" font-size="14" fill="#fef3c7">${code}</text>
+
+        <rect x="84" y="122" width="180" height="34" rx="17" fill="url(#gold)"/>
+        <text x="174" y="145" text-anchor="middle" class="heavy" font-size="15" fill="#1f1300">${stage}</text>
+        <text x="286" y="144" class="small" font-size="16" fill="#4b5563">${league}</text>
+
+        <text x="110" y="190" class="heavy" font-size="24" fill="#111827">${home}</text>
+        <text x="418" y="190" text-anchor="middle" class="impact" font-size="24" fill="#7c2d12">VS</text>
+        <text x="458" y="190" class="heavy" font-size="24" fill="#111827">${away}</text>
+
+        <rect x="86" y="206" width="504" height="112" rx="20" fill="#ffffff" stroke="#ead7a2" stroke-width="2"/>
+        <text x="110" y="226" class="small" font-size="14" fill="#92400e">${market}</text>
+        ${tipText}
+
+        <g>
+          <rect x="86" y="336" width="132" height="74" rx="20" fill="url(#green)"/>
+          <text x="152" y="363" text-anchor="middle" class="small" font-size="14" fill="#052e16">ODD</text>
+          <text x="152" y="397" text-anchor="middle" class="impact" font-size="36" fill="#ffffff">${odd}</text>
+
+          <rect x="236" y="336" width="156" height="74" rx="20" fill="#111827"/>
+          <text x="314" y="363" text-anchor="middle" class="small" font-size="14" fill="#facc15">CONFIANÇA</text>
+          <text x="314" y="395" text-anchor="middle" class="heavy" font-size="27" fill="#ffffff">${confidence}</text>
+
+          <rect x="410" y="336" width="180" height="74" rx="20" fill="#fff7df" stroke="#d6b967" stroke-width="2"/>
+          <text x="500" y="363" text-anchor="middle" class="small" font-size="14" fill="#92400e">STAKE</text>
+          <text x="500" y="395" text-anchor="middle" class="heavy" font-size="25" fill="#111827">${stake}</text>
+        </g>
+
+        <rect x="86" y="425" width="504" height="34" rx="17" fill="#111827"/>
+        <text x="338" y="447" text-anchor="middle" class="small" font-size="14" fill="#fff7ad">${valueLabel} • Risco ${risk} • 18+ Jogue com responsabilidade</text>
+
+        <rect x="662" y="62" width="54" height="386" rx="18" fill="#111827"/>
+        <text x="690" y="106" text-anchor="middle" class="impact" font-size="23" fill="#facc15" transform="rotate(90 690 106)">ESTRELABET</text>
+        <text x="690" y="296" text-anchor="middle" class="small" font-size="13" fill="#fff7ad" transform="rotate(90 690 296)">PARCEIRO ODDIX</text>
+
+        <rect x="724" y="0" width="292" height="515" fill="${rightShade}"/>
+        <ellipse cx="854" cy="456" rx="140" ry="28" fill="#000" opacity=".46"/>
       </svg>
     `);
   }
 
   async createVipCard(input: OddixVipCardInput): Promise<string | null> {
     try {
-      this.logger.log("ODDIX PREMIUM CARD V3 ativo");
+      this.logger.log("ODDIX VIP BET SLIP com jogador ativo");
 
-      const outputPath = path.join(this.outputDir(), `vip-card-premium-v3-${Date.now()}.png`);
-      const background = await this.createBackground(
-        input.visualPrompt ||
-          `${input.homeTeam} versus ${input.awayTeam}, ${input.league}, ${input.tip}, premium sportsbook poster, giant players, no text`,
-      );
-      const overlay = this.singleOverlaySvg(input);
-      const homeLogo = await this.logoBuffer(input.homeLogo, input.homeTeam, 120);
-      const awayLogo = await this.logoBuffer(input.awayLogo, input.awayTeam, 120);
+      const outputPath = path.join(this.outputDir(), `vip-betslip-player-${Date.now()}.png`);
+      const background = await this.createBetSlipBackground();
+      const player = await this.oddixPlayerBuffer(300, 410);
+      const overlay = this.betSlipOverlaySvg(input, !!player);
+      const homeLogo = await this.logoBuffer(input.homeLogo, input.homeTeam, 58);
+      const awayLogo = await this.logoBuffer(input.awayLogo, input.awayTeam, 58);
+
+      const composites: sharp.OverlayOptions[] = [
+        { input: homeLogo, left: 72, top: 166 },
+        { input: awayLogo, left: 548, top: 166 },
+      ];
+
+      if (player) {
+        composites.push({ input: player, left: 718, top: 74 });
+      }
+
+      composites.push({ input: overlay, left: 0, top: 0 });
 
       await sharp(background)
         .resize(this.width, this.height, { fit: "cover" })
-        .composite([
-          { input: homeLogo, left: 92, top: 216 },
-          { input: awayLogo, left: 804, top: 216 },
-          { input: overlay, left: 0, top: 0 },
-        ])
+        .composite(composites)
         .png()
         .toFile(outputPath);
 
       return outputPath;
     } catch (error: any) {
-      this.logger.error(`Erro ao criar card VIP premium v3: ${error?.message || "erro desconhecido"}`);
+      this.logger.error(`Erro ao criar bilhete VIP Oddix: ${error?.message || "erro desconhecido"}`);
       return null;
     }
   }
 
-  private multipleOverlaySvg(input: OddixVipMultipleCardInput) {
-    const title = this.escape(this.short(input.title || "ODDIX MÚLTIPLA VIP", 28));
-    const oddTotal = this.escape(String(input.oddTotal ?? "-"));
+  private multipleBetSlipOverlaySvg(input: OddixVipMultipleCardInput, hasPlayer = true) {
+    const title = this.escape(this.short(input.title || "ODDIX MÚLTIPLA VIP", 30));
+    const oddTotal = this.escape(this.formatOdd(input.oddTotal));
     const selections = input.selections.slice(0, 4);
+    const code = this.escape(this.ticketCode(`${title}-${oddTotal}-${selections.map((s) => s.tip).join("|")}`));
 
     const rows = selections
       .map((selection, index) => {
-        const y = 118 + index * 78;
-        const game = this.escape(this.short(`${selection.homeTeam} x ${selection.awayTeam}`, 34));
-        const tip = this.escape(this.short(this.stripPrefixTip(selection.tip).toUpperCase(), 30));
-        const odd = this.escape(String(selection.odd ?? "-"));
-        const confidence = selection.confidence ? this.escape(String(selection.confidence).includes("%") ? String(selection.confidence) : `${selection.confidence}%`) : "IA";
+        const y = 136 + index * 70;
+        const game = this.escape(this.short(`${selection.homeTeam} x ${selection.awayTeam}`, 32));
+        const tip = this.escape(this.short(this.stripPrefixTip(selection.tip).toUpperCase(), 32));
+        const odd = this.escape(this.formatOdd(selection.odd));
+        const confidence = selection.confidence
+          ? this.escape(String(selection.confidence).includes("%") ? String(selection.confidence) : `${selection.confidence}%`)
+          : "IA";
+
         return `
-          <rect x="48" y="${y}" width="742" height="64" rx="18" fill="rgba(0,0,0,.62)" stroke="rgba(250,204,21,.36)" stroke-width="2"/>
-          <circle cx="84" cy="${y + 32}" r="22" fill="url(#gold)"/>
-          <text x="84" y="${y + 41}" text-anchor="middle" class="heavy" font-size="24" fill="#111827">${index + 1}</text>
-          <text x="124" y="${y + 27}" class="heavy" font-size="20" fill="#fff">${game}</text>
-          <text x="124" y="${y + 53}" class="text" font-size="19" fill="#facc15">${tip}</text>
-          <text x="682" y="${y + 53}" text-anchor="end" class="small" font-size="16" fill="#c4b5fd">${confidence}</text>
-          <rect x="812" y="${y}" width="152" height="64" rx="18" fill="url(#green)"/>
-          <text x="888" y="${y + 25}" text-anchor="middle" class="text" font-size="15" fill="#052e16">ODD</text>
-          <text x="888" y="${y + 53}" text-anchor="middle" class="impact" font-size="30" fill="#fff">${odd}</text>
+          <rect x="80" y="${y}" width="560" height="58" rx="18" fill="#ffffff" stroke="#ead7a2" stroke-width="2"/>
+          <circle cx="112" cy="${y + 29}" r="20" fill="url(#gold)"/>
+          <text x="112" y="${y + 37}" text-anchor="middle" class="heavy" font-size="22" fill="#111827">${index + 1}</text>
+          <text x="146" y="${y + 23}" class="heavy" font-size="17" fill="#111827">${game}</text>
+          <text x="146" y="${y + 47}" class="small" font-size="16" fill="#92400e">${tip}</text>
+          <text x="562" y="${y + 22}" text-anchor="middle" class="small" font-size="13" fill="#6b21a8">${confidence}</text>
+          <rect x="578" y="${y + 10}" width="48" height="38" rx="12" fill="url(#green)"/>
+          <text x="602" y="${y + 35}" text-anchor="middle" class="heavy" font-size="16" fill="#ffffff">${odd}</text>
         `;
       })
       .join("");
 
+    const rightShade = hasPlayer ? "rgba(0,0,0,.10)" : "rgba(0,0,0,.26)";
+
     return Buffer.from(`
       <svg width="${this.width}" height="${this.height}" xmlns="http://www.w3.org/2000/svg">
         <defs>
+          <linearGradient id="ticket" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fffaf0"/><stop offset="100%" stop-color="#f4e7c3"/></linearGradient>
           <linearGradient id="gold" x1="0" x2="1"><stop offset="0%" stop-color="#ff7a18"/><stop offset="100%" stop-color="#facc15"/></linearGradient>
-          <linearGradient id="green" x1="0" x2="1"><stop offset="0%" stop-color="#15803d"/><stop offset="100%" stop-color="#22c55e"/></linearGradient>
-          <filter id="shadow"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity=".82"/></filter>
-          <style>.impact{font-family:Impact,Arial Black,Arial,sans-serif;font-weight:900;letter-spacing:1px}.heavy{font-family:Arial Black,Arial,sans-serif;font-weight:900}.text{font-family:Arial,sans-serif;font-weight:800}.small{font-family:Arial,sans-serif;font-weight:700}</style>
+          <linearGradient id="green" x1="0" x2="1"><stop offset="0%" stop-color="#047857"/><stop offset="100%" stop-color="#22c55e"/></linearGradient>
+          <filter id="shadow"><feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity=".72"/></filter>
+          <style>.impact{font-family:Impact,Arial Black,Arial,sans-serif;font-weight:900;letter-spacing:.8px}.heavy{font-family:Arial Black,Arial,sans-serif;font-weight:900}.small{font-family:Arial,sans-serif;font-weight:700}.text{font-family:Arial,sans-serif;font-weight:800}</style>
         </defs>
-        <rect x="18" y="18" width="980" height="479" rx="30" fill="rgba(0,0,0,.50)" stroke="url(#gold)" stroke-width="6" filter="url(#shadow)"/>
-        <text x="508" y="72" text-anchor="middle" class="impact" font-size="44" fill="#fff">${title}</text>
-        <text x="508" y="104" text-anchor="middle" class="text" font-size="19" fill="#facc15">Bilhete premium filtrado pela IA</text>
+
+        <g filter="url(#shadow)">
+          <rect x="42" y="34" width="690" height="447" rx="28" fill="url(#ticket)"/>
+          <circle cx="42" cy="258" r="18" fill="#17062d"/>
+          <circle cx="732" cy="258" r="18" fill="#1d0735"/>
+          <path d="M650 56 L650 458" stroke="#b79a55" stroke-width="3" stroke-dasharray="10 10" opacity=".72"/>
+        </g>
+
+        <rect x="60" y="52" width="570" height="54" rx="18" fill="#111827"/>
+        <text x="82" y="87" class="impact" font-size="30" fill="url(#gold)">${title}</text>
+        <text x="522" y="83" class="small" font-size="14" fill="#fef3c7">${code}</text>
+        <text x="82" y="124" class="small" font-size="17" fill="#4b5563">Bilhete premium filtrado pela Inteligência Artificial</text>
+
         ${rows}
-        <rect x="312" y="438" width="392" height="48" rx="18" fill="url(#gold)" filter="url(#shadow)"/>
-        <text x="430" y="469" text-anchor="middle" class="text" font-size="19" fill="#1f1300">ODD COMBINADA</text>
-        <text x="600" y="473" text-anchor="middle" class="impact" font-size="34" fill="#fff">${oddTotal}</text>
+
+        <rect x="80" y="426" width="260" height="42" rx="17" fill="#111827"/>
+        <text x="210" y="453" text-anchor="middle" class="small" font-size="15" fill="#fff7ad">18+ Jogue com responsabilidade</text>
+
+        <rect x="372" y="418" width="258" height="54" rx="20" fill="url(#gold)"/>
+        <text x="460" y="451" text-anchor="middle" class="small" font-size="16" fill="#1f1300">ODD TOTAL</text>
+        <text x="560" y="455" text-anchor="middle" class="impact" font-size="34" fill="#ffffff">${oddTotal}</text>
+
+        <rect x="662" y="62" width="54" height="386" rx="18" fill="#111827"/>
+        <text x="690" y="106" text-anchor="middle" class="impact" font-size="23" fill="#facc15" transform="rotate(90 690 106)">ESTRELABET</text>
+        <text x="690" y="296" text-anchor="middle" class="small" font-size="13" fill="#fff7ad" transform="rotate(90 690 296)">PARCEIRO ODDIX</text>
+
+        <rect x="724" y="0" width="292" height="515" fill="${rightShade}"/>
+        <ellipse cx="854" cy="456" rx="140" ry="28" fill="#000" opacity=".46"/>
       </svg>
     `);
   }
 
   async createVipMultipleCard(input: OddixVipMultipleCardInput): Promise<string | null> {
     try {
-      const outputPath = path.join(this.outputDir(), `vip-multiple-premium-v3-${Date.now()}.png`);
-      const background = await this.createBackground(`${input.title}-${input.oddTotal}, premium accumulator betting poster, no text`);
-      const overlay = this.multipleOverlaySvg(input);
+      this.logger.log("ODDIX VIP MULTIPLE BET SLIP com jogador ativo");
+
+      const outputPath = path.join(this.outputDir(), `vip-multiple-betslip-player-${Date.now()}.png`);
+      const background = await this.createBetSlipBackground();
+      const player = await this.oddixPlayerBuffer(300, 410);
+      const overlay = this.multipleBetSlipOverlaySvg(input, !!player);
+
+      const composites: sharp.OverlayOptions[] = [];
+
+      if (player) {
+        composites.push({ input: player, left: 718, top: 74 });
+      }
+
+      composites.push({ input: overlay, left: 0, top: 0 });
+
       await sharp(background)
         .resize(this.width, this.height, { fit: "cover" })
-        .composite([{ input: overlay, left: 0, top: 0 }])
+        .composite(composites)
         .png()
         .toFile(outputPath);
+
       return outputPath;
     } catch (error: any) {
-      this.logger.error(`Erro ao criar card múltipla VIP premium v3: ${error?.message || "erro desconhecido"}`);
+      this.logger.error(`Erro ao criar bilhete múltipla VIP Oddix: ${error?.message || "erro desconhecido"}`);
       return null;
     }
   }
