@@ -12,6 +12,7 @@ const FREE_GROUP_LINK = "https://chat.whatsapp.com/JQuwv77T1b8J6KMlXCEeRb";
 const ESTRELABET_LINK = process.env.NEXT_PUBLIC_ESTRELABET_LINK || "https://apretailer.com.br/click/6a2102c82bfa8143b57b86d8/182492/359080/subaccount";
 const LEGAL_SEAL_DARK = "/selos/estrelabet-responsabilidade-dark.png";
 const LEGAL_SEAL_SMALL = "/selos/estrelabet-responsabilidade-small.png";
+const ODDIX_PLAYER_IMAGE = "/images/oddix-player.png";
 
 type TabKey = "highlights" | "live" | "pregame" | "smart" | "boost" | "playerprops" | "greens";
 
@@ -1346,16 +1347,23 @@ export default function Dashboard() {
 
       <section style={styles.heroGrid}>
         <div style={styles.heroMain}>
-          <span style={styles.sectionKicker}>ODDIX SMART BETTING</span>
-          <h1>Palpites com IA, odds e ranking de qualidade.</h1>
-          <p>
-            Agora o Oddix organiza os jogos como casa de aposta: destaques, ao vivo, pré-jogo, odds inteligentes e combinadas VIP.
-          </p>
-          <div style={styles.heroStats}>
-            <InfoMetric label="Jogos" value={games.length} />
-            <InfoMetric label="Ao vivo" value={liveGames.length} />
-            <InfoMetric label="Tips IA" value={displayedSmartTips.length} />
-            <InfoMetric label="ROI" value={`${stats?.roi ?? 0}%`} />
+          <div style={styles.heroTextBlock}>
+            <span style={styles.sectionKicker}>ODDIX SMART BETTING</span>
+            <h1>Palpites com IA, odds e ranking de qualidade.</h1>
+            <p>
+              A Oddix cruza jogos, odds, estatísticas ao vivo e score de qualidade para destacar as melhores oportunidades do dia.
+            </p>
+            <div style={styles.heroStats}>
+              <InfoMetric label="Jogos" value={games.length} />
+              <InfoMetric label="Ao vivo" value={liveGames.length} />
+              <InfoMetric label="Tips IA" value={displayedSmartTips.length} />
+              <InfoMetric label="ROI" value={`${stats?.roi ?? 0}%`} />
+            </div>
+          </div>
+
+          <div style={styles.heroPlayerBox}>
+            <div style={styles.heroPlayerGlow} />
+            <img src={ODDIX_PLAYER_IMAGE} alt="Jogador Oddix" style={styles.heroPlayerImage} />
           </div>
         </div>
 
@@ -1543,9 +1551,22 @@ export default function Dashboard() {
       </section>
 
       <footer style={styles.footer}>
-        <strong>ODDIX</strong>
-        <span>IA • Odds • Pré-jogo • Ao vivo • Gestão de banca</span>
-        <img src={LEGAL_SEAL_DARK} alt="18+ Jogue com responsabilidade. Aposta não é investimento." style={styles.footerLegalSeal} />
+        <div style={styles.footerBrand}>
+          <strong>ODDIX IA™</strong>
+          <span>Palpites inteligentes para pré-jogo, ao vivo e gestão de banca.</span>
+        </div>
+
+        <div style={styles.footerLinks}>
+          <span>⚽ Futebol</span>
+          <span>🤖 IA Premium</span>
+          <span>🔥 Combinadas</span>
+          <span>📈 Greens</span>
+        </div>
+
+        <div style={styles.footerLegal}>
+          <img src={LEGAL_SEAL_DARK} alt="18+ Jogue com responsabilidade. Aposta não é investimento." style={styles.footerLegalSeal} />
+          <small style={styles.footerLegalText}>18+ Jogue com responsabilidade. Aposta não é investimento.</small>
+        </div>
       </footer>
     </main>
   );
@@ -2092,9 +2113,9 @@ function MarketingBanner({
       <div style={styles.playerArea}>
         <div style={styles.playerCard}>
           <img
-            src="https://images.unsplash.com/photo-1517927033932-b3d18e61fb3a?auto=format&fit=crop&w=1200&q=90"
-            alt="Jogador de futebol"
-            style={styles.playerPhoto}
+            src={ODDIX_PLAYER_IMAGE}
+            alt="Jogador Oddix"
+            style={styles.marketingPlayerPhoto}
           />
 
           <div style={styles.playerShine} />
@@ -2326,21 +2347,29 @@ function playerNameFromProp(prop: any) {
   return cleaned.split(" ").slice(0, 3).join(" ");
 }
 
-function playerPhotoFromProp(prop: any) {
+function playerPhotoFromProp(prop: any, game?: any) {
   const photo =
     prop?.playerPhoto ||
     prop?.photo ||
-    prop?.image ||
+    prop?.headshot ||
     prop?.avatar ||
     prop?.raw?.playerPhoto ||
+    prop?.raw?.player?.photo ||
+    prop?.raw?.player?.image ||
+    prop?.raw?.athlete?.photo ||
     prop?.raw?.photo ||
     prop?.raw?.image ||
     "";
 
-  if (photo) return photo;
+  if (photo && !prop?.isEstimated) return photo;
 
-  const name = playerNameFromProp(prop);
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=4c1d95&color=facc15&bold=true&size=256`;
+  return (
+    prop?.teamLogo ||
+    prop?.raw?.team?.logo ||
+    game?.teams?.home?.logo ||
+    game?.teams?.away?.logo ||
+    logoFallback(prop?.homeTeam || prop?.awayTeam || playerNameFromProp(prop), "4c1d95", "facc15")
+  );
 }
 
 function playerPropType(prop: any) {
@@ -2391,7 +2420,7 @@ function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: 
           {safeProps.map((prop: any, index: number) => {
             const game = getGameByTip(prop, games);
             const playerName = playerNameFromProp(prop);
-            const playerPhoto = playerPhotoFromProp(prop);
+            const playerPhoto = playerPhotoFromProp(prop, game);
             const type = playerPropType(prop);
             const line = playerPropLine(prop);
 
@@ -2404,7 +2433,7 @@ function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: 
                       alt={playerName}
                       style={styles.playerPhoto}
                       onError={(event) => {
-                        event.currentTarget.src = logoFallback(playerName, "4c1d95", "facc15");
+                        event.currentTarget.src = game?.teams?.home?.logo || game?.teams?.away?.logo || logoFallback(playerName, "4c1d95", "facc15");
                       }}
                     />
                   </div>
@@ -2603,8 +2632,9 @@ const styles: Record<string, CSSProperties> = {
     width: "100%",
     height: "100%",
     borderRadius: "50%",
-    objectFit: "cover",
-    background: "#111827",
+    objectFit: "contain",
+    padding: 10,
+    background: "linear-gradient(135deg,#111827,#2e1065)",
     border: "4px solid rgba(255,255,255,.20)",
   },
   playerPropBadge: {
@@ -2819,12 +2849,52 @@ const styles: Record<string, CSSProperties> = {
     margin: "24px 26px 18px",
   },
   heroMain: {
-    background: "linear-gradient(135deg,rgba(15,23,42,.98),rgba(46,16,101,.94))",
+    position: "relative",
+    overflow: "hidden",
+    minHeight: 330,
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) 330px",
+    alignItems: "center",
+    gap: 18,
+    background:
+      "radial-gradient(circle at 78% 48%, rgba(250,204,21,.24), transparent 28%), radial-gradient(circle at 86% 26%, rgba(124,58,237,.46), transparent 34%), linear-gradient(135deg,rgba(15,23,42,.98),rgba(46,16,101,.94))",
     color: "#fff",
-    border: "1px solid rgba(168,85,247,.28)",
-    borderRadius: 28,
-    padding: 28,
-    boxShadow: "0 18px 45px rgba(17,24,39,.22)",
+    border: "1px solid rgba(250,204,21,.30)",
+    borderRadius: 30,
+    padding: "34px 28px 30px",
+    boxShadow: "0 22px 60px rgba(17,24,39,.30)",
+  },
+  heroTextBlock: {
+    position: "relative",
+    zIndex: 2,
+    maxWidth: 720,
+  },
+  heroPlayerBox: {
+    position: "relative",
+    height: 300,
+    minWidth: 280,
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  heroPlayerGlow: {
+    position: "absolute",
+    width: 310,
+    height: 310,
+    borderRadius: 999,
+    background: "radial-gradient(circle, rgba(250,204,21,.22), rgba(124,58,237,.40), transparent 68%)",
+    filter: "blur(2px)",
+    bottom: -50,
+    right: -10,
+  },
+  heroPlayerImage: {
+    position: "relative",
+    zIndex: 2,
+    height: 318,
+    width: "100%",
+    objectFit: "contain",
+    objectPosition: "center bottom",
+    filter: "drop-shadow(0 24px 32px rgba(0,0,0,.48)) drop-shadow(0 0 22px rgba(250,204,21,.22))",
   },
   sectionKicker: {
     color: "#7c3aed",
@@ -2849,11 +2919,14 @@ const styles: Record<string, CSSProperties> = {
     gap: 6,
   },
   vipPanel: {
-    background: "linear-gradient(145deg,#111827,#4c1d95)",
+    position: "relative",
+    overflow: "hidden",
+    background: "radial-gradient(circle at 78% 18%, rgba(250,204,21,.22), transparent 28%), linear-gradient(145deg,#111827,#4c1d95)",
     color: "white",
-    borderRadius: 28,
-    padding: 24,
-    boxShadow: "0 18px 45px rgba(76,29,149,.28)",
+    borderRadius: 30,
+    padding: 26,
+    border: "1px solid rgba(250,204,21,.22)",
+    boxShadow: "0 20px 52px rgba(76,29,149,.32)",
     display: "flex",
     flexDirection: "column",
     gap: 10,
@@ -3274,15 +3347,15 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(255,255,255,.18)",
     boxShadow: "0 18px 42px rgba(0,0,0,.32)",
   },
-  playerPhoto: {
+  marketingPlayerPhoto: {
     position: "absolute",
     inset: 0,
     width: "100%",
     height: "100%",
-    objectFit: "cover",
-    objectPosition: "center top",
-    filter: "saturate(1.25) contrast(1.08)",
-    opacity: .86,
+    objectFit: "contain",
+    objectPosition: "center bottom",
+    filter: "saturate(1.18) contrast(1.08) drop-shadow(0 18px 28px rgba(0,0,0,.45))",
+    opacity: .96,
   },
   playerImage: {
     position: "absolute",
@@ -3948,13 +4021,41 @@ const styles: Record<string, CSSProperties> = {
   },
   footer: {
     margin: "26px",
-    padding: "18px 0 30px",
-    display: "flex",
-    gap: 12,
-    color: "#6b7280",
-    flexWrap: "wrap",
+    padding: "22px 24px",
+    display: "grid",
+    gridTemplateColumns: "1.2fr 1fr auto",
+    gap: 18,
+    color: "#d8d5e8",
     alignItems: "center",
-    justifyContent: "space-between",
+    borderRadius: 26,
+    background: "linear-gradient(135deg, rgba(15,23,42,.96), rgba(46,16,101,.88))",
+    border: "1px solid rgba(250,204,21,.16)",
+    boxShadow: "0 18px 42px rgba(0,0,0,.22)",
+  },
+  footerBrand: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+  },
+  footerLinks: {
+    display: "flex",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 10,
+    fontSize: 13,
+    fontWeight: 850,
+  },
+  footerLegal: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 12,
+  },
+  footerLegalText: {
+    maxWidth: 190,
+    color: "#b9b4ce",
+    fontSize: 11,
+    lineHeight: 1.35,
   },
   partnerSideCard: {
     background: "linear-gradient(145deg,#07142f,#111827)",
@@ -3991,16 +4092,12 @@ const styles: Record<string, CSSProperties> = {
     background: "rgba(255,255,255,.04)",
   },
   footerLegalSeal: {
-    position: "fixed",
-    right: 16,
-    bottom: 14,
-    zIndex: 60,
-    width: 170,
+    width: 138,
     maxWidth: "32vw",
     height: "auto",
     display: "block",
     opacity: .96,
-    filter: "drop-shadow(0 12px 24px rgba(0,0,0,.35))",
+    filter: "drop-shadow(0 10px 18px rgba(0,0,0,.25))",
   },
 
   rouletteHint: {
@@ -4019,25 +4116,25 @@ const styles: Record<string, CSSProperties> = {
   },
   topPickHero: {
     margin: "0 26px 18px",
-    minHeight: 104,
+    minHeight: 118,
     display: "grid",
-    gridTemplateColumns: "1.15fr auto 1fr auto",
+    gridTemplateColumns: "1.2fr 240px 1fr 178px",
     alignItems: "center",
     gap: 18,
-    padding: "18px 22px",
-    borderRadius: 26,
+    padding: "20px 24px",
+    borderRadius: 28,
     color: "white",
-    background: "linear-gradient(135deg,rgba(9,9,11,.98),rgba(46,16,101,.96))",
-    border: "1px solid rgba(250,204,21,.55)",
-    boxShadow: "0 18px 55px rgba(250,204,21,.12)",
+    background: "radial-gradient(circle at 8% 50%, rgba(250,204,21,.18), transparent 28%), linear-gradient(135deg,rgba(9,9,11,.98),rgba(46,16,101,.96))",
+    border: "1px solid rgba(250,204,21,.62)",
+    boxShadow: "0 20px 60px rgba(250,204,21,.14), inset 0 0 26px rgba(124,58,237,.16)",
   },
-  topPickLeft: { display: "flex", flexDirection: "column", gap: 6 },
-  topPickBadge: { color: "#facc15", fontWeight: 950, letterSpacing: 1 },
-  topPickCenter: { display: "flex", alignItems: "center", gap: 12 },
-  topPickLogo: { width: 52, height: 52, objectFit: "contain", background: "rgba(255,255,255,.08)", borderRadius: 16, padding: 7 },
-  topPickScore: { background: "#020617", border: "1px solid rgba(255,255,255,.16)", borderRadius: 16, padding: "10px 14px", fontWeight: 950 },
-  topPickRight: { display: "flex", flexDirection: "column", gap: 5 },
-  topPickButton: { background: "linear-gradient(135deg,#facc15,#fb923c)", color: "#111827", border: 0, borderRadius: 16, padding: "14px 20px", fontWeight: 950, cursor: "pointer" },
+  topPickLeft: { display: "flex", flexDirection: "column", gap: 7, minWidth: 0 },
+  topPickBadge: { color: "#facc15", fontWeight: 950, letterSpacing: 1.2, fontSize: 12 },
+  topPickCenter: { display: "flex", alignItems: "center", justifyContent: "center", gap: 14 },
+  topPickLogo: { width: 62, height: 62, objectFit: "contain", background: "rgba(255,255,255,.10)", borderRadius: 18, padding: 8, border: "1px solid rgba(255,255,255,.13)" },
+  topPickScore: { background: "#020617", border: "1px solid rgba(250,204,21,.30)", borderRadius: 18, padding: "12px 16px", fontWeight: 950, color: "#facc15", boxShadow: "0 10px 26px rgba(0,0,0,.24)" },
+  topPickRight: { display: "flex", flexDirection: "column", gap: 5, background: "rgba(0,0,0,.22)", border: "1px solid rgba(255,255,255,.10)", borderRadius: 18, padding: "12px 14px" },
+  topPickButton: { background: "linear-gradient(135deg,#facc15,#fb923c)", color: "#111827", border: 0, borderRadius: 18, padding: "15px 20px", fontWeight: 950, cursor: "pointer", boxShadow: "0 12px 30px rgba(250,204,21,.24)" },
   greensPanel: {
     background: "linear-gradient(180deg,rgba(6,78,59,.96),rgba(6,35,28,.98))",
     border: "1px solid rgba(34,197,94,.35)",
