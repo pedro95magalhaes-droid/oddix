@@ -1349,9 +1349,9 @@ export default function Dashboard() {
         <div style={styles.heroMain}>
           <div style={styles.heroTextBlock}>
             <span style={styles.sectionKicker}>ODDIX SMART BETTING</span>
-            <h1>Palpites com IA, odds e ranking de qualidade.</h1>
+            <h1>Inteligência artificial transformando dados em GREEN todos os dias.</h1>
             <p>
-              A Oddix cruza jogos, odds, estatísticas ao vivo e score de qualidade para destacar as melhores oportunidades do dia.
+              A Oddix filtra jogos, odds, estatísticas ao vivo e score de qualidade para destacar entradas premium, combinadas e oportunidades VIP antes do mercado mexer.
             </p>
             <div style={styles.heroStats}>
               <InfoMetric label="Jogos" value={games.length} />
@@ -1958,22 +1958,39 @@ function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
 
   return (
     <section style={styles.topPickHero}>
-      <div style={styles.topPickLeft}>
-        <span style={styles.topPickBadge}>🔥 TOP PICK DO DIA</span>
-        <strong>{finalGame?.teams?.home?.name} x {finalGame?.teams?.away?.name}</strong>
-        <small>{finalGame?.league?.name} • {isGameLive(finalGame) ? gameTimeLabel(finalGame, liveTick) : formatDateTime(finalGame?.fixture?.date)}</small>
+      <div style={styles.topPickPremiumBadge}>
+        <span>🏆</span>
+        <div>
+          <strong>TOP PICK DO DIA</strong>
+          <small>Entrada principal filtrada pela IA</small>
+        </div>
       </div>
 
-      <div style={styles.topPickCenter}>
+      <div style={styles.topPickMatchBlock}>
         <img src={finalGame?.teams?.home?.logo || logoFallback(finalGame?.teams?.home?.name)} style={styles.topPickLogo} />
-        <div style={styles.topPickScore}>{score.home} - {score.away}</div>
+        <div style={styles.topPickTeams}>
+          <strong>{finalGame?.teams?.home?.name}</strong>
+          <span>x</span>
+          <strong>{finalGame?.teams?.away?.name}</strong>
+          <small>{finalGame?.league?.name} • {isGameLive(finalGame) ? gameTimeLabel(finalGame, liveTick) : formatDateTime(finalGame?.fixture?.date)}</small>
+        </div>
         <img src={finalGame?.teams?.away?.logo || logoFallback(finalGame?.teams?.away?.name)} style={styles.topPickLogo} />
       </div>
 
-      <div style={styles.topPickRight}>
-        <span>{finalTip.tip}</span>
-        <strong>Odd {finalTip.odd}</strong>
-        <small>{finalTip.confidence}% confiança • {finalTip.risk}</small>
+      <div style={styles.topPickSelection}>
+        <span>Entrada IA</span>
+        <strong>{finalTip.tip}</strong>
+        <small>{finalTip.risk} • mercado protegido</small>
+      </div>
+
+      <div style={styles.topPickOddBox}>
+        <span>Odd</span>
+        <strong>{finalTip.odd}</strong>
+      </div>
+
+      <div style={styles.topPickConfidence}>
+        <strong>{finalTip.confidence}%</strong>
+        <span>IA</span>
       </div>
 
       <button style={styles.topPickButton} onClick={() => onAnalyze(finalGame)}>🎯 Pegar palpite</button>
@@ -2052,12 +2069,11 @@ function MarketingBanner({
         <span style={styles.marketingKicker}>🔥 ODDIX ARENA VIP</span>
 
         <h2 style={styles.marketingTitle}>
-          Sala VIP com entradas filtradas por IA.
+          Sala VIP Oddix: apostas mais limpas, rápidas e com cara de casa premium.
         </h2>
 
         <p style={styles.marketingText}>
-          O Oddix cruza jogos ao vivo, odds, placar, tempo de jogo e qualidade da liga
-          para destacar as melhores oportunidades antes do mercado mexer.
+          Pré-jogo, ao vivo, combinadas, greens e gestão de banca em uma tela só. A IA organiza as melhores oportunidades para você agir com mais segurança.
         </p>
 
         {game && (
@@ -2449,7 +2465,7 @@ function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: 
                   <h3>{playerName}</h3>
 
                   <div style={styles.playerPropGame}>
-                    <strong>{prop.game || game ? `${game?.teams?.home?.name || prop.homeTeam || ""} x ${game?.teams?.away?.name || prop.awayTeam || ""}` : "Jogo Oddix"}</strong>
+                    <strong>{prop.game || (game ? `${game?.teams?.home?.name || prop.homeTeam || ""} x ${game?.teams?.away?.name || prop.awayTeam || ""}` : "Jogo Oddix")}</strong>
                     <small>{prop.league || game?.league?.name || prop.bookmaker || "Mercado real"}</small>
                   </div>
 
@@ -2587,17 +2603,17 @@ const styles: Record<string, CSSProperties> = {
   },
 
   playerPropsHero: {
-    background: "linear-gradient(135deg,#111827,#4c1d95,#7c3aed)",
+    background: "linear-gradient(135deg,rgba(15,23,42,.98),rgba(76,29,149,.90))",
     color: "white",
-    borderRadius: 30,
+    border: "1px solid rgba(250,204,21,.18)",
+    borderRadius: 26,
     padding: 24,
-    marginBottom: 18,
     display: "flex",
     justifyContent: "space-between",
-    gap: 18,
     alignItems: "center",
-    boxShadow: "0 18px 45px rgba(76,29,149,.20)",
-    border: "1px solid rgba(255,255,255,.14)",
+    gap: 18,
+    marginBottom: 16,
+    boxShadow: "0 18px 45px rgba(0,0,0,.22)",
   },
   playerPropsGrid: {
     display: "grid",
@@ -2605,12 +2621,12 @@ const styles: Record<string, CSSProperties> = {
     gap: 18,
   },
   playerPropCard: {
+    background: "linear-gradient(180deg,rgba(30,16,66,.98),rgba(9,5,20,.99))",
+    color: "#fff",
+    border: "1px solid rgba(168,85,247,.35)",
+    borderRadius: 24,
     overflow: "hidden",
-    background: "linear-gradient(180deg,#111827,#1f123d)",
-    color: "white",
-    borderRadius: 28,
-    border: "1px solid rgba(250,204,21,.24)",
-    boxShadow: "0 18px 45px rgba(0,0,0,.22)",
+    boxShadow: "0 18px 42px rgba(0,0,0,.24)",
   },
   playerPropTop: {
     position: "relative",
@@ -2621,21 +2637,19 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: "center",
   },
   playerPhotoWrap: {
-    width: 172,
-    height: 172,
-    borderRadius: "50%",
-    padding: 6,
-    background: "linear-gradient(135deg,#facc15,#7c3aed)",
-    boxShadow: "0 20px 45px rgba(0,0,0,.35)",
+    height: 158,
+    background: "radial-gradient(circle at 50% 20%, rgba(250,204,21,.20), transparent 28%), linear-gradient(135deg,#1e1042,#090514)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   playerPhoto: {
     width: "100%",
     height: "100%",
-    borderRadius: "50%",
     objectFit: "contain",
-    padding: 10,
-    background: "linear-gradient(135deg,#111827,#2e1065)",
-    border: "4px solid rgba(255,255,255,.20)",
+    padding: 18,
+    filter: "drop-shadow(0 12px 20px rgba(0,0,0,.36))",
   },
   playerPropBadge: {
     position: "absolute",
@@ -2734,11 +2748,11 @@ const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     color: "#f8fafc",
-    background: "radial-gradient(circle at 18% 0%, rgba(124,58,237,.34), transparent 34%), linear-gradient(180deg,#080316 0%,#110724 42%,#080316 100%)",
+    background: "radial-gradient(circle at 15% -10%, rgba(124,58,237,.34), transparent 34%), radial-gradient(circle at 92% 4%, rgba(250,204,21,.12), transparent 24%), linear-gradient(180deg,#05010d 0%,#0b0217 45%,#05010d 100%)",
     fontFamily: "Arial, sans-serif",
   },
   topHeader: {
-    background: "linear-gradient(135deg,#5b21b6,#8b5cf6,#a855f7)",
+    background: "linear-gradient(135deg, rgba(8,3,22,.96), rgba(46,16,101,.94), rgba(91,33,182,.84))",
     color: "white",
     padding: "14px 26px",
     display: "flex",
@@ -2748,25 +2762,27 @@ const styles: Record<string, CSSProperties> = {
     position: "sticky",
     top: 0,
     zIndex: 20,
-    boxShadow: "0 12px 35px rgba(76,29,149,.28)",
+    borderBottom: "1px solid rgba(250,204,21,.16)",
+    boxShadow: "0 18px 48px rgba(0,0,0,.34)",
+    backdropFilter: "blur(14px)",
   },
   brand: {
-    width: 430,
-    minWidth: 430,
-    height: 104,
+    width: 290,
+    minWidth: 250,
+    height: 78,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
-    background: "rgba(255,255,255,.12)",
-    border: "1px solid rgba(255,255,255,.20)",
-    borderRadius: 28,
-    padding: "10px 22px",
-    boxShadow: "0 14px 34px rgba(0,0,0,.22)",
+    background: "linear-gradient(135deg, rgba(255,255,255,.10), rgba(124,58,237,.16))",
+    border: "1px solid rgba(250,204,21,.18)",
+    borderRadius: 24,
+    padding: "8px 18px",
+    boxShadow: "0 14px 34px rgba(0,0,0,.30)",
   },
   brandLogo: {
     width: "100%",
-    height: 88,
+    height: 62,
     objectFit: "contain",
     objectPosition: "center",
     display: "block",
@@ -2824,77 +2840,80 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
   },
   sportsRail: {
-    background: "linear-gradient(135deg,#13072c,#4c1d95,#7c3aed)",
-    padding: "14px 26px 24px",
+    background: "linear-gradient(135deg,#090318,#1b073e,#4c1d95)",
+    padding: "12px 26px 18px",
     display: "flex",
-    gap: 12,
+    gap: 10,
     overflowX: "auto",
-    boxShadow: "0 14px 38px rgba(0,0,0,.20)",
+    borderBottom: "1px solid rgba(168,85,247,.22)",
+    boxShadow: "0 14px 38px rgba(0,0,0,.24)",
   },
   sportItem: {
-    minWidth: 118,
-    height: 68,
-    borderRadius: 22,
-    border: "1px solid rgba(255,255,255,.24)",
-    background: "rgba(255,255,255,.13)",
+    minWidth: 112,
+    height: 48,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,.16)",
+    background: "linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.045))",
     color: "white",
     cursor: "pointer",
     fontWeight: 900,
-    boxShadow: "0 10px 24px rgba(76,29,149,.20)",
+    boxShadow: "0 10px 24px rgba(0,0,0,.18)",
   },
   heroGrid: {
     display: "grid",
-    gridTemplateColumns: "1fr 300px",
+    gridTemplateColumns: "minmax(0, 1fr) 300px",
     gap: 18,
     margin: "24px 26px 18px",
+    alignItems: "stretch",
   },
   heroMain: {
     position: "relative",
     overflow: "hidden",
-    minHeight: 330,
+    minHeight: 360,
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 330px",
+    gridTemplateColumns: "minmax(0, 1fr) 420px",
     alignItems: "center",
-    gap: 18,
-    background:
-      "radial-gradient(circle at 78% 48%, rgba(250,204,21,.24), transparent 28%), radial-gradient(circle at 86% 26%, rgba(124,58,237,.46), transparent 34%), linear-gradient(135deg,rgba(15,23,42,.98),rgba(46,16,101,.94))",
+    gap: 12,
+    background: "radial-gradient(circle at 78% 46%, rgba(250,204,21,.20), transparent 28%), radial-gradient(circle at 70% 30%, rgba(124,58,237,.58), transparent 36%), linear-gradient(135deg,rgba(12,8,26,.99),rgba(46,16,101,.94))",
     color: "#fff",
-    border: "1px solid rgba(250,204,21,.30)",
+    border: "1px solid rgba(250,204,21,.34)",
     borderRadius: 30,
-    padding: "34px 28px 30px",
-    boxShadow: "0 22px 60px rgba(17,24,39,.30)",
+    padding: "38px 32px 34px",
+    boxShadow: "0 28px 80px rgba(0,0,0,.34)",
   },
   heroTextBlock: {
     position: "relative",
     zIndex: 2,
-    maxWidth: 720,
+    maxWidth: 760,
+    paddingRight: 10,
   },
   heroPlayerBox: {
     position: "relative",
-    height: 300,
-    minWidth: 280,
+    height: 330,
+    minWidth: 360,
     display: "flex",
     alignItems: "flex-end",
     justifyContent: "center",
   },
   heroPlayerGlow: {
     position: "absolute",
-    width: 310,
-    height: 310,
+    width: 420,
+    height: 420,
     borderRadius: 999,
-    background: "radial-gradient(circle, rgba(250,204,21,.22), rgba(124,58,237,.40), transparent 68%)",
+    background: "radial-gradient(circle, rgba(250,204,21,.22), rgba(124,58,237,.55), transparent 68%)",
     filter: "blur(2px)",
-    bottom: -50,
-    right: -10,
+    bottom: -90,
+    right: -42,
   },
   heroPlayerImage: {
     position: "relative",
     zIndex: 2,
-    height: 318,
-    width: "100%",
+    height: 350,
+    width: "118%",
     objectFit: "contain",
     objectPosition: "center bottom",
-    filter: "drop-shadow(0 24px 32px rgba(0,0,0,.48)) drop-shadow(0 0 22px rgba(250,204,21,.22))",
+    transform: "translateX(-16px)",
+    filter: "drop-shadow(0 28px 36px rgba(0,0,0,.55)) drop-shadow(0 0 24px rgba(250,204,21,.22))",
   },
   sectionKicker: {
     color: "#7c3aed",
@@ -2919,18 +2938,16 @@ const styles: Record<string, CSSProperties> = {
     gap: 6,
   },
   vipPanel: {
-    position: "relative",
-    overflow: "hidden",
-    background: "radial-gradient(circle at 78% 18%, rgba(250,204,21,.22), transparent 28%), linear-gradient(145deg,#111827,#4c1d95)",
-    color: "white",
-    borderRadius: 30,
-    padding: 26,
-    border: "1px solid rgba(250,204,21,.22)",
-    boxShadow: "0 20px 52px rgba(76,29,149,.32)",
+    background: "linear-gradient(180deg,rgba(31,10,70,.98),rgba(10,4,24,.98))",
+    border: "1px solid rgba(250,204,21,.28)",
+    borderRadius: 28,
+    padding: 24,
     display: "flex",
     flexDirection: "column",
-    gap: 10,
     justifyContent: "center",
+    gap: 12,
+    color: "#fff",
+    boxShadow: "0 22px 55px rgba(0,0,0,.32)",
   },
   confidenceBar: {
     height: 10,
@@ -3198,19 +3215,17 @@ const styles: Record<string, CSSProperties> = {
   marketingBanner: {
     position: "relative",
     margin: "0 26px 20px",
-    minHeight: 360,
+    minHeight: 390,
     borderRadius: 30,
     overflow: "hidden",
     color: "white",
-    background:
-      "linear-gradient(120deg,rgba(17,24,39,.98),rgba(76,29,149,.96),rgba(124,58,237,.88)), url('https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=1800&q=90')",
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    boxShadow: "0 22px 65px rgba(76,29,149,.30)",
+    background: "linear-gradient(120deg,rgba(11,6,24,.99),rgba(46,16,101,.96),rgba(124,58,237,.84))",
+    boxShadow: "0 26px 75px rgba(76,29,149,.34)",
     display: "grid",
-    gridTemplateColumns: "1.15fr .85fr",
-    gap: 22,
-    padding: 28,
+    gridTemplateColumns: "1.05fr .95fr",
+    gap: 24,
+    padding: 30,
+    border: "1px solid rgba(250,204,21,.20)",
   },
   marketingGlow: {
     position: "absolute",
@@ -3339,23 +3354,23 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 0,
   },
   playerCard: {
-    minHeight: 300,
+    minHeight: 330,
     borderRadius: 26,
     overflow: "hidden",
     position: "relative",
-    background: "linear-gradient(180deg,#12062b,#05010d)",
+    background: "radial-gradient(circle at 50% 15%, rgba(124,58,237,.35), transparent 35%), linear-gradient(180deg,#12062b,#05010d)",
     border: "1px solid rgba(255,255,255,.18)",
-    boxShadow: "0 18px 42px rgba(0,0,0,.32)",
+    boxShadow: "0 20px 52px rgba(0,0,0,.38)",
   },
   marketingPlayerPhoto: {
     position: "absolute",
     inset: 0,
     width: "100%",
-    height: "100%",
+    height: "112%",
     objectFit: "contain",
     objectPosition: "center bottom",
-    filter: "saturate(1.18) contrast(1.08) drop-shadow(0 18px 28px rgba(0,0,0,.45))",
-    opacity: .96,
+    filter: "saturate(1.18) contrast(1.08) drop-shadow(0 22px 30px rgba(0,0,0,.55))",
+    opacity: 1,
   },
   playerImage: {
     position: "absolute",
@@ -3422,14 +3437,15 @@ const styles: Record<string, CSSProperties> = {
     gap: 14,
     overflowX: "auto",
     overflowY: "hidden",
-    padding: "4px 4px 14px",
+    padding: "6px 6px 16px",
     scrollSnapType: "x mandatory",
-    position: "sticky",
-    top: 148,
-    zIndex: 12,
-    background: "linear-gradient(180deg,rgba(8,3,22,.96),rgba(8,3,22,.72))",
+    position: "relative",
+    zIndex: 8,
+    background: "linear-gradient(180deg,rgba(14,6,31,.96),rgba(8,3,22,.90))",
+    border: "1px solid rgba(168,85,247,.22)",
     borderRadius: 22,
     scrollbarWidth: "thin",
+    boxShadow: "0 14px 38px rgba(0,0,0,.20)",
   },
   featuredCard: {
     minHeight: 165,
@@ -3485,13 +3501,14 @@ const styles: Record<string, CSSProperties> = {
   },
   tabsWrapper: {
     margin: "0 26px 18px",
-    background: "rgba(255,255,255,.96)",
+    background: "linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.04))",
     borderRadius: 18,
-    boxShadow: "0 10px 30px rgba(17,24,39,.10)",
+    boxShadow: "0 10px 30px rgba(0,0,0,.16)",
     overflowX: "auto",
     position: "sticky",
     top: 86,
     zIndex: 13,
+    border: "1px solid rgba(255,255,255,.10)",
     backdropFilter: "blur(14px)",
   },
   tabs: {
@@ -3537,13 +3554,15 @@ const styles: Record<string, CSSProperties> = {
     paddingRight: 4,
   },
   searchCard: {
-    background: "white",
+    background: "linear-gradient(180deg,rgba(20,12,38,.96),rgba(7,6,18,.98))",
+    border: "1px solid rgba(168,85,247,.22)",
+    color: "#fff",
     borderRadius: 22,
     padding: 18,
     display: "flex",
     flexDirection: "column",
     gap: 10,
-    boxShadow: "0 12px 30px rgba(17,24,39,.07)",
+    boxShadow: "0 16px 36px rgba(0,0,0,.22)",
   },
   searchInput: {
     border: "1px solid #e5e7eb",
@@ -3568,10 +3587,12 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
   },
   sideCard: {
-    background: "white",
+    background: "linear-gradient(180deg,rgba(20,12,38,.96),rgba(7,6,18,.98))",
+    color: "#fff",
+    border: "1px solid rgba(168,85,247,.22)",
     borderRadius: 22,
     padding: 18,
-    boxShadow: "0 12px 30px rgba(17,24,39,.07)",
+    boxShadow: "0 16px 36px rgba(0,0,0,.22)",
   },
   sideCardPurple: {
     background: "linear-gradient(145deg,#7c3aed,#4c1d95)",
@@ -3584,7 +3605,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     justifyContent: "space-between",
     gap: 10,
-    borderBottom: "1px solid #f3f4f6",
+    borderBottom: "1px solid rgba(255,255,255,.08)",
     padding: "9px 0",
   },
   freeButton: {
@@ -3598,6 +3619,11 @@ const styles: Record<string, CSSProperties> = {
   },
   mainContent: {
     minWidth: 0,
+    background: "linear-gradient(180deg,rgba(10,5,24,.82),rgba(5,2,12,.78))",
+    border: "1px solid rgba(168,85,247,.14)",
+    borderRadius: 28,
+    padding: 18,
+    boxShadow: "0 16px 40px rgba(0,0,0,.18)",
   },
   sectionHeader: {
     display: "flex",
@@ -3607,36 +3633,39 @@ const styles: Record<string, CSSProperties> = {
   },
   gamesGrid: {
     display: "flex",
-    gap: 16,
+    gap: 18,
     overflowX: "auto",
     overflowY: "hidden",
-    padding: "6px 6px 18px",
+    padding: "8px 6px 20px",
     scrollSnapType: "x mandatory",
     scrollbarWidth: "thin",
     scrollBehavior: "smooth",
+    minHeight: 345,
   },
   gameCard: {
-    minWidth: 310,
-    maxWidth: 310,
+    minWidth: 330,
+    maxWidth: 330,
+    minHeight: 322,
     scrollSnapAlign: "start",
-    background: "linear-gradient(180deg,rgba(30,16,66,.98),rgba(12,7,27,.98))",
+    background: "linear-gradient(180deg,rgba(30,16,66,.98),rgba(9,5,20,.99))",
     color: "#fff",
-    borderRadius: 22,
-    padding: 16,
-    boxShadow: "0 18px 42px rgba(0,0,0,.22)",
-    border: "1px solid rgba(168,85,247,.38)",
+    borderRadius: 24,
+    padding: 18,
+    boxShadow: "0 20px 48px rgba(0,0,0,.28)",
+    border: "1px solid rgba(168,85,247,.42)",
     cursor: "pointer",
   },
   gameCardLive: {
-    minWidth: 310,
-    maxWidth: 310,
+    minWidth: 330,
+    maxWidth: 330,
+    minHeight: 322,
     scrollSnapAlign: "start",
-    background: "linear-gradient(180deg,rgba(55,18,18,.98),rgba(30,16,66,.98))",
+    background: "linear-gradient(180deg,rgba(88,28,28,.98),rgba(30,16,66,.98))",
     color: "#fff",
-    borderRadius: 22,
-    padding: 16,
-    boxShadow: "0 18px 42px rgba(239,68,68,.18)",
-    border: "1px solid rgba(239,68,68,.45)",
+    borderRadius: 24,
+    padding: 18,
+    boxShadow: "0 20px 48px rgba(239,68,68,.16)",
+    border: "1px solid rgba(239,68,68,.50)",
     cursor: "pointer",
   },
   cardTop: {
@@ -3657,16 +3686,18 @@ const styles: Record<string, CSSProperties> = {
     textAlign: "center",
   },
   statusBadge: {
-    background: "#ede9fe",
-    color: "#6d28d9",
+    background: "rgba(255,255,255,.08)",
+    color: "#ddd6fe",
+    border: "1px solid rgba(255,255,255,.12)",
     borderRadius: 999,
     padding: "7px 10px",
     fontSize: 12,
     fontWeight: 900,
   },
   qualityBadge: {
-    background: "#ecfdf5",
-    color: "#047857",
+    background: "rgba(19,242,107,.12)",
+    color: "#13f26b",
+    border: "1px solid rgba(19,242,107,.20)",
     borderRadius: 999,
     padding: "7px 10px",
     fontSize: 12,
@@ -3676,7 +3707,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    color: "#6b7280",
+    color: "#b9b4ce",
     fontSize: 13,
     minHeight: 30,
   },
@@ -3703,22 +3734,25 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
   },
   pickBox: {
-    background: "#f8fafc",
-    border: "1px solid #e5e7eb",
+    background: "rgba(255,255,255,.075)",
+    border: "1px solid rgba(255,255,255,.12)",
     borderRadius: 18,
-    padding: 13,
+    padding: 14,
     display: "flex",
     flexDirection: "column",
     gap: 7,
+    color: "#fff",
+    boxShadow: "inset 0 0 18px rgba(124,58,237,.10)",
   },
   pickBoxLarge: {
-    background: "#f8fafc",
-    border: "1px solid #e5e7eb",
+    background: "rgba(255,255,255,.075)",
+    border: "1px solid rgba(255,255,255,.12)",
     borderRadius: 20,
     padding: 18,
     display: "flex",
     flexDirection: "column",
     gap: 9,
+    color: "#fff",
   },
   pickMetrics: {
     display: "flex",
@@ -3732,23 +3766,25 @@ const styles: Record<string, CSSProperties> = {
   },
   analyzeButton: {
     width: "100%",
-    background: "#7c3aed",
+    background: "linear-gradient(135deg,#7c3aed,#4c1d95)",
     color: "white",
     border: 0,
     borderRadius: 14,
     padding: "12px 14px",
     fontWeight: 900,
     cursor: "pointer",
+    boxShadow: "0 12px 26px rgba(124,58,237,.24)",
   },
   savedSmallButton: {
     width: "100%",
-    background: "#facc15",
+    background: "linear-gradient(135deg,#facc15,#fb923c)",
     color: "#111827",
     border: 0,
     borderRadius: 14,
     padding: "12px 14px",
     fontWeight: 900,
     cursor: "pointer",
+    boxShadow: "0 12px 26px rgba(250,204,21,.24)",
   },
   liveStatsGrid: {
     display: "grid",
@@ -4019,18 +4055,76 @@ const styles: Record<string, CSSProperties> = {
     color: "#6b7280",
     boxShadow: "0 12px 30px rgba(17,24,39,.07)",
   },
+
+  topPickPremiumBadge: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    color: "#facc15",
+    fontWeight: 1000,
+    lineHeight: 1.05,
+    textTransform: "uppercase",
+  },
+  topPickMatchBlock: {
+    display: "grid",
+    gridTemplateColumns: "48px minmax(0,1fr) 48px",
+    alignItems: "center",
+    gap: 12,
+    minWidth: 0,
+    borderLeft: "1px solid rgba(255,255,255,.12)",
+    paddingLeft: 14,
+  },
+  topPickTeams: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    fontSize: 13,
+    minWidth: 0,
+  },
+  topPickSelection: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    borderLeft: "1px solid rgba(255,255,255,.12)",
+    paddingLeft: 18,
+    minWidth: 0,
+  },
+  topPickOddBox: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    minHeight: 70,
+    borderRadius: 18,
+    background: "rgba(255,255,255,.06)",
+    border: "1px solid rgba(255,255,255,.10)",
+  },
+  topPickConfidence: {
+    width: 76,
+    height: 76,
+    borderRadius: 999,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "4px solid #13f26b",
+    color: "#13f26b",
+    boxShadow: "0 0 24px rgba(19,242,107,.22)",
+  },
   footer: {
     margin: "26px",
-    padding: "22px 24px",
+    padding: "22px 26px",
     display: "grid",
-    gridTemplateColumns: "1.2fr 1fr auto",
-    gap: 18,
-    color: "#d8d5e8",
+    gridTemplateColumns: "1.1fr 1.1fr .9fr",
+    gap: 20,
+    color: "#fff",
     alignItems: "center",
-    borderRadius: 26,
-    background: "linear-gradient(135deg, rgba(15,23,42,.96), rgba(46,16,101,.88))",
-    border: "1px solid rgba(250,204,21,.16)",
-    boxShadow: "0 18px 42px rgba(0,0,0,.22)",
+    borderRadius: 28,
+    background: "linear-gradient(135deg, rgba(8,3,22,.98), rgba(46,16,101,.92), rgba(8,3,22,.98))",
+    border: "1px solid rgba(250,204,21,.20)",
+    boxShadow: "0 20px 52px rgba(0,0,0,.28)",
   },
   footerBrand: {
     display: "flex",
@@ -4038,18 +4132,18 @@ const styles: Record<string, CSSProperties> = {
     gap: 5,
   },
   footerLinks: {
-    display: "flex",
-    flexWrap: "wrap",
-    justifyContent: "center",
+    display: "grid",
+    gridTemplateColumns: "repeat(2,minmax(0,1fr))",
     gap: 10,
     fontSize: 13,
-    fontWeight: 850,
+    fontWeight: 900,
   },
   footerLegal: {
     display: "flex",
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 12,
+    minWidth: 0,
   },
   footerLegalText: {
     maxWidth: 190,
@@ -4092,11 +4186,11 @@ const styles: Record<string, CSSProperties> = {
     background: "rgba(255,255,255,.04)",
   },
   footerLegalSeal: {
-    width: 138,
-    maxWidth: "32vw",
+    width: 118,
+    maxWidth: "26vw",
     height: "auto",
     display: "block",
-    opacity: .96,
+    opacity: .92,
     filter: "drop-shadow(0 10px 18px rgba(0,0,0,.25))",
   },
 
@@ -4115,26 +4209,53 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
   topPickHero: {
-    margin: "0 26px 18px",
-    minHeight: 118,
+    margin: "0 26px 20px",
+    minHeight: 112,
     display: "grid",
-    gridTemplateColumns: "1.2fr 240px 1fr 178px",
+    gridTemplateColumns: "220px minmax(260px, 1.25fr) minmax(260px, 1.4fr) 96px 92px 160px",
+    gap: 16,
     alignItems: "center",
-    gap: 18,
-    padding: "20px 24px",
-    borderRadius: 28,
-    color: "white",
-    background: "radial-gradient(circle at 8% 50%, rgba(250,204,21,.18), transparent 28%), linear-gradient(135deg,rgba(9,9,11,.98),rgba(46,16,101,.96))",
-    border: "1px solid rgba(250,204,21,.62)",
-    boxShadow: "0 20px 60px rgba(250,204,21,.14), inset 0 0 26px rgba(124,58,237,.16)",
+    background: "linear-gradient(135deg,rgba(20,12,38,.98),rgba(4,5,15,.98))",
+    border: "1px solid rgba(250,204,21,.55)",
+    borderRadius: 26,
+    padding: "16px 18px",
+    color: "#fff",
+    boxShadow: "0 18px 50px rgba(250,204,21,.10), 0 24px 60px rgba(0,0,0,.30)",
   },
-  topPickLeft: { display: "flex", flexDirection: "column", gap: 7, minWidth: 0 },
-  topPickBadge: { color: "#facc15", fontWeight: 950, letterSpacing: 1.2, fontSize: 12 },
-  topPickCenter: { display: "flex", alignItems: "center", justifyContent: "center", gap: 14 },
-  topPickLogo: { width: 62, height: 62, objectFit: "contain", background: "rgba(255,255,255,.10)", borderRadius: 18, padding: 8, border: "1px solid rgba(255,255,255,.13)" },
-  topPickScore: { background: "#020617", border: "1px solid rgba(250,204,21,.30)", borderRadius: 18, padding: "12px 16px", fontWeight: 950, color: "#facc15", boxShadow: "0 10px 26px rgba(0,0,0,.24)" },
-  topPickRight: { display: "flex", flexDirection: "column", gap: 5, background: "rgba(0,0,0,.22)", border: "1px solid rgba(255,255,255,.10)", borderRadius: 18, padding: "12px 14px" },
-  topPickButton: { background: "linear-gradient(135deg,#facc15,#fb923c)", color: "#111827", border: 0, borderRadius: 18, padding: "15px 20px", fontWeight: 950, cursor: "pointer", boxShadow: "0 12px 30px rgba(250,204,21,.24)" },
+  topPickLeft: {
+    display: "none",
+  },
+  topPickBadge: {
+    display: "none",
+  },
+  topPickCenter: {
+    display: "none",
+  },
+  topPickLogo: {
+    width: 46,
+    height: 46,
+    objectFit: "contain",
+    background: "rgba(255,255,255,.08)",
+    border: "1px solid rgba(255,255,255,.12)",
+    borderRadius: 14,
+    padding: 6,
+  },
+  topPickScore: {
+    display: "none",
+  },
+  topPickRight: {
+    display: "none",
+  },
+  topPickButton: {
+    height: 50,
+    border: 0,
+    borderRadius: 16,
+    background: "linear-gradient(135deg,#facc15,#fb923c)",
+    color: "#111827",
+    fontWeight: 1000,
+    cursor: "pointer",
+    boxShadow: "0 14px 30px rgba(250,204,21,.25)",
+  },
   greensPanel: {
     background: "linear-gradient(180deg,rgba(6,78,59,.96),rgba(6,35,28,.98))",
     border: "1px solid rgba(34,197,94,.35)",
