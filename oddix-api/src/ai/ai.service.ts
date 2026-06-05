@@ -36,7 +36,7 @@ export class AiService {
       `${homeTeam}-${awayTeam}-${league}-${statusShort}-${elapsed}-${homeGoals}-${awayGoals}`,
     );
 
-    let context = this.buildMatchContext({
+    let context: any = this.buildMatchContext({
       homeTeam,
       awayTeam,
       league,
