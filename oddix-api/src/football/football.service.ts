@@ -1,11 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import axios from 'axios';
-import { PrismaService } from '../prisma/prisma.service';
-import { AllScoresService } from './allscores.service';
-import { FlashScoreService } from './flashscore.service';
-import { SportScoreService } from './sportscore.service';
-import { SportScore6Service } from './sportscore6.service';
-import { FotmobService } from './fotmob.service';
+import { Injectable } from "@nestjs/common";
+import axios from "axios";
+import { PrismaService } from "../prisma/prisma.service";
+import { AllScoresService } from "./allscores.service";
+import { FlashScoreService } from "./flashscore.service";
+import { SportScoreService } from "./sportscore.service";
+import { SportScore6Service } from "./sportscore6.service";
+import { FotmobService } from "./fotmob.service";
 import {
   getOddixFixtureDate,
   getOddixFixtureQualityLabel,
@@ -14,7 +14,7 @@ import {
   isOddixFinishedFixture,
   isOddixLeagueAllowed,
   isOddixPriorityLeague,
-} from './league-filter';
+} from "./league-filter";
 
 @Injectable()
 export class FootballService {
@@ -27,28 +27,28 @@ export class FootballService {
     private readonly flashScoreService: FlashScoreService,
   ) {}
 
-  private apiFootballURL = 'https://v3.football.api-sports.io';
-  private sportmonksURL = 'https://api.sportmonks.com/v3/football';
-  private footballDataURL = 'https://api.football-data.org/v4';
-  private sportsDbURL = 'https://www.thesportsdb.com/api/v1/json';
+  private apiFootballURL = "https://v3.football.api-sports.io";
+  private sportmonksURL = "https://api.sportmonks.com/v3/football";
+  private footballDataURL = "https://api.football-data.org/v4";
+  private sportsDbURL = "https://www.thesportsdb.com/api/v1/json";
   private apiFootballBlockedUntil: Date | null = null;
   private cacheCleanupRunning = false;
   private lastCacheCleanupAt = 0;
 
   private getApiFootballKey() {
-    return process.env.API_FOOTBALL_KEY || '';
+    return process.env.API_FOOTBALL_KEY || "";
   }
 
   private getSportmonksKey() {
-    return process.env.SPORTMONKS_API_KEY || '';
+    return process.env.SPORTMONKS_API_KEY || "";
   }
 
   private getFootballDataKey() {
-    return process.env.FOOTBALL_DATA_KEY || '';
+    return process.env.FOOTBALL_DATA_KEY || "";
   }
 
   private getSportsDbKey() {
-    return process.env.THESPORTSDB_KEY || '123';
+    return process.env.THESPORTSDB_KEY || "123";
   }
 
   private liveCacheSeconds() {
@@ -70,14 +70,17 @@ export class FootballService {
   }
 
   private filterDashboardFixtures(fixtures: any[]) {
-    const showFinished = process.env.ODDIX_DASHBOARD_SHOW_FINISHED === 'true';
+    const showFinished = process.env.ODDIX_DASHBOARD_SHOW_FINISHED === "true";
 
     return (fixtures || [])
       .map((item: any) => this.standardizeFixture(item))
       .filter((item: any) => this.isOddixFixtureAllowedForDashboard(item))
       .filter((item: any) => {
         if (!showFinished && isOddixFinishedFixture(item)) return false;
-        return isOddixDashboardFixtureAllowed(item, this.hideFinishedAfterHours());
+        return isOddixDashboardFixtureAllowed(
+          item,
+          this.hideFinishedAfterHours(),
+        );
       });
   }
 
@@ -86,7 +89,7 @@ export class FootballService {
   }
 
   private isApiFootballBlocked() {
-    if (process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === 'true') return true;
+    if (process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === "true") return true;
     if (!this.apiFootballBlockedUntil) return false;
     return this.apiFootballBlockedUntil.getTime() > Date.now();
   }
@@ -98,7 +101,7 @@ export class FootballService {
   }
 
   private shouldUseApiFootballFallback() {
-    return process.env.API_FOOTBALL_ENABLE_FALLBACK === 'true';
+    return process.env.API_FOOTBALL_ENABLE_FALLBACK === "true";
   }
 
   private withCacheStamp(item: any) {
@@ -108,29 +111,28 @@ export class FootballService {
     };
   }
 
-
   private stripRawProviderData<T = any>(input: T): T {
     if (Array.isArray(input)) {
       return input.map((item) => this.stripRawProviderData(item)) as T;
     }
 
-    if (!input || typeof input !== 'object') {
+    if (!input || typeof input !== "object") {
       return input;
     }
 
     const rawKeysToRemove = new Set([
-      'fotmobRaw',
-      'flashScoreRaw',
-      'sportScoreRaw',
-      'sportScore6Raw',
-      'allScoresRaw',
-      'apiFootballRaw',
-      'broadageRaw',
-      'sportsDbRaw',
-      'footballDataRaw',
-      'sportmonksRaw',
-      'rawData',
-      'rawResponse',
+      "fotmobRaw",
+      "flashScoreRaw",
+      "sportScoreRaw",
+      "sportScore6Raw",
+      "allScoresRaw",
+      "apiFootballRaw",
+      "broadageRaw",
+      "sportsDbRaw",
+      "footballDataRaw",
+      "sportmonksRaw",
+      "rawData",
+      "rawResponse",
     ]);
 
     const output: any = Array.isArray(input) ? [] : {};
@@ -140,7 +142,8 @@ export class FootballService {
 
       // Segurança extra para providers que mudam o nome do campo bruto.
       const normalizedKey = key.toLowerCase();
-      if (normalizedKey.endsWith('raw') || normalizedKey.includes('raw_')) continue;
+      if (normalizedKey.endsWith("raw") || normalizedKey.includes("raw_"))
+        continue;
 
       output[key] = value;
     }
@@ -149,7 +152,9 @@ export class FootballService {
   }
 
   private enrichFixtureForOddix(item: any) {
-    const cleanItem: any = this.standardizeFixture(this.stripRawProviderData(item));
+    const cleanItem: any = this.standardizeFixture(
+      this.stripRawProviderData(item),
+    );
 
     return {
       ...cleanItem,
@@ -170,7 +175,10 @@ export class FootballService {
         const dateA = this.getFixtureTimestamp(a) || 0;
         const dateB = this.getFixtureTimestamp(b) || 0;
         if (dateA !== dateB) return dateA - dateB;
-        return Number(b?.oddix?.qualityScore || 0) - Number(a?.oddix?.qualityScore || 0);
+        return (
+          Number(b?.oddix?.qualityScore || 0) -
+          Number(a?.oddix?.qualityScore || 0)
+        );
       });
   }
 
@@ -207,32 +215,33 @@ export class FootballService {
   }
 
   private brazilDateKey(date: Date = new Date()) {
-    const safeDate = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
+    const safeDate =
+      date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
 
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Sao_Paulo',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     }).formatToParts(safeDate);
 
     const year =
-      parts.find((part) => part.type === 'year')?.value ||
+      parts.find((part) => part.type === "year")?.value ||
       String(safeDate.getUTCFullYear());
 
     const month =
-      parts.find((part) => part.type === 'month')?.value ||
-      String(safeDate.getUTCMonth() + 1).padStart(2, '0');
+      parts.find((part) => part.type === "month")?.value ||
+      String(safeDate.getUTCMonth() + 1).padStart(2, "0");
 
     const day =
-      parts.find((part) => part.type === 'day')?.value ||
-      String(safeDate.getUTCDate()).padStart(2, '0');
+      parts.find((part) => part.type === "day")?.value ||
+      String(safeDate.getUTCDate()).padStart(2, "0");
 
     return `${year}-${month}-${day}`;
   }
 
   private normalizeDateKey(date?: string | null) {
-    const raw = String(date || '').trim();
+    const raw = String(date || "").trim();
 
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
       const parsed = new Date(`${raw}T12:00:00.000Z`);
@@ -240,7 +249,7 @@ export class FootballService {
     }
 
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
-      const [day, month, year] = raw.split('/');
+      const [day, month, year] = raw.split("/");
       const converted = `${year}-${month}-${day}`;
       const parsed = new Date(`${converted}T12:00:00.000Z`);
       if (!Number.isNaN(parsed.getTime())) return converted;
@@ -280,14 +289,16 @@ export class FootballService {
   }
 
   private isApiFootballLimitError(error: any) {
-    const msg = JSON.stringify(error?.response?.data || error?.message || '').toLowerCase();
+    const msg = JSON.stringify(
+      error?.response?.data || error?.message || "",
+    ).toLowerCase();
 
     return (
-      msg.includes('limit') ||
-      msg.includes('quota') ||
-      msg.includes('too many') ||
-      msg.includes('rate') ||
-      msg.includes('requests')
+      msg.includes("limit") ||
+      msg.includes("quota") ||
+      msg.includes("too many") ||
+      msg.includes("rate") ||
+      msg.includes("requests")
     );
   }
 
@@ -300,36 +311,36 @@ export class FootballService {
     const status = fixture.status || {};
 
     return {
-      provider: 'api-football',
+      provider: "api-football",
       fixture: {
         id: Number(fixture.id || 0),
         date: fixture.date || new Date().toISOString(),
         timestamp: fixture.timestamp ?? null,
-        timezone: fixture.timezone || 'UTC',
+        timezone: fixture.timezone || "UTC",
         status: {
-          long: status.long || 'Unknown',
-          short: status.short || 'UNK',
+          long: status.long || "Unknown",
+          short: status.short || "UNK",
           elapsed: status.elapsed ?? null,
           extra: status.extra ?? null,
         },
       },
       league: {
         id: Number(league.id || 0),
-        name: league.name || 'Liga não informada',
-        country: league.country || '',
-        logo: league.logo || '',
+        name: league.name || "Liga não informada",
+        country: league.country || "",
+        logo: league.logo || "",
       },
       teams: {
         home: {
           id: Number(teams.home?.id || 0),
-          name: teams.home?.name || '',
-          logo: teams.home?.logo || '',
+          name: teams.home?.name || "",
+          logo: teams.home?.logo || "",
           winner: teams.home?.winner ?? null,
         },
         away: {
           id: Number(teams.away?.id || 0),
-          name: teams.away?.name || '',
-          logo: teams.away?.logo || '',
+          name: teams.away?.name || "",
+          logo: teams.away?.logo || "",
           winner: teams.away?.winner ?? null,
         },
       },
@@ -347,51 +358,53 @@ export class FootballService {
   }
 
   private mapFootballDataMatch(match: any) {
-    const homeScore = match.score?.fullTime?.home ?? match.score?.halfTime?.home ?? null;
-    const awayScore = match.score?.fullTime?.away ?? match.score?.halfTime?.away ?? null;
+    const homeScore =
+      match.score?.fullTime?.home ?? match.score?.halfTime?.home ?? null;
+    const awayScore =
+      match.score?.fullTime?.away ?? match.score?.halfTime?.away ?? null;
 
     const statusMap: Record<string, { long: string; short: string }> = {
-      SCHEDULED: { long: 'Not Started', short: 'NS' },
-      TIMED: { long: 'Not Started', short: 'NS' },
-      IN_PLAY: { long: 'In Play', short: 'LIVE' },
-      PAUSED: { long: 'Halftime', short: 'HT' },
-      FINISHED: { long: 'Match Finished', short: 'FT' },
-      POSTPONED: { long: 'Postponed', short: 'PST' },
-      SUSPENDED: { long: 'Suspended', short: 'SUSP' },
-      CANCELED: { long: 'Canceled', short: 'CANC' },
+      SCHEDULED: { long: "Not Started", short: "NS" },
+      TIMED: { long: "Not Started", short: "NS" },
+      IN_PLAY: { long: "In Play", short: "LIVE" },
+      PAUSED: { long: "Halftime", short: "HT" },
+      FINISHED: { long: "Match Finished", short: "FT" },
+      POSTPONED: { long: "Postponed", short: "PST" },
+      SUSPENDED: { long: "Suspended", short: "SUSP" },
+      CANCELED: { long: "Canceled", short: "CANC" },
     };
 
     const status = statusMap[match.status] || {
-      long: match.status || 'Unknown',
-      short: match.status || 'UNK',
+      long: match.status || "Unknown",
+      short: match.status || "UNK",
     };
 
     return {
-      provider: 'football-data',
+      provider: "football-data",
       fixture: {
         id: Number(match.id),
         date: match.utcDate,
-        timezone: 'UTC',
+        timezone: "UTC",
         status: { long: status.long, short: status.short, elapsed: null },
       },
       league: {
         id: Number(match.competition?.id || 0),
-        name: match.competition?.name || 'Liga não informada',
-        country: match.area?.name || '',
-        logo: match.competition?.emblem || '',
+        name: match.competition?.name || "Liga não informada",
+        country: match.area?.name || "",
+        logo: match.competition?.emblem || "",
       },
       teams: {
         home: {
           id: Number(match.homeTeam?.id || 0),
-          name: match.homeTeam?.name || '',
-          logo: match.homeTeam?.crest || '',
-          winner: match.score?.winner === 'HOME_TEAM',
+          name: match.homeTeam?.name || "",
+          logo: match.homeTeam?.crest || "",
+          winner: match.score?.winner === "HOME_TEAM",
         },
         away: {
           id: Number(match.awayTeam?.id || 0),
-          name: match.awayTeam?.name || '',
-          logo: match.awayTeam?.crest || '',
-          winner: match.score?.winner === 'AWAY_TEAM',
+          name: match.awayTeam?.name || "",
+          logo: match.awayTeam?.crest || "",
+          winner: match.score?.winner === "AWAY_TEAM",
         },
       },
       goals: { home: homeScore, away: awayScore },
@@ -413,34 +426,34 @@ export class FootballService {
     const finished = homeScore !== null && awayScore !== null;
 
     return {
-      provider: 'thesportsdb',
+      provider: "thesportsdb",
       fixture: {
         id: Number(event.idEvent),
-        date: `${event.dateEvent}T${event.strTime || '00:00:00'}`,
-        timezone: 'UTC',
+        date: `${event.dateEvent}T${event.strTime || "00:00:00"}`,
+        timezone: "UTC",
         status: {
-          long: finished ? 'Match Finished' : 'Not Started',
-          short: finished ? 'FT' : 'NS',
+          long: finished ? "Match Finished" : "Not Started",
+          short: finished ? "FT" : "NS",
           elapsed: null,
         },
       },
       league: {
         id: Number(event.idLeague || 0),
-        name: event.strLeague || 'Liga não informada',
-        country: event.strCountry || '',
-        logo: event.strLeagueBadge || '',
+        name: event.strLeague || "Liga não informada",
+        country: event.strCountry || "",
+        logo: event.strLeagueBadge || "",
       },
       teams: {
         home: {
           id: Number(event.idHomeTeam || 0),
-          name: event.strHomeTeam || '',
-          logo: event.strHomeTeamBadge || '',
+          name: event.strHomeTeam || "",
+          logo: event.strHomeTeamBadge || "",
           winner: finished ? homeScore > awayScore : null,
         },
         away: {
           id: Number(event.idAwayTeam || 0),
-          name: event.strAwayTeam || '',
-          logo: event.strAwayTeamBadge || '',
+          name: event.strAwayTeam || "",
+          logo: event.strAwayTeamBadge || "",
           winner: finished ? awayScore > homeScore : null,
         },
       },
@@ -453,17 +466,19 @@ export class FootballService {
     const participants = item.participants || [];
     const home =
       participants.find(
-        (t: any) => t?.meta?.location === 'home' || t?.pivot?.location === 'home',
+        (t: any) =>
+          t?.meta?.location === "home" || t?.pivot?.location === "home",
       ) || participants[0];
 
     const away =
       participants.find(
-        (t: any) => t?.meta?.location === 'away' || t?.pivot?.location === 'away',
+        (t: any) =>
+          t?.meta?.location === "away" || t?.pivot?.location === "away",
       ) || participants[1];
 
     const scores = item.scores || [];
 
-    const getScore = (location: 'home' | 'away') => {
+    const getScore = (location: "home" | "away") => {
       const found =
         scores.find((s: any) => s?.score?.participant === location) ||
         scores.find((s: any) => s?.participant?.meta?.location === location);
@@ -474,78 +489,88 @@ export class FootballService {
     const state = item.state || {};
 
     return {
-      provider: 'sportmonks',
+      provider: "sportmonks",
       fixture: {
         id: Number(item.id),
         date: item.starting_at,
-        timezone: 'UTC',
+        timezone: "UTC",
         status: {
-          long: state.name || state.short_name || 'Not Started',
-          short: state.short_name || 'NS',
+          long: state.name || state.short_name || "Not Started",
+          short: state.short_name || "NS",
           elapsed: item.periods?.[0]?.minutes || null,
         },
       },
       league: {
         id: Number(item.league_id || 0),
-        name: item.league?.name || 'Liga não informada',
-        country: item.league?.country?.name || '',
-        logo: item.league?.image_path || '',
+        name: item.league?.name || "Liga não informada",
+        country: item.league?.country?.name || "",
+        logo: item.league?.image_path || "",
       },
       teams: {
         home: {
           id: Number(home?.id || 0),
-          name: home?.name || '',
-          logo: home?.image_path || '',
+          name: home?.name || "",
+          logo: home?.image_path || "",
           winner: null,
         },
         away: {
           id: Number(away?.id || 0),
-          name: away?.name || '',
-          logo: away?.image_path || '',
+          name: away?.name || "",
+          logo: away?.image_path || "",
           winner: null,
         },
       },
-      goals: { home: getScore('home'), away: getScore('away') },
-      score: { fulltime: { home: getScore('home'), away: getScore('away') } },
+      goals: { home: getScore("home"), away: getScore("away") },
+      score: { fulltime: { home: getScore("home"), away: getScore("away") } },
     };
   }
 
   private isFinishedStatus(short?: string, long?: string) {
-    const s = String(short || '').toUpperCase();
-    const l = String(long || '').toLowerCase();
+    const s = String(short || "").toUpperCase();
+    const l = String(long || "").toLowerCase();
 
     return (
-      ['FT', 'AET', 'PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'].includes(s) ||
-      l.includes('finished') ||
-      l.includes('final') ||
-      l.includes('after extra time') ||
-      l.includes('after penalties') ||
-      l.includes('walkover') ||
-      l.includes('cancelled') ||
-      l.includes('canceled') ||
-      l.includes('abandoned') ||
-      l.includes('postponed')
+      ["FT", "AET", "PEN", "AWD", "WO", "CANC", "ABD", "PST"].includes(s) ||
+      l.includes("finished") ||
+      l.includes("final") ||
+      l.includes("after extra time") ||
+      l.includes("after penalties") ||
+      l.includes("walkover") ||
+      l.includes("cancelled") ||
+      l.includes("canceled") ||
+      l.includes("abandoned") ||
+      l.includes("postponed")
     );
   }
 
   private isLiveStatus(short?: string, long?: string) {
-    const s = String(short || '').toUpperCase();
-    const l = String(long || '').toLowerCase();
+    const s = String(short || "").toUpperCase();
+    const l = String(long || "").toLowerCase();
 
     return (
-      ['LIVE', 'IN_PLAY', '1H', '2H', 'HT', 'ET', 'BT', 'P', 'PEN_LIVE'].includes(s) ||
-      l.includes('live') ||
-      l.includes('in play') ||
-      l.includes('1st half') ||
-      l.includes('2nd half') ||
-      l.includes('halftime') ||
-      l.includes('half-time')
+      [
+        "LIVE",
+        "IN_PLAY",
+        "1H",
+        "2H",
+        "HT",
+        "ET",
+        "BT",
+        "P",
+        "PEN_LIVE",
+      ].includes(s) ||
+      l.includes("live") ||
+      l.includes("in play") ||
+      l.includes("1st half") ||
+      l.includes("2nd half") ||
+      l.includes("halftime") ||
+      l.includes("half-time")
     );
   }
 
   private shouldTreatAsLive(item: any) {
-    const short = String(item?.fixture?.status?.short || '').toUpperCase();
-    const long = String(item?.fixture?.status?.long || '');
+    const short = String(item?.fixture?.status?.short || "").toUpperCase();
+    const long = String(item?.fixture?.status?.long || "");
     const elapsed = Number(item?.fixture?.status?.elapsed || 0);
     const extra = Number(item?.fixture?.status?.extra || 0);
     const fixtureDate = item?.fixture?.date;
@@ -572,16 +597,19 @@ export class FootballService {
   private normalizeLiveStatus(item: any) {
     if (!item?.fixture?.status) return item;
 
-    const short = String(item.fixture.status.short || '').toUpperCase();
-    const long = String(item.fixture.status.long || '');
+    const short = String(item.fixture.status.short || "").toUpperCase();
+    const long = String(item.fixture.status.long || "");
 
-    if (short === 'IN_PLAY') {
-      item.fixture.status.short = 'LIVE';
-      item.fixture.status.long = 'In Play';
+    if (short === "IN_PLAY") {
+      item.fixture.status.short = "LIVE";
+      item.fixture.status.long = "In Play";
     }
 
-    if (this.isLiveStatus(short, long) && !['LIVE', 'HT', '1H', '2H'].includes(short)) {
-      item.fixture.status.short = 'LIVE';
+    if (
+      this.isLiveStatus(short, long) &&
+      !["LIVE", "HT", "1H", "2H"].includes(short)
+    ) {
+      item.fixture.status.short = "LIVE";
     }
 
     return item;
@@ -593,7 +621,8 @@ export class FootballService {
 
     // Por padrão, jogo encerrado/adiado/cancelado não fica no cache do Dashboard.
     // Se um dia precisar manter finalizados por auditoria, use ODDIX_CACHE_FINISHED_FIXTURES=true.
-    const allowFinishedCache = process.env.ODDIX_CACHE_FINISHED_FIXTURES === 'true';
+    const allowFinishedCache =
+      process.env.ODDIX_CACHE_FINISHED_FIXTURES === "true";
     if (!allowFinishedCache && isOddixFinishedFixture(item)) return false;
 
     const rawDate = getOddixFixtureDate(item);
@@ -611,12 +640,14 @@ export class FootballService {
   }
 
   private async saveFixturesCache(fixtures: any[]) {
-    fixtures = (fixtures || []).filter((item: any) => this.shouldCacheFixture(item));
+    fixtures = (fixtures || []).filter((item: any) =>
+      this.shouldCacheFixture(item),
+    );
     if (!fixtures?.length) return;
 
     await Promise.all(
       fixtures.map((item: any) => {
-        const fixtureId = String(item?.fixture?.id || '');
+        const fixtureId = String(item?.fixture?.id || "");
         if (!fixtureId) return null;
 
         const cleanItem = this.stripRawProviderData(item);
@@ -625,12 +656,16 @@ export class FootballService {
         return this.prisma.cachedFixture.upsert({
           where: { fixtureId },
           update: {
-            provider: item.provider || 'unknown',
-            date: item.fixture?.date && !Number.isNaN(new Date(item.fixture.date).getTime()) ? new Date(item.fixture.date) : null,
+            provider: item.provider || "unknown",
+            date:
+              item.fixture?.date &&
+              !Number.isNaN(new Date(item.fixture.date).getTime())
+                ? new Date(item.fixture.date)
+                : null,
             league: item.league?.name || null,
             country: item.league?.country || null,
-            homeTeam: item.teams?.home?.name || '',
-            awayTeam: item.teams?.away?.name || '',
+            homeTeam: item.teams?.home?.name || "",
+            awayTeam: item.teams?.away?.name || "",
             homeLogo: item.teams?.home?.logo || null,
             awayLogo: item.teams?.away?.logo || null,
             leagueLogo: item.league?.logo || null,
@@ -643,12 +678,16 @@ export class FootballService {
           },
           create: {
             fixtureId,
-            provider: item.provider || 'unknown',
-            date: item.fixture?.date && !Number.isNaN(new Date(item.fixture.date).getTime()) ? new Date(item.fixture.date) : null,
+            provider: item.provider || "unknown",
+            date:
+              item.fixture?.date &&
+              !Number.isNaN(new Date(item.fixture.date).getTime())
+                ? new Date(item.fixture.date)
+                : null,
             league: item.league?.name || null,
             country: item.league?.country || null,
-            homeTeam: item.teams?.home?.name || '',
-            awayTeam: item.teams?.away?.name || '',
+            homeTeam: item.teams?.home?.name || "",
+            awayTeam: item.teams?.away?.name || "",
             homeLogo: item.teams?.home?.logo || null,
             awayLogo: item.teams?.away?.logo || null,
             leagueLogo: item.league?.logo || null,
@@ -673,10 +712,14 @@ export class FootballService {
     }
 
     const todayKey = this.brazilDateKey();
-    const maxFutureDays = Number(process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 2);
+    const maxFutureDays = Number(
+      process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 2,
+    );
     const rangeEnd =
       safeDate === todayKey
-        ? new Date(end.getTime() + Math.max(0, maxFutureDays) * 24 * 60 * 60 * 1000)
+        ? new Date(
+            end.getTime() + Math.max(0, maxFutureDays) * 24 * 60 * 60 * 1000,
+          )
         : end;
 
     const cached = await this.prisma.cachedFixture.findMany({
@@ -687,14 +730,19 @@ export class FootballService {
         },
       },
       orderBy: {
-        date: 'asc',
+        date: "asc",
       },
     });
 
-    return this.filterAllowedLeagues(cached.map((item) => this.stripRawProviderData(item.raw)));
+    return this.filterAllowedLeagues(
+      cached.map((item) => this.stripRawProviderData(item.raw)),
+    );
   }
 
-  private async getFreshFixturesFromCache(date?: string, maxAgeMinutes = this.fixturesCacheMinutes()) {
+  private async getFreshFixturesFromCache(
+    date?: string,
+    maxAgeMinutes = this.fixturesCacheMinutes(),
+  ) {
     const cached = await this.getFixturesFromCache(date);
 
     if (!cached.length) return [];
@@ -730,17 +778,19 @@ export class FootballService {
 
     const fixtureLike = {
       ...raw,
-      league: raw?.league || raw?.liga || {
-        name: record?.league || '',
-        country: record?.country || '',
-      },
-      fixture: raw?.fixture || raw?.jogo || {
-        date: record?.date || null,
-        status: {
-          short: record?.statusShort || '',
-          long: record?.statusLong || '',
+      league: raw?.league ||
+        raw?.liga || {
+          name: record?.league || "",
+          country: record?.country || "",
         },
-      },
+      fixture: raw?.fixture ||
+        raw?.jogo || {
+          date: record?.date || null,
+          status: {
+            short: record?.statusShort || "",
+            long: record?.statusLong || "",
+          },
+        },
     };
 
     if (!this.isOddixFixtureAllowedForDashboard(fixtureLike)) return true;
@@ -760,13 +810,18 @@ export class FootballService {
 
   async cleanupDashboardCache(force = false) {
     const now = Date.now();
-    const intervalMs = Number(process.env.ODDIX_CACHE_CLEANUP_INTERVAL_SECONDS || 60) * 1000;
+    const intervalMs =
+      Number(process.env.ODDIX_CACHE_CLEANUP_INTERVAL_SECONDS || 60) * 1000;
 
-    if (!force && this.lastCacheCleanupAt && now - this.lastCacheCleanupAt < intervalMs) {
+    if (
+      !force &&
+      this.lastCacheCleanupAt &&
+      now - this.lastCacheCleanupAt < intervalMs
+    ) {
       return {
         success: true,
         skipped: true,
-        reason: 'Limpeza recente. Aguardando intervalo.',
+        reason: "Limpeza recente. Aguardando intervalo.",
         checked: 0,
         deleted: 0,
       };
@@ -776,7 +831,7 @@ export class FootballService {
       return {
         success: true,
         skipped: true,
-        reason: 'Limpeza já em execução.',
+        reason: "Limpeza já em execução.",
         checked: 0,
         deleted: 0,
       };
@@ -822,7 +877,8 @@ export class FootballService {
         skipped: false,
         checked: cached.length,
         deleted,
-        message: 'Cache do Dashboard limpo. Jogos encerrados, antigos e ligas ruins foram removidos.',
+        message:
+          "Cache do Dashboard limpo. Jogos encerrados, antigos e ligas ruins foram removidos.",
       };
     } finally {
       this.cacheCleanupRunning = false;
@@ -835,16 +891,19 @@ export class FootballService {
     return {
       success: true,
       deleted: result.count || 0,
-      message: 'Cache de jogos limpo totalmente.',
+      message: "Cache de jogos limpo totalmente.",
     };
   }
-
 
   async getFixturesFromSportScore6(date?: string) {
     try {
       return await this.sportScore6Service.getFixtures(date);
     } catch (error: any) {
-      return { ok: false, data: [], error: error?.message || 'Erro na SportScore6' };
+      return {
+        ok: false,
+        data: [],
+        error: error?.message || "Erro na SportScore6",
+      };
     }
   }
 
@@ -852,7 +911,11 @@ export class FootballService {
     try {
       return await this.sportScore6Service.getLiveFixtures();
     } catch (error: any) {
-      return { ok: false, data: [], error: error?.message || 'Erro na SportScore6 Live' };
+      return {
+        ok: false,
+        data: [],
+        error: error?.message || "Erro na SportScore6 Live",
+      };
     }
   }
 
@@ -860,26 +923,41 @@ export class FootballService {
     try {
       return await this.sportScore6Service.getFixtureBySlug(slug);
     } catch (error: any) {
-      return { ok: false, data: null, error: error?.message || 'Erro na SportScore6 por slug' };
+      return {
+        ok: false,
+        data: null,
+        error: error?.message || "Erro na SportScore6 por slug",
+      };
     }
   }
 
   async getStatisticsFromSportScore6(fixtureId: string) {
     try {
       const cached: any = await this.getFixtureFromCacheById(fixtureId);
-      const slug = cached?.fixture?.externalId || cached?.sportScore6Raw?.slug || cached?.sportScore6Raw?.urlSlug || null;
+      const slug =
+        cached?.fixture?.externalId ||
+        cached?.sportScore6Raw?.slug ||
+        cached?.sportScore6Raw?.urlSlug ||
+        null;
 
       if (!slug) {
-        return { ok: false, data: null, error: 'SportScore6 precisa do slug salvo no cache para buscar estatísticas' };
+        return {
+          ok: false,
+          data: null,
+          error:
+            "SportScore6 precisa do slug salvo no cache para buscar estatísticas",
+        };
       }
 
       return await this.sportScore6Service.getStatistics(slug);
     } catch (error: any) {
-      return { ok: false, data: null, error: error?.message || 'Erro nas estatísticas SportScore6' };
+      return {
+        ok: false,
+        data: null,
+        error: error?.message || "Erro nas estatísticas SportScore6",
+      };
     }
   }
-
-
 
   async getFixturesFromFotmob(date?: string) {
     try {
@@ -888,7 +966,7 @@ export class FootballService {
       const data = this.fotmobService.normalizeMatches(response);
       return { ok: true, data, error: null };
     } catch (error: any) {
-      return { ok: false, data: [], error: error?.message || 'Erro na FotMob' };
+      return { ok: false, data: [], error: error?.message || "Erro na FotMob" };
     }
   }
 
@@ -898,7 +976,11 @@ export class FootballService {
       const data = this.fotmobService.normalizeMatches(response);
       return { ok: true, data, error: null };
     } catch (error: any) {
-      return { ok: false, data: [], error: error?.message || 'Erro na FotMob Live' };
+      return {
+        ok: false,
+        data: [],
+        error: error?.message || "Erro na FotMob Live",
+      };
     }
   }
 
@@ -907,7 +989,11 @@ export class FootballService {
       const response = await this.fotmobService.getMatch(fixtureId);
       return { ok: true, data: response, error: null };
     } catch (error: any) {
-      return { ok: false, data: null, error: error?.message || 'Erro na FotMob por ID' };
+      return {
+        ok: false,
+        data: null,
+        error: error?.message || "Erro na FotMob por ID",
+      };
     }
   }
 
@@ -917,10 +1003,16 @@ export class FootballService {
       return {
         ok: !!stats?.available,
         data: stats?.available ? stats : null,
-        error: stats?.available ? null : stats?.message || 'Sem estatísticas FotMob',
+        error: stats?.available
+          ? null
+          : stats?.message || "Sem estatísticas FotMob",
       };
     } catch (error: any) {
-      return { ok: false, data: null, error: error?.message || 'Erro nas estatísticas FotMob' };
+      return {
+        ok: false,
+        data: null,
+        error: error?.message || "Erro nas estatísticas FotMob",
+      };
     }
   }
 
@@ -928,7 +1020,11 @@ export class FootballService {
     try {
       return await this.sportScoreService.getFixtures(date);
     } catch (error: any) {
-      return { ok: false, data: [], error: error?.message || 'Erro na SportScore' };
+      return {
+        ok: false,
+        data: [],
+        error: error?.message || "Erro na SportScore",
+      };
     }
   }
 
@@ -936,7 +1032,11 @@ export class FootballService {
     try {
       return await this.sportScoreService.getLiveFixtures();
     } catch (error: any) {
-      return { ok: false, data: [], error: error?.message || 'Erro na SportScore Live' };
+      return {
+        ok: false,
+        data: [],
+        error: error?.message || "Erro na SportScore Live",
+      };
     }
   }
 
@@ -944,7 +1044,11 @@ export class FootballService {
     try {
       return await this.sportScoreService.getFixtureById(fixtureId);
     } catch (error: any) {
-      return { ok: false, data: null, error: error?.message || 'Erro na SportScore por ID' };
+      return {
+        ok: false,
+        data: null,
+        error: error?.message || "Erro na SportScore por ID",
+      };
     }
   }
 
@@ -952,25 +1056,34 @@ export class FootballService {
     try {
       return await this.sportScoreService.getStatistics(fixtureId);
     } catch (error: any) {
-      return { ok: false, data: null, error: error?.message || 'Erro nas estatísticas SportScore' };
+      return {
+        ok: false,
+        data: null,
+        error: error?.message || "Erro nas estatísticas SportScore",
+      };
     }
   }
 
   async getFixturesFromApiFootball(date: string) {
     if (this.isApiFootballBlocked()) {
-      return { ok: false, data: [], error: 'API-Football em cooldown temporário por limite/erro' };
+      return {
+        ok: false,
+        data: [],
+        error: "API-Football em cooldown temporário por limite/erro",
+      };
     }
 
     const apiKey = this.getApiFootballKey();
-    if (!apiKey) return { ok: false, data: [], error: 'API_FOOTBALL_KEY não encontrada' };
+    if (!apiKey)
+      return { ok: false, data: [], error: "API_FOOTBALL_KEY não encontrada" };
 
     try {
       const response = await axios.get(`${this.apiFootballURL}/fixtures`, {
         timeout: 12000,
-        headers: { 'x-apisports-key': apiKey },
+        headers: { "x-apisports-key": apiKey },
         params: {
           date,
-          timezone: 'America/Sao_Paulo',
+          timezone: "America/Sao_Paulo",
         },
       });
 
@@ -993,26 +1106,31 @@ export class FootballService {
           error?.response?.data?.message ||
           error?.response?.data ||
           error?.message ||
-          'Erro na API-Football',
+          "Erro na API-Football",
       };
     }
   }
 
   async getLiveFixturesFromApiFootball() {
     if (this.isApiFootballBlocked()) {
-      return { ok: false, data: [], error: 'API-Football em cooldown temporário por limite/erro' };
+      return {
+        ok: false,
+        data: [],
+        error: "API-Football em cooldown temporário por limite/erro",
+      };
     }
 
     const apiKey = this.getApiFootballKey();
-    if (!apiKey) return { ok: false, data: [], error: 'API_FOOTBALL_KEY não encontrada' };
+    if (!apiKey)
+      return { ok: false, data: [], error: "API_FOOTBALL_KEY não encontrada" };
 
     try {
       const response = await axios.get(`${this.apiFootballURL}/fixtures`, {
         timeout: 12000,
-        headers: { 'x-apisports-key': apiKey },
+        headers: { "x-apisports-key": apiKey },
         params: {
-          live: 'all',
-          timezone: 'America/Sao_Paulo',
+          live: "all",
+          timezone: "America/Sao_Paulo",
         },
       });
 
@@ -1035,7 +1153,7 @@ export class FootballService {
           error?.response?.data?.message ||
           error?.response?.data ||
           error?.message ||
-          'Erro na API-Football Live',
+          "Erro na API-Football Live",
       };
     }
   }
@@ -1047,7 +1165,7 @@ export class FootballService {
       return {
         ok: false,
         data: [],
-        error: error?.message || 'Erro na AllScores',
+        error: error?.message || "Erro na AllScores",
       };
     }
   }
@@ -1059,17 +1177,20 @@ export class FootballService {
       return {
         ok: false,
         data: [],
-        error: error?.message || 'Erro na AllScores Live',
+        error: error?.message || "Erro na AllScores Live",
       };
     }
   }
-
 
   async getFixturesFromFlashScore(date: string) {
     try {
       return await this.flashScoreService.getFixtures(date);
     } catch (error: any) {
-      return { ok: false, data: [], error: error?.message || 'Erro na FlashScore' };
+      return {
+        ok: false,
+        data: [],
+        error: error?.message || "Erro na FlashScore",
+      };
     }
   }
 
@@ -1077,7 +1198,11 @@ export class FootballService {
     try {
       return await this.flashScoreService.getLiveFixtures();
     } catch (error: any) {
-      return { ok: false, data: [], error: error?.message || 'Erro na FlashScore Live' };
+      return {
+        ok: false,
+        data: [],
+        error: error?.message || "Erro na FlashScore Live",
+      };
     }
   }
 
@@ -1088,23 +1213,31 @@ export class FootballService {
       return {
         ok: false,
         data: null,
-        error: error?.message || 'Erro na AllScores por ID',
+        error: error?.message || "Erro na AllScores por ID",
       };
     }
   }
 
   async getFixturesFromSportmonks(date: string) {
     const apiKey = this.getSportmonksKey();
-    if (!apiKey) return { ok: false, data: [], error: 'SPORTMONKS_API_KEY não encontrada' };
+    if (!apiKey)
+      return {
+        ok: false,
+        data: [],
+        error: "SPORTMONKS_API_KEY não encontrada",
+      };
 
     try {
-      const response = await axios.get(`${this.sportmonksURL}/fixtures/date/${date}`, {
-        timeout: 10000,
-        params: {
-          api_token: apiKey,
-          include: 'participants;league;league.country;scores;state;periods',
+      const response = await axios.get(
+        `${this.sportmonksURL}/fixtures/date/${date}`,
+        {
+          timeout: 10000,
+          params: {
+            api_token: apiKey,
+            include: "participants;league;league.country;scores;state;periods",
+          },
         },
-      });
+      );
 
       return {
         ok: true,
@@ -1117,19 +1250,24 @@ export class FootballService {
       return {
         ok: false,
         data: [],
-        error: error?.response?.data?.message || error?.response?.data || error?.message || 'Erro na Sportmonks',
+        error:
+          error?.response?.data?.message ||
+          error?.response?.data ||
+          error?.message ||
+          "Erro na Sportmonks",
       };
     }
   }
 
   async getFixturesFromFootballData(date: string) {
     const apiKey = this.getFootballDataKey();
-    if (!apiKey) return { ok: false, data: [], error: 'FOOTBALL_DATA_KEY não encontrada' };
+    if (!apiKey)
+      return { ok: false, data: [], error: "FOOTBALL_DATA_KEY não encontrada" };
 
     try {
       const response = await axios.get(`${this.footballDataURL}/matches`, {
         timeout: 10000,
-        headers: { 'X-Auth-Token': apiKey },
+        headers: { "X-Auth-Token": apiKey },
         params: { dateFrom: date, dateTo: date },
       });
 
@@ -1144,7 +1282,11 @@ export class FootballService {
       return {
         ok: false,
         data: [],
-        error: error?.response?.data?.message || error?.response?.data || error?.message || 'Erro na football-data.org',
+        error:
+          error?.response?.data?.message ||
+          error?.response?.data ||
+          error?.message ||
+          "Erro na football-data.org",
       };
     }
   }
@@ -1153,10 +1295,13 @@ export class FootballService {
     const key = this.getSportsDbKey();
 
     try {
-      const response = await axios.get(`${this.sportsDbURL}/${key}/eventsday.php`, {
-        timeout: 10000,
-        params: { d: date, s: 'Soccer' },
-      });
+      const response = await axios.get(
+        `${this.sportsDbURL}/${key}/eventsday.php`,
+        {
+          timeout: 10000,
+          params: { d: date, s: "Soccer" },
+        },
+      );
 
       return {
         ok: true,
@@ -1166,48 +1311,52 @@ export class FootballService {
         error: null,
       };
     } catch (error: any) {
-      return { ok: false, data: [], error: error?.message || 'Erro na TheSportsDB' };
+      return {
+        ok: false,
+        data: [],
+        error: error?.message || "Erro na TheSportsDB",
+      };
     }
   }
 
   private normalizeName(name: string) {
-    let value = String(name || '')
+    let value = String(name || "")
       .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
 
     // Normaliza diferenças comuns entre FlashScore e AllScores.
     value = value
-      .replace(/&/g, ' and ')
-      .replace(/\bii\b/g, ' 2 ')
-      .replace(/\biii\b/g, ' 3 ')
-      .replace(/\biv\b/g, ' 4 ')
-      .replace(/\bsub\s*20\b/g, ' u20 ')
-      .replace(/\bsub\s*21\b/g, ' u21 ')
-      .replace(/\bsub\s*23\b/g, ' u23 ')
-      .replace(/\bfc\b/g, ' ')
-      .replace(/\bsc\b/g, ' ')
-      .replace(/\bec\b/g, ' ')
-      .replace(/\bac\b/g, ' ')
-      .replace(/\bafc\b/g, ' ')
-      .replace(/\bcf\b/g, ' ')
-      .replace(/\bclub\b/g, ' ')
-      .replace(/\bclube\b/g, ' ')
-      .replace(/\bcity\b/g, ' ')
-      .replace(/\blegion\b/g, ' ')
-      .replace(/\bunited\b/g, ' ')
-      .replace(/\bde\b/g, ' ')
-      .replace(/\bdo\b/g, ' ')
-      .replace(/\bda\b/g, ' ')
-      .replace(/\bthe\b/g, ' ')
-      .replace(/\bwomen\b/g, ' fem ')
-      .replace(/\bfeminino\b/g, ' fem ')
-      .replace(/\bf\b/g, ' fem ')
-      .replace(/\bu-?(\d{2})\b/g, ' u$1 ')
-      .replace(/\s+/g, ' ')
+      .replace(/&/g, " and ")
+      .replace(/\bii\b/g, " 2 ")
+      .replace(/\biii\b/g, " 3 ")
+      .replace(/\biv\b/g, " 4 ")
+      .replace(/\bsub\s*20\b/g, " u20 ")
+      .replace(/\bsub\s*21\b/g, " u21 ")
+      .replace(/\bsub\s*23\b/g, " u23 ")
+      .replace(/\bfc\b/g, " ")
+      .replace(/\bsc\b/g, " ")
+      .replace(/\bec\b/g, " ")
+      .replace(/\bac\b/g, " ")
+      .replace(/\bafc\b/g, " ")
+      .replace(/\bcf\b/g, " ")
+      .replace(/\bclub\b/g, " ")
+      .replace(/\bclube\b/g, " ")
+      .replace(/\bcity\b/g, " ")
+      .replace(/\blegion\b/g, " ")
+      .replace(/\bunited\b/g, " ")
+      .replace(/\bde\b/g, " ")
+      .replace(/\bdo\b/g, " ")
+      .replace(/\bda\b/g, " ")
+      .replace(/\bthe\b/g, " ")
+      .replace(/\bwomen\b/g, " fem ")
+      .replace(/\bfeminino\b/g, " fem ")
+      .replace(/\bf\b/g, " fem ")
+      .replace(/\bu-?(\d{2})\b/g, " u$1 ")
+      .replace(/\s+/g, " ")
       .trim();
 
-    return value.replace(/[^a-z0-9]/g, '');
+    return value.replace(/[^a-z0-9]/g, "");
   }
 
   private getFixtureObject(item: any) {
@@ -1233,20 +1382,22 @@ export class FootballService {
   }
 
   private getTeamName(team: any) {
-    return String(team?.name || team?.nome || team?.teamName || '').trim();
+    return String(team?.name || team?.nome || team?.teamName || "").trim();
   }
 
   private getTeamLogo(team: any) {
-    return String(team?.logo || team?.logotipo || team?.image || team?.imageUrl || '').trim();
+    return String(
+      team?.logo || team?.logotipo || team?.image || team?.imageUrl || "",
+    ).trim();
   }
 
   private normalizeTextLoose(value: any) {
-    return String(value || '')
+    return String(value || "")
       .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9\s]/g, ' ')
-      .replace(/\s+/g, ' ')
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
       .trim();
   }
 
@@ -1256,52 +1407,55 @@ export class FootballService {
     const away = this.getAwayTeam(item);
 
     const text = this.normalizeTextLoose(
-      `${league?.name || league?.nome || ''} ${league?.country || league?.pais || league?.país || ''} ${this.getTeamName(home)} ${this.getTeamName(away)}`,
+      `${league?.name || league?.nome || ""} ${league?.country || league?.pais || league?.país || ""} ${this.getTeamName(home)} ${this.getTeamName(away)}`,
     );
 
     const isFifaOrSelection =
-      text.includes('fifa') ||
-      text.includes('world cup') ||
-      text.includes('copa do mundo') ||
-      text.includes('selecoes') ||
-      text.includes('selecao') ||
-      text.includes('national team') ||
-      text.includes('international');
+      text.includes("fifa") ||
+      text.includes("world cup") ||
+      text.includes("copa do mundo") ||
+      text.includes("selecoes") ||
+      text.includes("selecao") ||
+      text.includes("national team") ||
+      text.includes("international");
 
     const blocked = [
-      'placement play off',
-      'placement playoffs',
-      'placement play offs',
-      'jogo de colocacao',
-      'playoffs de colocacao',
-      'play off de colocacao',
-      'relegation group',
-      'rebaixamento',
-      'u17',
-      'u18',
-      'u19',
-      'u20',
-      'u21',
-      'u23',
-      'sub 17',
-      'sub 18',
-      'sub 19',
-      'sub 20',
-      'sub 21',
-      'sub 23',
-      'women',
-      'feminino',
-      'feminina',
-      'reserves',
-      'reserve',
-      'esoccer',
-      'simulated',
-      'simulado',
+      "placement play off",
+      "placement playoffs",
+      "placement play offs",
+      "jogo de colocacao",
+      "playoffs de colocacao",
+      "play off de colocacao",
+      "relegation group",
+      "rebaixamento",
+      "u17",
+      "u18",
+      "u19",
+      "u20",
+      "u21",
+      "u23",
+      "sub 17",
+      "sub 18",
+      "sub 19",
+      "sub 20",
+      "sub 21",
+      "sub 23",
+      "women",
+      "feminino",
+      "feminina",
+      "reserves",
+      "reserve",
+      "esoccer",
+      "simulated",
+      "simulado",
     ];
 
     if (blocked.some((word) => text.includes(word))) return false;
 
-    const isFriendly = text.includes('friendly') || text.includes('amistoso') || text.includes('friendlies');
+    const isFriendly =
+      text.includes("friendly") ||
+      text.includes("amistoso") ||
+      text.includes("friendlies");
     if (isFriendly && !isFifaOrSelection) return false;
 
     return true;
@@ -1317,56 +1471,58 @@ export class FootballService {
     const home = this.getHomeTeam(cleanItem);
     const away = this.getAwayTeam(cleanItem);
     const text = this.normalizeTextLoose(
-      `${league?.name || league?.nome || ''} ${league?.country || league?.pais || league?.país || ''} ${this.getTeamName(home)} ${this.getTeamName(away)}`,
+      `${league?.name || league?.nome || ""} ${league?.country || league?.pais || league?.país || ""} ${this.getTeamName(home)} ${this.getTeamName(away)}`,
     );
 
     const alwaysAllowedWords = [
-      'fifa',
-      'world cup',
-      'copa do mundo',
-      'international',
-      'national team',
-      'selecao',
-      'selecoes',
-      'libertadores',
-      'sudamericana',
-      'sul americana',
-      'champions league',
-      'europa league',
-      'conference league',
-      'brasileirao',
-      'brasil serie a',
-      'brazil serie a',
-      'brasil serie b',
-      'brazil serie b',
-      'brasil serie c',
-      'brazil serie c',
-      'copa do brasil',
-      'premier league',
-      'la liga',
-      'bundesliga',
-      'serie a',
-      'serie b',
-      'ligue 1',
-      'mls',
-      'liga mx',
-      'argentina primera',
-      'paulista',
-      'carioca',
-      'cearense',
-      'baiano',
-      'goiano',
-      'pernambucano',
-      'mineiro',
-      'gaucho',
-      'paranaense',
+      "fifa",
+      "world cup",
+      "copa do mundo",
+      "international",
+      "national team",
+      "selecao",
+      "selecoes",
+      "libertadores",
+      "sudamericana",
+      "sul americana",
+      "champions league",
+      "europa league",
+      "conference league",
+      "brasileirao",
+      "brasil serie a",
+      "brazil serie a",
+      "brasil serie b",
+      "brazil serie b",
+      "brasil serie c",
+      "brazil serie c",
+      "copa do brasil",
+      "premier league",
+      "la liga",
+      "bundesliga",
+      "serie a",
+      "serie b",
+      "ligue 1",
+      "mls",
+      "liga mx",
+      "argentina primera",
+      "paulista",
+      "carioca",
+      "cearense",
+      "baiano",
+      "goiano",
+      "pernambucano",
+      "mineiro",
+      "gaucho",
+      "paranaense",
     ];
 
     if (alwaysAllowedWords.some((word) => text.includes(word))) return true;
     if (isOddixLeagueAllowed(cleanItem)) return true;
 
     const quality = getOddixFixtureQualityScore(cleanItem);
-    const qualityThreshold = Number(process.env.ODDIX_DASHBOARD_ALLOW_QUALITY_SCORE || 80);
+    const qualityThreshold = Number(
+      process.env.ODDIX_DASHBOARD_ALLOW_QUALITY_SCORE || 80,
+    );
 
     return quality >= qualityThreshold;
   }
@@ -1389,26 +1545,51 @@ export class FootballService {
         : [];
 
     const homeGoals = Number(
-      goals?.home ?? goals?.casa ?? score?.fulltime?.home ?? score?.fulltime?.casa ?? score?.['tempo integral']?.home ?? score?.['tempo integral']?.casa ?? 0,
+      goals?.home ??
+        goals?.casa ??
+        score?.fulltime?.home ??
+        score?.fulltime?.casa ??
+        score?.["tempo integral"]?.home ??
+        score?.["tempo integral"]?.casa ??
+        0,
     );
     const awayGoals = Number(
-      goals?.away ?? goals?.fora ?? score?.fulltime?.away ?? score?.fulltime?.fora ?? score?.['tempo integral']?.away ?? score?.['tempo integral']?.fora ?? 0,
+      goals?.away ??
+        goals?.fora ??
+        score?.fulltime?.away ??
+        score?.fulltime?.fora ??
+        score?.["tempo integral"]?.away ??
+        score?.["tempo integral"]?.fora ??
+        0,
     );
 
-    const short = String(status?.short || status?.curto || status?.statusShort || '').toUpperCase();
-    const normalizedShort = short === 'UNK' || short === 'UNKNOWN' || short === '' ? 'NS' : short;
-    const long = String(status?.long || status?.longo || status?.name || status?.nome || '').trim();
+    const short = String(
+      status?.short || status?.curto || status?.statusShort || "",
+    ).toUpperCase();
+    const normalizedShort =
+      short === "UNK" || short === "UNKNOWN" || short === "" ? "NS" : short;
+    const long = String(
+      status?.long || status?.longo || status?.name || status?.nome || "",
+    ).trim();
 
     return {
-      provider: item?.provider || item?.provedor || 'unknown',
+      provider: item?.provider || item?.provedor || "unknown",
       fixture: {
         id: fixture?.id,
-        externalId: fixture?.externalId || fixture?.external_id || '',
+        externalId: fixture?.externalId || fixture?.external_id || "",
         date: fixture?.date || fixture?.data || null,
-        timestamp: fixture?.timestamp || fixture?.carimboDeDataHora || fixture?.['carimbo de data/hora'] || null,
-        timezone: fixture?.timezone || fixture?.fuso || fixture?.['fuso horário'] || 'America/Sao_Paulo',
+        timestamp:
+          fixture?.timestamp ||
+          fixture?.carimboDeDataHora ||
+          fixture?.["carimbo de data/hora"] ||
+          null,
+        timezone:
+          fixture?.timezone ||
+          fixture?.fuso ||
+          fixture?.["fuso horário"] ||
+          "America/Sao_Paulo",
         status: {
-          long: long || (normalizedShort === 'NS' ? 'Not Started' : ''),
+          long: long || (normalizedShort === "NS" ? "Not Started" : ""),
           short: normalizedShort,
           elapsed: status?.elapsed ?? status?.decorrido ?? null,
           extra: status?.extra ?? null,
@@ -1416,22 +1597,22 @@ export class FootballService {
       },
       league: {
         id: league?.id || 0,
-        name: league?.name || league?.nome || 'Liga',
-        country: league?.country || league?.pais || league?.país || '',
-        logo: league?.logo || league?.logotipo || '',
+        name: league?.name || league?.nome || "Liga",
+        country: league?.country || league?.pais || league?.país || "",
+        logo: league?.logo || league?.logotipo || "",
       },
       teams: {
         home: {
           id: home?.id || 0,
-          externalId: home?.externalId || home?.external_id || '',
-          name: this.getTeamName(home) || 'Casa',
+          externalId: home?.externalId || home?.external_id || "",
+          name: this.getTeamName(home) || "Casa",
           logo: this.getTeamLogo(home),
           winner: home?.winner ?? home?.vencedor ?? null,
         },
         away: {
           id: away?.id || 0,
-          externalId: away?.externalId || away?.external_id || '',
-          name: this.getTeamName(away) || 'Fora',
+          externalId: away?.externalId || away?.external_id || "",
+          name: this.getTeamName(away) || "Fora",
           logo: this.getTeamLogo(away),
           winner: away?.winner ?? away?.vencedor ?? null,
         },
@@ -1448,13 +1629,19 @@ export class FootballService {
       },
       odds: odds
         ? {
-            source: odds?.source || odds?.fonte || 'flashscore',
-            bookmaker: odds?.bookmaker || odds?.['casa de apostas'] || 'FlashScore',
-            market: odds?.market || odds?.mercado || '1X2',
-            options: options.map((option: any) => ({
-              name: option?.name || option?.nome || '',
-              odd: Number(option?.odd ?? option?.ímpar ?? option?.impar ?? 0),
-            })).filter((option: any) => option.name && Number.isFinite(option.odd) && option.odd > 0),
+            source: odds?.source || odds?.fonte || "flashscore",
+            bookmaker:
+              odds?.bookmaker || odds?.["casa de apostas"] || "FlashScore",
+            market: odds?.market || odds?.mercado || "1X2",
+            options: options
+              .map((option: any) => ({
+                name: option?.name || option?.nome || "",
+                odd: Number(option?.odd ?? option?.ímpar ?? option?.impar ?? 0),
+              }))
+              .filter(
+                (option: any) =>
+                  option.name && Number.isFinite(option.odd) && option.odd > 0,
+              ),
           }
         : undefined,
       __oddixCachedAt: item?.__oddixCachedAt,
@@ -1472,8 +1659,8 @@ export class FootballService {
     const timestamp = Number(
       fixture?.timestamp ||
         fixture?.carimboDeDataHora ||
-        fixture?.['carimbo de data/hora'] ||
-        fixture?.['carimbo de datahora'] ||
+        fixture?.["carimbo de data/hora"] ||
+        fixture?.["carimbo de datahora"] ||
         0,
     );
 
@@ -1492,7 +1679,7 @@ export class FootballService {
     const timestamp = this.getFixtureTimestamp(item);
     const date = timestamp
       ? this.brazilDateKey(new Date(timestamp * 1000))
-      : String(this.getFixtureDateValue(item) || '').slice(0, 10);
+      : String(this.getFixtureDateValue(item) || "").slice(0, 10);
 
     // Agrupa jogos no mesmo horário aproximado para deduplicar APIs diferentes.
     const timeBucket = timestamp ? Math.floor(timestamp / (15 * 60)) : 0;
@@ -1500,7 +1687,7 @@ export class FootballService {
     const home = this.normalizeName(this.getTeamName(this.getHomeTeam(item)));
     const away = this.normalizeName(this.getTeamName(this.getAwayTeam(item)));
 
-    if (!date || !home || !away) return '';
+    if (!date || !home || !away) return "";
 
     return `${date}-${timeBucket}-${home}-${away}`;
   }
@@ -1509,19 +1696,21 @@ export class FootballService {
     const timestamp = this.getFixtureTimestamp(item);
     const date = timestamp
       ? this.brazilDateKey(new Date(timestamp * 1000))
-      : String(this.getFixtureDateValue(item) || '').slice(0, 10);
+      : String(this.getFixtureDateValue(item) || "").slice(0, 10);
 
     const home = this.normalizeName(this.getTeamName(this.getHomeTeam(item)));
     const away = this.normalizeName(this.getTeamName(this.getAwayTeam(item)));
 
-    if (!date || !home || !away) return '';
+    if (!date || !home || !away) return "";
 
     // Chave sem horário para casos onde uma API manda UTC e outra manda -03:00.
     return `${date}-${home}-${away}`;
   }
 
   private fixtureQualityScore(item: any) {
-    const provider = String(item?.provider || item?.provedor || '').toLowerCase();
+    const provider = String(
+      item?.provider || item?.provedor || "",
+    ).toLowerCase();
     const fixture = this.getFixtureObject(item);
     const league = this.getLeagueObject(item);
     const home = this.getHomeTeam(item);
@@ -1529,18 +1718,19 @@ export class FootballService {
 
     let score = 0;
 
-    if (provider.includes('flashscore')) score += 85;
-    if (provider.includes('sportscore6')) score += 65;
-    if (provider.includes('sports-betting')) score += 45;
-    if (provider.includes('allscores')) score += 30;
-    if (provider.includes('api-football')) score += 25;
+    if (provider.includes("flashscore")) score += 85;
+    if (provider.includes("sportscore6")) score += 65;
+    if (provider.includes("sports-betting")) score += 45;
+    if (provider.includes("allscores")) score += 30;
+    if (provider.includes("api-football")) score += 25;
 
     if (item?.odds) score += 20;
     if (home?.logo) score += 8;
     if (away?.logo) score += 8;
     if (league?.logo) score += 4;
     if (fixture?.externalId) score += 6;
-    if (fixture?.status?.elapsed || fixture?.status?.['tempo decorrido']) score += 4;
+    if (fixture?.status?.elapsed || fixture?.status?.["tempo decorrido"])
+      score += 4;
 
     score += Math.round(getOddixFixtureQualityScore(item) / 5);
 
@@ -1548,7 +1738,9 @@ export class FootballService {
   }
 
   private shouldReplaceFixture(current: any, incoming: any) {
-    return this.fixtureQualityScore(incoming) > this.fixtureQualityScore(current);
+    return (
+      this.fixtureQualityScore(incoming) > this.fixtureQualityScore(current)
+    );
   }
 
   private mergeUniqueFixtures(groups: any[][]) {
@@ -1561,8 +1753,10 @@ export class FootballService {
         const looseKey = this.fixtureLooseKey(item);
         if (!key && !looseKey) continue;
 
-        const finalKey = (looseKey && looseToKey.get(looseKey)) || key || looseKey;
-        if (looseKey && !looseToKey.has(looseKey)) looseToKey.set(looseKey, finalKey);
+        const finalKey =
+          (looseKey && looseToKey.get(looseKey)) || key || looseKey;
+        if (looseKey && !looseToKey.has(looseKey))
+          looseToKey.set(looseKey, finalKey);
 
         const current = map.get(finalKey);
         if (!current || this.shouldReplaceFixture(current, item)) {
@@ -1572,12 +1766,15 @@ export class FootballService {
     }
 
     return Array.from(map.values()).sort((a: any, b: any) => {
-      const da = this.getFixtureTimestamp(a) || new Date(this.getFixtureDateValue(a) || 0).getTime() / 1000;
-      const db = this.getFixtureTimestamp(b) || new Date(this.getFixtureDateValue(b) || 0).getTime() / 1000;
+      const da =
+        this.getFixtureTimestamp(a) ||
+        new Date(this.getFixtureDateValue(a) || 0).getTime() / 1000;
+      const db =
+        this.getFixtureTimestamp(b) ||
+        new Date(this.getFixtureDateValue(b) || 0).getTime() / 1000;
       return da - db;
     });
   }
-
 
   private addDays(date: string, days: number) {
     const safeDate = this.normalizeDateKey(date);
@@ -1596,7 +1793,11 @@ export class FootballService {
     return this.brazilDateKey(parsed) === targetDate;
   }
 
-  private fixtureStartsInFuture(item: any, minMinutes = -30, maxMinutes = 24 * 60) {
+  private fixtureStartsInFuture(
+    item: any,
+    minMinutes = -30,
+    maxMinutes = 24 * 60,
+  ) {
     const rawDate = this.getFixtureDateValue(item);
     if (!rawDate) return false;
 
@@ -1642,7 +1843,8 @@ export class FootballService {
 
     for (const currentDate of searchDates) {
       const flashScore = await this.getFixturesFromFlashScore(currentDate);
-      if (flashScore.ok && flashScore.data.length > 0) providerGroups.push(flashScore.data);
+      if (flashScore.ok && flashScore.data.length > 0)
+        providerGroups.push(flashScore.data);
     }
 
     /**
@@ -1659,24 +1861,30 @@ export class FootballService {
       if (fotmob.ok && fotmob.data.length > 0) providerGroups.push(fotmob.data);
 
       const sportScore = await this.getFixturesFromSportScore(currentDate);
-      if (sportScore.ok && sportScore.data.length > 0) providerGroups.push(sportScore.data);
+      if (sportScore.ok && sportScore.data.length > 0)
+        providerGroups.push(sportScore.data);
 
       const allScores = await this.getFixturesFromAllScores(currentDate);
-      if (allScores.ok && allScores.data.length > 0) providerGroups.push(allScores.data);
+      if (allScores.ok && allScores.data.length > 0)
+        providerGroups.push(allScores.data);
 
       const sportsDb = await this.getFixturesFromSportsDb(currentDate);
-      if (sportsDb.ok && sportsDb.data.length > 0) providerGroups.push(sportsDb.data);
+      if (sportsDb.ok && sportsDb.data.length > 0)
+        providerGroups.push(sportsDb.data);
 
       if (this.shouldUseApiFootballFallback()) {
         const apiFootball = await this.getFixturesFromApiFootball(currentDate);
-        if (apiFootball.ok && apiFootball.data.length > 0) providerGroups.push(apiFootball.data);
+        if (apiFootball.ok && apiFootball.data.length > 0)
+          providerGroups.push(apiFootball.data);
       }
 
       const sportmonks = await this.getFixturesFromSportmonks(currentDate);
-      if (sportmonks.ok && sportmonks.data.length > 0) providerGroups.push(sportmonks.data);
+      if (sportmonks.ok && sportmonks.data.length > 0)
+        providerGroups.push(sportmonks.data);
 
       const footballData = await this.getFixturesFromFootballData(currentDate);
-      if (footballData.ok && footballData.data.length > 0) providerGroups.push(footballData.data);
+      if (footballData.ok && footballData.data.length > 0)
+        providerGroups.push(footballData.data);
     }
 
     const providerMerged = this.filterDashboardFixtures(
@@ -1705,7 +1913,7 @@ export class FootballService {
 
     const cached = await this.prisma.cachedFixture.findMany({
       where: { date: { gte: start, lte: end } },
-      orderBy: { date: 'asc' },
+      orderBy: { date: "asc" },
     });
 
     return cached
@@ -1813,13 +2021,17 @@ export class FootballService {
 
     if (sportmonksKey) {
       try {
-        const response = await axios.get(`${this.sportmonksURL}/livescores/inplay`, {
-          timeout: 10000,
-          params: {
-            api_token: sportmonksKey,
-            include: 'participants;league;league.country;scores;state;periods',
+        const response = await axios.get(
+          `${this.sportmonksURL}/livescores/inplay`,
+          {
+            timeout: 10000,
+            params: {
+              api_token: sportmonksKey,
+              include:
+                "participants;league;league.country;scores;state;periods",
+            },
           },
-        });
+        );
 
         const liveFixtures = (response.data?.data || [])
           .map((item: any) => this.mapSportmonksFixture(item))
@@ -1853,22 +2065,30 @@ export class FootballService {
     return [];
   }
 
-
   async getFixtureByIdFromApiFootball(fixtureId: string) {
     if (this.isApiFootballBlocked()) {
-      return { ok: false, data: null, error: 'API-Football em cooldown temporário por limite/erro' };
+      return {
+        ok: false,
+        data: null,
+        error: "API-Football em cooldown temporário por limite/erro",
+      };
     }
 
     const apiKey = this.getApiFootballKey();
-    if (!apiKey) return { ok: false, data: null, error: 'API_FOOTBALL_KEY não encontrada' };
+    if (!apiKey)
+      return {
+        ok: false,
+        data: null,
+        error: "API_FOOTBALL_KEY não encontrada",
+      };
 
     try {
       const response = await axios.get(`${this.apiFootballURL}/fixtures`, {
         timeout: 12000,
-        headers: { 'x-apisports-key': apiKey },
+        headers: { "x-apisports-key": apiKey },
         params: {
           id: fixtureId,
-          timezone: 'America/Sao_Paulo',
+          timezone: "America/Sao_Paulo",
         },
       });
 
@@ -1876,7 +2096,7 @@ export class FootballService {
       return {
         ok: !!item,
         data: item ? this.mapApiFootballFixture(item) : null,
-        error: item ? null : 'Fixture não encontrado na API-Football',
+        error: item ? null : "Fixture não encontrado na API-Football",
       };
     } catch (error: any) {
       if (this.isApiFootballLimitError(error)) {
@@ -1886,14 +2106,18 @@ export class FootballService {
       return {
         ok: false,
         data: null,
-        error: error?.response?.data?.message || error?.response?.data || error?.message || 'Erro na API-Football por ID',
+        error:
+          error?.response?.data?.message ||
+          error?.response?.data ||
+          error?.message ||
+          "Erro na API-Football por ID",
       };
     }
   }
 
   private mapApiFootballStatistics(fixtureId: string, items: any[]) {
     const teams = (items || []).map((item: any) => ({
-      team: item.team || { id: 0, name: '', logo: '' },
+      team: item.team || { id: 0, name: "", logo: "" },
       statistics: (item.statistics || []).map((stat: any) => ({
         type: stat.type,
         value: stat.value,
@@ -1904,35 +2128,55 @@ export class FootballService {
       available: teams.length > 0,
       simulated: false,
       fixtureId,
-      source: 'api-football',
-      message: teams.length > 0 ? 'Estatísticas reais da API-Football.' : 'Sem estatísticas reais disponíveis.',
+      source: "api-football",
+      message:
+        teams.length > 0
+          ? "Estatísticas reais da API-Football."
+          : "Sem estatísticas reais disponíveis.",
       teams,
     };
   }
 
   async getStatisticsFromApiFootball(fixtureId: string) {
     const apiKey = this.getApiFootballKey();
-    if (!apiKey) return { ok: false, data: null, error: 'API_FOOTBALL_KEY não encontrada' };
+    if (!apiKey)
+      return {
+        ok: false,
+        data: null,
+        error: "API_FOOTBALL_KEY não encontrada",
+      };
 
     try {
-      const response = await axios.get(`${this.apiFootballURL}/fixtures/statistics`, {
-        timeout: 12000,
-        headers: { 'x-apisports-key': apiKey },
-        params: { fixture: fixtureId },
-      });
+      const response = await axios.get(
+        `${this.apiFootballURL}/fixtures/statistics`,
+        {
+          timeout: 12000,
+          headers: { "x-apisports-key": apiKey },
+          params: { fixture: fixtureId },
+        },
+      );
 
-      const stats = this.mapApiFootballStatistics(fixtureId, response.data?.response || []);
+      const stats = this.mapApiFootballStatistics(
+        fixtureId,
+        response.data?.response || [],
+      );
 
       return {
         ok: stats.available,
         data: stats,
-        error: stats.available ? null : 'Sem estatísticas reais na API-Football',
+        error: stats.available
+          ? null
+          : "Sem estatísticas reais na API-Football",
       };
     } catch (error: any) {
       return {
         ok: false,
         data: null,
-        error: error?.response?.data?.message || error?.response?.data || error?.message || 'Erro ao buscar estatísticas na API-Football',
+        error:
+          error?.response?.data?.message ||
+          error?.response?.data ||
+          error?.message ||
+          "Erro ao buscar estatísticas na API-Football",
       };
     }
   }
@@ -1946,11 +2190,14 @@ export class FootballService {
      */
     const cachedFotmob: any = await this.getFixtureFromCacheById(fixtureId);
 
-    if (cachedFotmob?.provider === 'flashscore' && this.isCacheFresh(cachedFotmob, this.liveCacheSeconds() * 4)) {
+    if (
+      cachedFotmob?.provider === "flashscore" &&
+      this.isCacheFresh(cachedFotmob, this.liveCacheSeconds() * 4)
+    ) {
       return cachedFotmob;
     }
 
-    if (cachedFotmob?.provider === 'fotmob') {
+    if (cachedFotmob?.provider === "fotmob") {
       const fotmob = await this.getFixtureByIdFromFotmob(fixtureId);
 
       if (fotmob.ok && fotmob.data) {
@@ -1959,7 +2206,10 @@ export class FootballService {
       }
     }
 
-    if (!cachedFotmob || String(cachedFotmob?.provider || '') !== 'sportscore6') {
+    if (
+      !cachedFotmob ||
+      String(cachedFotmob?.provider || "") !== "sportscore6"
+    ) {
       const fotmob = await this.getFixtureByIdFromFotmob(fixtureId);
 
       if (fotmob.ok && fotmob.data) {
@@ -1970,8 +2220,13 @@ export class FootballService {
 
     const cachedSportScore6: any = cachedFotmob;
 
-    if (cachedSportScore6?.provider === 'sportscore6' && cachedSportScore6?.fixture?.externalId) {
-      const sportScore6 = await this.getFixtureBySlugFromSportScore6(String(cachedSportScore6.fixture.externalId));
+    if (
+      cachedSportScore6?.provider === "sportscore6" &&
+      cachedSportScore6?.fixture?.externalId
+    ) {
+      const sportScore6 = await this.getFixtureBySlugFromSportScore6(
+        String(cachedSportScore6.fixture.externalId),
+      );
 
       if (sportScore6.ok && sportScore6.data) {
         await this.saveFixturesCache([sportScore6.data]);
@@ -2006,13 +2261,17 @@ export class FootballService {
 
     if (sportmonksKey) {
       try {
-        const response = await axios.get(`${this.sportmonksURL}/fixtures/${fixtureId}`, {
-          timeout: 10000,
-          params: {
-            api_token: sportmonksKey,
-            include: 'participants;league;league.country;scores;state;periods',
+        const response = await axios.get(
+          `${this.sportmonksURL}/fixtures/${fixtureId}`,
+          {
+            timeout: 10000,
+            params: {
+              api_token: sportmonksKey,
+              include:
+                "participants;league;league.country;scores;state;periods",
+            },
           },
-        });
+        );
 
         const data = response.data?.data;
 
@@ -2035,7 +2294,7 @@ export class FootballService {
     try {
       const response = await axios.get(`${this.sportmonksURL}/leagues`, {
         timeout: 10000,
-        params: { api_token: apiKey, include: 'country' },
+        params: { api_token: apiKey, include: "country" },
       });
 
       return response.data?.data || [];
@@ -2051,7 +2310,7 @@ export class FootballService {
   }
 
   private generateFallbackStatistics(fixtureId: string) {
-    const seed = Number(String(fixtureId).replace(/\D/g, '').slice(-7)) || 1234;
+    const seed = Number(String(fixtureId).replace(/\D/g, "").slice(-7)) || 1234;
     const homeShots = this.numberFromSeed(seed + 1, 6, 18);
     const awayShots = this.numberFromSeed(seed + 2, 5, 16);
     const homePossession = this.numberFromSeed(seed + 5, 42, 61);
@@ -2061,36 +2320,56 @@ export class FootballService {
       available: true,
       simulated: true,
       fixtureId,
-      message: 'Estatísticas provisórias.',
+      message: "Estatísticas provisórias.",
       teams: [
         {
-          team: { id: 0, name: 'Casa', logo: '' },
+          team: { id: 0, name: "Casa", logo: "" },
           statistics: [
-            { type: 'Ball Possession', value: `${homePossession}%` },
-            { type: 'Total Shots', value: homeShots },
+            { type: "Ball Possession", value: `${homePossession}%` },
+            { type: "Total Shots", value: homeShots },
             {
-              type: 'Shots on Goal',
-              value: this.numberFromSeed(seed + 3, 2, Math.max(3, Math.round(homeShots * 0.55))),
+              type: "Shots on Goal",
+              value: this.numberFromSeed(
+                seed + 3,
+                2,
+                Math.max(3, Math.round(homeShots * 0.55)),
+              ),
             },
-            { type: 'Corner Kicks', value: this.numberFromSeed(seed + 6, 2, 8) },
-            { type: 'Yellow Cards', value: this.numberFromSeed(seed + 8, 0, 4) },
-            { type: 'Fouls', value: this.numberFromSeed(seed + 10, 7, 18) },
-            { type: 'Offsides', value: this.numberFromSeed(seed + 12, 0, 4) },
+            {
+              type: "Corner Kicks",
+              value: this.numberFromSeed(seed + 6, 2, 8),
+            },
+            {
+              type: "Yellow Cards",
+              value: this.numberFromSeed(seed + 8, 0, 4),
+            },
+            { type: "Fouls", value: this.numberFromSeed(seed + 10, 7, 18) },
+            { type: "Offsides", value: this.numberFromSeed(seed + 12, 0, 4) },
           ],
         },
         {
-          team: { id: 0, name: 'Fora', logo: '' },
+          team: { id: 0, name: "Fora", logo: "" },
           statistics: [
-            { type: 'Ball Possession', value: `${awayPossession}%` },
-            { type: 'Total Shots', value: awayShots },
+            { type: "Ball Possession", value: `${awayPossession}%` },
+            { type: "Total Shots", value: awayShots },
             {
-              type: 'Shots on Goal',
-              value: this.numberFromSeed(seed + 4, 1, Math.max(2, Math.round(awayShots * 0.55))),
+              type: "Shots on Goal",
+              value: this.numberFromSeed(
+                seed + 4,
+                1,
+                Math.max(2, Math.round(awayShots * 0.55)),
+              ),
             },
-            { type: 'Corner Kicks', value: this.numberFromSeed(seed + 7, 1, 7) },
-            { type: 'Yellow Cards', value: this.numberFromSeed(seed + 9, 0, 4) },
-            { type: 'Fouls', value: this.numberFromSeed(seed + 11, 7, 18) },
-            { type: 'Offsides', value: this.numberFromSeed(seed + 13, 0, 4) },
+            {
+              type: "Corner Kicks",
+              value: this.numberFromSeed(seed + 7, 1, 7),
+            },
+            {
+              type: "Yellow Cards",
+              value: this.numberFromSeed(seed + 9, 0, 4),
+            },
+            { type: "Fouls", value: this.numberFromSeed(seed + 11, 7, 18) },
+            { type: "Offsides", value: this.numberFromSeed(seed + 13, 0, 4) },
           ],
         },
       ],
@@ -2100,83 +2379,161 @@ export class FootballService {
   async getStatisticsFromFlashScore(fixtureId: string) {
     const cachedRaw = await this.getFixtureFromCacheById(fixtureId);
     const cached = cachedRaw as any;
-    const externalId = cached?.fixture?.externalId || cached?.flashScoreRaw?.id || cached?.fixture?.id;
+    const externalId =
+      cached?.fixture?.externalId ||
+      cached?.flashScoreRaw?.id ||
+      cached?.fixture?.id;
 
-    if (!externalId || cached?.provider !== 'flashscore') {
-      return { ok: false, data: null, error: 'Fixture não é FlashScore ou não possui externalId' };
+    if (!externalId || cached?.provider !== "flashscore") {
+      return {
+        ok: false,
+        data: null,
+        error: "Fixture não é FlashScore ou não possui externalId",
+      };
     }
 
     try {
-      const response = await this.flashScoreService.getStats(String(externalId));
-      if (!response.ok || !response.data) return { ok: false, data: null, error: response.error || 'Sem stats FlashScore' };
+      const response = await this.flashScoreService.getStats(
+        String(externalId),
+      );
+      if (!response.ok || !response.data)
+        return {
+          ok: false,
+          data: null,
+          error: response.error || "Sem stats FlashScore",
+        };
 
-      const stats = this.flashScoreService.mapStatsToOddix(fixtureId, response.data);
-      return { ok: stats.available, data: stats, error: stats.available ? null : 'Sem estatísticas reais na FlashScore' };
+      const stats = this.flashScoreService.mapStatsToOddix(
+        fixtureId,
+        response.data,
+      );
+      return {
+        ok: stats.available,
+        data: stats,
+        error: stats.available ? null : "Sem estatísticas reais na FlashScore",
+      };
     } catch (error: any) {
-      return { ok: false, data: null, error: error?.message || 'Erro ao buscar stats FlashScore' };
+      return {
+        ok: false,
+        data: null,
+        error: error?.message || "Erro ao buscar stats FlashScore",
+      };
     }
   }
 
+  private emptyRealStatistics(fixtureId: string, reason: string) {
+    return {
+      available: false,
+      simulated: false,
+      fixtureId,
+      source: "none",
+      message: `Estatísticas reais indisponíveis. ${reason}`,
+      teams: [],
+    };
+  }
+
+  private isRealStatisticsPayload(stats: any) {
+    if (!stats) return false;
+    if (stats.simulated === true) return false;
+    if (stats.available === false) return false;
+    if (!Array.isArray(stats.teams) || stats.teams.length < 2) return false;
+
+    return stats.teams.some((team: any) => {
+      const rows = team?.statistics || team?.stats || [];
+      return Array.isArray(rows) && rows.length > 0;
+    });
+  }
+
   async getStatistics(fixtureId: string) {
-    const cachedForStats: any = await this.getFixtureFromCacheById(fixtureId);
+    const errors: string[] = [];
 
-    if (cachedForStats?.provider === 'flashscore') {
-      const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
+    /**
+     * Ordem oficial das estatísticas do Oddix:
+     * 1) FlashScore — principal
+     * 2) SportScore6 — fallback
+     * 3) SportScore — fallback legado
+     * 4) API-Football — último fallback, somente quando habilitado
+     *
+     * IMPORTANTE:
+     * Nunca retornamos estatística simulada para o Dashboard.
+     * Se nenhuma fonte real responder, devolvemos available=false e simulated=false.
+     */
+    const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
 
-      if (flashScore.ok && flashScore.data) {
-        return flashScore.data;
-      }
+    if (flashScore.ok && this.isRealStatisticsPayload(flashScore.data)) {
+      return {
+        ...flashScore.data,
+        available: true,
+        simulated: false,
+        source: "flashscore",
+        message:
+          flashScore.data?.message || "Estatísticas reais da FlashScore.",
+      };
+    }
+
+    if (flashScore.error) {
+      errors.push(`FlashScore: ${flashScore.error}`);
     }
 
     const sportScore6 = await this.getStatisticsFromSportScore6(fixtureId);
 
-    if (sportScore6.ok && sportScore6.data) {
-      return sportScore6.data;
+    if (sportScore6.ok && this.isRealStatisticsPayload(sportScore6.data)) {
+      return {
+        ...sportScore6.data,
+        available: true,
+        simulated: false,
+        source: sportScore6.data?.source || "sportscore6",
+        message:
+          sportScore6.data?.message || "Estatísticas reais da SportScore6.",
+      };
     }
 
-    if (!cachedForStats || cachedForStats?.provider === 'fotmob') {
-      const fotmob = await this.getStatisticsFromFotmob(fixtureId);
-
-      if (fotmob.ok && fotmob.data) {
-        return fotmob.data;
-      }
+    if (sportScore6.error) {
+      errors.push(`SportScore6: ${sportScore6.error}`);
     }
 
     const sportScore = await this.getStatisticsFromSportScore(fixtureId);
 
-    if (sportScore.ok && sportScore.data) {
-      return sportScore.data;
+    if (sportScore.ok && this.isRealStatisticsPayload(sportScore.data)) {
+      return {
+        ...sportScore.data,
+        available: true,
+        simulated: false,
+        source: sportScore.data?.source || "sportscore",
+        message:
+          sportScore.data?.message || "Estatísticas reais da SportScore.",
+      };
     }
 
-    let flashScoreStatsError = 'FlashScore já usada no fixture ou sem estatísticas';
-
-    if (cachedForStats?.provider !== 'flashscore') {
-      const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
-      flashScoreStatsError = flashScore.error || flashScoreStatsError;
-
-      if (flashScore.ok && flashScore.data) {
-        return flashScore.data;
-      }
+    if (sportScore.error) {
+      errors.push(`SportScore: ${sportScore.error}`);
     }
-
-    let apiFootball = { ok: false, data: null, error: 'API-Football poupada' } as any;
 
     if (this.shouldUseApiFootballFallback()) {
-      apiFootball = await this.getStatisticsFromApiFootball(fixtureId);
+      const apiFootball = await this.getStatisticsFromApiFootball(fixtureId);
 
-      if (apiFootball.ok && apiFootball.data) {
-        return apiFootball.data;
+      if (apiFootball.ok && this.isRealStatisticsPayload(apiFootball.data)) {
+        return {
+          ...apiFootball.data,
+          available: true,
+          simulated: false,
+          source: "api-football",
+          message:
+            apiFootball.data?.message || "Estatísticas reais da API-Football.",
+        };
+      }
+
+      if (apiFootball.error) {
+        errors.push(`API-Football: ${apiFootball.error}`);
       }
     }
 
-    const fallback = this.generateFallbackStatistics(fixtureId);
-
-    return {
-      ...fallback,
-      simulated: true,
-      source: 'oddix-fallback',
-      message: `Estatísticas reais indisponíveis. Usando estimativa temporária. Motivo: ${sportScore.error || flashScoreStatsError || apiFootball.error || 'sem dados reais'}`,
-    };
+    return this.emptyRealStatistics(
+      fixtureId,
+      errors.length
+        ? errors.join(" | ")
+        : "Nenhuma fonte retornou dados oficiais.",
+    );
   }
 
   async debug(date?: string) {
@@ -2199,10 +2556,14 @@ export class FootballService {
     const sportmonks = await this.getFixturesFromSportmonks(date);
     const footballData = await this.getFixturesFromFootballData(date);
 
-    let apiFootball = { ok: false, data: [], error: 'Poupada no debug' } as any;
-    let apiFootballLive = { ok: false, data: [], error: 'Poupada no debug' } as any;
+    let apiFootball = { ok: false, data: [], error: "Poupada no debug" } as any;
+    let apiFootballLive = {
+      ok: false,
+      data: [],
+      error: "Poupada no debug",
+    } as any;
 
-    if (process.env.API_FOOTBALL_DEBUG_FORCE === 'true') {
+    if (process.env.API_FOOTBALL_DEBUG_FORCE === "true") {
       apiFootball = await this.getFixturesFromApiFootball(date);
       apiFootballLive = await this.getLiveFixturesFromApiFootball();
     }
@@ -2229,11 +2590,13 @@ export class FootballService {
       allScoresKeyExists: this.allScoresService.hasKey(),
       flashScoreEnabled: this.flashScoreService.isEnabled(),
       flashScoreKeyExists: this.flashScoreService.hasKey(),
-      apiFootballDisabled: process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === 'true',
-      apiFootballBlockedUntil: this.apiFootballBlockedUntil?.toISOString() || null,
+      apiFootballDisabled:
+        process.env.API_FOOTBALL_DISABLE_WHEN_LIMIT === "true",
+      apiFootballBlockedUntil:
+        this.apiFootballBlockedUntil?.toISOString() || null,
       liveCacheSeconds: this.liveCacheSeconds(),
       fixturesCacheMinutes: this.fixturesCacheMinutes(),
-      note: 'API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem: FlashScore > SportScore6 > FotMob > SportScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData.',
+      note: "API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem: FlashScore > SportScore6 > FotMob > SportScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData.",
 
       cache: {
         responseLength: cache.length,
@@ -2244,112 +2607,143 @@ export class FootballService {
         ok: fotmob.ok,
         error: fotmob.error,
         responseLength: this.filterAllowedLeagues(fotmob.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(fotmob.data).slice(0, 3)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(fotmob.data).slice(0, 3),
+        ),
       },
 
       fotmobLive: {
         ok: fotmobLive.ok,
         error: fotmobLive.error,
         responseLength: this.filterAllowedLeagues(fotmobLive.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(fotmobLive.data).slice(0, 3)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(fotmobLive.data).slice(0, 3),
+        ),
       },
 
       sportScore6: {
         ok: sportScore6.ok,
         error: sportScore6.error,
         responseLength: this.filterAllowedLeagues(sportScore6.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(sportScore6.data).slice(0, 3)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(sportScore6.data).slice(0, 3),
+        ),
       },
 
       sportScore6Live: {
         ok: sportScore6Live.ok,
         error: sportScore6Live.error,
         responseLength: this.filterAllowedLeagues(sportScore6Live.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(sportScore6Live.data).slice(0, 3)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(sportScore6Live.data).slice(0, 3),
+        ),
       },
 
       sportScore: {
         ok: sportScore.ok,
         error: sportScore.error,
         responseLength: this.filterAllowedLeagues(sportScore.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(sportScore.data).slice(0, 3)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(sportScore.data).slice(0, 3),
+        ),
       },
 
       sportScoreLive: {
         ok: sportScoreLive.ok,
         error: sportScoreLive.error,
         responseLength: this.filterAllowedLeagues(sportScoreLive.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(sportScoreLive.data).slice(0, 3)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(sportScoreLive.data).slice(0, 3),
+        ),
       },
 
       flashScore: {
         ok: flashScore.ok,
         error: flashScore.error,
         responseLength: this.filterAllowedLeagues(flashScore.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(flashScore.data).slice(0, 2)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(flashScore.data).slice(0, 2),
+        ),
       },
 
       flashScoreLive: {
         ok: flashScoreLive.ok,
         error: flashScoreLive.error,
         responseLength: this.filterAllowedLeagues(flashScoreLive.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(flashScoreLive.data).slice(0, 3)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(flashScoreLive.data).slice(0, 3),
+        ),
       },
 
       allScores: {
         ok: allScores.ok,
         error: allScores.error,
         responseLength: this.filterAllowedLeagues(allScores.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(allScores.data).slice(0, 2)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(allScores.data).slice(0, 2),
+        ),
       },
 
       allScoresLive: {
         ok: allScoresLive.ok,
         error: allScoresLive.error,
         responseLength: this.filterAllowedLeagues(allScoresLive.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(allScoresLive.data).slice(0, 3)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(allScoresLive.data).slice(0, 3),
+        ),
       },
 
       sportsDb: {
         ok: sportsDb.ok,
         error: sportsDb.error,
         responseLength: this.filterAllowedLeagues(sportsDb.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(sportsDb.data).slice(0, 2)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(sportsDb.data).slice(0, 2),
+        ),
       },
 
       apiFootball: {
         ok: apiFootball.ok,
         error: apiFootball.error,
         responseLength: this.filterAllowedLeagues(apiFootball.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(apiFootball.data).slice(0, 2)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(apiFootball.data).slice(0, 2),
+        ),
       },
 
       apiFootballLive: {
         ok: apiFootballLive.ok,
         error: apiFootballLive.error,
         responseLength: this.filterAllowedLeagues(apiFootballLive.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(apiFootballLive.data).slice(0, 3)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(apiFootballLive.data).slice(0, 3),
+        ),
       },
 
       sportmonks: {
         ok: sportmonks.ok,
         error: sportmonks.error,
         responseLength: this.filterAllowedLeagues(sportmonks.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(sportmonks.data).slice(0, 2)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(sportmonks.data).slice(0, 2),
+        ),
       },
 
       footballData: {
         ok: footballData.ok,
         error: footballData.error,
         responseLength: this.filterAllowedLeagues(footballData.data).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(footballData.data).slice(0, 2)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(footballData.data).slice(0, 2),
+        ),
       },
 
       live: {
         responseLength: this.filterAllowedLeagues(live).length,
-        sample: this.compactFixtures(this.filterAllowedLeagues(live).slice(0, 3)),
+        sample: this.compactFixtures(
+          this.filterAllowedLeagues(live).slice(0, 3),
+        ),
       },
     };
   }
-
 }
