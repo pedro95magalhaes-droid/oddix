@@ -10,15 +10,8 @@ const ESTRELABET_LINK =
   process.env.NEXT_PUBLIC_ESTRELABET_LINK ||
   "https://apretailer.com.br/click/6a2102c82bfa8143b57b86d8/182492/359080/subaccount";
 
-const FALLBACK_PLAYER =
-  "https://images.unsplash.com/photo-1526232761682-d26e03ac148e?auto=format&fit=crop&w=700&q=80";
-
-const PLAYER_IMAGES = [
-  "https://images.unsplash.com/photo-1551958219-acbc608c6377?auto=format&fit=crop&w=500&q=80",
-  "https://images.unsplash.com/photo-1600679472829-3044539ce8ed?auto=format&fit=crop&w=500&q=80",
-  "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=500&q=80",
-  "https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=500&q=80",
-];
+const ODDIX_HERO_PLAYER = "/images/oddix-player.png";
+const ODDIX_HERO_FALLBACK = "/logo-oddix-horizontal.png";
 
 type TabKey =
   | "dashboard"
@@ -499,7 +492,9 @@ function buildEstimatedPlayerPropsFromGames(games: Game[]) {
       awayTeam: game?.teams?.away?.name,
       league: game?.league?.name,
       isEstimated: true,
-      image: PLAYER_IMAGES[index % PLAYER_IMAGES.length],
+      playerPhoto: null,
+      teamLogo: game?.teams?.home?.logo || game?.teams?.away?.logo || "",
+      teamName: game?.teams?.home?.name || game?.teams?.away?.name || "Time",
     };
   });
 }
@@ -515,6 +510,48 @@ function getQualityColor(score: number) {
   if (score >= 75) return "#8bff58";
   return "#ffd02f";
 }
+function getPlayerPhoto(prop: Tip, index = 0) {
+  const photo =
+    prop?.playerPhoto ||
+    prop?.photo ||
+    prop?.image ||
+    prop?.avatar ||
+    prop?.headshot ||
+    prop?.playerImage ||
+    prop?.player?.photo ||
+    prop?.player?.image ||
+    prop?.athlete?.photo ||
+    prop?.athlete?.image ||
+    prop?.raw?.player?.photo ||
+    prop?.raw?.player?.image ||
+    prop?.raw?.athlete?.photo ||
+    prop?.raw?.athlete?.image;
+
+  if (photo) return String(photo);
+
+  const teamName = prop?.teamName || prop?.homeTeam || prop?.awayTeam || prop?.game || "Oddix";
+  const initials = String(prop?.player || prop?.tip || teamName || "Jogador")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(" ");
+
+  // Fallback limpo: não usa foto aleatória. Se a API não mandar foto real do jogador,
+  // mostra um avatar premium com o nome/mercado para não parecer jogador falso.
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials || "Jogador")}&background=160032&color=ffffff&bold=true&size=256`;
+}
+
+function getPropTeamLogo(prop: Tip) {
+  return (
+    prop?.teamLogo ||
+    prop?.homeLogo ||
+    prop?.awayLogo ||
+    prop?.team?.logo ||
+    prop?.raw?.team?.logo ||
+    ""
+  );
+}
+
 
 export default function Dashboard() {
   const [games, setGames] = useState<Game[]>([]);
@@ -873,7 +910,7 @@ export default function Dashboard() {
         {activeTab === "playerprops" && (
           <SectionShell title="Player Props IA" subtitle="Mercados de jogador em destaque">
             <div style={styles.propsGridFull}>
-              {playerPropsTips.map((prop, index) => (
+              {playerPropsTips.map((prop: Tip, index: number) => (
                 <PlayerPropMini key={`${prop.fixtureId}-${prop.tip}-${index}`} prop={prop} index={index} locked={!isPaidPlan} onOpen={() => {
                   if (!isPaidPlan) return setFreeLockOpen(true);
                   const game = getGameByTip(prop, games);
@@ -979,7 +1016,7 @@ function HeroCard({ stats }: any) {
   return (
     <section style={styles.heroCard}>
       <div style={styles.playerGlow} />
-      <img src={FALLBACK_PLAYER} alt="Jogador Oddix" style={styles.heroPlayer} />
+      <img src={ODDIX_HERO_PLAYER} alt="Jogador Oddix" style={styles.heroPlayer} onError={(event) => { event.currentTarget.src = ODDIX_HERO_FALLBACK; }} />
       <div style={styles.heroText}>
         <h1>INTELIGÊNCIA ARTIFICIAL TRANSFORMANDO DADOS EM <span>GREEN</span> TODOS OS DIAS!</h1>
         <div style={styles.heroMetrics}>
@@ -1147,13 +1184,28 @@ function PlayerPropsCard({ props, isPaidPlan, onOpen }: any) {
 
 function PlayerPropMini({ prop, index, locked, onOpen }: any) {
   const name = prop?.player || String(prop?.tip || "Jogador").split(" ").slice(0, 2).join(" ");
+  const teamLogo = getPropTeamLogo(prop);
+
   return (
     <article style={styles.propMiniCard}>
-      <img src={prop?.image || PLAYER_IMAGES[index % PLAYER_IMAGES.length]} alt={name} />
+      <div style={styles.propImageBox}>
+        <img
+          src={getPlayerPhoto(prop, index)}
+          alt={name}
+          style={styles.propPlayerImage}
+          onError={(event) => {
+            event.currentTarget.src = logoFallback(name, "160032", "ffffff");
+          }}
+        />
+        {teamLogo ? <img src={teamLogo} alt="Time" style={styles.propTeamLogo} /> : null}
+      </div>
       <strong>{name}</strong>
       <span>{prop?.game || "Oddix Match"}</span>
       <p>{locked ? "Mercado VIP bloqueado" : prop?.tip}</p>
-      <div><span>Odd <b>{prop?.odd || "1.85"}</b></span><span>Confiança <b>{prop?.confidence || 78}%</b></span></div>
+      <div style={styles.propStatsRow}>
+        <span>Odd <b>{prop?.odd || "1.85"}</b></span>
+        <span>Confiança <b>{prop?.confidence || 78}%</b></span>
+      </div>
       <button onClick={onOpen}>{locked ? "DESBLOQUEAR" : "PEGAR PALPITE"}</button>
     </article>
   );
@@ -1162,11 +1214,15 @@ function PlayerPropMini({ prop, index, locked, onOpen }: any) {
 function FooterBadges() {
   return (
     <footer style={styles.badgesFooter}>
-      <div>⚙ <strong>ANÁLISES 100% COM IA</strong><span>Dados precisos e atualizados</span></div>
-      <div>♨ <strong>DADOS EM TEMPO REAL</strong><span>Informações instantâneas</span></div>
-      <div>♚ <strong>+8K USUÁRIOS VIP</strong><span>Resultados comprovados</span></div>
-      <div>☏ <strong>SUPORTE PREMIUM</strong><span>Atendimento dedicado</span></div>
-      <div style={styles.ageSeal}>18+<small>JOGUE COM RESPONSABILIDADE</small></div>
+      <div style={styles.footerBadgeItem}>⚙ <strong>ANÁLISES 100% COM IA</strong><span>Dados precisos e atualizados</span></div>
+      <div style={styles.footerBadgeItem}>♨ <strong>DADOS EM TEMPO REAL</strong><span>Informações instantâneas</span></div>
+      <div style={styles.footerBadgeItem}>♚ <strong>+8K USUÁRIOS VIP</strong><span>Resultados comprovados</span></div>
+      <div style={styles.footerBadgeItem}>☏ <strong>SUPORTE PREMIUM</strong><span>Atendimento dedicado</span></div>
+      <div style={styles.ageSeal}>
+        <b>18+</b>
+        <span>JOGUE COM RESPONSABILIDADE</span>
+        <small>Apostas são proibidas para menores.</small>
+      </div>
     </footer>
   );
 }
@@ -1256,7 +1312,7 @@ const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     display: "grid",
-    gridTemplateColumns: "238px 232px minmax(0, 1fr)",
+    gridTemplateColumns: "238px 260px minmax(0, 1fr)",
     background:
       "radial-gradient(circle at 55% 0%, rgba(113, 22, 255, .30), transparent 34%), radial-gradient(circle at 85% 35%, rgba(255, 197, 15, .12), transparent 25%), linear-gradient(180deg, #02020a 0%, #060512 48%, #02020a 100%)",
     color: "#fff",
@@ -1331,9 +1387,9 @@ const styles: Record<string, CSSProperties> = {
   userButton: { display: "flex", alignItems: "center", gap: 10, border: 0, background: "transparent", color: "#fff", cursor: "pointer" },
   avatar: { width: 36, height: 36, display: "grid", placeItems: "center", borderRadius: 999, background: "linear-gradient(#ffd515,#7b3cff)" },
   heroGrid: { display: "grid", gridTemplateColumns: "minmax(0, 1.7fr) minmax(260px, .9fr)", gap: 18, marginBottom: 18 },
-  heroCard: { ...baseCard, minHeight: 247, position: "relative", overflow: "hidden", display: "flex", alignItems: "center", padding: "24px 30px 18px 250px" },
+  heroCard: { ...baseCard, minHeight: 247, position: "relative", overflow: "hidden", display: "flex", alignItems: "center", padding: "24px 30px 18px 270px" },
   playerGlow: { position: "absolute", left: 34, bottom: -44, width: 260, height: 260, borderRadius: 999, background: "radial-gradient(circle, rgba(136,54,255,.75), transparent 66%)", filter: "blur(2px)" },
-  heroPlayer: { position: "absolute", left: 20, bottom: 0, height: 250, width: 250, objectFit: "cover", objectPosition: "center top", clipPath: "polygon(6% 0, 100% 0, 100% 100%, 0 100%)", opacity: .96 },
+  heroPlayer: { position: "absolute", left: 18, bottom: 0, height: 260, width: 260, objectFit: "contain", objectPosition: "center bottom", filter: "drop-shadow(0 0 34px rgba(132, 54, 255, .70))", opacity: .98 },
   heroText: { position: "relative", zIndex: 2, maxWidth: 620 },
   heroMetrics: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 24 },
   heroMetric: { border: "1px solid rgba(255,255,255,.12)", borderRadius: 12, padding: 12, background: "rgba(0,0,0,.24)" },
@@ -1368,10 +1424,15 @@ const styles: Record<string, CSSProperties> = {
   greenProfit: { color: "#12f36b" },
   greenTotal: { textAlign: "right", marginTop: 13, color: "#cfc9e6" },
   playerPropsCard: { ...baseCard, padding: 16, minHeight: 244 },
-  propsMiniGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 },
-  propMiniCard: { border: "1px solid rgba(255,255,255,.09)", borderRadius: 12, padding: 10, background: "rgba(255,255,255,.04)", minWidth: 0 },
-  badgesFooter: { ...baseCard, minHeight: 88, display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12, alignItems: "center", padding: "14px 20px" },
-  ageSeal: { width: 78, height: 78, borderRadius: 999, border: "3px solid #fff", display: "grid", placeItems: "center", fontSize: 28, fontWeight: 1000 },
+  propsMiniGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 },
+  propMiniCard: { border: "1px solid rgba(255,255,255,.14)", borderRadius: 14, padding: 10, background: "linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.025))", minWidth: 0, overflow: "hidden" },
+  propImageBox: { position: "relative", width: "100%", height: 118, borderRadius: 12, overflow: "hidden", background: "linear-gradient(135deg, rgba(101,36,255,.38), rgba(0,0,0,.48))", marginBottom: 10 },
+  propPlayerImage: { width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" },
+  propTeamLogo: { position: "absolute", right: 7, bottom: 7, width: 30, height: 30, borderRadius: 999, objectFit: "contain", background: "rgba(0,0,0,.76)", border: "1px solid rgba(255,255,255,.35)", padding: 3 },
+  propStatsRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8, marginBottom: 8 },
+  badgesFooter: { ...baseCard, minHeight: 96, display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr)) 220px", gap: 14, alignItems: "center", padding: "16px 20px", overflow: "hidden" },
+  footerBadgeItem: { display: "flex", flexDirection: "column", gap: 4, minWidth: 0, fontSize: 12 },
+  ageSeal: { minHeight: 70, borderRadius: 18, border: "2px solid rgba(255,255,255,.85)", display: "grid", gridTemplateColumns: "62px 1fr", columnGap: 10, alignItems: "center", padding: "8px 12px", background: "rgba(0,0,0,.26)", fontSize: 12, fontWeight: 900 },
   analysisPanel: { ...baseCard, padding: 24, marginBottom: 18, borderColor: "rgba(255, 203, 22, .45)" },
   analysisTop: { display: "flex", justifyContent: "space-between", gap: 18, marginBottom: 18 },
   analysisCenter: { display: "grid", gridTemplateColumns: "1fr 120px 1fr", alignItems: "center", gap: 18, textAlign: "center", marginBottom: 18 },
