@@ -10,8 +10,14 @@ const ESTRELABET_LINK =
   process.env.NEXT_PUBLIC_ESTRELABET_LINK ||
   "https://apretailer.com.br/click/6a2102c82bfa8143b57b86d8/182492/359080/subaccount";
 
-const ODDIX_HERO_PLAYER = "/images/oddix-player.png";
-const ODDIX_HERO_FALLBACK = "/logo-oddix-horizontal.png";
+const FALLBACK_PLAYER = "/images/oddix-player.png";
+
+const PLAYER_IMAGES = [
+  "https://images.unsplash.com/photo-1551958219-acbc608c6377?auto=format&fit=crop&w=500&q=80",
+  "https://images.unsplash.com/photo-1600679472829-3044539ce8ed?auto=format&fit=crop&w=500&q=80",
+  "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=500&q=80",
+  "https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=500&q=80",
+];
 
 type TabKey =
   | "dashboard"
@@ -492,9 +498,7 @@ function buildEstimatedPlayerPropsFromGames(games: Game[]) {
       awayTeam: game?.teams?.away?.name,
       league: game?.league?.name,
       isEstimated: true,
-      playerPhoto: null,
-      teamLogo: game?.teams?.home?.logo || game?.teams?.away?.logo || "",
-      teamName: game?.teams?.home?.name || game?.teams?.away?.name || "Time",
+      image: PLAYER_IMAGES[index % PLAYER_IMAGES.length],
     };
   });
 }
@@ -510,48 +514,6 @@ function getQualityColor(score: number) {
   if (score >= 75) return "#8bff58";
   return "#ffd02f";
 }
-function getPlayerPhoto(prop: Tip, index = 0) {
-  const photo =
-    prop?.playerPhoto ||
-    prop?.photo ||
-    prop?.image ||
-    prop?.avatar ||
-    prop?.headshot ||
-    prop?.playerImage ||
-    prop?.player?.photo ||
-    prop?.player?.image ||
-    prop?.athlete?.photo ||
-    prop?.athlete?.image ||
-    prop?.raw?.player?.photo ||
-    prop?.raw?.player?.image ||
-    prop?.raw?.athlete?.photo ||
-    prop?.raw?.athlete?.image;
-
-  if (photo) return String(photo);
-
-  const teamName = prop?.teamName || prop?.homeTeam || prop?.awayTeam || prop?.game || "Oddix";
-  const initials = String(prop?.player || prop?.tip || teamName || "Jogador")
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .join(" ");
-
-  // Fallback limpo: não usa foto aleatória. Se a API não mandar foto real do jogador,
-  // mostra um avatar premium com o nome/mercado para não parecer jogador falso.
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials || "Jogador")}&background=160032&color=ffffff&bold=true&size=256`;
-}
-
-function getPropTeamLogo(prop: Tip) {
-  return (
-    prop?.teamLogo ||
-    prop?.homeLogo ||
-    prop?.awayLogo ||
-    prop?.team?.logo ||
-    prop?.raw?.team?.logo ||
-    ""
-  );
-}
-
 
 export default function Dashboard() {
   const [games, setGames] = useState<Game[]>([]);
@@ -910,7 +872,7 @@ export default function Dashboard() {
         {activeTab === "playerprops" && (
           <SectionShell title="Player Props IA" subtitle="Mercados de jogador em destaque">
             <div style={styles.propsGridFull}>
-              {playerPropsTips.map((prop: Tip, index: number) => (
+              {playerPropsTips.map((prop, index) => (
                 <PlayerPropMini key={`${prop.fixtureId}-${prop.tip}-${index}`} prop={prop} index={index} locked={!isPaidPlan} onOpen={() => {
                   if (!isPaidPlan) return setFreeLockOpen(true);
                   const game = getGameByTip(prop, games);
@@ -1016,7 +978,7 @@ function HeroCard({ stats }: any) {
   return (
     <section style={styles.heroCard}>
       <div style={styles.playerGlow} />
-      <img src={ODDIX_HERO_PLAYER} alt="Jogador Oddix" style={styles.heroPlayer} onError={(event) => { event.currentTarget.src = ODDIX_HERO_FALLBACK; }} />
+      <img src={FALLBACK_PLAYER} alt="Jogador Oddix" style={styles.heroPlayer} />
       <div style={styles.heroText}>
         <h1>INTELIGÊNCIA ARTIFICIAL TRANSFORMANDO DADOS EM <span>GREEN</span> TODOS OS DIAS!</h1>
         <div style={styles.heroMetrics}>
@@ -1182,31 +1144,56 @@ function PlayerPropsCard({ props, isPaidPlan, onOpen }: any) {
   );
 }
 
+function getPlayerImage(prop: any, index: number) {
+  return (
+    prop?.playerImage ||
+    prop?.photo ||
+    prop?.image ||
+    prop?.headshot ||
+    prop?.avatar ||
+    prop?.raw?.player?.photo ||
+    prop?.raw?.player?.image ||
+    prop?.raw?.player?.headshot ||
+    prop?.raw?.athlete?.photo ||
+    prop?.raw?.athlete?.image ||
+    null
+  );
+}
+
 function PlayerPropMini({ prop, index, locked, onOpen }: any) {
   const name = prop?.player || String(prop?.tip || "Jogador").split(" ").slice(0, 2).join(" ");
-  const teamLogo = getPropTeamLogo(prop);
+  const photo = getPlayerImage(prop, index);
+  const initials = name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part: string) => part[0])
+    .join("")
+    .toUpperCase();
 
   return (
     <article style={styles.propMiniCard}>
       <div style={styles.propImageBox}>
-        <img
-          src={getPlayerPhoto(prop, index)}
-          alt={name}
-          style={styles.propPlayerImage}
-          onError={(event) => {
-            event.currentTarget.src = logoFallback(name, "160032", "ffffff");
-          }}
-        />
-        {teamLogo ? <img src={teamLogo} alt="Time" style={styles.propTeamLogo} /> : null}
+        {photo ? (
+          <img src={photo} alt={name} style={styles.propImage} />
+        ) : (
+          <div style={styles.propAvatarFallback}>
+            <strong>{initials || "IA"}</strong>
+            <small>{prop?.homeTeam || prop?.awayTeam || "ODDIX"}</small>
+          </div>
+        )}
       </div>
-      <strong>{name}</strong>
-      <span>{prop?.game || "Oddix Match"}</span>
-      <p>{locked ? "Mercado VIP bloqueado" : prop?.tip}</p>
-      <div style={styles.propStatsRow}>
-        <span>Odd <b>{prop?.odd || "1.85"}</b></span>
-        <span>Confiança <b>{prop?.confidence || 78}%</b></span>
+
+      <div style={styles.propContent}>
+        <strong>{name}</strong>
+        <span>{prop?.game || "Oddix Match"}</span>
+        <p>{locked ? "Mercado VIP bloqueado" : prop?.tip}</p>
+        <div style={styles.propStatsRow}>
+          <span>Odd <b>{prop?.odd || "1.85"}</b></span>
+          <span>Confiança <b>{prop?.confidence || 78}%</b></span>
+        </div>
+        <button style={styles.propButton} onClick={onOpen}>{locked ? "DESBLOQUEAR" : "PEGAR PALPITE"}</button>
       </div>
-      <button onClick={onOpen}>{locked ? "DESBLOQUEAR" : "PEGAR PALPITE"}</button>
     </article>
   );
 }
@@ -1215,14 +1202,10 @@ function FooterBadges() {
   return (
     <footer style={styles.badgesFooter}>
       <div style={styles.footerBadgeItem}>⚙ <strong>ANÁLISES 100% COM IA</strong><span>Dados precisos e atualizados</span></div>
-      <div style={styles.footerBadgeItem}>♨ <strong>DADOS EM TEMPO REAL</strong><span>Informações instantâneas</span></div>
+      <div style={styles.footerBadgeItem}>⚡ <strong>DADOS EM TEMPO REAL</strong><span>Informações instantâneas</span></div>
       <div style={styles.footerBadgeItem}>♚ <strong>+8K USUÁRIOS VIP</strong><span>Resultados comprovados</span></div>
       <div style={styles.footerBadgeItem}>☏ <strong>SUPORTE PREMIUM</strong><span>Atendimento dedicado</span></div>
-      <div style={styles.ageSeal}>
-        <b>18+</b>
-        <span>JOGUE COM RESPONSABILIDADE</span>
-        <small>Apostas são proibidas para menores.</small>
-      </div>
+      <div style={styles.ageSeal}><strong>18+</strong><span>JOGUE COM RESPONSABILIDADE</span></div>
     </footer>
   );
 }
@@ -1312,7 +1295,7 @@ const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     display: "grid",
-    gridTemplateColumns: "238px 260px minmax(0, 1fr)",
+    gridTemplateColumns: "180px 280px minmax(0, 1fr)",
     background:
       "radial-gradient(circle at 55% 0%, rgba(113, 22, 255, .30), transparent 34%), radial-gradient(circle at 85% 35%, rgba(255, 197, 15, .12), transparent 25%), linear-gradient(180deg, #02020a 0%, #060512 48%, #02020a 100%)",
     color: "#fff",
@@ -1386,23 +1369,23 @@ const styles: Record<string, CSSProperties> = {
   bellButton: { position: "relative", background: "transparent", border: 0, color: "#ffd515", fontSize: 20, cursor: "pointer" },
   userButton: { display: "flex", alignItems: "center", gap: 10, border: 0, background: "transparent", color: "#fff", cursor: "pointer" },
   avatar: { width: 36, height: 36, display: "grid", placeItems: "center", borderRadius: 999, background: "linear-gradient(#ffd515,#7b3cff)" },
-  heroGrid: { display: "grid", gridTemplateColumns: "minmax(0, 1.7fr) minmax(260px, .9fr)", gap: 18, marginBottom: 18 },
-  heroCard: { ...baseCard, minHeight: 247, position: "relative", overflow: "hidden", display: "flex", alignItems: "center", padding: "24px 30px 18px 270px" },
-  playerGlow: { position: "absolute", left: 34, bottom: -44, width: 260, height: 260, borderRadius: 999, background: "radial-gradient(circle, rgba(136,54,255,.75), transparent 66%)", filter: "blur(2px)" },
-  heroPlayer: { position: "absolute", left: 18, bottom: 0, height: 260, width: 260, objectFit: "contain", objectPosition: "center bottom", filter: "drop-shadow(0 0 34px rgba(132, 54, 255, .70))", opacity: .98 },
-  heroText: { position: "relative", zIndex: 2, maxWidth: 620 },
-  heroMetrics: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 24 },
-  heroMetric: { border: "1px solid rgba(255,255,255,.12)", borderRadius: 12, padding: 12, background: "rgba(0,0,0,.24)" },
-  vipAccessCard: { ...baseCard, minHeight: 247, padding: 28, display: "flex", flexDirection: "column", justifyContent: "center" },
+  heroGrid: { display: "grid", gridTemplateColumns: "minmax(0, 1.8fr) minmax(300px, .9fr)", gap: 18, marginBottom: 18 },
+  heroCard: { ...baseCard, minHeight: 300, position: "relative", overflow: "hidden", display: "flex", alignItems: "center", padding: "30px 34px 24px 370px", borderColor: "rgba(255, 203, 22, .36)", background: "radial-gradient(circle at 25% 50%, rgba(138, 65, 255, .58), transparent 34%), linear-gradient(135deg, rgba(10, 10, 26, .98), rgba(8, 6, 18, .96))" },
+  playerGlow: { position: "absolute", left: 6, bottom: -92, width: 420, height: 420, borderRadius: 999, background: "radial-gradient(circle, rgba(136,54,255,.95), transparent 66%)", filter: "blur(2px)" },
+  heroPlayer: { position: "absolute", left: 14, bottom: -6, height: 310, width: 360, objectFit: "contain", objectPosition: "left bottom", filter: "drop-shadow(0 0 34px rgba(135, 54, 255, .75))", opacity: 1 },
+  heroText: { position: "relative", zIndex: 2, maxWidth: 650, marginLeft: 10 },
+  heroMetrics: { display: "grid", gridTemplateColumns: "repeat(4, minmax(90px, 1fr))", gap: 12, marginTop: 26 },
+  heroMetric: { border: "1px solid rgba(255,255,255,.16)", borderRadius: 12, padding: "14px 13px", background: "rgba(0,0,0,.34)", boxShadow: "inset 0 0 18px rgba(122,60,255,.12)" },
+  vipAccessCard: { ...baseCard, minHeight: 300, padding: 34, display: "flex", flexDirection: "column", justifyContent: "center", borderColor: "rgba(146, 76, 255, .34)" },
   bigYellowButton: { height: 54, border: 0, borderRadius: 10, background: "linear-gradient(90deg,#ffd515,#ff9f00)", color: "#111", fontWeight: 1000, cursor: "pointer" },
-  topPickBar: { minHeight: 94, display: "grid", gridTemplateColumns: "150px 1.3fr 1.4fr 100px 90px 150px", gap: 16, alignItems: "center", ...baseCard, borderColor: "rgba(255, 203, 22, .48)", boxShadow: "0 0 28px rgba(255, 203, 22, .10)", padding: "14px 18px", marginBottom: 18 },
+  topPickBar: { minHeight: 98, display: "grid", gridTemplateColumns: "165px 1.25fr 1.55fr 105px 96px 158px", gap: 18, alignItems: "center", ...baseCard, borderColor: "rgba(255, 203, 22, .55)", boxShadow: "0 0 32px rgba(255, 203, 22, .12)", padding: "14px 20px", marginBottom: 18 },
   topPickTitle: { color: "#ffd515", fontSize: 20, fontWeight: 1000, lineHeight: 1.05 },
   pickTeamsMini: { display: "flex", alignItems: "center", gap: 12, borderLeft: "1px solid rgba(255,255,255,.12)", paddingLeft: 14 },
   pickEntry: { borderLeft: "1px solid rgba(255,255,255,.12)", paddingLeft: 18 },
   confidenceCircle: { width: 74, height: 74, borderRadius: 999, display: "grid", placeItems: "center", textAlign: "center", border: "4px solid #08ce54", color: "#14f468" },
   pickOdd: { borderLeft: "1px solid rgba(255,255,255,.12)", paddingLeft: 18 },
   pickButton: { height: 45, border: 0, borderRadius: 10, background: "linear-gradient(90deg,#ffd515,#ff9f00)", color: "#111", fontWeight: 1000, cursor: "pointer" },
-  middleGrid: { display: "grid", gridTemplateColumns: "minmax(0, 1.85fr) minmax(260px, .75fr)", gap: 18, marginBottom: 18 },
+  middleGrid: { display: "grid", gridTemplateColumns: "minmax(0, 1.75fr) minmax(310px, .85fr)", gap: 18, marginBottom: 18, alignItems: "stretch" },
   ticketCard: { position: "relative", background: "#f6f1f7", color: "#171321", borderRadius: 18, padding: "28px 40px", minHeight: 378, overflow: "hidden", boxShadow: "0 20px 70px rgba(0,0,0,.40)" },
   ticketCutLeft: { position: "absolute", left: -10, top: 20, bottom: 20, width: 20, background: "radial-gradient(circle at 10px 10px, transparent 10px, #f6f1f7 11px) 0 0 / 20px 24px" },
   ticketCutRight: { position: "absolute", right: -10, top: 20, bottom: 20, width: 20, background: "radial-gradient(circle at 10px 10px, transparent 10px, #f6f1f7 11px) 0 0 / 20px 24px" },
@@ -1412,27 +1395,29 @@ const styles: Record<string, CSSProperties> = {
   ticketFooter: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20, paddingTop: 22 },
   ticketButton: { width: "100%", height: 52, marginTop: 20, border: 0, borderRadius: 10, background: "linear-gradient(90deg,#ffd515,#ff9f00)", color: "#111", fontWeight: 1000, cursor: "pointer" },
   boostSideCard: { ...baseCard, padding: 28, background: "linear-gradient(135deg, rgba(20,15,39,.96), rgba(68,20,121,.72))", overflow: "hidden" },
-  bottomGrid: { display: "grid", gridTemplateColumns: "1fr 1.15fr 1.45fr", gap: 18, marginBottom: 18 },
-  performanceCard: { ...baseCard, padding: 16, minHeight: 244 },
+  bottomGrid: { display: "grid", gridTemplateColumns: "1.05fr 1.45fr 1.65fr", gap: 18, marginBottom: 18, alignItems: "stretch" },
+  performanceCard: { ...baseCard, padding: 18, minHeight: 270 },
   cardHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 },
   performanceBody: { display: "grid", gridTemplateColumns: "120px 1fr", gap: 20, alignItems: "center" },
   roiCircle: { width: 106, height: 106, borderRadius: 999, display: "grid", placeItems: "center", textAlign: "center", background: "conic-gradient(#16e765 0 72%, rgba(255,255,255,.10) 72% 100%)", color: "#14f468" },
   performanceList: { display: "flex", flexDirection: "column", gap: 10 },
-  greensCard: { ...baseCard, padding: 16, minHeight: 244 },
+  greensCard: { ...baseCard, padding: 18, minHeight: 270 },
   greenRows: { display: "flex", flexDirection: "column", gap: 10 },
   greenRow: { display: "grid", gridTemplateColumns: "46px 1fr 42px 60px", gap: 8, alignItems: "center", fontSize: 11 },
   greenProfit: { color: "#12f36b" },
   greenTotal: { textAlign: "right", marginTop: 13, color: "#cfc9e6" },
-  playerPropsCard: { ...baseCard, padding: 16, minHeight: 244 },
-  propsMiniGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 },
-  propMiniCard: { border: "1px solid rgba(255,255,255,.14)", borderRadius: 14, padding: 10, background: "linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.025))", minWidth: 0, overflow: "hidden" },
-  propImageBox: { position: "relative", width: "100%", height: 118, borderRadius: 12, overflow: "hidden", background: "linear-gradient(135deg, rgba(101,36,255,.38), rgba(0,0,0,.48))", marginBottom: 10 },
-  propPlayerImage: { width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" },
-  propTeamLogo: { position: "absolute", right: 7, bottom: 7, width: 30, height: 30, borderRadius: 999, objectFit: "contain", background: "rgba(0,0,0,.76)", border: "1px solid rgba(255,255,255,.35)", padding: 3 },
-  propStatsRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8, marginBottom: 8 },
-  badgesFooter: { ...baseCard, minHeight: 96, display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr)) 220px", gap: 14, alignItems: "center", padding: "16px 20px", overflow: "hidden" },
-  footerBadgeItem: { display: "flex", flexDirection: "column", gap: 4, minWidth: 0, fontSize: 12 },
-  ageSeal: { minHeight: 70, borderRadius: 18, border: "2px solid rgba(255,255,255,.85)", display: "grid", gridTemplateColumns: "62px 1fr", columnGap: 10, alignItems: "center", padding: "8px 12px", background: "rgba(0,0,0,.26)", fontSize: 12, fontWeight: 900 },
+  playerPropsCard: { ...baseCard, padding: 18, minHeight: 270, overflow: "hidden" },
+  propsMiniGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14 },
+  propMiniCard: { border: "1px solid rgba(255,255,255,.11)", borderRadius: 14, padding: 0, background: "linear-gradient(180deg, rgba(23, 25, 39, .98), rgba(8, 9, 20, .98))", minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 16px 34px rgba(0,0,0,.24)" },
+  propImageBox: { height: 128, position: "relative", overflow: "hidden", background: "radial-gradient(circle at 50% 20%, rgba(148,72,255,.45), rgba(8,9,20,.98) 68%)" },
+  propImage: { width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" },
+  propAvatarFallback: { height: "100%", display: "grid", placeItems: "center", textAlign: "center", color: "#fff", background: "linear-gradient(135deg, rgba(113,45,255,.86), rgba(9,10,24,.98))" },
+  propContent: { padding: 12, display: "flex", flexDirection: "column", gap: 7, minHeight: 150 },
+  propStatsRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, color: "#dcd7ee", fontSize: 12 },
+  propButton: { height: 36, marginTop: "auto", border: 0, borderRadius: 8, background: "linear-gradient(90deg,#7d35ff,#4b17b8)", color: "#fff", fontWeight: 1000, cursor: "pointer" },
+  badgesFooter: { ...baseCard, minHeight: 92, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr)) 220px", gap: 18, alignItems: "center", padding: "16px 26px", overflow: "hidden" },
+  footerBadgeItem: { display: "flex", flexDirection: "column", gap: 4, minWidth: 0, color: "#fff" },
+  ageSeal: { justifySelf: "end", width: 198, height: 64, borderRadius: 14, border: "2px solid rgba(255,255,255,.9)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, fontSize: 24, fontWeight: 1000, color: "#fff", textAlign: "center" },
   analysisPanel: { ...baseCard, padding: 24, marginBottom: 18, borderColor: "rgba(255, 203, 22, .45)" },
   analysisTop: { display: "flex", justifyContent: "space-between", gap: 18, marginBottom: 18 },
   analysisCenter: { display: "grid", gridTemplateColumns: "1fr 120px 1fr", alignItems: "center", gap: 18, textAlign: "center", marginBottom: 18 },
