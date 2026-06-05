@@ -5,14 +5,34 @@ import { PrismaService } from '../prisma/prisma.service';
 export class BetsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getAll() {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  private maxOpenBetHours() {
+    return Number(process.env.ODDIX_MAX_OPEN_BET_HOURS || 72);
+  }
 
+  private recentResultDays() {
+    return Number(process.env.ODDIX_RECENT_RESULT_DAYS || 7);
+  }
+
+  async getAll() {
+    const maxOpenHours = this.maxOpenBetHours();
+    const openCutoff = new Date(Date.now() - maxOpenHours * 60 * 60 * 1000);
+    const recentCutoff = new Date(Date.now() - this.recentResultDays() * 24 * 60 * 60 * 1000);
+
+    // Dashboard limpo:
+    // 1) OPEN só aparece se ainda estiver dentro da janela segura.
+    // 2) WON/LOST recentes aparecem para histórico/greens.
+    // 3) EXPIRED/VOID/CANCELED não voltam para o dashboard principal.
     return this.prisma.bet.findMany({
       where: {
         OR: [
-          { status: 'open' },
-          { createdAt: { gte: sevenDaysAgo } },
+          {
+            status: 'open',
+            createdAt: { gte: openCutoff },
+          },
+          {
+            status: { in: ['won', 'lost'] },
+            createdAt: { gte: recentCutoff },
+          },
         ],
       },
       orderBy: {
@@ -74,6 +94,57 @@ export class BetsService {
         provider: data.provider || null,
       },
     });
+  }
+
+  async cleanupOpenBets() {
+    const maxOpenHours = this.maxOpenBetHours();
+    const cutoff = new Date(Date.now() - maxOpenHours * 60 * 60 * 1000);
+
+    const result = await this.prisma.bet.updateMany({
+      where: {
+        status: 'open',
+        createdAt: { lt: cutoff },
+      },
+      data: {
+        status: 'expired',
+        result: 'expired',
+      } as any,
+    });
+
+    return {
+      success: true,
+      expired: result.count || 0,
+      maxOpenHours,
+      message: 'Bets abertas antigas foram expiradas e não aparecem mais no dashboard.',
+    };
+  }
+
+  async getDebugSummary() {
+    const maxOpenHours = this.maxOpenBetHours();
+    const cutoff = new Date(Date.now() - maxOpenHours * 60 * 60 * 1000);
+
+    const [openTotal, oldOpenTotal, wonTotal, lostTotal, expiredTotal, voidTotal, canceledTotal] =
+      await Promise.all([
+        this.prisma.bet.count({ where: { status: 'open' } }),
+        this.prisma.bet.count({ where: { status: 'open', createdAt: { lt: cutoff } } }),
+        this.prisma.bet.count({ where: { status: 'won' } }),
+        this.prisma.bet.count({ where: { status: 'lost' } }),
+        this.prisma.bet.count({ where: { status: 'expired' } }),
+        this.prisma.bet.count({ where: { status: 'void' } }),
+        this.prisma.bet.count({ where: { status: 'canceled' } }),
+      ]);
+
+    return {
+      success: true,
+      maxOpenHours,
+      openTotal,
+      oldOpenTotal,
+      wonTotal,
+      lostTotal,
+      expiredTotal,
+      voidTotal,
+      canceledTotal,
+    };
   }
 
   async seed() {

@@ -10,6 +10,16 @@ export class BetsController {
     return this.betsService.getAll();
   }
 
+  @Get('debug/summary')
+  async getDebugSummary() {
+    return this.betsService.getDebugSummary();
+  }
+
+  @Post('cleanup-open')
+  async cleanupOpenBets() {
+    return this.betsService.cleanupOpenBets();
+  }
+
   @Get(':id')
   async getById(@Param('id') id: string) {
     return this.betsService.getById(id);

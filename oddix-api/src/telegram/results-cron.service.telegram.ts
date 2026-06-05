@@ -11,7 +11,7 @@ import { OddixImageService } from './oddix-image.service';
 import { OddixHumanMessageService } from './oddix-human-message.service';
 import { OddixVoiceService } from '../voice/oddix-voice.service';
 
-type BetResult = 'won' | 'lost' | 'open';
+type BetResult = 'won' | 'lost' | 'open' | 'void' | 'expired' | 'canceled';
 type ResultReason = 'green_live' | 'green_final' | 'red_final' | 'not_finished' | 'unknown_market' | 'missing_real_stats';
 
 type ResolvedBetResult = {
@@ -719,29 +719,107 @@ export class ResultsCronService {
     }
   }
 
+  private getBetAgeHours(bet: any) {
+    const rawDate = bet?.gameDate || bet?.createdAt || bet?.updatedAt;
+    const date = rawDate ? new Date(rawDate) : null;
+
+    if (!date || Number.isNaN(date.getTime())) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    return (Date.now() - date.getTime()) / 1000 / 60 / 60;
+  }
+
+  private async closeBetSilently(bet: any, status: 'void' | 'expired' | 'canceled', reason: string) {
+    await this.prisma.bet.update({
+      where: { id: bet.id },
+      data: {
+        status,
+        result: status,
+        analysis: String(bet?.analysis || '').includes(`ODDIX_${status.toUpperCase()}`)
+          ? bet?.analysis
+          : `${String(bet?.analysis || '').trim()} | ODDIX_${status.toUpperCase()}: ${reason}`.trim(),
+      } as any,
+    });
+
+    this.logger.warn(
+      `🧹 Bet fechada como ${status}: ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip} | motivo=${reason}`,
+    );
+  }
+
+  private async expireOldOpenBets(maxHours: number) {
+    const cutoff = new Date(Date.now() - maxHours * 60 * 60 * 1000);
+
+    const oldOpenBets = await this.prisma.bet.findMany({
+      where: {
+        status: 'open',
+        createdAt: { lt: cutoff },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: Number(process.env.ODDIX_EXPIRE_OPEN_BETS_LIMIT || 100),
+    });
+
+    for (const bet of oldOpenBets as any[]) {
+      await this.closeBetSilently(
+        bet,
+        'expired',
+        `aberta há mais de ${maxHours}h sem confirmação final`,
+      );
+    }
+
+    return oldOpenBets.length;
+  }
+
   @Cron('*/5 * * * *')
   async checkOpenBetsResults() {
     try {
       const maxHours = Number(process.env.ODDIX_MAX_OPEN_BET_HOURS || 72);
+      const expiredCount = await this.expireOldOpenBets(maxHours);
+
+      if (expiredCount > 0) {
+        this.logger.warn(`🧹 ${expiredCount} bets antigas foram expiradas automaticamente.`);
+      }
+
       const openBets = await this.prisma.bet.findMany({
         where: {
           status: 'open',
           createdAt: { gte: new Date(Date.now() - maxHours * 60 * 60 * 1000) },
         },
         orderBy: { createdAt: 'asc' },
-        take: Number(process.env.ODDIX_RESULT_CHECK_LIMIT || 15),
+        take: Number(process.env.ODDIX_RESULT_CHECK_LIMIT || 30),
       });
 
       for (const bet of openBets as any[]) {
         const fixtureId = String(bet.fixtureId || '');
-        if (!fixtureId) continue;
+        const betAgeHours = this.getBetAgeHours(bet);
+
+        if (!fixtureId) {
+          if (betAgeHours >= maxHours) {
+            await this.closeBetSilently(bet, 'expired', 'sem fixtureId e passou do limite');
+          }
+          continue;
+        }
 
         const fixture = await this.footballService.getFixtureById(fixtureId);
-        if (!fixture) continue;
+
+        if (!fixture) {
+          if (betAgeHours >= maxHours) {
+            await this.closeBetSilently(bet, 'expired', 'fixture não encontrado e passou do limite');
+          }
+
+          this.logger.warn(
+            `⚠️ Fixture não encontrado para bet aberta: ${bet.homeTeam} x ${bet.awayTeam} | fixtureId=${fixtureId}`,
+          );
+          continue;
+        }
 
         const statusShort = String(fixture?.fixture?.status?.short || '');
         const statusLong = String(fixture?.fixture?.status?.long || '');
-        if (this.isCanceled(statusShort, statusLong)) continue;
+
+        if (this.isCanceled(statusShort, statusLong)) {
+          await this.closeBetSilently(bet, 'canceled', `jogo cancelado/adiado: ${statusShort || statusLong}`);
+          continue;
+        }
 
         const finished = this.isFinished(statusShort, statusLong);
         const stats = await this.footballService.getStatistics(fixtureId);
@@ -760,6 +838,27 @@ export class ResultsCronService {
         });
 
         if (resolved.result === 'open') {
+          if (
+            finished &&
+            ['missing_real_stats', 'unknown_market'].includes(resolved.reason)
+          ) {
+            await this.closeBetSilently(
+              bet,
+              'void',
+              `${resolved.reason} em jogo finalizado. Não vira RED sem dado real.`,
+            );
+            continue;
+          }
+
+          if (betAgeHours >= maxHours) {
+            await this.closeBetSilently(
+              bet,
+              'expired',
+              `aberta há ${Math.round(betAgeHours)}h sem bater critério final`,
+            );
+            continue;
+          }
+
           await this.sendAlmostGreenAudioIfNeeded({
             bet,
             resolved,
@@ -777,8 +876,19 @@ export class ResultsCronService {
           data: {
             status: resolved.result,
             result: resolved.result,
+            homeScore: goals.homeGoals,
+            awayScore: goals.awayGoals,
+            statusShort: statusShort || null,
+            elapsed: fixture?.fixture?.status?.elapsed ?? null,
           } as any,
         });
+
+        if (!['won', 'lost'].includes(resolved.result)) {
+          this.logger.warn(
+            `🧹 Resultado silencioso: ${bet.homeTeam} x ${bet.awayTeam} | ${bet.tip} => ${resolved.result}`,
+          );
+          continue;
+        }
 
         const resultEmoji = resolved.result === 'won' ? '✅' : '❌';
         const resultTitle = resolved.result === 'won' ? 'ODDIX GREEN' : 'ODDIX RED';
