@@ -1295,6 +1295,24 @@ export default function Dashboard() {
 
 
 
+        .oddix-premium-ticket {
+          position: relative;
+          overflow: hidden;
+        }
+
+        .oddix-premium-ticket::before {
+          content: "";
+          position: absolute;
+          inset: -80px auto auto -80px;
+          width: 220px;
+          height: 220px;
+          border-radius: 999px;
+          background: rgba(250,204,21,.16);
+          filter: blur(25px);
+          pointer-events: none;
+        }
+
+
         @media (max-width: 980px) {
           .oddix-vip-results-grid {
             grid-template-columns: 1fr !important;
@@ -1334,6 +1352,15 @@ export default function Dashboard() {
           .oddix-top-widgets-grid {
             grid-template-columns: 1fr !important;
           }
+
+          .oddix-top-pick-hero {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-premium-ticket [style*="grid-template-columns: 44px"] {
+            grid-template-columns: 38px minmax(0, 1fr) !important;
+          }
+
 
           .oddix-layout {
             grid-template-columns: 1fr !important;
@@ -1584,9 +1611,9 @@ export default function Dashboard() {
         <div className="oddix-hero-main" style={styles.heroMain}>
           <div className="oddix-hero-text" style={styles.heroTextBlock}>
             <span style={styles.sectionKicker}>ODDIX SMART BETTING</span>
-            <h1>Inteligência artificial transformando dados em GREEN todos os dias.</h1>
+            <h1>Dashboard premium para entradas, live e bilhetes VIP com IA.</h1>
             <p>
-              A Oddix filtra jogos, odds, estatísticas ao vivo e score de qualidade para destacar entradas premium, combinadas e oportunidades VIP antes do mercado mexer.
+              A Oddix combina filtros de ligas, score V4, odds, estatísticas ao vivo e gestão de risco para mostrar somente oportunidades com valor real.
             </p>
             <div style={styles.heroStats}>
               <InfoMetric label="Jogos" value={games.length} />
@@ -1616,6 +1643,17 @@ export default function Dashboard() {
         game={topGames[0]}
         liveTick={liveTick}
         onAnalyze={(game: any) => openMatchDetail(game)}
+      />
+
+      <PremiumTicketPreview
+        tips={displayedSmartTips}
+        games={games}
+        isPaidPlan={isPaidPlan}
+        onOpen={(tip: any) => {
+          const game = getGameByTip(tip, games);
+          if (game) openMatchDetail(game);
+        }}
+        onUpgrade={() => (window.location.href = "/plans")}
       />
 
       <VipMarketingStrip
@@ -2309,6 +2347,39 @@ function hotEntryLevel(confidence: number) {
   return { label: "MONITORAR", icon: "🔥🔥", color: "#a78bfa" };
 }
 
+
+function tipOddValue(tip: any) {
+  const odd = Number(String(tip?.odd || tip?.odds || "0").replace(",", "."));
+  return Number.isFinite(odd) && odd > 0 ? odd : 1;
+}
+
+function confidenceGrade(confidence: any) {
+  const value = safeNumber(confidence, 0);
+  if (value >= 90) return "ELITE";
+  if (value >= 84) return "VIP";
+  if (value >= 76) return "FORTE";
+  return "MONITORAR";
+}
+
+function buildVipTicket(tips: any[]) {
+  const picks = (tips || [])
+    .filter((tip: any) => safeNumber(tip?.confidence, 0) >= 70)
+    .filter((tip: any) => tipOddValue(tip) >= 1.2)
+    .filter((tip: any) => tipOddValue(tip) <= 2.2)
+    .slice(0, 3);
+
+  const combinedOdd = picks.reduce((acc: number, item: any) => acc * tipOddValue(item), 1);
+  const confidence = picks.length
+    ? Math.round(picks.reduce((acc: number, item: any) => acc + safeNumber(item?.confidence, 0), 0) / picks.length)
+    : 0;
+
+  return {
+    picks,
+    combinedOdd: picks.length ? combinedOdd.toFixed(2) : "0.00",
+    confidence,
+  };
+}
+
 function liveQualityForGame(game: any, stats?: any) {
   const label = String(game?.oddix?.qualityLabel || "").toLowerCase();
   const hasRealStats = !!stats?.available && stats?.simulated !== true;
@@ -2444,44 +2515,120 @@ function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
 
   if (!finalGame || !finalTip) return null;
 
+  const quality = safeNumber(finalGame?.oddix?.qualityScore, 0);
+  const confidence = safeNumber(finalTip?.confidence, quality || 0);
+  const grade = confidenceGrade(confidence);
+  const live = isGameLive(finalGame);
+
   return (
-    <section className="oddix-top-pick-hero" style={styles.topPickHero}>
-      <div style={styles.topPickPremiumBadge}>
-        <span>🏆</span>
-        <div>
-          <strong>TOP PICK DO DIA</strong>
-          <small>Entrada principal filtrada pela IA</small>
+    <section className="oddix-top-pick-hero" style={styles.topPickHeroPremium}>
+      <div style={styles.topPickGlowLayer} />
+
+      <div style={styles.topPickLeftPremium}>
+        <div style={styles.topPickPremiumBadge}>
+          <span>🏆</span>
+          <div>
+            <strong>TOP PICK DO DIA</strong>
+            <small>Entrada principal filtrada pelo Oddix V4</small>
+          </div>
+        </div>
+
+        <div style={styles.topPickMatchBlockPremium}>
+          <img src={finalGame?.teams?.home?.logo || logoFallback(finalGame?.teams?.home?.name)} style={styles.topPickLogoPremium} />
+          <div style={styles.topPickTeamsPremium}>
+            <strong>{finalGame?.teams?.home?.name}</strong>
+            <span>{score.home} x {score.away}</span>
+            <strong>{finalGame?.teams?.away?.name}</strong>
+            <small>{finalGame?.league?.name} • {live ? gameTimeLabel(finalGame, liveTick) : formatDateTime(finalGame?.fixture?.date)}</small>
+          </div>
+          <img src={finalGame?.teams?.away?.logo || logoFallback(finalGame?.teams?.away?.name)} style={styles.topPickLogoPremium} />
         </div>
       </div>
 
-      <div style={styles.topPickMatchBlock}>
-        <img src={finalGame?.teams?.home?.logo || logoFallback(finalGame?.teams?.home?.name)} style={styles.topPickLogo} />
-        <div style={styles.topPickTeams}>
-          <strong>{finalGame?.teams?.home?.name}</strong>
-          <span>x</span>
-          <strong>{finalGame?.teams?.away?.name}</strong>
-          <small>{finalGame?.league?.name} • {isGameLive(finalGame) ? gameTimeLabel(finalGame, liveTick) : formatDateTime(finalGame?.fixture?.date)}</small>
-        </div>
-        <img src={finalGame?.teams?.away?.logo || logoFallback(finalGame?.teams?.away?.name)} style={styles.topPickLogo} />
-      </div>
-
-      <div style={styles.topPickSelection}>
-        <span>Entrada IA</span>
+      <div style={styles.topPickCenterPremium}>
+        <span>Mercado escolhido pela IA</span>
         <strong>{finalTip.tip}</strong>
-        <small>{finalTip.risk} • mercado protegido</small>
+        <small>{finalTip.market || "Oddix Boost"} • {finalTip.risk || "Risco controlado"}</small>
       </div>
 
-      <div style={styles.topPickOddBox}>
-        <span>Odd</span>
-        <strong>{finalTip.odd}</strong>
+      <div style={styles.topPickRightPremium}>
+        <div style={styles.topPickOddPremium}>
+          <span>ODD</span>
+          <strong>{finalTip.odd}</strong>
+        </div>
+        <div style={styles.topPickConfidencePremium}>
+          <strong>{confidence}%</strong>
+          <span>{grade}</span>
+        </div>
+        <div style={styles.topPickQualityPremium}>
+          <span>Score Oddix</span>
+          <strong>{quality}/100</strong>
+        </div>
+        <button style={styles.topPickButtonPremium} onClick={() => onAnalyze(finalGame)}>🎯 Abrir análise premium</button>
+      </div>
+    </section>
+  );
+}
+
+function PremiumTicketPreview({ tips, games, isPaidPlan, onOpen, onUpgrade }: any) {
+  const ticket = buildVipTicket(tips);
+
+  if (!ticket.picks.length) return null;
+
+  return (
+    <section className="oddix-premium-ticket" style={styles.premiumTicketSection}>
+      <div style={styles.premiumTicketHeader}>
+        <div>
+          <span style={styles.ticketKicker}>🎫 BILHETE VIP INTELIGENTE</span>
+          <h2 style={styles.ticketTitle}>Combinada premium montada pela IA</h2>
+          <p style={styles.ticketText}>Seleções com odd controlada, confiança alta e jogos diferentes para reduzir exposição.</p>
+        </div>
+        <div style={styles.ticketSummaryBox}>
+          <span>Odd combinada</span>
+          <strong>{ticket.combinedOdd}</strong>
+          <small>{ticket.confidence}% confiança média</small>
+        </div>
       </div>
 
-      <div style={styles.topPickConfidence}>
-        <strong>{finalTip.confidence}%</strong>
-        <span>IA</span>
-      </div>
+      <div style={styles.ticketCardPremium}>
+        {ticket.picks.map((pick: any, index: number) => {
+          const game = getGameByTip(pick, games);
+          return (
+            <button
+              key={`${pick.fixtureId || pick.game}-${index}`}
+              style={styles.ticketPickRowPremium}
+              onClick={() => {
+                if (!isPaidPlan) {
+                  onUpgrade?.();
+                  return;
+                }
+                if (game) onOpen?.(pick);
+              }}
+            >
+              <span style={styles.ticketPickNumber}>{String(index + 1).padStart(2, "0")}</span>
+              <div style={styles.ticketPickTeams}>
+                <strong>{pick.game || `${pick.homeTeam || "Casa"} x ${pick.awayTeam || "Fora"}`}</strong>
+                <small>{pick.tip}</small>
+              </div>
+              <div style={styles.ticketPickOdd}>
+                <span>Odd</span>
+                <strong>{pick.odd}</strong>
+              </div>
+              <div style={styles.ticketPickConfidence}>
+                <span>IA</span>
+                <strong>{safeNumber(pick.confidence, 0)}%</strong>
+              </div>
+            </button>
+          );
+        })}
 
-      <button style={styles.topPickButton} onClick={() => onAnalyze(finalGame)}>🎯 Pegar palpite</button>
+        <div style={styles.ticketFooterPremium}>
+          <span>Gestão sugerida: 0.25u a 0.5u</span>
+          <button style={styles.ticketButtonPremium} onClick={isPaidPlan ? undefined : onUpgrade}>
+            {isPaidPlan ? "VIP liberado" : "Liberar bilhete VIP"}
+          </button>
+        </div>
+      </div>
     </section>
   );
 }
@@ -3438,6 +3585,238 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     fontSize: 32,
+  },
+
+  topPickHeroPremium: {
+    position: "relative",
+    overflow: "hidden",
+    display: "grid",
+    gridTemplateColumns: "1.1fr 1fr 280px",
+    alignItems: "center",
+    gap: 18,
+    margin: "0 26px 18px",
+    padding: 20,
+    borderRadius: 30,
+    border: "1px solid rgba(250,204,21,.34)",
+    background: "radial-gradient(circle at 10% 20%, rgba(250,204,21,.20), transparent 28%), radial-gradient(circle at 72% 50%, rgba(34,197,94,.13), transparent 26%), linear-gradient(135deg, rgba(10,4,22,.98), rgba(36,12,76,.98), rgba(10,4,24,.99))",
+    boxShadow: "0 28px 75px rgba(0,0,0,.36)",
+    color: "#fff",
+  },
+  topPickGlowLayer: {
+    position: "absolute",
+    inset: 0,
+    background: "linear-gradient(90deg, transparent, rgba(250,204,21,.06), transparent)",
+    pointerEvents: "none",
+  },
+  topPickLeftPremium: {
+    position: "relative",
+    zIndex: 2,
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+  },
+  topPickMatchBlockPremium: {
+    display: "grid",
+    gridTemplateColumns: "72px 1fr 72px",
+    gap: 14,
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 24,
+    background: "rgba(255,255,255,.08)",
+    border: "1px solid rgba(255,255,255,.12)",
+  },
+  topPickLogoPremium: {
+    width: 72,
+    height: 72,
+    objectFit: "contain",
+    borderRadius: 20,
+    background: "rgba(255,255,255,.10)",
+    padding: 10,
+    boxShadow: "0 14px 28px rgba(0,0,0,.28)",
+  },
+  topPickTeamsPremium: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    textAlign: "center",
+    gap: 3,
+  },
+  topPickCenterPremium: {
+    position: "relative",
+    zIndex: 2,
+    padding: 20,
+    borderRadius: 24,
+    background: "linear-gradient(180deg, rgba(250,204,21,.16), rgba(255,255,255,.06))",
+    border: "1px solid rgba(250,204,21,.24)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  topPickRightPremium: {
+    position: "relative",
+    zIndex: 2,
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 10,
+  },
+  topPickOddPremium: {
+    borderRadius: 20,
+    padding: 16,
+    background: "linear-gradient(135deg,#facc15,#fb923c)",
+    color: "#111827",
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+    fontWeight: 950,
+  },
+  topPickConfidencePremium: {
+    borderRadius: 20,
+    padding: 16,
+    background: "rgba(34,197,94,.18)",
+    border: "1px solid rgba(34,197,94,.34)",
+    color: "#bbf7d0",
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+    fontWeight: 950,
+  },
+  topPickQualityPremium: {
+    gridColumn: "1 / -1",
+    borderRadius: 18,
+    padding: "12px 14px",
+    background: "rgba(255,255,255,.08)",
+    border: "1px solid rgba(255,255,255,.12)",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    fontWeight: 900,
+  },
+  topPickButtonPremium: {
+    gridColumn: "1 / -1",
+    border: 0,
+    borderRadius: 18,
+    padding: "14px 16px",
+    background: "linear-gradient(135deg,#22c55e,#a3e635)",
+    color: "#052e16",
+    fontWeight: 950,
+    cursor: "pointer",
+    boxShadow: "0 16px 34px rgba(34,197,94,.25)",
+  },
+  premiumTicketSection: {
+    margin: "0 26px 20px",
+    padding: 22,
+    borderRadius: 30,
+    background: "linear-gradient(135deg, rgba(15,23,42,.98), rgba(30,10,70,.98))",
+    border: "1px solid rgba(250,204,21,.24)",
+    boxShadow: "0 24px 65px rgba(0,0,0,.30)",
+    color: "#fff",
+  },
+  premiumTicketHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+    marginBottom: 16,
+  },
+  ticketKicker: {
+    color: "#facc15",
+    fontSize: 12,
+    fontWeight: 950,
+    letterSpacing: 1.1,
+    textTransform: "uppercase",
+  },
+  ticketTitle: {
+    margin: "6px 0 6px",
+    fontSize: 26,
+    lineHeight: 1.05,
+  },
+  ticketText: {
+    margin: 0,
+    color: "rgba(255,255,255,.72)",
+  },
+  ticketSummaryBox: {
+    minWidth: 160,
+    borderRadius: 22,
+    padding: 16,
+    background: "linear-gradient(135deg,#facc15,#fb923c)",
+    color: "#111827",
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+    fontWeight: 950,
+    textAlign: "center",
+  },
+  ticketCardPremium: {
+    borderRadius: 26,
+    background: "rgba(0,0,0,.26)",
+    border: "1px solid rgba(255,255,255,.10)",
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  ticketPickRowPremium: {
+    width: "100%",
+    border: "1px solid rgba(255,255,255,.12)",
+    borderRadius: 20,
+    padding: 14,
+    background: "linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.045))",
+    color: "#fff",
+    display: "grid",
+    gridTemplateColumns: "44px minmax(0, 1fr) 70px 78px",
+    alignItems: "center",
+    gap: 12,
+    cursor: "pointer",
+    textAlign: "left",
+  },
+  ticketPickNumber: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    background: "rgba(250,204,21,.16)",
+    color: "#facc15",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 950,
+  },
+  ticketPickTeams: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    minWidth: 0,
+  },
+  ticketPickOdd: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    color: "#facc15",
+    fontWeight: 950,
+  },
+  ticketPickConfidence: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    color: "#bbf7d0",
+    fontWeight: 950,
+  },
+  ticketFooterPremium: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    padding: "8px 2px 2px",
+    color: "rgba(255,255,255,.70)",
+    fontSize: 13,
+  },
+  ticketButtonPremium: {
+    border: 0,
+    borderRadius: 999,
+    padding: "11px 16px",
+    background: "#facc15",
+    color: "#111827",
+    fontWeight: 950,
+    cursor: "pointer",
   },
 
   page: {
