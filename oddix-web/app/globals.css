@@ -60,7 +60,6 @@ img {
   border-radius: 999px;
 }
 
-/* Ajustes globais do dashboard Oddix premium */
 [style] .teamSmall img,
 .teamSmall img {
   width: 30px;
@@ -70,13 +69,50 @@ img {
   background: rgba(255, 255, 255, 0.08);
 }
 
-@media (max-width: 1280px) {
-  main {
-    grid-template-columns: 210px minmax(0, 1fr) !important;
-  }
+.oddix-dashboard {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
 
-  main > section:nth-of-type(1) {
-    display: none !important;
+.oddix-dashboard button,
+.oddix-dashboard a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.oddix-dashboard img {
+  max-width: 100%;
+  height: auto;
+}
+
+.oddix-sports-rail {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  white-space: nowrap !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: thin !important;
+}
+
+.oddix-sports-rail button {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+}
+
+.oddix-tabs,
+.oddix-featured-strip,
+.oddix-games-grid {
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1280px) {
+  .oddix-dashboard {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 }
 
@@ -94,32 +130,6 @@ img {
   section {
     max-width: 100% !important;
   }
-}
-
-/* Responsividade premium do Dashboard Oddix
-   Mantém o layout rico no PC e reorganiza tudo em tablet/celular. */
-.oddix-dashboard {
-  width: 100%;
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-.oddix-dashboard button,
-.oddix-dashboard a {
-  -webkit-tap-highlight-color: transparent;
-}
-
-.oddix-dashboard img {
-  max-width: 100%;
-  height: auto;
-}
-
-.oddix-sports-rail,
-.oddix-tabs,
-.oddix-featured-strip,
-.oddix-games-grid {
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
 }
 
 @media (max-width: 1360px) {
@@ -428,7 +438,6 @@ img {
   }
 }
 
-/* Oddix VIP marketing + Entradas Quentes */
 @media (max-width: 1180px) {
   .oddix-vip-marketing-strip {
     grid-template-columns: 1fr !important;
