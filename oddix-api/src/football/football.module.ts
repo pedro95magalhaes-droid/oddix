@@ -11,7 +11,6 @@ import { FlashScoreService } from './flashscore.service';
 import { OddsPapiService } from './oddspapi.service';
 import { SportScoreService } from './sportscore.service';
 import { SportScore6Service } from './sportscore6.service';
-import { FotmobService } from './fotmob.service';
 import { SoccerFootballInfoService } from './soccer-football-info.service';
 
 @Module({
@@ -21,7 +20,6 @@ import { SoccerFootballInfoService } from './soccer-football-info.service';
 
   providers: [
     FootballService,
-    FotmobService,
     SoccerFootballInfoService,
 
     SportScoreService,
@@ -37,7 +35,6 @@ import { SoccerFootballInfoService } from './soccer-football-info.service';
 
   exports: [
     FootballService,
-    FotmobService,
     SoccerFootballInfoService,
 
     SportScoreService,
