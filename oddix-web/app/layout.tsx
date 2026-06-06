@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import InstallAppButton from '@/components/InstallAppButton';
 
 export const metadata: Metadata = {
   title: 'ODDIX TIPSTER IA',
@@ -37,6 +38,7 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {children}
+        <InstallAppButton />
       </body>
     </html>
   );
