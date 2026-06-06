@@ -182,6 +182,15 @@ export class FootballService {
       });
   }
 
+  private publicDashboardFixtures(fixtures: any[]) {
+    return this.compactFixtures(fixtures).filter((item: any) => {
+      return (
+        item?.oddix?.leagueAllowed === true &&
+        Number(item?.oddix?.qualityScore || 0) > 0
+      );
+    });
+  }
+
   private getCacheAgeSeconds(item: any) {
     const rawDate =
       item?.__oddixCachedAt ||
@@ -2107,7 +2116,11 @@ export class FootballService {
 
     if (freshMerged.length > 0) {
       const enrichedFresh = await this.enrichFixturesWithPreMatchStats(freshMerged);
-      return this.compactFixtures(enrichedFresh);
+      const finalFresh = this.publicDashboardFixtures(enrichedFresh);
+
+      if (finalFresh.length > 0) {
+        return finalFresh;
+      }
     }
 
     const providerGroups: any[][] = [];
@@ -2164,8 +2177,12 @@ export class FootballService {
 
     if (providerMerged.length > 0) {
       const enrichedProvider = await this.enrichFixturesWithPreMatchStats(providerMerged);
-      await this.saveFixturesCache(enrichedProvider);
-      return this.compactFixtures(enrichedProvider);
+      const finalProvider = this.publicDashboardFixtures(enrichedProvider);
+
+      if (finalProvider.length > 0) {
+        await this.saveFixturesCache(finalProvider);
+        return finalProvider;
+      }
     }
 
     const staleGroups: any[][] = [];
@@ -2177,7 +2194,7 @@ export class FootballService {
 
     const staleMerged = this.filterDashboardFixtures(this.mergeUniqueFixtures(staleGroups));
     const enrichedStale = await this.enrichFixturesWithPreMatchStats(staleMerged);
-    return this.compactFixtures(enrichedStale);
+    return this.publicDashboardFixtures(enrichedStale);
   }
 
   private async getLiveFixturesFromCache(onlyFresh = true) {
@@ -2204,7 +2221,13 @@ export class FootballService {
     const freshCacheLive = await this.getLiveFixturesFromCache(true);
 
     if (freshCacheLive.length > 0) {
-      return this.compactFixtures(this.mergeUniqueFixtures([freshCacheLive]));
+      const finalFreshLive = this.publicDashboardFixtures(
+        this.mergeUniqueFixtures([freshCacheLive]),
+      );
+
+      if (finalFreshLive.length > 0) {
+        return finalFreshLive;
+      }
     }
 
     const groups: any[][] = [];
@@ -2326,7 +2349,7 @@ export class FootballService {
       if (live.length > 0) groups.push(live);
     }
 
-    const mergedLive = this.compactFixtures(this.mergeUniqueFixtures(groups));
+    const mergedLive = this.publicDashboardFixtures(this.mergeUniqueFixtures(groups));
 
     if (mergedLive.length > 0) {
       await this.saveFixturesCache(mergedLive);
