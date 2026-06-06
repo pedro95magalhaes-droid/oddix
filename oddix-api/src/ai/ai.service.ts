@@ -56,6 +56,23 @@ export class AiService {
       ...this.getLiveQualityGate(context, league),
     };
 
+    /**
+     * REGRA ODDIX PREMIUM:
+     * Sem estatística real = sem palpite.
+     *
+     * Isso evita:
+     * - aposta OPEN presa;
+     * - VOID por falta de métrica;
+     * - palpite em chutes/escanteios/player props sem dado real;
+     * - envio para VIP/FREE sem base estatística.
+     *
+     * Para desligar temporariamente:
+     * ODDIX_REQUIRE_REAL_STATS_FOR_TIPS=false
+     */
+    if (this.shouldRequireRealStatsForTips() && context.realStatsAvailable !== true) {
+      return null;
+    }
+
     const realOdds = await this.oddsService.getBestOdds({
       homeTeam,
       awayTeam,
@@ -475,6 +492,13 @@ export class AiService {
     ];
 
     return premiumWords.some((word) => normalized.includes(word));
+  }
+
+  private shouldRequireRealStatsForTips() {
+    return (
+      String(process.env.ODDIX_REQUIRE_REAL_STATS_FOR_TIPS || "true").toLowerCase() !==
+      "false"
+    );
   }
 
   private getLiveQualityGate(context: any, league: any) {
@@ -1010,6 +1034,17 @@ export class AiService {
     if (Number(market.odd) > 2.35 && market.confidence < 78) return false;
 
     if (context.isFinished) return false;
+
+    if (this.shouldRequireRealStatsForTips() && context.realStatsAvailable !== true) {
+      return false;
+    }
+
+    if (
+      context.realStatsAvailable !== true &&
+      this.requiresRealStatsMarket(market.key, market.tip)
+    ) {
+      return false;
+    }
 
     if (context.isLive && context.liveQualityBlocked) return false;
 
@@ -1690,7 +1725,7 @@ Conservadora: ${multiples?.conservative?.selections?.map((s: any) => s.tip).join
 Moderada: ${multiples?.moderate?.selections?.map((s: any) => s.tip).join(" + ") || "Sem múltipla segura"} | odd ${multiples?.moderate?.combinedOdd || "-"}.
 
 Fontes:
-Dados do jogo: FlashScore como principal, SportScore6/FotMob como fallback. Odds: The Odds API quando disponível; caso contrário, odd marcada como estimada.
+Dados do jogo: FlashScore como principal, Soccer Football Info para estatísticas reais e SportScore6 como fallback. Odds: The Odds API quando disponível; caso contrário, odd marcada como estimada.
 
 Gestão:
 Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou usar valor simbólico.`;
