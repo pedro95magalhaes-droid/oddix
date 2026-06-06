@@ -190,6 +190,26 @@ function isGameFinished(game: any) {
 function gameDateKey(game: any) {
   const raw = game?.fixture?.date;
   if (!raw) return "";
+
+  const rawText = String(raw);
+  const provider = String(game?.provider || game?.provedor || "").toLowerCase();
+  const timezone = String(game?.fixture?.timezone || game?.fixture?.fuso || "").toUpperCase();
+
+  /*
+    Correção específica para SportScore6:
+    alguns jogos vêm como 2026-06-06T00:00:00.000Z apenas para representar o dia do jogo.
+    Se converter isso para America/Fortaleza, vira 05/06 às 21:00 e o dashboard remove o jogo.
+    Não aplicamos essa regra ao FlashScore nem aos outros providers, para não alterar datas reais.
+  */
+  const isSportScore6DayOnly =
+    provider.includes("sportscore6") &&
+    timezone === "UTC" &&
+    /^\d{4}-\d{2}-\d{2}T00:00:00(?:\.000)?Z$/.test(rawText);
+
+  if (isSportScore6DayOnly) {
+    return rawText.slice(0, 10);
+  }
+
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return "";
   return dateKey(parsed);
