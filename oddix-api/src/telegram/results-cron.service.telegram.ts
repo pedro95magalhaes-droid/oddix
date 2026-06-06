@@ -925,9 +925,20 @@ export class ResultsCronService {
         if (sentCount >= maxTipsPerCron) break;
         if (todayCount + sentCount >= dailyMax) break;
 
-        const fixtureId = Number(game.fixture?.id || 0);
+        const rawFixtureId = String(game.fixture?.id || "").trim();
+        const fixtureIdNumber = Number(rawFixtureId);
+        const fixtureId =
+          Number.isFinite(fixtureIdNumber) &&
+          fixtureIdNumber > 0 &&
+          fixtureIdNumber <= 2147483647
+            ? fixtureIdNumber
+            : 0;
+
         const fixtureDate = game.fixture?.date;
-        if (!fixtureId) continue;
+
+        if (!rawFixtureId && !game?.teams?.home?.name && !game?.teams?.away?.name) {
+          continue;
+        }
 
         const liveSafety = this.isFixtureSafeForLiveTip(game);
         if (!liveSafety.ok) {
@@ -937,10 +948,15 @@ export class ResultsCronService {
           continue;
         }
 
-        const alreadyExists = await this.prisma.bet.findFirst({
-          where: { fixtureId },
-          select: { id: true },
-        });
+        let alreadyExists = null;
+
+        if (fixtureId > 0) {
+          alreadyExists = await this.prisma.bet.findFirst({
+            where: { fixtureId },
+            select: { id: true },
+          });
+        }
+
         if (alreadyExists) continue;
 
         const homeName = String(
@@ -961,9 +977,18 @@ export class ResultsCronService {
 
         if (duplicateByTeams) continue;
 
-        const stats = await this.footballService.getStatistics(
-          String(fixtureId),
-        );
+        const stats =
+          fixtureId > 0
+            ? await this.footballService.getStatistics(String(fixtureId))
+            : {
+                available: false,
+                simulated: false,
+                source: "none",
+                message:
+                  "FixtureId externo acima do limite INT4 ou incompatível. Sem stats reais, sem palpite.",
+                teams: [],
+              };
+
         const enrichedGame = { ...game, statistics: stats };
         const bet = await this.aiService.generateBet(enrichedGame);
 
@@ -997,7 +1022,7 @@ export class ResultsCronService {
 
         await this.prisma.bet.create({
           data: {
-            fixtureId,
+            fixtureId: fixtureId > 0 ? fixtureId : null,
             homeTeam: bet.homeTeam,
             awayTeam: bet.awayTeam,
             league: bet.league,
