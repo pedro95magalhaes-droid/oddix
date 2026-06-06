@@ -948,7 +948,7 @@ export class ResultsCronService {
           continue;
         }
 
-        let alreadyExists = null;
+        let alreadyExists: { id: string } | null = null;
 
         if (fixtureId > 0) {
           alreadyExists = await this.prisma.bet.findFirst({
