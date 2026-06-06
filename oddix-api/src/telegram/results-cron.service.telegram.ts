@@ -966,6 +966,14 @@ export class ResultsCronService {
         );
         const enrichedGame = { ...game, statistics: stats };
         const bet = await this.aiService.generateBet(enrichedGame);
+
+        if (!bet) {
+          this.logger.log(
+            `⏭️ Palpite bloqueado fixtureId=${fixtureId}: sem estatística real suficiente para ${homeName} x ${awayName}`,
+          );
+          continue;
+        }
+
         const quality = this.isQualifiedBet(bet, enrichedGame);
 
         if (!quality.ok) {
