@@ -83,6 +83,65 @@ export class AiService {
       shotTrend: Math.max(context.shotTrend || 0, professionalProfile.shotTrend),
     };
 
+    const minimumProfessionalScore = Number(
+      process.env.ODDIX_PROFESSIONAL_MIN_SCORE || 80,
+    );
+
+    if (
+      professionalProfile.level === "NO_BET" ||
+      Number(professionalProfile.score || 0) < minimumProfessionalScore
+    ) {
+      const noBetReasons = professionalProfile.noBetReasons?.length
+        ? professionalProfile.noBetReasons
+        : [
+            `Score profissional abaixo do corte mínimo (${professionalProfile.score}/100).`,
+          ];
+
+      return {
+        homeTeam,
+        awayTeam,
+        league,
+        status: "NO_BET",
+        sources: {
+          matchData:
+            game.provider || game.sources?.matchData || "api-football/sportmonks",
+          odds: "blocked",
+          confidenceEngine: "oddix-professional-tipster-engine-v3",
+          realOddsCount: 0,
+          playerPropsCount: 0,
+          estimatedOddsCount: 0,
+          realStatsAvailable: context.realStatsAvailable === true,
+          liveQualityLevel: context.liveQualityLevel || "PREMATCH",
+          liveQualityBlocked: context.liveQualityBlocked === true,
+          liveQualityReason: context.liveQualityReason || null,
+        },
+        tip: "SEM ENTRADA",
+        odd: 0,
+        confidence: 0,
+        risk: "Alto" as RiskLevel,
+        engineScore: professionalProfile.score,
+        engineLevel: "NO_BET",
+        engineCategory: "NO_BET",
+        dominanceHome: 50,
+        dominanceAway: 50,
+        dominantTeam: "Sem leitura segura",
+        engineReasons: noBetReasons,
+        markets: [],
+        playerProps: [],
+        multiples: null,
+        analysis: [
+          `Análise Oddix Professional Tipster Engine V3 — ${homeTeam} x ${awayTeam} (${league}).`,
+          "",
+          "🚫 SEM ENTRADA",
+          "",
+          `Score V3: ${professionalProfile.score}/100 (NO_BET).`,
+          ...noBetReasons.map((reason: string) => `- ${reason}`),
+          "",
+          "A Oddix bloqueou este jogo porque ele não atingiu o corte mínimo profissional. Melhor não forçar palpite sem valor claro.",
+        ].join("\n"),
+      };
+    }
+
     /**
      * REGRA ODDIX PREMIUM:
      * Sem estatística real = sem palpite.
@@ -1856,6 +1915,10 @@ export class AiService {
       )
       .slice(0, 4);
 
+    if (safe.length < 2) {
+      return null;
+    }
+
     const conservative = safe.slice(0, 2);
     const moderate = safe.slice(0, 3);
     const aggressive = safe.slice(0, 4);
@@ -1949,9 +2012,19 @@ export class AiService {
       yellowCardsAway: dominanceHint.yellowCardsAway,
     });
 
-    const rawConfidence = Math.max(
-      Number(market.confidence || 0),
-      engine.confidence,
+    const profileCap =
+      context.realStatsAvailable === true
+        ? 91
+        : context.isLive
+          ? 68
+          : Number(process.env.ODDIX_PREMATCH_ESTIMATED_CONFIDENCE_CAP || 84);
+
+    const rawConfidence = Math.min(
+      profileCap,
+      Math.max(
+        Number(market.confidence || 0),
+        engine.confidence,
+      ),
     );
     const cappedMarket = this.capMarketForLiveWithoutStats(
       {
