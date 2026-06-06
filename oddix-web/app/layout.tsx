@@ -4,10 +4,17 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'ODDIX TIPSTER IA',
   description: 'Palpites inteligentes com IA, odds e gestão de banca.',
+  manifest: '/manifest.json',
+  themeColor: '#f97316',
   icons: {
     icon: '/favicon.png',
     shortcut: '/favicon.png',
     apple: '/logo-oddix-square.png',
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'Oddix',
+    statusBarStyle: 'black-translucent',
   },
   openGraph: {
     title: 'ODDIX TIPSTER IA',
