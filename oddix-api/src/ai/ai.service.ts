@@ -106,7 +106,7 @@ export class AiService {
           matchData:
             game.provider || game.sources?.matchData || "api-football/sportmonks",
           odds: "blocked",
-          confidenceEngine: "oddix-professional-tipster-engine-v3",
+          confidenceEngine: "oddix-professional-tipster-engine-v4",
           realOddsCount: 0,
           playerPropsCount: 0,
           estimatedOddsCount: 0,
@@ -130,11 +130,11 @@ export class AiService {
         playerProps: [],
         multiples: null,
         analysis: [
-          `Análise Oddix Professional Tipster Engine V3 — ${homeTeam} x ${awayTeam} (${league}).`,
+          `Análise Oddix Professional Tipster Engine V4 — ${homeTeam} x ${awayTeam} (${league}).`,
           "",
           "🚫 SEM ENTRADA",
           "",
-          `Score V3: ${professionalProfile.score}/100 (NO_BET).`,
+          `Score V4: ${professionalProfile.score}/100 (NO_BET).`,
           ...noBetReasons.map((reason: string) => `- ${reason}`),
           "",
           "A Oddix bloqueou este jogo porque ele não atingiu o corte mínimo profissional. Melhor não forçar palpite sem valor claro.",
@@ -430,7 +430,7 @@ export class AiService {
         odds: safeFinalMarkets.some((market: any) => market.isRealOdd)
           ? "the-odds-api"
           : "oddix-estimada",
-        confidenceEngine: "oddix-professional-tipster-engine-v3",
+        confidenceEngine: "oddix-professional-tipster-engine-v4",
         realOddsCount: realOdds.length,
         playerPropsCount: playerPropMarkets.length,
         estimatedOddsCount: safeFinalMarkets.filter(
@@ -502,6 +502,101 @@ export class AiService {
     return Number.isFinite(parsed) ? parsed : fallback;
   }
 
+
+  private hasRealStatCandidate(game: any, side: "home" | "away", names: string[]) {
+    const team = side === "home" ? game?.teams?.home : game?.teams?.away;
+    const buckets = [
+      team,
+      game?.stats?.[side],
+      game?.teamStats?.[side],
+      game?.preMatchStats?.[side],
+      game?.raw?.stats?.[side],
+      game?.raw?.preMatchStats?.[side],
+    ].filter(Boolean);
+
+    const normalizedNames = names.map((name) => this.normalizeText(name));
+
+    for (const bucket of buckets) {
+      for (const [key, value] of Object.entries(bucket || {})) {
+        if (value === null || value === undefined || value === "") continue;
+        const normalizedKey = this.normalizeText(key);
+        if (normalizedNames.some((name) => normalizedKey.includes(name))) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  private hasRealFormCandidate(game: any, side: "home" | "away") {
+    const team = side === "home" ? game?.teams?.home : game?.teams?.away;
+    const candidates = [
+      team?.form,
+      team?.lastFive,
+      team?.recentForm,
+      game?.form?.[side],
+      game?.teamForm?.[side],
+      game?.stats?.form?.[side],
+      game?.preMatchStats?.[side]?.form,
+      game?.raw?.form?.[side],
+      game?.raw?.preMatchStats?.[side]?.form,
+    ].filter(Boolean);
+
+    return candidates.length > 0;
+  }
+
+  private readGlobalPreMatchNumber(game: any, names: string[], fallback = 0) {
+    const buckets = [
+      game?.preMatchStats,
+      game?.preMatchStats?.h2h,
+      game?.preMatchStats?.odds,
+      game?.teamStats,
+      game?.stats,
+      game?.raw?.preMatchStats,
+      game?.raw?.preMatchStats?.h2h,
+    ].filter(Boolean);
+
+    const normalizedNames = names.map((name) => this.normalizeText(name));
+
+    for (const bucket of buckets) {
+      for (const [key, value] of Object.entries(bucket || {})) {
+        const normalizedKey = this.normalizeText(key);
+        if (normalizedNames.some((name) => normalizedKey.includes(name))) {
+          return this.normalizeStatNumber(value, fallback);
+        }
+      }
+    }
+
+    return fallback;
+  }
+
+  private hasGlobalPreMatchValue(game: any, names: string[]) {
+    const buckets = [
+      game?.preMatchStats,
+      game?.preMatchStats?.h2h,
+      game?.preMatchStats?.odds,
+      game?.teamStats,
+      game?.stats,
+      game?.raw?.preMatchStats,
+      game?.raw?.preMatchStats?.h2h,
+    ].filter(Boolean);
+
+    const normalizedNames = names.map((name) => this.normalizeText(name));
+
+    for (const bucket of buckets) {
+      for (const [key, value] of Object.entries(bucket || {})) {
+        if (value === null || value === undefined || value === "") continue;
+        const normalizedKey = this.normalizeText(key);
+        if (normalizedNames.some((name) => normalizedKey.includes(name))) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   private readTeamFormScore(game: any, side: "home" | "away", seed: number) {
     const team = side === "home" ? game?.teams?.home : game?.teams?.away;
     const candidates = [
@@ -511,7 +606,9 @@ export class AiService {
       game?.form?.[side],
       game?.teamForm?.[side],
       game?.stats?.form?.[side],
+      game?.preMatchStats?.[side]?.form,
       game?.raw?.form?.[side],
+      game?.raw?.preMatchStats?.[side]?.form,
     ].filter(Boolean);
 
     for (const candidate of candidates) {
@@ -582,27 +679,93 @@ export class AiService {
     const awayForm = this.readTeamFormScore(game, "away", seed);
     const formEdge = Math.abs(homeForm - awayForm);
 
+    const hasHomeForm = this.hasRealFormCandidate(game, "home");
+    const hasAwayForm = this.hasRealFormCandidate(game, "away");
+    const hasGoalsFor =
+      this.hasRealStatCandidate(game, "home", ["goalsFor", "goals_for", "gols pro", "marcados"]) &&
+      this.hasRealStatCandidate(game, "away", ["goalsFor", "goals_for", "gols pro", "marcados"]);
+    const hasGoalsAgainst =
+      this.hasRealStatCandidate(game, "home", ["goalsAgainst", "goals_against", "gols contra", "sofridos"]) &&
+      this.hasRealStatCandidate(game, "away", ["goalsAgainst", "goals_against", "gols contra", "sofridos"]);
+    const hasBtts =
+      this.hasRealStatCandidate(game, "home", ["btts", "ambas", "ambas marcam"]) ||
+      this.hasGlobalPreMatchValue(game, ["btts", "ambas", "ambas marcam"]);
+    const hasOver25 =
+      this.hasRealStatCandidate(game, "home", ["over25", "over 2.5", "over_25", "mais de 2.5"]) ||
+      this.hasGlobalPreMatchValue(game, ["over25", "over 2.5", "over_25", "mais de 2.5", "over25Rate"]);
+    const hasH2h = this.hasGlobalPreMatchValue(game, ["totalMatches", "h2h", "over25Rate", "bttsRate"]);
+
     const homeGoalsFor = this.readStatCandidate(game, "home", ["goalsFor", "goals_for", "gols pro", "marcados"], this.seededNumber(seed + 301, 1.05, 2.05));
     const awayGoalsFor = this.readStatCandidate(game, "away", ["goalsFor", "goals_for", "gols pro", "marcados"], this.seededNumber(seed + 302, 0.85, 1.85));
     const homeGoalsAgainst = this.readStatCandidate(game, "home", ["goalsAgainst", "goals_against", "gols contra", "sofridos"], this.seededNumber(seed + 303, 0.75, 1.55));
     const awayGoalsAgainst = this.readStatCandidate(game, "away", ["goalsAgainst", "goals_against", "gols contra", "sofridos"], this.seededNumber(seed + 304, 0.9, 1.8));
 
-    const attackScore = this.clamp(((homeGoalsFor + awayGoalsFor) / 3.7) * 20, 7, 20);
-    const defenseScore = this.clamp((2.8 - Math.min(2.8, (homeGoalsAgainst + awayGoalsAgainst) / 2)) * 7.2 + 6, 6, 20);
-    const formScore = this.clamp((homeForm + awayForm) / 2 + Math.min(4, formEdge / 2), 7, 20);
-    const homeAwayScore = this.clamp(10 + (homeForm - awayForm) * 0.25 + (leagueQuality >= 80 ? 3 : 0), 6, 15);
-    const momentScore = this.clamp((leagueQuality / 100) * 15 + (context.realStatsAvailable ? 3 : 0), 5, 15);
+    const bttsRate = this.clamp(
+      Math.max(
+        this.readStatCandidate(game, "home", ["btts", "ambas", "ambas marcam"], 0),
+        this.readStatCandidate(game, "away", ["btts", "ambas", "ambas marcam"], 0),
+        this.readGlobalPreMatchNumber(game, ["bttsRate", "btts", "ambas"], 0),
+      ),
+      0,
+      100,
+    );
+
+    const over25Rate = this.clamp(
+      Math.max(
+        this.readStatCandidate(game, "home", ["over25", "over 2.5", "over_25", "mais de 2.5"], 0),
+        this.readStatCandidate(game, "away", ["over25", "over 2.5", "over_25", "mais de 2.5"], 0),
+        this.readGlobalPreMatchNumber(game, ["over25Rate", "over25", "over 2.5"], 0),
+      ),
+      0,
+      100,
+    );
+
+    const h2hTotalMatches = this.readGlobalPreMatchNumber(game, ["totalMatches", "total_matches", "h2hMatches"], 0);
+    const h2hOver25Rate = this.readGlobalPreMatchNumber(game, ["over25Rate", "h2hOver25Rate"], 0);
+    const h2hBttsRate = this.readGlobalPreMatchNumber(game, ["bttsRate", "h2hBttsRate"], 0);
+
+    const attackScore = this.clamp(((homeGoalsFor + awayGoalsFor) / 3.7) * 18 + (over25Rate >= 60 ? 2 : 0), 6, 20);
+    const defenseScore = this.clamp((2.8 - Math.min(2.8, (homeGoalsAgainst + awayGoalsAgainst) / 2)) * 6.4 + 6 + (bttsRate <= 45 && bttsRate > 0 ? 2 : 0), 6, 20);
+    const formScore = this.clamp((homeForm + awayForm) / 2 + Math.min(4, formEdge / 2), 6, 20);
+    const homeAwayScore = this.clamp(10 + (homeForm - awayForm) * 0.25 + (leagueQuality >= 80 ? 3 : 0), 5, 15);
+    const momentScore = this.clamp((leagueQuality / 100) * 12 + (context.realStatsAvailable ? 3 : 0), 4, 15);
+
+    const h2hScore = hasH2h
+      ? this.clamp(7 + (h2hTotalMatches >= 5 ? 3 : 0) + (h2hOver25Rate >= 60 ? 3 : 0) + (h2hBttsRate >= 55 ? 2 : 0), 5, 15)
+      : 4;
+
+    const marketDataScore = this.clamp(
+      (hasBtts ? 4 : 0) +
+        (hasOver25 ? 4 : 0) +
+        (hasGoalsFor ? 4 : 0) +
+        (hasGoalsAgainst ? 3 : 0),
+      2,
+      15,
+    );
 
     const realOddsOptions = [
       ...(Array.isArray(game?.odds?.options) ? game.odds.options : []),
       ...(Array.isArray(game?.odds?.opções) ? game.odds.opções : []),
     ];
-    const hasRealOdds = realOddsOptions.some((option: any) => Number(option?.odd || option?.ímpar || option?.rate?.decimal || 0) > 1);
-    const oddValueScore = hasRealOdds ? 9 : leagueQuality >= 82 ? 7 : 5;
+    const hasRealOdds =
+      realOddsOptions.some((option: any) => Number(option?.odd || option?.ímpar || option?.rate?.decimal || 0) > 1) ||
+      game?.preMatchStats?.odds?.available === true;
+    const oddValueScore = hasRealOdds ? 10 : leagueQuality >= 82 ? 7 : 4;
 
-    const rawScore = formScore + attackScore + defenseScore + homeAwayScore + momentScore + oddValueScore;
-    const realDataPenalty = context.realStatsAvailable ? 0 : context.isLive ? 20 : 4;
-    const score = this.clamp(rawScore - realDataPenalty, 0, 100);
+    const rawScore = formScore + attackScore + defenseScore + homeAwayScore + momentScore + h2hScore + marketDataScore + oddValueScore;
+
+    const missingDataPenalty =
+      (!hasHomeForm || !hasAwayForm ? 8 : 0) +
+      (!hasGoalsFor ? 7 : 0) +
+      (!hasGoalsAgainst ? 5 : 0) +
+      (!hasH2h ? 8 : 0) +
+      (!hasRealOdds ? 5 : 0) +
+      (!hasBtts ? 3 : 0) +
+      (!hasOver25 ? 3 : 0);
+
+    const livePenalty = context.isLive && context.realStatsAvailable !== true ? 20 : 0;
+    const preMatchSoftPenalty = !context.isLive && game?.preMatchStats?.available === true ? 0 : 2;
+    const score = this.clamp(rawScore - missingDataPenalty - livePenalty - preMatchSoftPenalty, 0, 100);
 
     const favorite =
       homeForm + homeGoalsFor * 4 - homeGoalsAgainst >= awayForm + awayGoalsFor * 4 - awayGoalsAgainst + 5
@@ -612,14 +775,19 @@ export class AiService {
           : "equilibrado";
 
     const totalGoalProjection = homeGoalsFor + awayGoalsFor + (homeGoalsAgainst + awayGoalsAgainst) * 0.42;
-    const bttsIndex = this.clamp((homeGoalsFor + awayGoalsFor + homeGoalsAgainst + awayGoalsAgainst) * 14, 35, 92);
-    const underIndex = this.clamp((2.8 - Math.min(2.8, totalGoalProjection / 1.35)) * 22 + 35, 30, 90);
-    const goalTrend = this.clamp(totalGoalProjection * 23 + (bttsIndex > 68 ? 6 : 0), 42, 94);
+    const bttsIndex = this.clamp(
+      Math.max((homeGoalsFor + awayGoalsFor + homeGoalsAgainst + awayGoalsAgainst) * 14, bttsRate || 0),
+      35,
+      92,
+    );
+    const underIndex = this.clamp((2.8 - Math.min(2.8, totalGoalProjection / 1.35)) * 22 + 35 - (over25Rate >= 65 ? 8 : 0), 25, 90);
+    const goalTrend = this.clamp(totalGoalProjection * 22 + (bttsIndex > 68 ? 5 : 0) + (over25Rate >= 60 ? 5 : 0), 38, 94);
     const cornerTrend = this.clamp(48 + attackScore * 1.4 + (context.realStatsAvailable ? 8 : 0), 42, 92);
     const shotTrend = this.clamp(50 + attackScore * 1.5 + (context.realStatsAvailable ? 8 : 0), 44, 94);
 
     const noBetReasons: string[] = [];
     if (score < 80) noBetReasons.push(`Score profissional abaixo do corte mínimo (${score}/100).`);
+    if (missingDataPenalty >= 20) noBetReasons.push("Pré-jogo com dados incompletos: forma, médias, H2H ou odds insuficientes.");
     if (context.isLive && context.realStatsAvailable !== true) noBetReasons.push("Live sem estatísticas reais para leitura profissional.");
     if (context.isFinished) noBetReasons.push("Jogo finalizado.");
 
@@ -640,7 +808,18 @@ export class AiService {
       defenseScore,
       homeAwayScore,
       momentScore,
+      h2hScore,
+      marketDataScore,
       oddValueScore,
+      missingDataPenalty,
+      hasPreMatchStats: game?.preMatchStats?.available === true,
+      hasH2h,
+      hasRealOdds,
+      bttsRate,
+      over25Rate,
+      h2hTotalMatches,
+      h2hOver25Rate,
+      h2hBttsRate,
       favorite,
       totalGoalProjection,
       bttsIndex,
@@ -650,7 +829,8 @@ export class AiService {
       shotTrend,
       reasons: [
         `Score profissional ${score}/100 (${level}).`,
-        `Forma ${formScore}/20, ataque ${attackScore}/20, defesa ${defenseScore}/20, casa/fora ${homeAwayScore}/15, momento ${momentScore}/15, valor odd ${oddValueScore}/10.`,
+        `Forma ${formScore}/20, ataque ${attackScore}/20, defesa ${defenseScore}/20, casa/fora ${homeAwayScore}/15, momento ${momentScore}/15, H2H ${h2hScore}/15, dados ${marketDataScore}/15, valor odd ${oddValueScore}/10.`,
+        `BTTS ${bttsRate || 0}%, Over 2.5 ${over25Rate || 0}%, H2H ${h2hTotalMatches || 0} jogos, penalidade dados faltando ${missingDataPenalty}.`,
         favorite === "equilibrado" ? "Confronto sem favorito claro." : `${favorite} aparece com vantagem técnica no modelo.`,
       ],
       noBetReasons,
@@ -706,7 +886,7 @@ export class AiService {
         oddsSource: realOdd ? "the-odds-api" : "oddix-professional-estimada",
         isRealOdd: !!realOdd,
         professionalScore: profile.score,
-        reason: this.generateV3Reason(params.market, params.tip, homeTeam, awayTeam, league, context, confidence, realOdd),
+        reason: this.generateV4Reason(params.market, params.tip, homeTeam, awayTeam, league, context, confidence, realOdd),
       });
     };
 
@@ -729,6 +909,18 @@ export class AiService {
         baseOdd: 1.58,
         confidenceModifier: 0,
       });
+
+      if (profile.score >= 85) {
+        push({
+          key: "empate_anula",
+          category: "Protegido",
+          market: "Empate Anula",
+          tip: `${favorite} empate anula aposta`,
+          baseOdd: 1.64,
+          confidenceModifier: -1,
+          risk: "Médio",
+        });
+      }
     }
 
     if (profile.goalTrend >= 74 && profile.totalGoalProjection >= 2.55) {
@@ -765,6 +957,18 @@ export class AiService {
         confidenceModifier: 1,
         risk: "Baixo",
       });
+
+      if (profile.underIndex >= 62) {
+        push({
+          key: "total_gols",
+          category: "Protegido",
+          market: "Total de Gols",
+          tip: "Under 4.5 gols",
+          baseOdd: 1.32,
+          confidenceModifier: 2,
+          risk: "Baixo",
+        });
+      }
     }
 
     if (context.realStatsAvailable === true) {
@@ -773,8 +977,8 @@ export class AiService {
           key: "escanteios",
           category: "Estatísticas",
           market: "Escanteios",
-          tip: profile.cornerTrend >= 82 ? "Over 8.5 escanteios" : "Over 7.5 escanteios",
-          baseOdd: 1.72,
+          tip: profile.cornerTrend >= 82 ? "Over 9.5 escanteios" : profile.cornerTrend >= 74 ? "Over 8.5 escanteios" : "Over 7.5 escanteios",
+          baseOdd: profile.cornerTrend >= 82 ? 1.86 : 1.72,
           confidenceModifier: -2,
           requiresStats: true,
         });
@@ -807,7 +1011,7 @@ export class AiService {
     return candidates;
   }
 
-  private generateV3Reason(
+  private generateV4Reason(
     market: string,
     tip: string,
     homeTeam: string,
@@ -822,7 +1026,7 @@ export class AiService {
       ? "com estatísticas reais incorporadas"
       : "em modo pré-jogo estimado, sem usar mercado dependente de estatística real";
 
-    return `Oddix Professional Tipster Engine V3 selecionou ${market} para ${homeTeam} x ${awayTeam} (${league}). Entrada: ${tip}. Score ${profile.score || 0}/100, nível ${profile.level || "BOM"}, ${statsText}. ${profile.reasons?.join(" ") || ""} ${realOdd ? `Odd real encontrada via ${realOdd.bookmaker}.` : "Odd estimada e limitada por gestão de risco."} Confiança ${confidence}%.`;
+    return `Oddix Professional Tipster Engine V4 selecionou ${market} para ${homeTeam} x ${awayTeam} (${league}). Entrada: ${tip}. Score ${profile.score || 0}/100, nível ${profile.level || "BOM"}, ${statsText}. ${profile.reasons?.join(" ") || ""} ${realOdd ? `Odd real encontrada via ${realOdd.bookmaker}.` : "Odd estimada e limitada por gestão de risco."} Confiança ${confidence}%.`;
   }
 
   private professionalMarketKey(market: any) {
@@ -2225,6 +2429,15 @@ export class AiService {
         : `A leitura ao vivo foi limitada porque não há estatísticas reais disponíveis. ${context.liveQualityReason || ""}`.trim()
       : "";
 
+    const profile = context.professionalProfile || {};
+    const preMatchText = !context.isLive
+      ? [
+          `Pré-jogo V4: ${profile.hasPreMatchStats ? "H2H/odds enriquecidos" : "dados pré-jogo limitados"}.`,
+          `BTTS: ${profile.bttsRate || 0}% | Over 2.5: ${profile.over25Rate || 0}% | H2H: ${profile.h2hTotalMatches || 0} jogos.`,
+          `Penalidade por dados faltando: ${profile.missingDataPenalty || 0}.`,
+        ].join("\n")
+      : "";
+
     const marketList = bestMarkets
       .map(
         (market, index) =>
@@ -2232,12 +2445,14 @@ export class AiService {
       )
       .join("\n");
 
-    return `Análise Oddix Professional Tipster Engine V3 — ${homeTeam} x ${awayTeam} (${league}).
+    return `Análise Oddix Professional Tipster Engine V4 — ${homeTeam} x ${awayTeam} (${league}).
 
 ${gameMoment}
-
+${preMatchText ? `
+${preMatchText}
+` : ""}
 Leitura profissional:
-Score V3: ${context.professionalScore || 0}/100 (${context.professionalLevel || "BOM"}). ${(context.professionalReasons || []).join(" ")}
+Score V4: ${context.professionalScore || 0}/100 (${context.professionalLevel || "BOM"}). ${(context.professionalReasons || []).join(" ")}
 
 O modelo priorizou mercados protegidos, evitando placar correto, bet builder agressivo e resultado seco sem vantagem clara. Neste confronto, ${favoriteText}. Tendência de gols ${context.goalTrend}/100, escanteios ${context.cornerTrend}/100, cartões ${context.cardTrend}/100 e finalizações ${context.shotTrend}/100${context.realStatsAvailable ? " com leitura de estatísticas reais do jogo." : ". "}
 

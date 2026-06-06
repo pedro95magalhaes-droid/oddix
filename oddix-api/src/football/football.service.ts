@@ -1821,6 +1821,263 @@ export class FootballService {
     return diffMinutes >= minMinutes && diffMinutes <= maxMinutes;
   }
 
+
+  private shouldEnrichPreMatchStats() {
+    return String(process.env.ODDIX_PREMATCH_STATS_ENABLED || "true").toLowerCase() !== "false";
+  }
+
+  private preMatchEnrichLimit() {
+    return Math.max(0, Number(process.env.ODDIX_PREMATCH_ENRICH_LIMIT || 8));
+  }
+
+  private shouldEnrichFixtureWithPreMatchStats(item: any) {
+    if (!this.shouldEnrichPreMatchStats()) return false;
+    if (!item) return false;
+    if (item?.preMatchStats?.available === true) return false;
+
+    const cleanItem = this.standardizeFixture(item);
+    const provider = String(cleanItem?.provider || "").toLowerCase();
+    const statusShort = String(cleanItem?.fixture?.status?.short || "").toUpperCase();
+
+    if (!provider.includes("flashscore")) return false;
+    if (!["NS", "TBD", "PST"].includes(statusShort)) return false;
+
+    return !!this.getFlashScoreExternalId(cleanItem);
+  }
+
+  private getFlashScoreExternalId(item: any) {
+    return String(
+      item?.fixture?.externalId ||
+        item?.fixture?.external_id ||
+        item?.fixture?.match_id ||
+        item?.fixture?.matchId ||
+        item?.flashScoreRaw?.match_id ||
+        item?.flashScoreRaw?.id ||
+        item?.flashScoreRaw?.eventId ||
+        item?.flashScoreRaw?.matchId ||
+        "",
+    ).trim();
+  }
+
+  private readAny(obj: any, paths: string[], fallback: any = undefined) {
+    for (const path of paths) {
+      const parts = path.split(".");
+      let current = obj;
+      for (const part of parts) current = current?.[part];
+      if (current !== undefined && current !== null && current !== "") return current;
+    }
+    return fallback;
+  }
+
+  private normalizeNumber(value: any, fallback: any = null) {
+    const parsed = Number(
+      String(value ?? "")
+        .replace("%", "")
+        .replace(",", ".")
+        .replace(/[^0-9.-]/g, ""),
+    );
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  private collectObjectsDeep(input: any, maxDepth = 5, depth = 0): any[] {
+    if (!input || depth > maxDepth) return [];
+    if (Array.isArray(input)) {
+      return input.flatMap((item) => this.collectObjectsDeep(item, maxDepth, depth + 1));
+    }
+    if (typeof input !== "object") return [];
+
+    const current = [input];
+    for (const value of Object.values(input)) {
+      current.push(...this.collectObjectsDeep(value, maxDepth, depth + 1));
+    }
+    return current;
+  }
+
+  private extractScoreFromHistoryRow(row: any) {
+    const home = this.normalizeNumber(
+      this.readAny(row, [
+        "home.score",
+        "homeScore",
+        "home_score",
+        "scores.home",
+        "score.home",
+        "homeTeam.score",
+        "home_team.score",
+        "home.goals",
+        "home_goals",
+      ]),
+      null,
+    );
+
+    const away = this.normalizeNumber(
+      this.readAny(row, [
+        "away.score",
+        "awayScore",
+        "away_score",
+        "scores.away",
+        "score.away",
+        "awayTeam.score",
+        "away_team.score",
+        "away.goals",
+        "away_goals",
+      ]),
+      null,
+    );
+
+    if (home !== null && away !== null) return { home, away };
+
+    const scoreText = String(
+      this.readAny(row, ["score", "result", "ft", "fulltime", "full_time", "finalScore"], ""),
+    );
+    const match = scoreText.match(/(\d+)\s*[-:x]\s*(\d+)/i);
+    if (match) return { home: Number(match[1]), away: Number(match[2]) };
+
+    return null;
+  }
+
+  private summarizeFlashScoreH2H(h2hData: any) {
+    const objects = this.collectObjectsDeep(h2hData, 6);
+    const scoreRows = objects
+      .map((row) => this.extractScoreFromHistoryRow(row))
+      .filter(Boolean)
+      .slice(0, 10) as { home: number; away: number }[];
+
+    const lastFive = scoreRows.slice(0, 5);
+    const totalMatches = lastFive.length;
+    const over25 = lastFive.filter((score) => score.home + score.away >= 3).length;
+    const btts = lastFive.filter((score) => score.home > 0 && score.away > 0).length;
+    const avgGoals = totalMatches
+      ? Number((lastFive.reduce((acc, score) => acc + score.home + score.away, 0) / totalMatches).toFixed(2))
+      : null;
+
+    return {
+      available: totalMatches > 0,
+      totalMatches,
+      over25,
+      btts,
+      avgGoals,
+      over25Rate: totalMatches ? Math.round((over25 / totalMatches) * 100) : null,
+      bttsRate: totalMatches ? Math.round((btts / totalMatches) * 100) : null,
+    };
+  }
+
+  private summarizeFlashScoreOdds(oddsData: any) {
+    const objects = this.collectObjectsDeep(oddsData, 6);
+    const odds: any = { home: null, draw: null, away: null };
+
+    for (const row of objects) {
+      const name = this.normalizeTextLoose(
+        this.readAny(row, ["name", "label", "title", "outcome", "selection", "marketName"], ""),
+      );
+      const odd = this.normalizeNumber(
+        this.readAny(row, ["odd", "value", "price", "decimal", "rate.decimal", "odds"], null),
+        null,
+      );
+      if (!odd || odd <= 1) continue;
+
+      if (!odds.home && ["1", "home", "casa", "mandante"].includes(name)) odds.home = odd;
+      if (!odds.draw && ["x", "draw", "empate"].includes(name)) odds.draw = odd;
+      if (!odds.away && ["2", "away", "fora", "visitante"].includes(name)) odds.away = odd;
+    }
+
+    return {
+      available: !!(odds.home || odds.draw || odds.away),
+      ...odds,
+    };
+  }
+
+  private buildPreMatchStatsFromFlashScore(
+    item: any,
+    h2hResponse: any,
+    oddsResponse: any,
+  ) {
+    const h2h = h2hResponse?.ok && h2hResponse?.data
+      ? this.summarizeFlashScoreH2H(h2hResponse.data)
+      : { available: false, totalMatches: 0, over25: 0, btts: 0, avgGoals: null, over25Rate: null, bttsRate: null };
+
+    const odds = oddsResponse?.ok && oddsResponse?.data
+      ? this.summarizeFlashScoreOdds(oddsResponse.data)
+      : { available: false, home: null, draw: null, away: null };
+
+    const h2hGoalsForFallback = Number(h2h.avgGoals || 0);
+    const over25Rate = Number(h2h.over25Rate || 0);
+    const bttsRate = Number(h2h.bttsRate || 0);
+
+    return {
+      available: h2h.available || odds.available,
+      source: "flashscore",
+      home: {
+        form: null,
+        goalsFor: h2hGoalsForFallback ? Number((h2hGoalsForFallback / 2).toFixed(2)) : null,
+        goalsAgainst: h2hGoalsForFallback ? Number((h2hGoalsForFallback / 2).toFixed(2)) : null,
+        btts: bttsRate || null,
+        over25: over25Rate || null,
+      },
+      away: {
+        form: null,
+        goalsFor: h2hGoalsForFallback ? Number((h2hGoalsForFallback / 2).toFixed(2)) : null,
+        goalsAgainst: h2hGoalsForFallback ? Number((h2hGoalsForFallback / 2).toFixed(2)) : null,
+        btts: bttsRate || null,
+        over25: over25Rate || null,
+      },
+      h2h,
+      odds,
+      message: h2h.available || odds.available
+        ? "Pré-jogo enriquecido com H2H/odds da FlashScore."
+        : "Pré-jogo sem H2H/odds disponíveis na FlashScore.",
+    };
+  }
+
+  private async enrichFixtureWithPreMatchStats(item: any) {
+    const cleanItem: any = this.standardizeFixture(item);
+    if (!this.shouldEnrichFixtureWithPreMatchStats(cleanItem)) return cleanItem;
+
+    const matchId = this.getFlashScoreExternalId(cleanItem);
+
+    try {
+      const [h2h, odds] = await Promise.allSettled([
+        this.flashScoreService.getH2H(matchId),
+        this.flashScoreService.getOdds(matchId),
+      ]);
+
+      const h2hResponse = h2h.status === "fulfilled" ? h2h.value : { ok: false, data: null };
+      const oddsResponse = odds.status === "fulfilled" ? odds.value : { ok: false, data: null };
+      const preMatchStats = this.buildPreMatchStatsFromFlashScore(
+        cleanItem,
+        h2hResponse,
+        oddsResponse,
+      );
+
+      return {
+        ...cleanItem,
+        preMatchStats,
+      };
+    } catch {
+      return cleanItem;
+    }
+  }
+
+  private async enrichFixturesWithPreMatchStats(fixtures: any[]) {
+    if (!this.shouldEnrichPreMatchStats()) return fixtures || [];
+
+    const limit = this.preMatchEnrichLimit();
+    if (limit <= 0) return fixtures || [];
+
+    let used = 0;
+    const output: any[] = [];
+
+    for (const item of fixtures || []) {
+      if (used < limit && this.shouldEnrichFixtureWithPreMatchStats(item)) {
+        output.push(await this.enrichFixtureWithPreMatchStats(item));
+        used += 1;
+      } else {
+        output.push(item);
+      }
+    }
+
+    return output;
+  }
+
   async getFixtures(date?: string) {
     await this.cleanupDashboardCache(false);
 
@@ -1849,7 +2106,8 @@ export class FootballService {
     );
 
     if (freshMerged.length > 0) {
-      return this.compactFixtures(freshMerged);
+      const enrichedFresh = await this.enrichFixturesWithPreMatchStats(freshMerged);
+      return this.compactFixtures(enrichedFresh);
     }
 
     const providerGroups: any[][] = [];
@@ -1905,8 +2163,9 @@ export class FootballService {
     );
 
     if (providerMerged.length > 0) {
-      await this.saveFixturesCache(providerMerged);
-      return this.compactFixtures(providerMerged);
+      const enrichedProvider = await this.enrichFixturesWithPreMatchStats(providerMerged);
+      await this.saveFixturesCache(enrichedProvider);
+      return this.compactFixtures(enrichedProvider);
     }
 
     const staleGroups: any[][] = [];
@@ -1916,9 +2175,9 @@ export class FootballService {
       if (staleCache.length > 0) staleGroups.push(staleCache);
     }
 
-    return this.compactFixtures(
-      this.filterDashboardFixtures(this.mergeUniqueFixtures(staleGroups)),
-    );
+    const staleMerged = this.filterDashboardFixtures(this.mergeUniqueFixtures(staleGroups));
+    const enrichedStale = await this.enrichFixturesWithPreMatchStats(staleMerged);
+    return this.compactFixtures(enrichedStale);
   }
 
   private async getLiveFixturesFromCache(onlyFresh = true) {
@@ -2207,7 +2466,7 @@ export class FootballService {
       cachedSoccerFootballInfo?.provider === "flashscore" &&
       this.isCacheFresh(cachedSoccerFootballInfo, this.liveCacheSeconds() * 4)
     ) {
-      return cachedSoccerFootballInfo;
+      return await this.enrichFixtureWithPreMatchStats(cachedSoccerFootballInfo);
     }
 
     if (String(cachedSoccerFootballInfo?.provider || "") === "soccer-football-info") {
@@ -2215,7 +2474,7 @@ export class FootballService {
 
       if (soccerFootballInfo.ok && soccerFootballInfo.data) {
         await this.saveFixturesCache([soccerFootballInfo.data]);
-        return soccerFootballInfo.data;
+        return await this.enrichFixtureWithPreMatchStats(soccerFootballInfo.data);
       }
     }
 
@@ -2227,7 +2486,7 @@ export class FootballService {
 
       if (soccerFootballInfo.ok && soccerFootballInfo.data) {
         await this.saveFixturesCache([soccerFootballInfo.data]);
-        return soccerFootballInfo.data;
+        return await this.enrichFixtureWithPreMatchStats(soccerFootballInfo.data);
       }
     }
 
@@ -2243,7 +2502,7 @@ export class FootballService {
 
       if (sportScore6.ok && sportScore6.data) {
         await this.saveFixturesCache([sportScore6.data]);
-        return sportScore6.data;
+        return await this.enrichFixtureWithPreMatchStats(sportScore6.data);
       }
     }
 
@@ -2251,14 +2510,14 @@ export class FootballService {
 
     if (sportScore.ok && sportScore.data) {
       await this.saveFixturesCache([sportScore.data]);
-      return sportScore.data;
+      return await this.enrichFixtureWithPreMatchStats(sportScore.data);
     }
 
     const allScores = await this.getFixtureByIdFromAllScores(fixtureId);
 
     if (allScores.ok && allScores.data) {
       await this.saveFixturesCache([allScores.data]);
-      return allScores.data;
+      return await this.enrichFixtureWithPreMatchStats(allScores.data);
     }
 
     if (this.shouldUseApiFootballFallback()) {
@@ -2266,7 +2525,7 @@ export class FootballService {
 
       if (apiFootball.ok && apiFootball.data) {
         await this.saveFixturesCache([apiFootball.data]);
-        return apiFootball.data;
+        return await this.enrichFixtureWithPreMatchStats(apiFootball.data);
       }
     }
 
@@ -2291,13 +2550,13 @@ export class FootballService {
         if (data) {
           const fixture = this.mapSportmonksFixture(data);
           await this.saveFixturesCache([fixture]);
-          return fixture;
+          return await this.enrichFixtureWithPreMatchStats(fixture);
         }
       } catch {}
     }
 
     const cached = await this.getFixtureFromCacheById(fixtureId);
-    return cached || null;
+    return cached ? await this.enrichFixtureWithPreMatchStats(cached) : null;
   }
 
 
