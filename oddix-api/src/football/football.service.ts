@@ -5,7 +5,7 @@ import { AllScoresService } from "./allscores.service";
 import { FlashScoreService } from "./flashscore.service";
 import { SportScoreService } from "./sportscore.service";
 import { SportScore6Service } from "./sportscore6.service";
-import { FotmobService } from "./fotmob.service";
+import { SoccerFootballInfoService } from "./soccer-football-info.service";
 import {
   getOddixFixtureDate,
   getOddixFixtureQualityLabel,
@@ -20,7 +20,7 @@ import {
 export class FootballService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly fotmobService: FotmobService,
+    private readonly soccerFootballInfoService: SoccerFootballInfoService,
     private readonly sportScoreService: SportScoreService,
     private readonly sportScore6Service: SportScore6Service,
     private readonly allScoresService: AllScoresService,
@@ -121,7 +121,7 @@ export class FootballService {
     }
 
     const rawKeysToRemove = new Set([
-      "fotmobRaw",
+      "soccerFootballInfoRaw",
       "flashScoreRaw",
       "sportScoreRaw",
       "sportScore6Raw",
@@ -959,59 +959,71 @@ export class FootballService {
     }
   }
 
-  async getFixturesFromFotmob(date?: string) {
+  async getFixturesFromSoccerFootballInfo(date?: string) {
     try {
-      const safeDate = date || this.brazilDateKey();
-      const response = await this.fotmobService.getMatchesByDate(safeDate);
-      const data = this.fotmobService.normalizeMatches(response);
-      return { ok: true, data, error: null };
-    } catch (error: any) {
-      return { ok: false, data: [], error: error?.message || "Erro na FotMob" };
-    }
-  }
+      const response = await this.soccerFootballInfoService.getLiveMatches();
+      const data = this.soccerFootballInfoService.normalizeMatches(response);
 
-  async getLiveFixturesFromFotmob() {
-    try {
-      const response = await this.fotmobService.getLiveMatches();
-      const data = this.fotmobService.normalizeMatches(response);
       return { ok: true, data, error: null };
     } catch (error: any) {
       return {
         ok: false,
         data: [],
-        error: error?.message || "Erro na FotMob Live",
+        error: error?.message || "Erro na Soccer Football Info",
       };
     }
   }
 
-  async getFixtureByIdFromFotmob(fixtureId: string) {
+  async getLiveFixturesFromSoccerFootballInfo() {
     try {
-      const response = await this.fotmobService.getMatch(fixtureId);
-      return { ok: true, data: response, error: null };
+      const response = await this.soccerFootballInfoService.getLiveMatches();
+      const data = this.soccerFootballInfoService.normalizeMatches(response);
+
+      return { ok: true, data, error: null };
+    } catch (error: any) {
+      return {
+        ok: false,
+        data: [],
+        error: error?.message || "Erro na Soccer Football Info Live",
+      };
+    }
+  }
+
+  async getFixtureByIdFromSoccerFootballInfo(fixtureId: string) {
+    try {
+      const response = await this.soccerFootballInfoService.getMatchDetails(
+        fixtureId,
+      );
+      const data = this.soccerFootballInfoService.normalizeMatch(response);
+
+      return { ok: true, data, error: null };
     } catch (error: any) {
       return {
         ok: false,
         data: null,
-        error: error?.message || "Erro na FotMob por ID",
+        error: error?.message || "Erro na Soccer Football Info por ID",
       };
     }
   }
 
-  async getStatisticsFromFotmob(fixtureId: string) {
+  async getStatisticsFromSoccerFootballInfo(fixtureId: string) {
     try {
-      const stats = await this.fotmobService.getStatistics(fixtureId);
+      const stats = await this.soccerFootballInfoService.getStatistics(
+        fixtureId,
+      );
+
       return {
         ok: !!stats?.available,
         data: stats?.available ? stats : null,
         error: stats?.available
           ? null
-          : stats?.message || "Sem estatísticas FotMob",
+          : stats?.message || "Sem estatísticas Soccer Football Info",
       };
     } catch (error: any) {
       return {
         ok: false,
         data: null,
-        error: error?.message || "Erro nas estatísticas FotMob",
+        error: error?.message || "Erro nas estatísticas Soccer Football Info",
       };
     }
   }
@@ -1719,6 +1731,7 @@ export class FootballService {
     let score = 0;
 
     if (provider.includes("flashscore")) score += 85;
+    if (provider.includes("soccer-football-info")) score += 75;
     if (provider.includes("sportscore6")) score += 65;
     if (provider.includes("sports-betting")) score += 45;
     if (provider.includes("allscores")) score += 30;
@@ -1857,8 +1870,8 @@ export class FootballService {
     }
 
     for (const currentDate of searchDates) {
-      const fotmob = await this.getFixturesFromFotmob(currentDate);
-      if (fotmob.ok && fotmob.data.length > 0) providerGroups.push(fotmob.data);
+      const soccerFootballInfo = await this.getFixturesFromSoccerFootballInfo(currentDate);
+      if (soccerFootballInfo.ok && soccerFootballInfo.data.length > 0) providerGroups.push(soccerFootballInfo.data);
 
       const sportScore = await this.getFixturesFromSportScore(currentDate);
       if (sportScore.ok && sportScore.data.length > 0)
@@ -1949,10 +1962,10 @@ export class FootballService {
       if (live.length > 0) groups.push(live);
     }
 
-    const fotmob = await this.getLiveFixturesFromFotmob();
+    const soccerFootballInfo = await this.getLiveFixturesFromSoccerFootballInfo();
 
-    if (fotmob.ok && fotmob.data.length > 0) {
-      const live = fotmob.data
+    if (soccerFootballInfo.ok && soccerFootballInfo.data.length > 0) {
+      const live = soccerFootballInfo.data
         .filter((game: any) => this.isOddixFixtureAllowedForDashboard(game))
         .filter((game: any) => this.shouldTreatAsLive(game))
         .map((item: any) => this.normalizeLiveStatus(item));
@@ -2186,39 +2199,39 @@ export class FootballService {
      * IMPORTANTE PARA GREEN/RED:
      * FlashScore agora é a fonte principal do Oddix.
      * Para providers sem endpoint de detalhe por ID neste serviço, usamos cache fresco
-     * e caímos para SportScore6/FotMob/SportScore/API-Football quando necessário.
+     * e caímos para SportScore6/Soccer Football Info/SportScore/API-Football quando necessário.
      */
-    const cachedFotmob: any = await this.getFixtureFromCacheById(fixtureId);
+    const cachedSoccerFootballInfo: any = await this.getFixtureFromCacheById(fixtureId);
 
     if (
-      cachedFotmob?.provider === "flashscore" &&
-      this.isCacheFresh(cachedFotmob, this.liveCacheSeconds() * 4)
+      cachedSoccerFootballInfo?.provider === "flashscore" &&
+      this.isCacheFresh(cachedSoccerFootballInfo, this.liveCacheSeconds() * 4)
     ) {
-      return cachedFotmob;
+      return cachedSoccerFootballInfo;
     }
 
-    if (cachedFotmob?.provider === "fotmob") {
-      const fotmob = await this.getFixtureByIdFromFotmob(fixtureId);
+    if (String(cachedSoccerFootballInfo?.provider || "") === "soccer-football-info") {
+      const soccerFootballInfo = await this.getFixtureByIdFromSoccerFootballInfo(fixtureId);
 
-      if (fotmob.ok && fotmob.data) {
-        await this.saveFixturesCache([fotmob.data]);
-        return fotmob.data;
+      if (soccerFootballInfo.ok && soccerFootballInfo.data) {
+        await this.saveFixturesCache([soccerFootballInfo.data]);
+        return soccerFootballInfo.data;
       }
     }
 
     if (
-      !cachedFotmob ||
-      String(cachedFotmob?.provider || "") !== "sportscore6"
+      !cachedSoccerFootballInfo ||
+      String(cachedSoccerFootballInfo?.provider || "") !== "sportscore6"
     ) {
-      const fotmob = await this.getFixtureByIdFromFotmob(fixtureId);
+      const soccerFootballInfo = await this.getFixtureByIdFromSoccerFootballInfo(fixtureId);
 
-      if (fotmob.ok && fotmob.data) {
-        await this.saveFixturesCache([fotmob.data]);
-        return fotmob.data;
+      if (soccerFootballInfo.ok && soccerFootballInfo.data) {
+        await this.saveFixturesCache([soccerFootballInfo.data]);
+        return soccerFootballInfo.data;
       }
     }
 
-    const cachedSportScore6: any = cachedFotmob;
+    const cachedSportScore6: any = cachedSoccerFootballInfo;
 
     if (
       cachedSportScore6?.provider === "sportscore6" &&
@@ -2371,8 +2384,8 @@ export class FootballService {
       const flashScore = await this.getFixturesFromFlashScore(date);
       if (flashScore.ok && flashScore.data.length > 0) providerGroups.push(flashScore.data);
 
-      const fotmob = await this.getFixturesFromFotmob(date);
-      if (fotmob.ok && fotmob.data.length > 0) providerGroups.push(fotmob.data);
+      const soccerFootballInfo = await this.getFixturesFromSoccerFootballInfo(date);
+      if (soccerFootballInfo.ok && soccerFootballInfo.data.length > 0) providerGroups.push(soccerFootballInfo.data);
 
       const sportScore = await this.getFixturesFromSportScore(date);
       if (sportScore.ok && sportScore.data.length > 0) providerGroups.push(sportScore.data);
@@ -2635,6 +2648,27 @@ export class FootballService {
       errors.push(`FlashScore: ${flashScore.error}`);
     }
 
+    const soccerFootballInfo = await this.getStatisticsFromSoccerFootballInfo(fixtureId);
+
+    if (
+      soccerFootballInfo.ok &&
+      this.isRealStatisticsPayload(soccerFootballInfo.data)
+    ) {
+      return {
+        ...soccerFootballInfo.data,
+        available: true,
+        simulated: false,
+        source: soccerFootballInfo.data?.source || "soccer-football-info",
+        message:
+          soccerFootballInfo.data?.message ||
+          "Estatísticas reais da Soccer Football Info.",
+      };
+    }
+
+    if (soccerFootballInfo.error) {
+      errors.push(`Soccer Football Info: ${soccerFootballInfo.error}`);
+    }
+
     const sportScore6 = await this.getStatisticsFromSportScore6(fixtureId);
 
     if (sportScore6.ok && this.isRealStatisticsPayload(sportScore6.data)) {
@@ -2706,8 +2740,8 @@ export class FootballService {
     const flashScoreLive = await this.getLiveFixturesFromFlashScore();
     const sportScore6 = await this.getFixturesFromSportScore6(date);
     const sportScore6Live = await this.getLiveFixturesFromSportScore6();
-    const fotmob = await this.getFixturesFromFotmob(date);
-    const fotmobLive = await this.getLiveFixturesFromFotmob();
+    const soccerFootballInfo = await this.getFixturesFromSoccerFootballInfo(date);
+    const soccerFootballInfoLive = await this.getLiveFixturesFromSoccerFootballInfo();
     const sportScore = await this.getFixturesFromSportScore(date);
     const sportScoreLive = await this.getLiveFixturesFromSportScore();
     const allScores = await this.getFixturesFromAllScores(date);
@@ -2732,9 +2766,9 @@ export class FootballService {
 
     return {
       date,
-      fotmobEnabled: this.fotmobService.isEnabled(),
-      fotmobKeyExists: this.fotmobService.hasKey(),
-      fotmobBaseUrl: this.fotmobService.getBaseUrl(),
+      soccerFootballInfoEnabled: this.soccerFootballInfoService.isEnabled(),
+      soccerFootballInfoKeyExists: this.soccerFootballInfoService.hasKey(),
+      soccerFootballInfoBaseUrl: this.soccerFootballInfoService.getBaseUrl(),
       sportScore6Enabled: this.sportScore6Service.isEnabled(),
       sportScore6KeyExists: this.sportScore6Service.hasKey(),
       sportScore6BaseUrl: this.sportScore6Service.getBaseUrl(),
@@ -2756,28 +2790,28 @@ export class FootballService {
         this.apiFootballBlockedUntil?.toISOString() || null,
       liveCacheSeconds: this.liveCacheSeconds(),
       fixturesCacheMinutes: this.fixturesCacheMinutes(),
-      note: "API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem: FlashScore > SportScore6 > FotMob > SportScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData.",
+      note: "API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem: FlashScore > Soccer Football Info > SportScore6 > SportScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData.",
 
       cache: {
         responseLength: cache.length,
         sample: this.compactFixtures(cache.slice(0, 2)),
       },
 
-      fotmob: {
-        ok: fotmob.ok,
-        error: fotmob.error,
-        responseLength: this.filterAllowedLeagues(fotmob.data).length,
+      soccerFootballInfo: {
+        ok: soccerFootballInfo.ok,
+        error: soccerFootballInfo.error,
+        responseLength: this.filterAllowedLeagues(soccerFootballInfo.data).length,
         sample: this.compactFixtures(
-          this.filterAllowedLeagues(fotmob.data).slice(0, 3),
+          this.filterAllowedLeagues(soccerFootballInfo.data).slice(0, 3),
         ),
       },
 
-      fotmobLive: {
-        ok: fotmobLive.ok,
-        error: fotmobLive.error,
-        responseLength: this.filterAllowedLeagues(fotmobLive.data).length,
+      soccerFootballInfoLive: {
+        ok: soccerFootballInfoLive.ok,
+        error: soccerFootballInfoLive.error,
+        responseLength: this.filterAllowedLeagues(soccerFootballInfoLive.data).length,
         sample: this.compactFixtures(
-          this.filterAllowedLeagues(fotmobLive.data).slice(0, 3),
+          this.filterAllowedLeagues(soccerFootballInfoLive.data).slice(0, 3),
         ),
       },
 

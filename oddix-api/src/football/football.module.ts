@@ -12,6 +12,7 @@ import { OddsPapiService } from './oddspapi.service';
 import { SportScoreService } from './sportscore.service';
 import { SportScore6Service } from './sportscore6.service';
 import { FotmobService } from './fotmob.service';
+import { SoccerFootballInfoService } from './soccer-football-info.service';
 
 @Module({
   imports: [PrismaModule],
@@ -21,6 +22,7 @@ import { FotmobService } from './fotmob.service';
   providers: [
     FootballService,
     FotmobService,
+    SoccerFootballInfoService,
 
     SportScoreService,
     SportScore6Service,
@@ -36,6 +38,7 @@ import { FotmobService } from './fotmob.service';
   exports: [
     FootballService,
     FotmobService,
+    SoccerFootballInfoService,
 
     SportScoreService,
     SportScore6Service,
