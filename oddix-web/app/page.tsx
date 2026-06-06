@@ -1,24 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import type { CSSProperties } from "react";
 import { api } from "../services/api";
 
 const VIP_LINK = "https://chat.whatsapp.com/JQuwv77T1b8J6KMlXCEeRb";
 
 type AuthMode = "login" | "register";
+type Plan = "Free" | "Pro" | "Vip";
 
 export default function Home() {
   const [authOpen, setAuthOpen] = useState(false);
   const [mode, setMode] = useState<AuthMode>("register");
-  const [selectedPlan, setSelectedPlan] = useState<"Free" | "Pro" | "Vip">("Free");
+  const [selectedPlan, setSelectedPlan] = useState<Plan>("Free");
   const [loading, setLoading] = useState(false);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("lucas@email.com");
   const [password, setPassword] = useState("123456");
 
-  function openAuth(nextMode: AuthMode, plan: "Free" | "Pro" | "Vip" = "Free") {
+  function openAuth(nextMode: AuthMode, plan: Plan = "Free") {
     setMode(nextMode);
     setSelectedPlan(plan);
     setAuthOpen(true);
@@ -28,10 +28,7 @@ export default function Home() {
     try {
       setLoading(true);
 
-      const response = await api.post("/auth/login", {
-        email,
-        password,
-      });
+      const response = await api.post("/auth/login", { email, password });
 
       localStorage.setItem(
         "token",
@@ -82,88 +79,131 @@ export default function Home() {
   }
 
   return (
-    <main style={styles.page}>
-      <header style={styles.header}>
-        <div style={styles.logoBox}>
-          <img src="/logo-oddix-horizontal.png" alt="ODDIX TIPSTER IA" style={styles.logo} />
-        </div>
+    <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(135deg,#070014,#15072f,#2e1065)] text-white">
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#080414]/85 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center justify-center sm:justify-start">
+            <img
+              src="/logo-oddix-horizontal.png"
+              alt="ODDIX TIPSTER IA"
+              className="h-14 w-auto max-w-[220px] object-contain drop-shadow-[0_0_18px_rgba(124,58,237,.65)] sm:h-16 sm:max-w-[260px]"
+            />
+          </div>
 
-        <nav style={styles.nav}>
-          <button style={styles.navButton} onClick={() => document.getElementById("planos")?.scrollIntoView({ behavior: "smooth" })}>
-            Planos
-          </button>
-          <button style={styles.navButton} onClick={() => document.getElementById("como-funciona")?.scrollIntoView({ behavior: "smooth" })}>
-            Como funciona
-          </button>
-          <button style={styles.loginButton} onClick={() => openAuth("login")}>
-            Entrar
-          </button>
-          <button style={styles.vipButton} onClick={() => openAuth("register", "Vip")}>
-            Quero ser VIP
-          </button>
-        </nav>
+          <nav className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+            <button
+              className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-extrabold text-white"
+              onClick={() =>
+                document
+                  .getElementById("como-funciona")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+            >
+              Como funciona
+            </button>
+
+            <button
+              className="rounded-full border border-white/25 bg-transparent px-4 py-2 text-sm font-black text-white"
+              onClick={() => openAuth("login")}
+            >
+              Entrar
+            </button>
+
+            <button
+              className="rounded-full bg-yellow-400 px-4 py-2 text-sm font-black text-slate-950"
+              onClick={() => openAuth("register", "Vip")}
+            >
+              Quero ser VIP
+            </button>
+          </nav>
+        </div>
       </header>
 
-      <section style={styles.hero}>
-        <div style={styles.heroText}>
-          <span style={styles.kicker}>ODDIX TIPSTER IA</span>
+      <section className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 py-10 sm:px-6 lg:grid-cols-2 lg:px-8 lg:py-20">
+        <div className="flex flex-col gap-5">
+          <span className="text-sm font-black uppercase tracking-[0.2em] text-yellow-400">
+            ODDIX TIPSTER IA
+          </span>
 
-          <h1 style={styles.title}>
+          <h1 className="m-0 text-4xl font-black leading-[1.04] tracking-[-0.04em] sm:text-5xl lg:text-6xl">
             Palpites com IA, odds inteligentes e gestão de banca.
           </h1>
 
-          <p style={styles.subtitle}>
-            Primeiro você conhece a plataforma. Depois decide se quer entrar no Free,
-            Pro ou VIP. O Oddix organiza jogos, mercados, estatísticas e oportunidades
-            em tempo real.
+          <p className="max-w-2xl text-base leading-7 text-violet-100 sm:text-lg">
+            Primeiro você conhece a plataforma. Depois decide se quer entrar no
+            Free, Pro ou VIP. O Oddix organiza jogos, mercados, estatísticas e
+            oportunidades em tempo real.
           </p>
 
-          <div style={styles.heroActions}>
-            <button style={styles.primaryButton} onClick={() => openAuth("register", "Free")}>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              className="rounded-2xl bg-green-500 px-5 py-4 font-black text-green-950 shadow-[0_16px_38px_rgba(34,197,94,.26)]"
+              onClick={() => openAuth("register", "Free")}
+            >
               Entrar grátis no site
             </button>
 
-            <button style={styles.secondaryButton} onClick={() => document.getElementById("planos")?.scrollIntoView({ behavior: "smooth" })}>
+            <button
+              className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4 font-black text-white"
+              onClick={() =>
+                document
+                  .getElementById("planos")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+            >
               Ver planos
             </button>
           </div>
 
-          <div style={styles.heroBadges}>
-            <span>🤖 IA Premium</span>
-            <span>📊 Odds e mercados</span>
-            <span>🔴 Ao vivo</span>
-            <span>💎 Grupo VIP</span>
+          <div className="flex flex-wrap gap-2 text-sm font-bold text-white/90">
+            <span className="rounded-full bg-white/10 px-3 py-2">🤖 IA Premium</span>
+            <span className="rounded-full bg-white/10 px-3 py-2">📊 Odds e mercados</span>
+            <span className="rounded-full bg-white/10 px-3 py-2">🔴 Ao vivo</span>
+            <span className="rounded-full bg-white/10 px-3 py-2">💎 Grupo VIP</span>
           </div>
         </div>
 
-        <div style={styles.heroPreview}>
-          <div style={styles.appTop}>
-            <img src="/logo-oddix-horizontal.png" alt="Oddix" style={styles.previewLogo} />
-            <button style={styles.previewVip}>Assinar VIP</button>
+        <div className="rounded-[2rem] border border-white/15 bg-[linear-gradient(145deg,rgba(17,24,39,.96),rgba(76,29,149,.90))] p-5 shadow-[0_30px_80px_rgba(0,0,0,.45)] lg:rotate-[-1deg]">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <img
+              src="/logo-oddix-horizontal.png"
+              alt="Oddix"
+              className="h-14 w-auto max-w-[170px] object-contain"
+            />
+
+            <button className="rounded-full bg-yellow-400 px-4 py-2 text-sm font-black text-slate-950">
+              Assinar VIP
+            </button>
           </div>
 
-          <div style={styles.previewGrid}>
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <PreviewMetric label="Jogos" value="247" />
             <PreviewMetric label="Ao vivo" value="18" />
             <PreviewMetric label="Tips IA" value="10" />
             <PreviewMetric label="ROI" value="12.6%" />
           </div>
 
-          <div style={styles.previewCard}>
+          <div className="grid grid-cols-1 gap-4 rounded-3xl border border-white/10 bg-white/10 p-4 sm:grid-cols-2">
             <div>
-              <span style={styles.livePill}>🔴 AO VIVO</span>
-              <h3>Palmeiras x Flamengo</h3>
-              <p>Brasileirão Série A • Hoje 21:30</p>
+              <span className="rounded-full bg-red-600 px-3 py-2 text-xs font-black">
+                🔴 AO VIVO
+              </span>
+              <h3 className="mt-4 text-xl font-black">Palmeiras x Flamengo</h3>
+              <p className="text-sm text-violet-100">
+                Brasileirão Série A • Hoje 21:30
+              </p>
             </div>
 
-            <div style={styles.pickBox}>
-              <small>Palpite IA</small>
+            <div className="flex flex-col gap-2 rounded-2xl bg-black/30 p-4">
+              <small className="text-violet-200">Palpite IA</small>
               <strong>Ambas marcam — Sim</strong>
-              <span>Odd 1.72 • Confiança 87%</span>
+              <span className="text-sm text-violet-100">
+                Odd 1.72 • Confiança 87%
+              </span>
             </div>
           </div>
 
-          <div style={styles.playerProps}>
+          <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-purple-400/30 bg-purple-600/20 p-4">
             <strong>PLAYER PROPS</strong>
             <span>James Rodríguez +0.5 chute no gol</span>
             <b>Odd 1.85 • 87%</b>
@@ -171,22 +211,46 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="como-funciona" style={styles.howSection}>
-        <span style={styles.kicker}>COMO FUNCIONA</span>
-        <h2 style={styles.sectionTitle}>Você entra, acompanha os jogos e escolhe o plano certo.</h2>
+      <section id="como-funciona" className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <span className="text-sm font-black uppercase tracking-[0.2em] text-yellow-400">
+          COMO FUNCIONA
+        </span>
 
-        <div style={styles.stepsGrid}>
-          <StepCard icon="1" title="Veja o site primeiro" text="A pessoa entra no Oddix, entende os recursos e vê os jogos disponíveis." />
-          <StepCard icon="2" title="Cria conta grátis" text="No Free ela acompanha jogos, rankings, odds e vitrine da IA." />
-          <StepCard icon="3" title="Assina Pro ou VIP" text="No Pro libera análise. No VIP libera grupo, mentoria e melhores entradas." />
+        <h2 className="mt-3 max-w-4xl text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
+          Você entra, acompanha os jogos e escolhe o plano certo.
+        </h2>
+
+        <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <StepCard
+            icon="1"
+            title="Veja o site primeiro"
+            text="A pessoa entra no Oddix, entende os recursos e vê os jogos disponíveis."
+          />
+
+          <StepCard
+            icon="2"
+            title="Cria conta grátis"
+            text="No Free ela acompanha jogos, rankings, odds e vitrine da IA."
+          />
+
+          <StepCard
+            icon="3"
+            title="Assina Pro ou VIP"
+            text="No Pro libera análise. No VIP libera grupo, mentoria e melhores entradas."
+          />
         </div>
       </section>
 
-      <section id="planos" style={styles.plansSection}>
-        <span style={styles.kicker}>PLANOS ODDIX</span>
-        <h2 style={styles.sectionTitle}>Comece grátis. Evolua quando quiser.</h2>
+      <section id="planos" className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <span className="text-sm font-black uppercase tracking-[0.2em] text-yellow-400">
+          PLANOS ODDIX
+        </span>
 
-        <div style={styles.plansGrid}>
+        <h2 className="mt-3 text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
+          Comece grátis. Evolua quando quiser.
+        </h2>
+
+        <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-3">
           <PlanCard
             name="Free"
             price="R$ 0"
@@ -238,68 +302,134 @@ export default function Home() {
         </div>
       </section>
 
-      <section style={styles.ctaSection}>
+      <section className="mx-4 mt-8 flex max-w-7xl flex-col gap-5 rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#111827,#4c1d95)] p-6 sm:mx-6 lg:mx-auto lg:flex-row lg:items-center lg:justify-between lg:p-9">
         <div>
-          <span style={styles.kicker}>SALA VIP</span>
-          <h2 style={styles.ctaTitle}>Entre no grupo e receba chamadas da IA.</h2>
-          <p style={styles.ctaText}>
-            O VIP é para quem quer análise, melhores palpites, gestão de banca e acompanhamento mais próximo.
+          <span className="text-sm font-black uppercase tracking-[0.2em] text-yellow-400">
+            SALA VIP
+          </span>
+
+          <h2 className="mt-2 text-3xl font-black sm:text-4xl">
+            Entre no grupo e receba chamadas da IA.
+          </h2>
+
+          <p className="mt-3 max-w-3xl text-violet-100">
+            O VIP é para quem quer análise, melhores palpites, gestão de banca e
+            acompanhamento mais próximo.
           </p>
         </div>
 
-        <button style={styles.whatsappButton} onClick={() => window.open(VIP_LINK, "_blank")}>
+        <button
+          className="w-full rounded-2xl bg-green-500 px-6 py-4 font-black text-green-950 lg:w-auto"
+          onClick={() => window.open(VIP_LINK, "_blank")}
+        >
           Entrar no WhatsApp
         </button>
       </section>
 
-      <footer style={styles.footer}>
+      <footer className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-10 text-violet-200 sm:px-6 lg:px-8">
         <strong>ODDIX TIPSTER IA</strong>
-        <span>Jogue com responsabilidade. O Oddix trabalha com análise e gestão, não promessa de lucro garantido.</span>
+        <span>
+          Jogue com responsabilidade. O Oddix trabalha com análise e gestão, não
+          promessa de lucro garantido.
+        </span>
       </footer>
 
       {authOpen && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.authBox}>
-            <button style={styles.closeButton} onClick={() => setAuthOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="relative flex w-full max-w-lg flex-col gap-3 rounded-[2rem] border border-white/15 bg-[linear-gradient(145deg,#111827,#2e1065)] p-6 shadow-[0_30px_90px_rgba(0,0,0,.55)]">
+            <button
+              className="absolute right-4 top-4 h-10 w-10 rounded-full bg-white/10 text-2xl text-white"
+              onClick={() => setAuthOpen(false)}
+            >
               ×
             </button>
 
-            <img src="/logo-oddix-square.png" alt="Oddix" style={styles.authLogo} />
+            <img
+              src="/logo-oddix-square.png"
+              alt="Oddix"
+              className="mx-auto h-28 w-36 object-contain"
+            />
 
-            <h2>{mode === "login" ? "Entrar no Oddix" : `Criar conta ${selectedPlan}`}</h2>
-            <p style={styles.authSubtitle}>
+            <h2 className="text-2xl font-black">
+              {mode === "login" ? "Entrar no Oddix" : `Criar conta ${selectedPlan}`}
+            </h2>
+
+            <p className="text-violet-100">
               {mode === "login"
                 ? "Acesse sua conta e continue acompanhando os jogos."
                 : "Você pode começar no Free e mudar para Pro ou VIP depois."}
             </p>
 
-            <div style={styles.authTabs}>
-              <button style={mode === "login" ? styles.authTabActive : styles.authTab} onClick={() => setMode("login")}>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                className={
+                  mode === "login"
+                    ? "rounded-2xl bg-purple-600 p-3 font-black text-white"
+                    : "rounded-2xl border border-white/10 bg-white/10 p-3 font-extrabold text-white"
+                }
+                onClick={() => setMode("login")}
+              >
                 Entrar
               </button>
-              <button style={mode === "register" ? styles.authTabActive : styles.authTab} onClick={() => setMode("register")}>
+
+              <button
+                className={
+                  mode === "register"
+                    ? "rounded-2xl bg-purple-600 p-3 font-black text-white"
+                    : "rounded-2xl border border-white/10 bg-white/10 p-3 font-extrabold text-white"
+                }
+                onClick={() => setMode("register")}
+              >
                 Criar conta
               </button>
             </div>
 
             {mode === "register" && (
-              <input style={styles.input} placeholder="Seu nome" value={name} onChange={(e) => setName(e.target.value)} />
+              <input
+                className="w-full rounded-2xl border border-white/15 bg-black/35 p-4 text-white outline-none"
+                placeholder="Seu nome"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
             )}
 
-            <input style={styles.input} placeholder="Seu email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input
+              className="w-full rounded-2xl border border-white/15 bg-black/35 p-4 text-white outline-none"
+              placeholder="Seu email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
 
-            <input style={styles.input} placeholder="Sua senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <input
+              className="w-full rounded-2xl border border-white/15 bg-black/35 p-4 text-white outline-none"
+              placeholder="Sua senha"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
 
             {mode === "register" && (
-              <select style={styles.input} value={selectedPlan} onChange={(e) => setSelectedPlan(e.target.value as any)}>
+              <select
+                className="w-full rounded-2xl border border-white/15 bg-black/35 p-4 text-white outline-none"
+                value={selectedPlan}
+                onChange={(e) => setSelectedPlan(e.target.value as Plan)}
+              >
                 <option value="Free">Free — não vê análise completa</option>
                 <option value="Pro">Pro — vê análise</option>
                 <option value="Vip">VIP — análise + grupo + mentoria</option>
               </select>
             )}
 
-            <button style={styles.authButton} disabled={loading} onClick={mode === "login" ? handleLogin : handleRegister}>
-              {loading ? "Carregando..." : mode === "login" ? "Entrar" : "Criar minha conta"}
+            <button
+              className="w-full rounded-2xl bg-green-500 p-4 font-black text-green-950"
+              disabled={loading}
+              onClick={mode === "login" ? handleLogin : handleRegister}
+            >
+              {loading
+                ? "Carregando..."
+                : mode === "login"
+                  ? "Entrar"
+                  : "Criar minha conta"}
             </button>
           </div>
         </div>
@@ -310,19 +440,30 @@ export default function Home() {
 
 function PreviewMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div style={styles.previewMetric}>
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <div className="flex flex-col gap-1 rounded-2xl border border-white/10 bg-white/10 p-3">
+      <span className="text-xs text-violet-100">{label}</span>
+      <strong className="text-xl">{value}</strong>
     </div>
   );
 }
 
-function StepCard({ icon, title, text }: { icon: string; title: string; text: string }) {
+function StepCard({
+  icon,
+  title,
+  text,
+}: {
+  icon: string;
+  title: string;
+  text: string;
+}) {
   return (
-    <div style={styles.stepCard}>
-      <span style={styles.stepIcon}>{icon}</span>
-      <h3>{title}</h3>
-      <p>{text}</p>
+    <div className="rounded-[1.7rem] border border-white/10 bg-white/10 p-6">
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-600 text-xl font-black">
+        {icon}
+      </span>
+
+      <h3 className="mt-5 text-2xl font-black">{title}</h3>
+      <p className="mt-3 text-lg leading-7 text-violet-100">{text}</p>
     </div>
   );
 }
@@ -346,468 +487,36 @@ function PlanCard({
   featured?: boolean;
   vip?: boolean;
 }) {
-  return (
-    <div style={vip ? styles.planVip : featured ? styles.planFeatured : styles.planCard}>
-      <span style={styles.planName}>{name}</span>
-      <strong style={styles.planPrice}>{price}</strong>
-      <p style={styles.planDescription}>{description}</p>
+  const cardClass = vip
+    ? "rounded-[1.8rem] border border-yellow-300/40 bg-[linear-gradient(145deg,rgba(250,204,21,.18),rgba(76,29,149,.86))] p-6 shadow-[0_20px_55px_rgba(250,204,21,.16)]"
+    : featured
+      ? "rounded-[1.8rem] border border-purple-400/40 bg-[linear-gradient(145deg,rgba(124,58,237,.52),rgba(17,24,39,.88))] p-6 shadow-[0_20px_55px_rgba(124,58,237,.24)]"
+      : "rounded-[1.8rem] border border-white/10 bg-white/10 p-6";
 
-      <div style={styles.features}>
+  return (
+    <div className={`${cardClass} flex min-h-full flex-col gap-4`}>
+      <span className="text-sm font-black text-yellow-400">{name}</span>
+
+      <strong className="text-4xl font-black">{price}</strong>
+
+      <p className="text-violet-100">{description}</p>
+
+      <div className="flex flex-col gap-3 text-sm leading-6 text-slate-50 sm:text-base">
         {features.map((feature) => (
           <span key={feature}>✅ {feature}</span>
         ))}
       </div>
 
-      <button style={vip ? styles.planButtonVip : styles.planButton} onClick={onClick}>
+      <button
+        className={
+          vip
+            ? "mt-auto rounded-2xl bg-green-500 px-5 py-4 font-black text-green-950"
+            : "mt-auto rounded-2xl bg-white px-5 py-4 font-black text-slate-950"
+        }
+        onClick={onClick}
+      >
         {button}
       </button>
     </div>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "linear-gradient(135deg,#070014,#15072f,#2e1065)",
-    color: "#fff",
-    fontFamily: "Arial, sans-serif",
-  },
-  header: {
-    height: 96,
-    padding: "14px 30px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 18,
-    position: "sticky",
-    top: 0,
-    zIndex: 20,
-    background: "rgba(8,4,20,.78)",
-    backdropFilter: "blur(18px)",
-    borderBottom: "1px solid rgba(255,255,255,.08)",
-  },
-  logoBox: {
-    width: 330,
-    height: 74,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logo: {
-    width: "100%",
-    height: "100%",
-    objectFit: "contain",
-    filter: "drop-shadow(0 0 18px rgba(124,58,237,.60))",
-  },
-  nav: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-  },
-  navButton: {
-    background: "rgba(255,255,255,.08)",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,.13)",
-    borderRadius: 999,
-    padding: "11px 15px",
-    cursor: "pointer",
-    fontWeight: 800,
-  },
-  loginButton: {
-    background: "transparent",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,.25)",
-    borderRadius: 999,
-    padding: "11px 18px",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  vipButton: {
-    background: "#facc15",
-    color: "#111827",
-    border: 0,
-    borderRadius: 999,
-    padding: "12px 19px",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  hero: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 34,
-    alignItems: "center",
-    padding: "70px 34px 50px",
-    maxWidth: 1380,
-    margin: "0 auto",
-  },
-  heroText: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 18,
-  },
-  kicker: {
-    color: "#facc15",
-    fontWeight: 900,
-    letterSpacing: 1.3,
-    fontSize: 13,
-    textTransform: "uppercase",
-  },
-  title: {
-    margin: 0,
-    fontSize: 58,
-    lineHeight: 1.02,
-    letterSpacing: -2,
-  },
-  subtitle: {
-    margin: 0,
-    color: "#ddd6fe",
-    fontSize: 18,
-    lineHeight: 1.6,
-    maxWidth: 720,
-  },
-  heroActions: {
-    display: "flex",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  primaryButton: {
-    background: "#22c55e",
-    color: "#052e16",
-    border: 0,
-    borderRadius: 16,
-    padding: "15px 20px",
-    fontWeight: 900,
-    cursor: "pointer",
-    boxShadow: "0 16px 38px rgba(34,197,94,.26)",
-  },
-  secondaryButton: {
-    background: "rgba(255,255,255,.09)",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,.16)",
-    borderRadius: 16,
-    padding: "15px 20px",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  heroBadges: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  heroPreview: {
-    background: "linear-gradient(145deg,rgba(17,24,39,.96),rgba(76,29,149,.90))",
-    border: "1px solid rgba(255,255,255,.13)",
-    borderRadius: 34,
-    padding: 22,
-    boxShadow: "0 30px 80px rgba(0,0,0,.45)",
-    transform: "rotate(-1deg)",
-  },
-  appTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 14,
-    marginBottom: 18,
-  },
-  previewLogo: {
-    width: 190,
-    height: 62,
-    objectFit: "contain",
-  },
-  previewVip: {
-    background: "#facc15",
-    color: "#111827",
-    border: 0,
-    borderRadius: 999,
-    padding: "10px 14px",
-    fontWeight: 900,
-  },
-  previewGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4,1fr)",
-    gap: 10,
-    marginBottom: 16,
-  },
-  previewMetric: {
-    background: "rgba(255,255,255,.08)",
-    border: "1px solid rgba(255,255,255,.10)",
-    borderRadius: 16,
-    padding: 12,
-    display: "flex",
-    flexDirection: "column",
-    gap: 5,
-  },
-  previewCard: {
-    background: "rgba(255,255,255,.08)",
-    border: "1px solid rgba(255,255,255,.12)",
-    borderRadius: 22,
-    padding: 18,
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 14,
-  },
-  livePill: {
-    background: "#dc2626",
-    color: "#fff",
-    borderRadius: 999,
-    padding: "7px 10px",
-    fontSize: 12,
-    fontWeight: 900,
-  },
-  pickBox: {
-    background: "rgba(0,0,0,.28)",
-    borderRadius: 18,
-    padding: 14,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  playerProps: {
-    marginTop: 14,
-    background: "rgba(124,58,237,.22)",
-    border: "1px solid rgba(168,85,247,.30)",
-    borderRadius: 18,
-    padding: 15,
-    display: "flex",
-    flexDirection: "column",
-    gap: 7,
-  },
-  howSection: {
-    maxWidth: 1280,
-    margin: "0 auto",
-    padding: "45px 34px",
-  },
-  sectionTitle: {
-    fontSize: 38,
-    margin: "10px 0 24px",
-  },
-  stepsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3,1fr)",
-    gap: 18,
-  },
-  stepCard: {
-    background: "rgba(255,255,255,.08)",
-    border: "1px solid rgba(255,255,255,.12)",
-    borderRadius: 24,
-    padding: 22,
-  },
-  stepIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 15,
-    background: "#7c3aed",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: 900,
-  },
-  plansSection: {
-    maxWidth: 1280,
-    margin: "0 auto",
-    padding: "45px 34px",
-  },
-  plansGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3,1fr)",
-    gap: 18,
-  },
-  planCard: {
-    background: "rgba(255,255,255,.08)",
-    border: "1px solid rgba(255,255,255,.12)",
-    borderRadius: 26,
-    padding: 24,
-    display: "flex",
-    flexDirection: "column",
-    gap: 13,
-  },
-  planFeatured: {
-    background: "linear-gradient(145deg,rgba(124,58,237,.52),rgba(17,24,39,.88))",
-    border: "1px solid rgba(168,85,247,.40)",
-    borderRadius: 26,
-    padding: 24,
-    display: "flex",
-    flexDirection: "column",
-    gap: 13,
-    boxShadow: "0 20px 55px rgba(124,58,237,.24)",
-  },
-  planVip: {
-    background: "linear-gradient(145deg,rgba(250,204,21,.18),rgba(76,29,149,.86))",
-    border: "1px solid rgba(250,204,21,.40)",
-    borderRadius: 26,
-    padding: 24,
-    display: "flex",
-    flexDirection: "column",
-    gap: 13,
-    boxShadow: "0 20px 55px rgba(250,204,21,.16)",
-  },
-  planName: {
-    color: "#facc15",
-    fontWeight: 900,
-    fontSize: 15,
-  },
-  planPrice: {
-    fontSize: 36,
-  },
-  planDescription: {
-    color: "#ddd6fe",
-    margin: 0,
-  },
-  features: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 9,
-    color: "#f8fafc",
-    lineHeight: 1.45,
-    minHeight: 190,
-  },
-  planButton: {
-    background: "#fff",
-    color: "#111827",
-    border: 0,
-    borderRadius: 16,
-    padding: "14px 16px",
-    fontWeight: 900,
-    cursor: "pointer",
-    marginTop: "auto",
-  },
-  planButtonVip: {
-    background: "#22c55e",
-    color: "#052e16",
-    border: 0,
-    borderRadius: 16,
-    padding: "14px 16px",
-    fontWeight: 900,
-    cursor: "pointer",
-    marginTop: "auto",
-  },
-  ctaSection: {
-    maxWidth: 1280,
-    margin: "30px auto 0",
-    padding: "34px",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 20,
-    background: "linear-gradient(135deg,#111827,#4c1d95)",
-    borderRadius: 30,
-    border: "1px solid rgba(255,255,255,.12)",
-  },
-  ctaTitle: {
-    fontSize: 34,
-    margin: "8px 0",
-  },
-  ctaText: {
-    color: "#ddd6fe",
-    margin: 0,
-  },
-  whatsappButton: {
-    background: "#22c55e",
-    color: "#052e16",
-    border: 0,
-    borderRadius: 18,
-    padding: "16px 22px",
-    fontWeight: 900,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  },
-  footer: {
-    maxWidth: 1280,
-    margin: "0 auto",
-    padding: "34px",
-    display: "flex",
-    gap: 14,
-    flexWrap: "wrap",
-    color: "#c4b5fd",
-  },
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,.72)",
-    zIndex: 100,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  authBox: {
-    position: "relative",
-    width: "100%",
-    maxWidth: 480,
-    background: "linear-gradient(145deg,#111827,#2e1065)",
-    border: "1px solid rgba(255,255,255,.14)",
-    borderRadius: 30,
-    padding: 28,
-    boxShadow: "0 30px 90px rgba(0,0,0,.55)",
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-  closeButton: {
-    position: "absolute",
-    top: 14,
-    right: 14,
-    width: 38,
-    height: 38,
-    borderRadius: 999,
-    border: 0,
-    background: "rgba(255,255,255,.10)",
-    color: "#fff",
-    cursor: "pointer",
-    fontSize: 22,
-  },
-  authLogo: {
-    width: 150,
-    height: 110,
-    objectFit: "contain",
-    alignSelf: "center",
-  },
-  authSubtitle: {
-    color: "#ddd6fe",
-    marginTop: -8,
-  },
-  authTabs: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 8,
-  },
-  authTab: {
-    background: "rgba(255,255,255,.08)",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,.12)",
-    borderRadius: 14,
-    padding: 12,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  authTabActive: {
-    background: "#7c3aed",
-    color: "#fff",
-    border: 0,
-    borderRadius: 14,
-    padding: 12,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  input: {
-    width: "100%",
-    background: "rgba(0,0,0,.35)",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,.16)",
-    borderRadius: 15,
-    padding: 15,
-    outline: "none",
-  },
-  authButton: {
-    width: "100%",
-    background: "#22c55e",
-    color: "#052e16",
-    border: 0,
-    borderRadius: 15,
-    padding: 15,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-};
