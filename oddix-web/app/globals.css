@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   --oddix-bg: #02020a;
   --oddix-card: #090817;
