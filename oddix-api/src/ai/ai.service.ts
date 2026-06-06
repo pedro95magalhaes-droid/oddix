@@ -2474,52 +2474,114 @@ Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou 
   }
 
   async generateBestMultipleFromGames(games: any[]) {
+    const inputGames = Array.isArray(games) ? games : [];
+
+    if (!inputGames.length) {
+      return {
+        status: "NO_BET",
+        message: "Nenhum jogo foi enviado para montar múltipla.",
+        checkedGames: 0,
+        approvedSelections: 0,
+        conservative: null,
+        moderate: null,
+        aggressive: null,
+        bestTelegramPick: null,
+      };
+    }
+
     const bets = await Promise.all(
-      (games || []).map((game) => this.generateBet(game)),
+      inputGames.map(async (game) => {
+        try {
+          return await this.generateBet(game);
+        } catch (error: any) {
+          return {
+            status: "NO_BET",
+            homeTeam: game?.homeTeam || game?.teams?.home?.name || "Time Casa",
+            awayTeam: game?.awayTeam || game?.teams?.away?.name || "Time Visitante",
+            league: game?.leagueName || game?.league?.name || game?.league || "Liga",
+            tip: "SEM ENTRADA",
+            odd: 0,
+            confidence: 0,
+            risk: "Alto" as RiskLevel,
+            markets: [],
+            error: error?.message || "Erro ao gerar análise da partida",
+          };
+        }
+      }),
+    );
+
+    const multipleMinConfidence = Number(
+      process.env.ODDIX_MULTIPLE_MIN_CONFIDENCE || 70,
+    );
+    const multipleMaxOdd = Number(process.env.ODDIX_MULTIPLE_MAX_ODD || 2.1);
+    const minimumSelections = Number(
+      process.env.ODDIX_MULTIPLE_MIN_SELECTIONS || 2,
     );
 
     const generated = bets
       .filter(Boolean)
+      .filter((bet: any) => bet.status !== "NO_BET")
+      .filter((bet: any) => bet.tip !== "SEM ENTRADA")
       .map((bet: any) => {
         const bestMarket = Array.isArray(bet.markets)
           ? bet.markets.find(
               (m: any) =>
+                m &&
                 m.risk !== "Alto" &&
-                Number(m.confidence) >= 70 &&
-                Number(m.odd) <= 2.1 &&
+                Number(m.confidence || 0) >= multipleMinConfidence &&
+                Number(m.odd || 0) > 1 &&
+                Number(m.odd || 0) <= multipleMaxOdd &&
                 !this.isConditionalTip(m.tip),
-            ) || bet.markets[0]
+            )
           : null;
+
+        const selectedMarket = bestMarket || null;
+
+        if (!selectedMarket) return null;
+
+        const tip = this.sanitizeTip(
+          selectedMarket.tip || bet.tip,
+          bet.homeTeam,
+          bet.awayTeam,
+          {
+            isLive: false,
+            goalTrend: 60,
+            favorite: bet.homeTeam,
+            totalGoals: 0,
+          },
+        );
 
         return {
           game: `${bet.homeTeam} x ${bet.awayTeam}`,
           league: bet.league,
-          market: bestMarket?.market || "Melhor entrada",
-          tip: this.sanitizeTip(
-            bestMarket?.tip || bet.tip,
-            bet.homeTeam,
-            bet.awayTeam,
-            {
-              isLive: false,
-              goalTrend: 60,
-              favorite: bet.homeTeam,
-              totalGoals: 0,
-            },
-          ),
-          odd: Number(bestMarket?.odd || bet.odd || 1),
-          confidence: Number(bestMarket?.confidence || bet.confidence || 0),
-          risk: bestMarket?.risk || bet.risk || "Médio",
+          market: selectedMarket.market || "Melhor entrada",
+          tip,
+          odd: Number(selectedMarket.odd || 0),
+          confidence: Number(selectedMarket.confidence || 0),
+          risk: selectedMarket.risk || "Médio",
+          engineScore: Number(bet.engineScore || bet.confidence || 0),
+          engineLevel: bet.engineLevel || "BOM",
+          source: selectedMarket.oddsSource || bet.sources?.odds || "oddix",
         };
       })
+      .filter(Boolean)
       .filter((item: any) => item.tip && item.odd > 1)
       .filter((item: any) => item.risk !== "Alto")
-      .filter((item: any) => item.confidence >= 70)
-      .filter((item: any) => item.odd <= 2.1)
+      .filter((item: any) => item.confidence >= multipleMinConfidence)
+      .filter((item: any) => item.odd <= multipleMaxOdd)
       .filter((item: any) => !this.isConditionalTip(item.tip))
       .sort((a: any, b: any) => {
         const riskScore: any = { Baixo: 18, Médio: 7, Alto: -30 };
-        const scoreA = a.confidence + riskScore[a.risk] + a.odd * 1.5;
-        const scoreB = b.confidence + riskScore[b.risk] + b.odd * 1.5;
+        const scoreA =
+          Number(a.confidence || 0) +
+          Number(a.engineScore || 0) * 0.15 +
+          riskScore[a.risk] +
+          Number(a.odd || 0) * 1.5;
+        const scoreB =
+          Number(b.confidence || 0) +
+          Number(b.engineScore || 0) * 0.15 +
+          riskScore[b.risk] +
+          Number(b.odd || 0) * 1.5;
         return scoreB - scoreA;
       });
 
@@ -2527,7 +2589,11 @@ Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou 
     const used = new Set<string>();
 
     for (const item of generated) {
-      const key = item.game.toLowerCase();
+      if (!item) continue;
+
+      const key = String(item.game || "").toLowerCase();
+      if (!key) continue;
+
       if (!used.has(key)) {
         used.add(key);
         uniqueGames.push(item);
@@ -2536,9 +2602,30 @@ Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou 
       if (uniqueGames.length >= 4) break;
     }
 
+    if (uniqueGames.length < minimumSelections) {
+      const noBetTotal = bets.filter((bet: any) => bet?.status === "NO_BET").length;
+
+      return {
+        status: "NO_BET",
+        message: "Sem múltipla segura disponível no momento.",
+        checkedGames: bets.length,
+        approvedSelections: uniqueGames.length,
+        rejectedGames: Math.max(0, bets.length - uniqueGames.length),
+        noBetGames: noBetTotal,
+        reason:
+          uniqueGames.length === 0
+            ? "Nenhum jogo atingiu o corte mínimo de confiança/odd/risco do Oddix V4."
+            : `Apenas ${uniqueGames.length} seleção aprovada. Múltipla exige no mínimo ${minimumSelections} seleções.`,
+        conservative: null,
+        moderate: null,
+        aggressive: null,
+        bestTelegramPick: null,
+      };
+    }
+
     const conservative = uniqueGames.slice(0, 2);
-    const moderate = uniqueGames.slice(0, 3);
-    const aggressive = uniqueGames.slice(0, 4);
+    const moderate = uniqueGames.slice(0, Math.min(3, uniqueGames.length));
+    const aggressive = uniqueGames.slice(0, Math.min(4, uniqueGames.length));
 
     const build = (
       name: string,
@@ -2546,19 +2633,19 @@ Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou 
       risk: RiskLevel,
       stake: string,
     ) => {
+      if (selections.length < minimumSelections) return null;
+
       const combinedOdd = selections.reduce(
         (acc, item) => acc * Number(item.odd || 1),
         1,
       );
 
-      const avgConfidence = selections.length
-        ? Math.round(
-            selections.reduce(
-              (acc, item) => acc + Number(item.confidence || 0),
-              0,
-            ) / selections.length,
-          )
-        : 0;
+      const avgConfidence = Math.round(
+        selections.reduce(
+          (acc, item) => acc + Number(item.confidence || 0),
+          0,
+        ) / selections.length,
+      );
 
       return {
         name,
@@ -2577,6 +2664,10 @@ Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou 
     };
 
     const result = {
+      status: "OK",
+      message: "Múltipla segura encontrada pelo Oddix V4.",
+      checkedGames: bets.length,
+      approvedSelections: uniqueGames.length,
       conservative: build(
         "Múltipla Conservadora do Dia",
         conservative,
@@ -2600,11 +2691,6 @@ Risco baixo: stake padrão. Risco médio: stake reduzida. Risco alto: evitar ou 
     return {
       ...result,
       bestTelegramPick:
-        result.conservative.selections.length >= 2
-          ? result.conservative
-          : result.moderate.selections.length >= 2
-            ? result.moderate
-            : null,
+        result.conservative || result.moderate || result.aggressive || null,
     };
-  }
-}
+  }}
