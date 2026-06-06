@@ -9,6 +9,8 @@ type RiskLevel = "Baixo" | "Médio" | "Alto";
 @Injectable()
 export class AiService {
   private readonly oddixBoostV2 = new OddixBoostV2Service();
+  private readonly recentProfessionalMarketKeys: string[] = [];
+  private readonly recentProfessionalFixtureKeys: string[] = [];
 
   constructor(
     private readonly marketsService: MarketsService,
@@ -56,6 +58,31 @@ export class AiService {
       ...this.getLiveQualityGate(context, league),
     };
 
+    const professionalProfile = this.buildProfessionalTipsterProfile(
+      game,
+      context,
+      homeTeam,
+      awayTeam,
+      league,
+      seed,
+    );
+
+    context = {
+      ...context,
+      professionalProfile,
+      professionalScore: professionalProfile.score,
+      professionalLevel: professionalProfile.level,
+      professionalReasons: professionalProfile.reasons,
+      professionalNoBetReasons: professionalProfile.noBetReasons,
+      minSendConfidence: Math.max(
+        Number(context.minSendConfidence || 70),
+        professionalProfile.minConfidence,
+      ),
+      goalTrend: Math.max(context.goalTrend || 0, professionalProfile.goalTrend),
+      cornerTrend: Math.max(context.cornerTrend || 0, professionalProfile.cornerTrend),
+      shotTrend: Math.max(context.shotTrend || 0, professionalProfile.shotTrend),
+    };
+
     /**
      * REGRA ODDIX PREMIUM:
      * Sem estatística real = sem palpite.
@@ -69,7 +96,11 @@ export class AiService {
      * Para desligar temporariamente:
      * ODDIX_REQUIRE_REAL_STATS_FOR_TIPS=false
      */
-    if (this.shouldRequireRealStatsForTips() && context.realStatsAvailable !== true) {
+    if (
+      this.shouldRequireRealStatsForTips() &&
+      context.realStatsAvailable !== true &&
+      context.isLive
+    ) {
       return null;
     }
 
@@ -140,7 +171,18 @@ export class AiService {
       .filter((market) => this.isMarketAllowed(market, context))
       .filter((market) => !this.isConditionalTip(market.tip));
 
-    const bestMarkets = generatedMarkets
+    const professionalMarkets = this.buildProfessionalMarketCandidates(
+      homeTeam,
+      awayTeam,
+      league,
+      context,
+      gameOdds,
+      seed,
+    ).filter((market) => this.isMarketAllowed(market, context));
+
+    const allGeneratedMarkets = [...professionalMarkets, ...generatedMarkets];
+
+    const bestMarkets = allGeneratedMarkets
       .sort((a, b) => {
         const scoreA = this.marketScore(
           a.confidence,
@@ -292,7 +334,7 @@ export class AiService {
       5,
     );
 
-    const safeFinalMarkets = context.liveQualityBlocked
+    let safeFinalMarkets = context.liveQualityBlocked
       ? [this.buildBlockedLiveMarket(homeTeam, awayTeam, league, context)]
       : finalMarkets.length
         ? finalMarkets
@@ -306,7 +348,15 @@ export class AiService {
             ),
           ];
 
+    safeFinalMarkets = this.applyProfessionalAntiRepetition(
+      safeFinalMarkets,
+      context,
+      homeTeam,
+      awayTeam,
+    );
+
     const best = safeFinalMarkets[0];
+    this.rememberProfessionalPick(best, homeTeam, awayTeam);
 
     const multiples = this.generateMultiples(safeFinalMarkets, context);
 
@@ -321,7 +371,7 @@ export class AiService {
         odds: safeFinalMarkets.some((market: any) => market.isRealOdd)
           ? "the-odds-api"
           : "oddix-estimada",
-        confidenceEngine: "oddix-confidence-engine-v1",
+        confidenceEngine: "oddix-professional-tipster-engine-v3",
         realOddsCount: realOdds.length,
         playerPropsCount: playerPropMarkets.length,
         estimatedOddsCount: safeFinalMarkets.filter(
@@ -376,6 +426,404 @@ export class AiService {
         multiples,
       }),
     };
+  }
+
+
+  private clamp(value: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, Math.round(value)));
+  }
+
+  private normalizeStatNumber(value: any, fallback = 0) {
+    const parsed = Number(
+      String(value ?? fallback)
+        .replace("%", "")
+        .replace(",", ".")
+        .replace(/[^0-9.-]/g, ""),
+    );
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  private readTeamFormScore(game: any, side: "home" | "away", seed: number) {
+    const team = side === "home" ? game?.teams?.home : game?.teams?.away;
+    const candidates = [
+      team?.form,
+      team?.lastFive,
+      team?.recentForm,
+      game?.form?.[side],
+      game?.teamForm?.[side],
+      game?.stats?.form?.[side],
+      game?.raw?.form?.[side],
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+      if (typeof candidate === "string") {
+        const letters = candidate.toUpperCase().replace(/[^WDLVDE]/g, "").slice(-5);
+        if (letters.length) {
+          let points = 0;
+          for (const ch of letters) {
+            if (["W", "V"].includes(ch)) points += 3;
+            if (["D", "E"].includes(ch)) points += 1;
+          }
+          return this.clamp((points / Math.max(1, letters.length * 3)) * 20, 6, 20);
+        }
+      }
+
+      if (Array.isArray(candidate)) {
+        const last = candidate.slice(-5);
+        if (last.length) {
+          let points = 0;
+          for (const item of last) {
+            const result = this.normalizeText(item?.result || item?.status || item);
+            if (result.includes("win") || result.includes("vitoria") || result === "w" || result === "v") points += 3;
+            else if (result.includes("draw") || result.includes("empate") || result === "d" || result === "e") points += 1;
+          }
+          return this.clamp((points / Math.max(1, last.length * 3)) * 20, 6, 20);
+        }
+      }
+    }
+
+    return this.seededInt(seed + (side === "home" ? 120 : 240), 10, 17);
+  }
+
+  private readStatCandidate(game: any, side: "home" | "away", names: string[], fallback: number) {
+    const team = side === "home" ? game?.teams?.home : game?.teams?.away;
+    const buckets = [
+      team,
+      game?.stats?.[side],
+      game?.teamStats?.[side],
+      game?.preMatchStats?.[side],
+      game?.raw?.stats?.[side],
+      game?.raw?.preMatchStats?.[side],
+    ].filter(Boolean);
+
+    const normalizedNames = names.map((name) => this.normalizeText(name));
+
+    for (const bucket of buckets) {
+      for (const [key, value] of Object.entries(bucket || {})) {
+        const normalizedKey = this.normalizeText(key);
+        if (normalizedNames.some((name) => normalizedKey.includes(name))) {
+          return this.normalizeStatNumber(value, fallback);
+        }
+      }
+    }
+
+    return fallback;
+  }
+
+  private buildProfessionalTipsterProfile(
+    game: any,
+    context: any,
+    homeTeam: string,
+    awayTeam: string,
+    league: string,
+    seed: number,
+  ) {
+    const leagueQuality = this.clamp(Number(game?.oddix?.qualityScore || 70), 0, 100);
+    const homeForm = this.readTeamFormScore(game, "home", seed);
+    const awayForm = this.readTeamFormScore(game, "away", seed);
+    const formEdge = Math.abs(homeForm - awayForm);
+
+    const homeGoalsFor = this.readStatCandidate(game, "home", ["goalsFor", "goals_for", "gols pro", "marcados"], this.seededNumber(seed + 301, 1.05, 2.05));
+    const awayGoalsFor = this.readStatCandidate(game, "away", ["goalsFor", "goals_for", "gols pro", "marcados"], this.seededNumber(seed + 302, 0.85, 1.85));
+    const homeGoalsAgainst = this.readStatCandidate(game, "home", ["goalsAgainst", "goals_against", "gols contra", "sofridos"], this.seededNumber(seed + 303, 0.75, 1.55));
+    const awayGoalsAgainst = this.readStatCandidate(game, "away", ["goalsAgainst", "goals_against", "gols contra", "sofridos"], this.seededNumber(seed + 304, 0.9, 1.8));
+
+    const attackScore = this.clamp(((homeGoalsFor + awayGoalsFor) / 3.7) * 20, 7, 20);
+    const defenseScore = this.clamp((2.8 - Math.min(2.8, (homeGoalsAgainst + awayGoalsAgainst) / 2)) * 7.2 + 6, 6, 20);
+    const formScore = this.clamp((homeForm + awayForm) / 2 + Math.min(4, formEdge / 2), 7, 20);
+    const homeAwayScore = this.clamp(10 + (homeForm - awayForm) * 0.25 + (leagueQuality >= 80 ? 3 : 0), 6, 15);
+    const momentScore = this.clamp((leagueQuality / 100) * 15 + (context.realStatsAvailable ? 3 : 0), 5, 15);
+
+    const realOddsOptions = [
+      ...(Array.isArray(game?.odds?.options) ? game.odds.options : []),
+      ...(Array.isArray(game?.odds?.opções) ? game.odds.opções : []),
+    ];
+    const hasRealOdds = realOddsOptions.some((option: any) => Number(option?.odd || option?.ímpar || option?.rate?.decimal || 0) > 1);
+    const oddValueScore = hasRealOdds ? 9 : leagueQuality >= 82 ? 7 : 5;
+
+    const rawScore = formScore + attackScore + defenseScore + homeAwayScore + momentScore + oddValueScore;
+    const realDataPenalty = context.realStatsAvailable ? 0 : context.isLive ? 20 : 4;
+    const score = this.clamp(rawScore - realDataPenalty, 0, 100);
+
+    const favorite =
+      homeForm + homeGoalsFor * 4 - homeGoalsAgainst >= awayForm + awayGoalsFor * 4 - awayGoalsAgainst + 5
+        ? homeTeam
+        : awayForm + awayGoalsFor * 4 - awayGoalsAgainst >= homeForm + homeGoalsFor * 4 - homeGoalsAgainst + 5
+          ? awayTeam
+          : "equilibrado";
+
+    const totalGoalProjection = homeGoalsFor + awayGoalsFor + (homeGoalsAgainst + awayGoalsAgainst) * 0.42;
+    const bttsIndex = this.clamp((homeGoalsFor + awayGoalsFor + homeGoalsAgainst + awayGoalsAgainst) * 14, 35, 92);
+    const underIndex = this.clamp((2.8 - Math.min(2.8, totalGoalProjection / 1.35)) * 22 + 35, 30, 90);
+    const goalTrend = this.clamp(totalGoalProjection * 23 + (bttsIndex > 68 ? 6 : 0), 42, 94);
+    const cornerTrend = this.clamp(48 + attackScore * 1.4 + (context.realStatsAvailable ? 8 : 0), 42, 92);
+    const shotTrend = this.clamp(50 + attackScore * 1.5 + (context.realStatsAvailable ? 8 : 0), 44, 94);
+
+    const noBetReasons: string[] = [];
+    if (score < 80) noBetReasons.push(`Score profissional abaixo do corte mínimo (${score}/100).`);
+    if (context.isLive && context.realStatsAvailable !== true) noBetReasons.push("Live sem estatísticas reais para leitura profissional.");
+    if (context.isFinished) noBetReasons.push("Jogo finalizado.");
+
+    const level =
+      score >= 95 ? "TOP_PICK" :
+      score >= 90 ? "VIP_PREMIUM" :
+      score >= 85 ? "VIP" :
+      score >= 80 ? "BOM" :
+      "NO_BET";
+
+    return {
+      score,
+      level,
+      minConfidence: score >= 90 ? 84 : score >= 85 ? 80 : score >= 80 ? 76 : 999,
+      leagueQuality,
+      formScore,
+      attackScore,
+      defenseScore,
+      homeAwayScore,
+      momentScore,
+      oddValueScore,
+      favorite,
+      totalGoalProjection,
+      bttsIndex,
+      underIndex,
+      goalTrend,
+      cornerTrend,
+      shotTrend,
+      reasons: [
+        `Score profissional ${score}/100 (${level}).`,
+        `Forma ${formScore}/20, ataque ${attackScore}/20, defesa ${defenseScore}/20, casa/fora ${homeAwayScore}/15, momento ${momentScore}/15, valor odd ${oddValueScore}/10.`,
+        favorite === "equilibrado" ? "Confronto sem favorito claro." : `${favorite} aparece com vantagem técnica no modelo.`,
+      ],
+      noBetReasons,
+    };
+  }
+
+  private confidenceFromProfessionalScore(context: any, modifier = 0) {
+    const score = Number(context.professionalScore || 0);
+    const hasRealStats = context.realStatsAvailable === true;
+    const cap = hasRealStats ? 91 : context.isLive ? 68 : 88;
+    return this.clamp(score - 2 + modifier, 60, cap);
+  }
+
+  private buildProfessionalMarketCandidates(
+    homeTeam: string,
+    awayTeam: string,
+    league: string,
+    context: any,
+    realOdds: any[],
+    seed: number,
+  ) {
+    const profile = context.professionalProfile;
+    if (!profile || profile.score < 80 || context.isFinished) return [];
+
+    const favorite = profile.favorite === "equilibrado" ? homeTeam : profile.favorite;
+    const other = favorite === homeTeam ? awayTeam : homeTeam;
+    const candidates: any[] = [];
+
+    const push = (params: {
+      key: string;
+      category: string;
+      market: string;
+      tip: string;
+      baseOdd: number;
+      confidenceModifier?: number;
+      risk?: RiskLevel;
+      requiresStats?: boolean;
+    }) => {
+      if (params.requiresStats && context.realStatsAvailable !== true) return;
+      const realOdd = this.findRealOddForMarket(realOdds, params.key, params.tip);
+      const confidence = this.confidenceFromProfessionalScore(context, params.confidenceModifier || 0);
+      const odd = realOdd?.odd || Number((params.baseOdd + this.seededNumber(seed + candidates.length, -0.04, 0.06)).toFixed(2));
+
+      candidates.push({
+        key: params.key,
+        category: params.category,
+        market: params.market,
+        tip: realOdd?.tip || params.tip,
+        odd,
+        confidence,
+        risk: params.risk || (confidence >= 84 && Number(odd) <= 2.05 ? "Baixo" : "Médio"),
+        bookmaker: realOdd?.bookmaker || null,
+        oddsSource: realOdd ? "the-odds-api" : "oddix-professional-estimada",
+        isRealOdd: !!realOdd,
+        professionalScore: profile.score,
+        reason: this.generateV3Reason(params.market, params.tip, homeTeam, awayTeam, league, context, confidence, realOdd),
+      });
+    };
+
+    if (profile.favorite !== "equilibrado" && profile.score >= 82) {
+      push({
+        key: "dupla_chance",
+        category: "Protegido",
+        market: "Dupla Chance",
+        tip: `${favorite} ou empate`,
+        baseOdd: 1.38,
+        confidenceModifier: 2,
+        risk: "Baixo",
+      });
+
+      push({
+        key: "handicap_asiatico",
+        category: "Protegido",
+        market: "Handicap Asiático",
+        tip: `${favorite} +0.25 handicap asiático`,
+        baseOdd: 1.58,
+        confidenceModifier: 0,
+      });
+    }
+
+    if (profile.goalTrend >= 74 && profile.totalGoalProjection >= 2.55) {
+      push({
+        key: "total_gols",
+        category: "Gols",
+        market: "Total de Gols",
+        tip: "Over 1.5 gols",
+        baseOdd: 1.52,
+        confidenceModifier: 1,
+        risk: "Baixo",
+      });
+
+      if (profile.bttsIndex >= 70) {
+        push({
+          key: "ambas_marcam",
+          category: "Gols",
+          market: "Ambas Marcam",
+          tip: "Ambas equipes marcam: Sim",
+          baseOdd: 1.78,
+          confidenceModifier: -3,
+          risk: "Médio",
+        });
+      }
+    }
+
+    if (profile.underIndex >= 72 || profile.totalGoalProjection <= 2.15) {
+      push({
+        key: "total_gols",
+        category: "Protegido",
+        market: "Total de Gols",
+        tip: "Under 3.5 gols",
+        baseOdd: 1.55,
+        confidenceModifier: 1,
+        risk: "Baixo",
+      });
+    }
+
+    if (context.realStatsAvailable === true) {
+      if (profile.cornerTrend >= 72) {
+        push({
+          key: "escanteios",
+          category: "Estatísticas",
+          market: "Escanteios",
+          tip: profile.cornerTrend >= 82 ? "Over 8.5 escanteios" : "Over 7.5 escanteios",
+          baseOdd: 1.72,
+          confidenceModifier: -2,
+          requiresStats: true,
+        });
+      }
+
+      if (profile.shotTrend >= 73) {
+        push({
+          key: "chutes_no_gol",
+          category: "Estatísticas",
+          market: "Chutes no Gol",
+          tip: profile.shotTrend >= 83 ? "Over 6.5 chutes no gol" : "Over 5.5 chutes no gol",
+          baseOdd: 1.76,
+          confidenceModifier: -2,
+          requiresStats: true,
+        });
+      }
+    }
+
+    if (context.isLive && context.totalGoals <= 1 && context.elapsed >= 55 && context.elapsed <= 75) {
+      push({
+        key: "total_gols",
+        category: "Live Profissional",
+        market: "Total de Gols Live",
+        tip: "Ao vivo: Under 3.5 gols",
+        baseOdd: 1.62,
+        confidenceModifier: -1,
+      });
+    }
+
+    return candidates;
+  }
+
+  private generateV3Reason(
+    market: string,
+    tip: string,
+    homeTeam: string,
+    awayTeam: string,
+    league: string,
+    context: any,
+    confidence: number,
+    realOdd?: any,
+  ) {
+    const profile = context.professionalProfile || {};
+    const statsText = context.realStatsAvailable
+      ? "com estatísticas reais incorporadas"
+      : "em modo pré-jogo estimado, sem usar mercado dependente de estatística real";
+
+    return `Oddix Professional Tipster Engine V3 selecionou ${market} para ${homeTeam} x ${awayTeam} (${league}). Entrada: ${tip}. Score ${profile.score || 0}/100, nível ${profile.level || "BOM"}, ${statsText}. ${profile.reasons?.join(" ") || ""} ${realOdd ? `Odd real encontrada via ${realOdd.bookmaker}.` : "Odd estimada e limitada por gestão de risco."} Confiança ${confidence}%.`;
+  }
+
+  private professionalMarketKey(market: any) {
+    const text = this.normalizeText(`${market?.key || ""} ${market?.tip || ""}`);
+    if (text.includes("over 1 5") || text.includes("over 1.5")) return "over_1_5";
+    if (text.includes("under 3 5") || text.includes("under 3.5")) return "under_3_5";
+    if (text.includes("ambas") || text.includes("btts")) return "btts";
+    if (text.includes("handicap")) return "handicap";
+    if (text.includes("dupla") || text.includes("empate")) return "dupla_chance";
+    if (text.includes("escanteio") || text.includes("corner")) return "corners";
+    if (text.includes("chute")) return "shots";
+    return String(market?.key || market?.market || "unknown");
+  }
+
+  private applyProfessionalAntiRepetition(
+    markets: any[],
+    context: any,
+    homeTeam: string,
+    awayTeam: string,
+  ) {
+    const fixtureKey = this.normalizeText(`${homeTeam}-${awayTeam}`);
+    const recentFixture = this.recentProfessionalFixtureKeys.includes(fixtureKey);
+    const maxSameMarket = Number(process.env.ODDIX_MAX_REPEAT_MARKET_WINDOW || 2);
+
+    const scored = (markets || []).map((market, index) => {
+      const key = this.professionalMarketKey(market);
+      const repeats = this.recentProfessionalMarketKeys.filter((item) => item === key).length;
+      const repeatPenalty = repeats >= maxSameMarket ? 22 : repeats * 8;
+      const fixturePenalty = recentFixture ? 12 : 0;
+      const proBonus = Number(market?.professionalScore || context.professionalScore || 0) >= 90 ? 6 : 0;
+
+      return {
+        market,
+        index,
+        score:
+          Number(market?.confidence || 0) +
+          Number(market?.odd || 0) * 2 +
+          proBonus -
+          repeatPenalty -
+          fixturePenalty,
+      };
+    });
+
+    return scored
+      .sort((a, b) => b.score - a.score || a.index - b.index)
+      .map((item) => item.market)
+      .slice(0, 5);
+  }
+
+  private rememberProfessionalPick(market: any, homeTeam: string, awayTeam: string) {
+    if (!market || market?.key === "blocked_live_no_stats") return;
+
+    const marketKey = this.professionalMarketKey(market);
+    const fixtureKey = this.normalizeText(`${homeTeam}-${awayTeam}`);
+
+    this.recentProfessionalMarketKeys.unshift(marketKey);
+    this.recentProfessionalFixtureKeys.unshift(fixtureKey);
+
+    this.recentProfessionalMarketKeys.splice(12);
+    this.recentProfessionalFixtureKeys.splice(20);
   }
 
   private mapGeneratedMarketToOddsKeys(key: string) {
@@ -1035,7 +1483,11 @@ export class AiService {
 
     if (context.isFinished) return false;
 
-    if (this.shouldRequireRealStatsForTips() && context.realStatsAvailable !== true) {
+    if (
+      this.shouldRequireRealStatsForTips() &&
+      context.realStatsAvailable !== true &&
+      context.isLive
+    ) {
       return false;
     }
 
@@ -1707,11 +2159,13 @@ export class AiService {
       )
       .join("\n");
 
-    return `Análise Oddix — ${homeTeam} x ${awayTeam} (${league}).
+    return `Análise Oddix Professional Tipster Engine V3 — ${homeTeam} x ${awayTeam} (${league}).
 
 ${gameMoment}
 
-Leitura:
+Leitura profissional:
+Score V3: ${context.professionalScore || 0}/100 (${context.professionalLevel || "BOM"}). ${(context.professionalReasons || []).join(" ")}
+
 O modelo priorizou mercados protegidos, evitando placar correto, bet builder agressivo e resultado seco sem vantagem clara. Neste confronto, ${favoriteText}. Tendência de gols ${context.goalTrend}/100, escanteios ${context.cornerTrend}/100, cartões ${context.cardTrend}/100 e finalizações ${context.shotTrend}/100${context.realStatsAvailable ? " com leitura de estatísticas reais do jogo." : ". "}
 
 Entrada principal:

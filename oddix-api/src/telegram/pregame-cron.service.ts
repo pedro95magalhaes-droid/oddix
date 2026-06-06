@@ -44,14 +44,14 @@ export class PregameCronService {
   }
 
   private maxPerRun() {
-    return Number(process.env.ODDIX_PREGAME_MAX_PER_RUN || 2);
+    return Number(process.env.ODDIX_PREGAME_MAX_PER_RUN || 1);
   }
 
   private minConfidence() {
     return Number(
       process.env.ODDIX_PREGAME_MIN_CONFIDENCE ||
         process.env.ODDIX_MIN_CONFIDENCE ||
-        80,
+        85,
     );
   }
 
@@ -133,6 +133,7 @@ export class PregameCronService {
       "eredivisie",
       "mls",
       "world cup",
+      "international friendly",
       "euro",
       "copa do nordeste",
       "copa verde",
@@ -170,10 +171,16 @@ export class PregameCronService {
       "woman",
       "feminino",
       "feminina",
-      "friendly",
-      "amistoso",
       "reserves",
       "reserve",
+      "peru",
+      "iran",
+      "ira",
+      "irã",
+      "japan",
+      "japao",
+      "japão",
+      "china",
       "macao",
       "macau",
       "syria",
