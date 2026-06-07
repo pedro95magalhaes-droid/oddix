@@ -1285,210 +1285,167 @@ export default function Dashboard() {
   return (
     <main className="oddix-dashboard" style={styles.page}>
       <style jsx global>{`
-
-        /* ODDIX V12 SPORTSBOOK PREMIUM OVERRIDES */
-        .oddix-dashboard {
-          background:
-            radial-gradient(circle at 22% 0%, rgba(123,44,255,.30), transparent 34%),
-            radial-gradient(circle at 78% 20%, rgba(247,201,72,.08), transparent 30%),
-            linear-gradient(180deg, #07070D 0%, #10051f 45%, #07070D 100%) !important;
-          color: #ffffff !important;
-          font-family: Inter, Arial, sans-serif !important;
-        }
-
-        .oddix-top-header {
-          position: sticky !important;
-          top: 0 !important;
-          z-index: 100 !important;
-          min-height: 72px !important;
-          padding: 0 26px !important;
-          background: rgba(7,7,13,.82) !important;
-          backdrop-filter: blur(18px) !important;
-          border-bottom: 1px solid rgba(123,44,255,.35) !important;
-          box-shadow: 0 14px 40px rgba(0,0,0,.35) !important;
-        }
-
-        .oddix-sports-rail {
-          position: sticky !important;
-          top: 72px !important;
-          z-index: 90 !important;
-          min-height: 54px !important;
-          padding: 8px 26px !important;
-          background: rgba(13,7,24,.86) !important;
-          backdrop-filter: blur(16px) !important;
-          border-bottom: 1px solid rgba(123,44,255,.28) !important;
-        }
-
-        .oddix-sports-rail button {
-          min-height: 36px !important;
-          padding: 0 14px !important;
-          border-radius: 999px !important;
-          border: 1px solid rgba(255,255,255,.14) !important;
-          background: rgba(255,255,255,.055) !important;
-          color: #ffffff !important;
-          transition: .2s ease !important;
-        }
-
-        .oddix-sports-rail button:hover {
-          border-color: rgba(247,201,72,.70) !important;
-          color: #F7C948 !important;
-          box-shadow: 0 0 18px rgba(247,201,72,.14) !important;
-        }
-
-        .oddix-hero-grid {
-          display: grid !important;
-          grid-template-columns: minmax(0, 1fr) 300px !important;
-          gap: 18px !important;
-          margin: 26px !important;
-          align-items: stretch !important;
-        }
-
-        .oddix-hero-main {
-          min-height: 540px !important;
-          height: 540px !important;
-          display: grid !important;
-          grid-template-columns: minmax(390px, .95fr) minmax(520px, 1.2fr) !important;
-          align-items: center !important;
-          padding: 42px 42px 74px !important;
-          position: relative !important;
-          overflow: hidden !important;
-          border-radius: 30px !important;
-          background:
-            radial-gradient(circle at 72% 44%, rgba(123,44,255,.60), transparent 34%),
-            radial-gradient(circle at 56% 52%, rgba(247,201,72,.10), transparent 22%),
-            linear-gradient(135deg,#12051F,#1A0836 52%,#0D0718) !important;
-          border: 1px solid rgba(247,201,72,.32) !important;
-          box-shadow: 0 0 40px rgba(123,44,255,.25), inset 0 1px 0 rgba(255,255,255,.10) !important;
-        }
-
-        .oddix-hero-main::before {
-          content: "";
-          position: absolute;
-          inset: -110px -90px auto auto;
-          width: 520px;
-          height: 520px;
-          background: radial-gradient(circle, rgba(123,44,255,.65), transparent 62%);
-          filter: blur(8px);
-          pointer-events: none;
-        }
-
-        .oddix-hero-text {
-          max-width: 560px !important;
-          z-index: 2 !important;
-        }
-
-        .oddix-hero-text h1 {
-          font-size: clamp(62px, 7.5vw, 118px) !important;
-          line-height: .85 !important;
-          letter-spacing: -5px !important;
-          margin: 14px 0 22px !important;
-          font-weight: 1000 !important;
-          color: #ffffff !important;
-          text-shadow: 0 0 34px rgba(123,44,255,.55) !important;
-        }
-
-        .oddix-hero-text p {
-          max-width: 520px !important;
-          font-size: 19px !important;
-          line-height: 1.34 !important;
-          color: rgba(255,255,255,.88) !important;
-        }
-
-        .oddix-hero-player-box {
-          align-self: stretch !important;
-          justify-self: stretch !important;
-          min-width: 0 !important;
-          height: 100% !important;
-          position: relative !important;
-          z-index: 2 !important;
-        }
-
-        .oddix-hero-player {
-          position: absolute !important;
-          right: -10px !important;
-          bottom: -36px !important;
-          height: 540px !important;
-          width: min(620px, 100%) !important;
-          object-fit: contain !important;
-          object-position: center bottom !important;
-          filter: drop-shadow(0 28px 42px rgba(0,0,0,.55)) drop-shadow(0 0 22px rgba(123,44,255,.45)) !important;
-          transform: scale(1.07) !important;
-        }
-
-        .oddix-vip-panel {
-          min-height: 540px !important;
-          border-radius: 30px !important;
-          padding: 32px 26px !important;
-          background: linear-gradient(180deg,rgba(13,7,24,.96),rgba(7,7,13,.98)) !important;
-          border: 1px solid rgba(123,44,255,.35) !important;
-          box-shadow: 0 0 40px rgba(123,44,255,.18), inset 0 1px 0 rgba(255,255,255,.08) !important;
-        }
-
-        .oddix-vip-panel strong {
-          color: #F7C948 !important;
-          font-size: 56px !important;
-          line-height: 1 !important;
-          text-shadow: 0 0 24px rgba(247,201,72,.24) !important;
-        }
-
-        .oddix-top-pick-hero {
-          min-height: 156px !important;
-          margin: 0 26px 22px !important;
-          display: grid !important;
-          grid-template-columns: 150px minmax(340px,.95fr) minmax(310px,1fr) 430px !important;
-          align-items: center !important;
-          gap: 18px !important;
-          border-radius: 24px !important;
-          border: 1px solid rgba(247,201,72,.58) !important;
-          background: linear-gradient(135deg,rgba(7,7,13,.97),rgba(26,8,54,.92)) !important;
-          box-shadow: 0 18px 54px rgba(0,0,0,.34), 0 0 28px rgba(247,201,72,.10) !important;
-        }
-
-        .oddix-player-props-home-grid {
-          grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-          gap: 18px !important;
-        }
-
-        .oddix-vip-marketing-strip {
-          margin: 0 26px 22px !important;
-          border-radius: 28px !important;
-          background: linear-gradient(135deg,rgba(9,5,20,.98),rgba(30,16,66,.96)) !important;
-          border: 1px solid rgba(123,44,255,.36) !important;
-          box-shadow: 0 22px 60px rgba(0,0,0,.30), 0 0 40px rgba(123,44,255,.16) !important;
-        }
-
-        .oddix-premium-ticket {
-          margin: 0 26px 22px !important;
-        }
-
-        @media (max-width: 1200px) {
-          .oddix-hero-grid {
-            grid-template-columns: 1fr !important;
-          }
-          .oddix-hero-main {
-            grid-template-columns: 1fr !important;
-            height: auto !important;
-            min-height: 620px !important;
-          }
-          .oddix-hero-player-box {
-            height: 330px !important;
-          }
-          .oddix-hero-player {
-            position: relative !important;
-            right: auto !important;
-            bottom: auto !important;
-            height: 360px !important;
-            width: 100% !important;
-          }
-          .oddix-top-pick-hero {
-            grid-template-columns: 1fr !important;
-          }
-        }
-
-
         .oddix-dashboard {
           max-width: 100vw;
           overflow-x: hidden;
+        }
+
+
+        /* =========================
+           ODDIX V13 SPORTSBOOK PREMIUM
+           Correção completa de hierarquia visual: hero, boost, top pick, player props, bilhete e performance.
+        ========================== */
+        .oddix-top-header{
+          min-height:74px!important;
+          padding:12px 28px!important;
+          background:linear-gradient(90deg,#07070D 0%,#12051F 44%,#2D114D 100%)!important;
+          border-bottom:1px solid rgba(123,44,255,.38)!important;
+          box-shadow:0 18px 60px rgba(0,0,0,.55)!important;
+        }
+        .oddix-sports-rail{
+          position:sticky!important;
+          top:74px!important;
+          z-index:19!important;
+          padding:10px 28px!important;
+          background:rgba(7,7,13,.88)!important;
+          border-bottom:1px solid rgba(123,44,255,.24)!important;
+          backdrop-filter:blur(18px)!important;
+        }
+        .oddix-hero-grid{
+          grid-template-columns:minmax(0,1fr) 320px!important;
+          gap:22px!important;
+          margin:26px 28px 20px!important;
+        }
+        .oddix-hero-main{
+          min-height:610px!important;
+          grid-template-columns:minmax(470px,.88fr) minmax(560px,1.12fr)!important;
+          padding:58px 42px 106px!important;
+          border-radius:30px!important;
+          background:
+            radial-gradient(circle at 78% 42%,rgba(123,44,255,.78),transparent 34%),
+            radial-gradient(circle at 86% 58%,rgba(247,201,72,.20),transparent 24%),
+            linear-gradient(135deg,#12051F 0%,#1A0836 45%,#0D0718 100%)!important;
+          border:1px solid rgba(247,201,72,.38)!important;
+          box-shadow:0 0 40px rgba(123,44,255,.25),0 30px 90px rgba(0,0,0,.55)!important;
+        }
+        .oddix-hero-main:before{
+          content:"";position:absolute;inset:-20%;pointer-events:none;
+          background:
+            linear-gradient(115deg,transparent 20%,rgba(123,44,255,.16) 41%,transparent 55%),
+            radial-gradient(circle at 70% 45%,rgba(255,255,255,.08),transparent 15%);
+          filter:blur(1px);
+        }
+        .oddix-hero-text{max-width:680px!important;}
+        .oddix-hero-text h1{
+          font-size:clamp(84px,7.4vw,132px)!important;
+          line-height:.82!important;
+          letter-spacing:-6px!important;
+          margin:16px 0 22px!important;
+          max-width:620px!important;
+          color:#fff!important;
+          text-shadow:0 0 42px rgba(123,44,255,.62),0 18px 50px rgba(0,0,0,.45)!important;
+        }
+        .oddix-hero-text p{
+          max-width:600px!important;
+          font-size:18px!important;
+          line-height:1.45!important;
+          color:rgba(255,255,255,.88)!important;
+        }
+        .oddix-hero-player-box{
+          height:650px!important;
+          min-width:560px!important;
+          align-self:end!important;
+          margin-right:-28px!important;
+        }
+        .oddix-hero-player-box:before{
+          content:"ODDIX";position:absolute;right:6px;bottom:78px;
+          font-size:112px;font-weight:1000;letter-spacing:-8px;color:rgba(255,255,255,.10);
+          text-shadow:0 0 34px rgba(123,44,255,.36);z-index:1;line-height:.8;
+        }
+        .oddix-hero-player{
+          height:690px!important;
+          width:176%!important;
+          max-width:none!important;
+          transform:translateX(-104px) translateY(18px) scale(1.08)!important;
+          object-fit:contain!important;
+          object-position:center bottom!important;
+          filter:drop-shadow(0 34px 42px rgba(0,0,0,.66)) drop-shadow(0 0 40px rgba(123,44,255,.44))!important;
+        }
+        .oddix-vip-panel{
+          min-height:610px!important;
+          border-radius:30px!important;
+          padding:34px 28px!important;
+          justify-content:center!important;
+          background:linear-gradient(180deg,rgba(10,4,24,.98),rgba(7,7,13,.98))!important;
+          border:1px solid rgba(123,44,255,.42)!important;
+          box-shadow:0 0 40px rgba(123,44,255,.18),0 30px 80px rgba(0,0,0,.52)!important;
+        }
+        .oddix-vip-panel strong{font-size:52px!important;color:#F7C948!important;text-shadow:0 0 28px rgba(247,201,72,.36)!important;}
+        .oddix-vip-panel button{height:58px!important;border-radius:18px!important;background:linear-gradient(135deg,#F7C948,#fb923c)!important;font-size:16px!important;}
+        .oddix-top-pick-hero{
+          min-height:172px!important;
+          margin:0 28px 22px!important;
+          padding:28px!important;
+          grid-template-columns:1.25fr 1fr 360px!important;
+          border-radius:28px!important;
+          border:1px solid rgba(247,201,72,.60)!important;
+          background:linear-gradient(135deg,rgba(7,7,13,.98),rgba(18,5,31,.98),rgba(13,7,24,.99))!important;
+          box-shadow:0 0 36px rgba(247,201,72,.10),0 26px 70px rgba(0,0,0,.48)!important;
+        }
+        .oddix-top-pick-hero img{width:92px!important;height:92px!important;border-radius:24px!important;}
+        .oddix-player-props-home-grid{
+          grid-template-columns:repeat(3,minmax(0,1fr))!important;
+          gap:22px!important;
+        }
+        .oddix-player-props-home-grid button{
+          min-height:300px!important;
+          border-radius:26px!important;
+          background:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.04))!important;
+          border:1px solid rgba(255,255,255,.16)!important;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 24px 55px rgba(0,0,0,.35)!important;
+        }
+        .oddix-player-props-home-grid button:hover{transform:translateY(-4px);box-shadow:0 0 38px rgba(123,44,255,.25),0 28px 70px rgba(0,0,0,.42)!important;}
+        .oddix-premium-ticket{
+          min-height:310px!important;
+          border-radius:30px!important;
+          border:1px solid rgba(247,201,72,.50)!important;
+          background:linear-gradient(135deg,rgba(7,7,13,.98),rgba(20,12,38,.98))!important;
+          box-shadow:0 0 36px rgba(247,201,72,.10),0 28px 80px rgba(0,0,0,.44)!important;
+        }
+        .oddix-vip-marketing-strip{
+          min-height:310px!important;
+          border-radius:30px!important;
+          background:linear-gradient(135deg,rgba(10,4,24,.98),rgba(45,17,77,.94))!important;
+          border:1px solid rgba(123,44,255,.45)!important;
+          box-shadow:0 0 40px rgba(123,44,255,.20),0 28px 80px rgba(0,0,0,.44)!important;
+        }
+        .oddix-ticket-performance-v13{
+          display:grid!important;
+          grid-template-columns:minmax(0,1.45fr) minmax(360px,.85fr)!important;
+          gap:22px!important;
+          margin:0 28px 22px!important;
+        }
+        .oddix-ticket-performance-v13 > section{margin:0!important;height:100%!important;}
+        .oddix-ticket-performance-v13 .oddix-vip-marketing-strip{
+          display:flex!important;flex-direction:column!important;align-items:stretch!important;
+        }
+        .oddix-ticket-performance-v13 .oddix-vip-results-metrics,
+        .oddix-ticket-performance-v13 [style*="grid-template-columns: repeat(4"]{
+          grid-template-columns:repeat(2,minmax(0,1fr))!important;
+        }
+        @media(max-width:1180px){
+          .oddix-hero-grid,.oddix-ticket-performance-v13{grid-template-columns:1fr!important;}
+          .oddix-hero-main{grid-template-columns:1fr!important;min-height:auto!important;text-align:center!important;}
+          .oddix-hero-text{max-width:100%!important;}
+          .oddix-hero-text h1{max-width:100%!important;}
+          .oddix-hero-player-box{height:420px!important;min-width:0!important;margin-right:0!important;}
+          .oddix-hero-player{height:460px!important;width:100%!important;transform:none!important;}
+          .oddix-vip-panel{min-height:260px!important;}
+          .oddix-top-pick-hero{grid-template-columns:1fr!important;}
+        }
+        @media(max-width:860px){
+          .oddix-player-props-home-grid{grid-template-columns:1fr!important;}
+          .oddix-hero-text h1{font-size:54px!important;letter-spacing:-3px!important;}
         }
 
         .oddix-info-metric {
@@ -1927,24 +1884,26 @@ export default function Dashboard() {
         onUpgrade={() => (window.location.href = "/plans")}
       />
 
-      <PremiumTicketPreview
-        tips={displayedSmartTips}
-        games={games}
-        isPaidPlan={isPaidPlan}
-        onOpen={(tip: any) => {
-          const game = getGameByTip(tip, games);
-          if (game) openMatchDetail(game);
-        }}
-        onUpgrade={() => (window.location.href = "/plans")}
-      />
+      <section className="oddix-ticket-performance-v13">
+        <PremiumTicketPreview
+          tips={displayedSmartTips}
+          games={games}
+          isPaidPlan={isPaidPlan}
+          onOpen={(tip: any) => {
+            const game = getGameByTip(tip, games);
+            if (game) openMatchDetail(game);
+          }}
+          onUpgrade={() => (window.location.href = "/plans")}
+        />
 
-      <VipMarketingStrip
-        greens={stats?.wonBets || wonBetsList.length}
-        roi={stats?.roi || 0}
-        liveGames={liveGames.length}
-        tips={displayedSmartTips.length}
-        onVip={() => (window.location.href = "/plans")}
-      />
+        <VipMarketingStrip
+          greens={stats?.wonBets || wonBetsList.length}
+          roi={stats?.roi || 0}
+          liveGames={liveGames.length}
+          tips={displayedSmartTips.length}
+          onVip={() => (window.location.href = "/plans")}
+        />
+      </section>
 
       <MarketingBanner
         mainGame={topGames[0]}
@@ -2679,46 +2638,37 @@ function liveQualityForGame(game: any, stats?: any) {
 
 function VipMarketingStrip({ greens, roi, liveGames, tips, onVip }: any) {
   const items = [
-    { icon: "🏆", value: greens || 52, label: "GREENS", text: "Últimos 7 dias", tone: "green" },
-    { icon: "📈", value: `${roi || 72}%`, label: "ASSERTIVIDADE", text: "Últimos 7 dias", tone: "purple" },
-    { icon: "💰", value: "+18.2%", label: "ROI", text: "Últimos 30 dias", tone: "green" },
-    { icon: "⚡", value: tips || 12, label: "ENTRADAS PREMIUM", text: "Últimos 7 dias", tone: "purple" },
+    { icon: "🔥", value: greens || 0, label: "Greens confirmados", text: "histórico validado" },
+    { icon: "📈", value: `${roi || 0}%`, label: "Assertividade", text: "controle de banca" },
+    { icon: "⚡", value: liveGames || 0, label: "Jogos ao vivo", text: "monitoramento IA" },
+    { icon: "👑", value: tips || 0, label: "Entradas Premium", text: "filtro Oddix VIP" },
   ];
 
   return (
     <section className="oddix-vip-marketing-strip" style={styles.vipMarketingStrip}>
       <div style={styles.vipMarketingHeader}>
+        <span style={styles.vipMarketingBadge}>👑 ODDIX VIP PERFORMANCE</span>
         <div>
-          <span style={styles.vipMarketingBadge}>📊 DESEMPENHO ODDIX</span>
-          <h2 style={styles.vipMarketingTitle}>Resultados da semana monitorados pela IA.</h2>
-          <p style={styles.vipMarketingText}>Greens, assertividade, ROI e entradas premium para mostrar valor real do VIP.</p>
+          <h2 style={styles.vipMarketingTitle}>A IA monitora, filtra e entrega só o que tem valor.</h2>
+          <p style={styles.vipMarketingText}>Menos entrada aleatória. Mais gestão, leitura de mercado e oportunidade premium.</p>
         </div>
-        <button style={styles.vipMarketingButton} onClick={onVip}>Assinar VIP agora</button>
       </div>
 
       <div style={styles.vipMarketingCards}>
         {items.map((item) => (
           <article key={item.label} style={styles.vipMarketingCard}>
-            <div style={styles.vipMarketingCardTop}>
-              <span style={styles.vipMarketingIcon}>{item.icon}</span>
-              <strong style={item.tone === "green" ? styles.vipMarketingGreenValue : styles.vipMarketingPurpleValue}>{item.value}</strong>
-            </div>
+            <span style={styles.vipMarketingIcon}>{item.icon}</span>
+            <strong>{item.value}</strong>
             <small>{item.label}</small>
             <em>{item.text}</em>
-            <div style={styles.vipSparkline}>
-              <span />
-              <span />
-              <span />
-              <span />
-              <span />
-            </div>
           </article>
         ))}
       </div>
+
+      <button style={styles.vipMarketingButton} onClick={onVip}>Assinar VIP agora</button>
     </section>
   );
 }
-
 
 function HotEntriesSection({ tips, games, liveTick = 0, isPaidPlan, onOpen, onUpgrade }: any) {
   const entries = (tips || [])
@@ -2815,35 +2765,30 @@ function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
     <section className="oddix-top-pick-hero" style={styles.topPickHeroPremium}>
       <div style={styles.topPickGlowLayer} />
 
-      <div style={styles.topPickStarBlock}>
-        <div style={styles.topPickStarIcon}>⭐</div>
-        <strong>TOP<br />PICK DO DIA</strong>
-      </div>
-
-      <div style={styles.topPickMatchBlockPremium}>
-        <img
-          src={finalGame?.teams?.home?.logo || logoFallback(finalGame?.teams?.home?.name)}
-          alt={finalGame?.teams?.home?.name || "Casa"}
-          style={styles.topPickLogoPremium}
-        />
-
-        <div style={styles.topPickTeamsPremium}>
-          <strong>{finalGame?.teams?.home?.name}</strong>
-          <span>VS</span>
-          <strong>{finalGame?.teams?.away?.name}</strong>
-          <small>{finalGame?.league?.name} • {live ? gameTimeLabel(finalGame, liveTick) : formatDateTime(finalGame?.fixture?.date)}</small>
+      <div style={styles.topPickLeftPremium}>
+        <div style={styles.topPickPremiumBadge}>
+          <span>🏆</span>
+          <div>
+            <strong>TOP PICK DO DIA</strong>
+            <small>Entrada principal filtrada pelo Oddix V4</small>
+          </div>
         </div>
 
-        <img
-          src={finalGame?.teams?.away?.logo || logoFallback(finalGame?.teams?.away?.name)}
-          alt={finalGame?.teams?.away?.name || "Fora"}
-          style={styles.topPickLogoPremium}
-        />
+        <div style={styles.topPickMatchBlockPremium}>
+          <img src={finalGame?.teams?.home?.logo || logoFallback(finalGame?.teams?.home?.name)} style={styles.topPickLogoPremium} />
+          <div style={styles.topPickTeamsPremium}>
+            <strong>{finalGame?.teams?.home?.name}</strong>
+            <span>{score.home} x {score.away}</span>
+            <strong>{finalGame?.teams?.away?.name}</strong>
+            <small>{finalGame?.league?.name} • {live ? gameTimeLabel(finalGame, liveTick) : formatDateTime(finalGame?.fixture?.date)}</small>
+          </div>
+          <img src={finalGame?.teams?.away?.logo || logoFallback(finalGame?.teams?.away?.name)} style={styles.topPickLogoPremium} />
+        </div>
       </div>
 
       <div style={styles.topPickCenterPremium}>
-        <span>MERCADO ESCOLHIDO PELA IA</span>
-        <strong>{String(finalTip.tip || "Entrada Premium").toUpperCase()}</strong>
+        <span>Mercado escolhido pela IA</span>
+        <strong>{finalTip.tip}</strong>
         <small>{finalTip.market || "Oddix Boost"} • {finalTip.risk || "Risco controlado"}</small>
       </div>
 
@@ -2852,25 +2797,19 @@ function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
           <span>ODD</span>
           <strong>{finalTip.odd}</strong>
         </div>
-
         <div style={styles.topPickConfidencePremium}>
-          <span>CONFIANÇA</span>
           <strong>{confidence}%</strong>
+          <span>{grade}</span>
         </div>
-
         <div style={styles.topPickQualityPremium}>
-          <span>SCORE ODDIX</span>
+          <span>Score Oddix</span>
           <strong>{quality}/100</strong>
         </div>
-
-        <button style={styles.topPickButtonPremium} onClick={() => onAnalyze(finalGame)}>
-          ABRIR ANÁLISE PREMIUM ›
-        </button>
+        <button style={styles.topPickButtonPremium} onClick={() => onAnalyze(finalGame)}>🎯 Abrir análise premium</button>
       </div>
     </section>
   );
 }
-
 
 function initialsFromName(value: any) {
   const words = String(value || "OD")
@@ -2913,7 +2852,7 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
           const type = playerPropType(prop);
           const line = playerPropLine(prop);
           const confidence = safeNumber(prop?.confidence, 0);
-          const playerPhoto = prop?.playerPhoto || prop?.photo || prop?.image || ODDIX_PLAYER_IMAGE;
+          const initials = initialsFromName(playerName.replace(/^Destaque\s+/i, teamName));
 
           return (
             <button
@@ -2937,15 +2876,8 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
                   }}
                 />
 
-                <div style={styles.playerPropsPlayerPhotoWrap}>
-                  <img
-                    src={playerPhoto}
-                    alt={playerName}
-                    style={styles.playerPropsPlayerCutout}
-                    onError={(event) => {
-                      event.currentTarget.src = ODDIX_PLAYER_IMAGE;
-                    }}
-                  />
+                <div style={styles.playerPropsAvatarPremium}>
+                  <img src={ODDIX_PLAYER_IMAGE} alt={playerName} style={styles.playerPropsAvatarImagePremium} />
                 </div>
 
                 <div style={styles.playerPropsTrend}>
@@ -2988,7 +2920,6 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
     </section>
   );
 }
-
 
 function PremiumTicketPreview({ tips, games, isPaidPlan, onOpen, onUpgrade }: any) {
   const ticket = buildVipTicket(tips);
@@ -3938,7 +3869,8 @@ const styles: Record<string, CSSProperties> = {
     gap: 16,
   },
   playerPropsHomeCard: {
-    border: "1px solid rgba(255,255,255,.12)",
+    minHeight: 300,
+    border: "1px solid rgba(255,255,255,.16)",
     borderRadius: 24,
     background: "linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.04))",
     color: "#fff",
@@ -4168,7 +4100,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     gap: 18,
     margin: "0 26px 18px",
-    padding: 20,
+    padding: 28,
     borderRadius: 30,
     border: "1px solid rgba(250,204,21,.34)",
     background: "radial-gradient(circle at 10% 20%, rgba(250,204,21,.20), transparent 28%), radial-gradient(circle at 72% 50%, rgba(34,197,94,.13), transparent 26%), linear-gradient(135deg, rgba(10,4,22,.98), rgba(36,12,76,.98), rgba(10,4,24,.99))",
@@ -4190,7 +4122,7 @@ const styles: Record<string, CSSProperties> = {
   },
   topPickMatchBlockPremium: {
     display: "grid",
-    gridTemplateColumns: "72px 1fr 72px",
+    gridTemplateColumns: "92px 1fr 92px",
     gap: 14,
     alignItems: "center",
     padding: 14,
@@ -4199,8 +4131,8 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(255,255,255,.12)",
   },
   topPickLogoPremium: {
-    width: 72,
-    height: 72,
+    width: 92,
+    height: 92,
     objectFit: "contain",
     borderRadius: 20,
     background: "rgba(255,255,255,.10)",
@@ -4516,16 +4448,16 @@ const styles: Record<string, CSSProperties> = {
   heroMain: {
     position: "relative",
     overflow: "hidden",
-    minHeight: 520,
+    minHeight: 610,
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 560px",
+    gridTemplateColumns: "minmax(470px,.88fr) minmax(560px,1.12fr)",
     alignItems: "center",
     gap: 12,
     background: "radial-gradient(circle at 78% 46%, rgba(250,204,21,.20), transparent 28%), radial-gradient(circle at 70% 30%, rgba(124,58,237,.58), transparent 36%), linear-gradient(135deg,rgba(12,8,26,.99),rgba(46,16,101,.94))",
     color: "#fff",
     border: "1px solid rgba(250,204,21,.34)",
     borderRadius: 30,
-    padding: "48px 38px 96px",
+    padding: "58px 42px 106px",
     boxShadow: "0 28px 80px rgba(0,0,0,.34)",
   },
   heroTextBlock: {
@@ -4536,8 +4468,8 @@ const styles: Record<string, CSSProperties> = {
   },
   heroPlayerBox: {
     position: "relative",
-    height: 500,
-    minWidth: 520,
+    height: 650,
+    minWidth: 560,
     display: "flex",
     alignItems: "flex-end",
     justifyContent: "center",
@@ -4555,11 +4487,11 @@ const styles: Record<string, CSSProperties> = {
   heroPlayerImage: {
     position: "relative",
     zIndex: 2,
-    height: 535,
-    width: "145%",
+    height: 690,
+    width: "176%",
     objectFit: "contain",
     objectPosition: "center bottom",
-    transform: "translateX(-16px)",
+    transform: "translateX(-104px) translateY(18px) scale(1.08)",
     filter: "drop-shadow(0 28px 36px rgba(0,0,0,.55)) drop-shadow(0 0 24px rgba(250,204,21,.22))",
   },
   sectionKicker: {
@@ -5865,7 +5797,7 @@ const styles: Record<string, CSSProperties> = {
   },
   topPickHero: {
     margin: "0 26px 20px",
-    minHeight: 118,
+    minHeight: 172,
     display: "grid",
     gridTemplateColumns: "minmax(190px,.9fr) minmax(280px,1.15fr) minmax(280px,1.25fr) 92px 92px minmax(150px,.55fr)",
     gap: 16,
@@ -6148,586 +6080,13 @@ const styles: Record<string, CSSProperties> = {
   heroPrimaryCta: { border: 0, borderRadius: 18, padding: "16px 26px", background: "linear-gradient(135deg,#facc15,#f97316)", color: "#07070d", fontWeight: 1000, cursor: "pointer", boxShadow: "0 18px 36px rgba(247,201,72,.30)" },
   heroSecondaryCta: { border: "1px solid rgba(168,85,247,.80)", borderRadius: 18, padding: "16px 26px", background: "rgba(123,44,255,.16)", color: "#d8b4fe", fontWeight: 1000, cursor: "pointer", boxShadow: "0 0 28px rgba(123,44,255,.22)" },
   heroBottomFeatures: { position: "absolute", left: "50%", bottom: 22, transform: "translateX(-50%)", zIndex: 4, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, width: "calc(100% - 80px)", padding: 10, borderRadius: 18, background: "rgba(0,0,0,.42)", border: "1px solid rgba(250,204,21,.18)", backdropFilter: "blur(12px)", color: "#facc15", fontSize: 11, fontWeight: 900, textAlign: "center" },
-  playerPropsCardTopPremium: { position: "relative", height: 178, display: "grid", gridTemplateColumns: "86px 1fr 90px", alignItems: "center", gap: 12, padding: 16, background: "radial-gradient(circle at 42% 12%,rgba(250,204,21,.18),transparent 30%),linear-gradient(135deg,rgba(123,44,255,.70),rgba(45,17,77,.92))", overflow: "hidden" },
+  playerPropsCardTopPremium: { position: "relative", height: 194, display: "grid", gridTemplateColumns: "86px 1fr 90px", alignItems: "center", gap: 12, padding: 16, background: "radial-gradient(circle at 42% 12%,rgba(250,204,21,.18),transparent 30%),linear-gradient(135deg,rgba(123,44,255,.70),rgba(45,17,77,.92))", overflow: "hidden" },
   playerPropsClubLogoPremium: { width: 82, height: 82, objectFit: "contain", borderRadius: 22, padding: 8, background: "rgba(255,255,255,.10)", filter: "drop-shadow(0 0 16px rgba(255,255,255,.20)) drop-shadow(0 18px 28px rgba(0,0,0,.38))" },
-  playerPropsAvatarPremium: { width: 112, height: 112, justifySelf: "center", borderRadius: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg,#facc15,#f97316 48%,#22c55e)", color: "#111827", fontSize: 36, fontWeight: 1000, boxShadow: "0 22px 36px rgba(0,0,0,.35), 0 0 22px rgba(250,204,21,.18)" },
+  playerPropsAvatarPremium: { width: 138, height: 138, justifySelf: "center", borderRadius: 30, display: "flex", alignItems: "flex-end", justifyContent: "center", background: "radial-gradient(circle at 50% 12%,rgba(247,201,72,.28),rgba(123,44,255,.38),rgba(7,7,13,.06))", color: "#111827", fontSize: 36, fontWeight: 1000, boxShadow: "0 24px 42px rgba(0,0,0,.40), 0 0 28px rgba(123,44,255,.25)", overflow: "hidden" },
+  playerPropsAvatarImagePremium: { width: "160%", height: "160%", objectFit: "contain", objectPosition: "center bottom", transform: "translateY(32px)", filter: "drop-shadow(0 18px 24px rgba(0,0,0,.48))" },
   playerPropsTrend: { alignSelf: "end", justifySelf: "end", display: "flex", alignItems: "end", gap: 4, height: 58 },
   playerPropsHomeTeam: { margin: "-6px 0 0", color: "#facc15", fontSize: 12, fontWeight: 950, textTransform: "uppercase" },
   ticketSummaryPremiumGrid: { display: "grid", gridTemplateColumns: "1fr 1fr 104px", gap: 12, marginTop: 10, padding: 14, borderRadius: 22, background: "linear-gradient(135deg,rgba(250,204,21,.18),rgba(251,146,60,.11))", border: "1px solid rgba(250,204,21,.28)" },
   ticketVipSeal: { width: 92, height: 92, borderRadius: 999, background: "radial-gradient(circle,#facc15,#b45309)", color: "#111827", fontWeight: 1000, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", lineHeight: 1.05, boxShadow: "0 0 26px rgba(250,204,21,.34)" },
 
 };
-
-
-Object.assign(styles, {
-  page: {
-    minHeight: "100vh",
-    background:
-      "radial-gradient(circle at 20% 0%, rgba(123,44,255,.24), transparent 32%), radial-gradient(circle at 78% 18%, rgba(247,201,72,.08), transparent 28%), linear-gradient(180deg,#07070D,#10051f 46%,#07070D)",
-    color: "#fff",
-    overflowX: "hidden",
-  },
-
-  topHeader: {
-    minHeight: 72,
-    padding: "0 26px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    background: "rgba(7,7,13,.82)",
-    backdropFilter: "blur(18px)",
-    borderBottom: "1px solid rgba(123,44,255,.35)",
-    boxShadow: "0 14px 40px rgba(0,0,0,.35)",
-  },
-
-  brandLogo: {
-    height: 48,
-    width: "auto",
-    objectFit: "contain",
-    filter: "drop-shadow(0 0 18px rgba(123,44,255,.45))",
-  },
-
-  headerPill: {
-    border: "1px solid rgba(255,255,255,.16)",
-    borderRadius: 999,
-    padding: "10px 16px",
-    background: "linear-gradient(135deg,rgba(123,44,255,.65),rgba(168,85,247,.30))",
-    color: "#fff",
-    fontWeight: 950,
-    cursor: "pointer",
-    boxShadow: "0 0 20px rgba(123,44,255,.22)",
-  },
-
-  vipButton: {
-    border: 0,
-    borderRadius: 999,
-    padding: "12px 18px",
-    background: "linear-gradient(135deg,#F7C948,#fb923c)",
-    color: "#07070D",
-    fontWeight: 1000,
-    cursor: "pointer",
-    boxShadow: "0 14px 30px rgba(247,201,72,.24)",
-  },
-
-  sportsRail: {
-    display: "flex",
-    gap: 10,
-    overflowX: "auto",
-    padding: "8px 26px",
-    background: "rgba(13,7,24,.86)",
-    borderBottom: "1px solid rgba(123,44,255,.28)",
-  },
-
-  sportItem: {
-    border: "1px solid rgba(255,255,255,.14)",
-    borderRadius: 999,
-    minHeight: 36,
-    padding: "0 14px",
-    background: "rgba(255,255,255,.055)",
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: 900,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  },
-
-  heroGrid: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 300px",
-    gap: 18,
-    margin: "26px",
-    alignItems: "stretch",
-  },
-
-  heroMain: {
-    minHeight: 540,
-    height: 540,
-    display: "grid",
-    gridTemplateColumns: "minmax(390px,.95fr) minmax(520px,1.2fr)",
-    alignItems: "center",
-    gap: 12,
-    padding: "42px 42px 74px",
-    position: "relative",
-    overflow: "hidden",
-    borderRadius: 30,
-    background:
-      "radial-gradient(circle at 72% 44%, rgba(123,44,255,.60), transparent 34%), radial-gradient(circle at 56% 52%, rgba(247,201,72,.10), transparent 22%), linear-gradient(135deg,#12051F,#1A0836 52%,#0D0718)",
-    border: "1px solid rgba(247,201,72,.32)",
-    boxShadow: "0 0 40px rgba(123,44,255,.25), inset 0 1px 0 rgba(255,255,255,.10)",
-  },
-
-  heroTextBlock: {
-    maxWidth: 560,
-    zIndex: 2,
-  },
-
-  sectionKicker: {
-    display: "inline-flex",
-    alignItems: "center",
-    borderRadius: 999,
-    padding: "8px 14px",
-    background: "linear-gradient(135deg,rgba(123,44,255,.55),rgba(168,85,247,.24))",
-    border: "1px solid rgba(168,85,247,.55)",
-    color: "#c4b5fd",
-    fontSize: 12,
-    fontWeight: 1000,
-    letterSpacing: .9,
-    textTransform: "uppercase",
-  },
-
-  heroFeatureList: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 20,
-    marginBottom: 20,
-  },
-
-  heroCtaRow: {
-    display: "flex",
-    gap: 12,
-    flexWrap: "wrap",
-    marginBottom: 22,
-  },
-
-  heroPrimaryCta: {
-    border: 0,
-    borderRadius: 14,
-    padding: "15px 24px",
-    background: "linear-gradient(135deg,#F7C948,#fb923c)",
-    color: "#07070D",
-    fontWeight: 1000,
-    cursor: "pointer",
-    boxShadow: "0 18px 30px rgba(247,201,72,.22)",
-  },
-
-  heroSecondaryCta: {
-    border: "1px solid rgba(168,85,247,.68)",
-    borderRadius: 14,
-    padding: "15px 24px",
-    background: "rgba(123,44,255,.10)",
-    color: "#c4b5fd",
-    fontWeight: 1000,
-    cursor: "pointer",
-    boxShadow: "0 0 22px rgba(123,44,255,.16)",
-  },
-
-  heroStats: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4,minmax(0,1fr))",
-    gap: 12,
-    maxWidth: 560,
-  },
-
-  infoMetric: {
-    minHeight: 74,
-    borderRadius: 16,
-    padding: "14px",
-    background: "linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.045))",
-    border: "1px solid rgba(247,201,72,.30)",
-  },
-
-  heroPlayerBox: {
-    position: "relative",
-    height: "100%",
-    minWidth: 0,
-    zIndex: 2,
-  },
-
-  heroPlayerGlow: {
-    position: "absolute",
-    inset: "12% 6% 10% 0",
-    background: "radial-gradient(circle,rgba(123,44,255,.65),transparent 64%)",
-    filter: "blur(18px)",
-  },
-
-  heroPlayerImage: {
-    position: "absolute",
-    right: -10,
-    bottom: -36,
-    height: 540,
-    width: "min(620px, 100%)",
-    objectFit: "contain",
-    objectPosition: "center bottom",
-    filter: "drop-shadow(0 28px 42px rgba(0,0,0,.55)) drop-shadow(0 0 22px rgba(123,44,255,.45))",
-    transform: "scale(1.07)",
-  },
-
-  heroBottomFeatures: {
-    position: "absolute",
-    left: 26,
-    right: 26,
-    bottom: 20,
-    display: "grid",
-    gridTemplateColumns: "repeat(4,1fr)",
-    gap: 10,
-    borderRadius: 999,
-    padding: "11px 16px",
-    background: "rgba(7,7,13,.68)",
-    border: "1px solid rgba(247,201,72,.22)",
-    color: "#F7C948",
-    fontSize: 11,
-    fontWeight: 950,
-    textAlign: "center",
-    zIndex: 4,
-  },
-
-  vipPanel: {
-    minHeight: 540,
-    borderRadius: 30,
-    padding: "32px 26px",
-    background: "linear-gradient(180deg,rgba(13,7,24,.96),rgba(7,7,13,.98))",
-    border: "1px solid rgba(123,44,255,.35)",
-    boxShadow: "0 0 40px rgba(123,44,255,.18), inset 0 1px 0 rgba(255,255,255,.08)",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    gap: 18,
-    color: "#fff",
-  },
-
-  confidenceBar: {
-    height: 12,
-    borderRadius: 999,
-    background: "rgba(255,255,255,.10)",
-    overflow: "hidden",
-  },
-
-  confidenceFill: {
-    height: "100%",
-    borderRadius: 999,
-    background: "linear-gradient(90deg,#22c55e,#F7C948)",
-  },
-
-  vipFullButton: {
-    border: 0,
-    borderRadius: 16,
-    padding: "18px 18px",
-    background: "linear-gradient(135deg,#F7C948,#fb923c)",
-    color: "#07070D",
-    fontWeight: 1000,
-    cursor: "pointer",
-  },
-
-  topPickHeroPremium: {
-    minHeight: 156,
-    margin: "0 26px 22px",
-    padding: "22px 24px",
-    display: "grid",
-    gridTemplateColumns: "150px minmax(340px,.95fr) minmax(310px,1fr) 430px",
-    alignItems: "center",
-    gap: 18,
-    borderRadius: 24,
-    position: "relative",
-    overflow: "hidden",
-    border: "1px solid rgba(247,201,72,.58)",
-    background: "linear-gradient(135deg,rgba(7,7,13,.97),rgba(26,8,54,.92))",
-    boxShadow: "0 18px 54px rgba(0,0,0,.34), 0 0 28px rgba(247,201,72,.10)",
-    color: "#fff",
-  },
-
-  topPickStarBlock: {
-    display: "flex",
-    alignItems: "center",
-    gap: 14,
-    color: "#F7C948",
-    fontSize: 17,
-    fontWeight: 1000,
-    lineHeight: 1.05,
-  },
-
-  topPickStarIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "rgba(247,201,72,.12)",
-    border: "1px solid rgba(247,201,72,.28)",
-    fontSize: 28,
-  },
-
-  topPickMatchBlockPremium: {
-    display: "grid",
-    gridTemplateColumns: "86px minmax(0,1fr) 86px",
-    alignItems: "center",
-    gap: 16,
-    minWidth: 0,
-  },
-
-  topPickLogoPremium: {
-    width: 82,
-    height: 82,
-    objectFit: "contain",
-    borderRadius: 22,
-    padding: 10,
-    background: "rgba(255,255,255,.08)",
-    border: "1px solid rgba(255,255,255,.14)",
-    filter: "drop-shadow(0 0 14px rgba(255,255,255,.16))",
-  },
-
-  topPickTeamsPremium: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 2,
-    textAlign: "center",
-    fontWeight: 1000,
-    color: "#fff",
-  },
-
-  topPickCenterPremium: {
-    borderRadius: 18,
-    padding: "18px 20px",
-    background: "linear-gradient(135deg,rgba(255,255,255,.09),rgba(255,255,255,.035))",
-    border: "1px solid rgba(247,201,72,.24)",
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-
-  topPickRightPremium: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr 178px",
-    gap: 10,
-    alignItems: "stretch",
-  },
-
-  topPickOddPremium: {
-    borderRadius: 16,
-    padding: "14px 12px",
-    background: "rgba(255,255,255,.05)",
-    border: "1px solid rgba(255,255,255,.12)",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    color: "#F7C948",
-  },
-
-  topPickConfidencePremium: {
-    borderRadius: 16,
-    padding: "14px 12px",
-    background: "rgba(34,197,94,.10)",
-    border: "1px solid rgba(34,197,94,.24)",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    color: "#22c55e",
-  },
-
-  topPickQualityPremium: {
-    borderRadius: 16,
-    padding: "14px 12px",
-    background: "rgba(123,44,255,.12)",
-    border: "1px solid rgba(168,85,247,.26)",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    color: "#c4b5fd",
-  },
-
-  topPickButtonPremium: {
-    border: 0,
-    borderRadius: 18,
-    padding: "14px 18px",
-    background: "linear-gradient(135deg,#F7C948,#fff7ad,#fb923c)",
-    color: "#07070D",
-    fontWeight: 1000,
-    cursor: "pointer",
-    boxShadow: "0 18px 32px rgba(247,201,72,.20)",
-  },
-
-  playerPropsHomeSection: {
-    margin: "0 26px 22px",
-    borderRadius: 28,
-    padding: 24,
-    background: "linear-gradient(135deg,rgba(11,5,32,.98),rgba(72,22,138,.96) 48%,rgba(251,146,60,.14))",
-    border: "1px solid rgba(123,44,255,.55)",
-    color: "#fff",
-    boxShadow: "0 22px 60px rgba(0,0,0,.30), 0 0 40px rgba(123,44,255,.18)",
-    overflow: "hidden",
-  },
-
-  playerPropsHomeTitle: {
-    margin: "6px 0 6px",
-    fontSize: 30,
-    lineHeight: 1,
-    fontWeight: 1000,
-  },
-
-  playerPropsHomeGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3,minmax(0,1fr))",
-    gap: 18,
-  },
-
-  playerPropsHomeCard: {
-    position: "relative",
-    border: "1px solid rgba(255,255,255,.14)",
-    borderRadius: 22,
-    background: "linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.04))",
-    color: "#fff",
-    textAlign: "left",
-    padding: 0,
-    cursor: "pointer",
-    overflow: "hidden",
-    minHeight: 230,
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,.13), 0 14px 34px rgba(0,0,0,.22)",
-  },
-
-  playerPropsCardTopPremium: {
-    position: "relative",
-    height: 128,
-    display: "grid",
-    gridTemplateColumns: "88px minmax(0,1fr) 86px",
-    alignItems: "end",
-    gap: 8,
-    padding: "14px 14px 0",
-    background: "radial-gradient(circle at 50% 10%,rgba(250,204,21,.28),rgba(124,58,237,.36),rgba(0,0,0,.16))",
-  },
-
-  playerPropsClubLogoPremium: {
-    width: 72,
-    height: 72,
-    objectFit: "contain",
-    borderRadius: 18,
-    padding: 7,
-    background: "rgba(7,7,13,.35)",
-    border: "1px solid rgba(255,255,255,.18)",
-    filter: "drop-shadow(0 0 12px rgba(255,255,255,.26))",
-    alignSelf: "start",
-  },
-
-  playerPropsPlayerPhotoWrap: {
-    height: 132,
-    alignSelf: "end",
-    justifySelf: "center",
-    display: "flex",
-    alignItems: "end",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-
-  playerPropsPlayerCutout: {
-    height: 142,
-    width: 180,
-    objectFit: "contain",
-    objectPosition: "center bottom",
-    filter: "drop-shadow(0 18px 24px rgba(0,0,0,.45))",
-  },
-
-  playerPropsTrend: {
-    alignSelf: "end",
-    justifySelf: "end",
-    display: "flex",
-    alignItems: "end",
-    gap: 4,
-    height: 58,
-    paddingBottom: 10,
-  },
-
-  playerPropsHomeBody: {
-    padding: 16,
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-  },
-
-  playerPropsHomePlayer: {
-    margin: 0,
-    fontSize: 20,
-    fontWeight: 1000,
-    letterSpacing: .2,
-  },
-
-  playerPropsHomeTeam: {
-    margin: "-4px 0 0",
-    color: "#F7C948",
-    fontSize: 12,
-    fontWeight: 950,
-    textTransform: "uppercase",
-  },
-
-  playerPropsHomeMetrics: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 10,
-    marginTop: 4,
-  },
-
-  premiumTicketSection: {
-    margin: "0 26px 22px",
-    borderRadius: 28,
-    padding: 22,
-    background: "linear-gradient(135deg,rgba(7,7,13,.98),rgba(18,5,31,.94))",
-    border: "1px solid rgba(247,201,72,.34)",
-    color: "#fff",
-    boxShadow: "0 22px 60px rgba(0,0,0,.30)",
-  },
-
-  vipMarketingStrip: {
-    margin: "0 26px 22px",
-    borderRadius: 28,
-    padding: 24,
-    background: "linear-gradient(135deg,rgba(9,5,20,.98),rgba(30,16,66,.96))",
-    border: "1px solid rgba(123,44,255,.36)",
-    color: "#fff",
-    boxShadow: "0 22px 60px rgba(0,0,0,.30), 0 0 40px rgba(123,44,255,.16)",
-  },
-
-  vipMarketingHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 18,
-    marginBottom: 18,
-  },
-
-  vipMarketingCards: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4,minmax(0,1fr))",
-    gap: 14,
-  },
-
-  vipMarketingCard: {
-    minHeight: 126,
-    borderRadius: 20,
-    padding: 16,
-    background: "linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.035))",
-    border: "1px solid rgba(255,255,255,.12)",
-    position: "relative",
-    overflow: "hidden",
-  },
-
-  vipMarketingCardTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-
-  vipMarketingGreenValue: {
-    color: "#22c55e",
-    fontSize: 32,
-    fontWeight: 1000,
-  },
-
-  vipMarketingPurpleValue: {
-    color: "#c084fc",
-    fontSize: 32,
-    fontWeight: 1000,
-  },
-
-  vipSparkline: {
-    position: "absolute",
-    right: 14,
-    bottom: 12,
-    display: "flex",
-    gap: 4,
-    alignItems: "end",
-    height: 34,
-    opacity: .9,
-  },
-});
-
