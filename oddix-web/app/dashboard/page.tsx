@@ -845,6 +845,41 @@ export default function Dashboard() {
     return extractPlayerPropsFromTips(displayedSmartTips);
   }, [displayedSmartTips]);
 
+  const homePlayerProps = useMemo(() => {
+    const realOrEstimated = playerPropsTips.length
+      ? playerPropsTips
+      : buildEstimatedPlayerPropsFromGames(topGames);
+
+    if (realOrEstimated.length) return realOrEstimated.slice(0, 3);
+
+    return topGames.slice(0, 3).map((game, index) => {
+      const quality = safeNumber(game?.oddix?.qualityScore, 76);
+      const playerName = index === 0
+        ? `Destaque ${game?.teams?.home?.name || "Casa"}`
+        : `Destaque ${game?.teams?.away?.name || "Fora"}`;
+
+      return {
+        key: `home_player_prop_${game?.fixture?.id || index}`,
+        category: "Player Props",
+        market: index === 1 ? "Jogador finalizações" : "Jogador chutes no gol",
+        player: playerName,
+        tip: index === 1 ? `${playerName} Over 1.5 finalizações` : `${playerName} Over 0.5 chute no gol`,
+        odd: quality >= 85 ? "1.72" : quality >= 78 ? "1.84" : "1.95",
+        confidence: Math.min(89, Math.max(74, quality)),
+        risk: quality >= 85 ? "Baixo" : "Médio",
+        source: "Oddix Player Props IA",
+        bookmaker: "Oddix estimada",
+        fixtureId: game?.fixture?.id,
+        game: `${game?.teams?.home?.name || "Casa"} x ${game?.teams?.away?.name || "Fora"}`,
+        homeTeam: game?.teams?.home?.name,
+        awayTeam: game?.teams?.away?.name,
+        league: game?.league?.name,
+        teamLogo: game?.teams?.home?.logo || game?.teams?.away?.logo,
+        isEstimated: true,
+      };
+    });
+  }, [playerPropsTips, topGames]);
+
   const filteredGames = useMemo(() => {
     const q = search.toLowerCase().trim();
 
@@ -1462,6 +1497,10 @@ export default function Dashboard() {
           .oddix-tabs {
             min-width: max-content !important;
           }
+
+          .oddix-player-props-home-grid {
+            grid-template-columns: 1fr !important;
+          }
         }
 
         @media (max-width: 520px) {
@@ -1611,10 +1650,17 @@ export default function Dashboard() {
         <div className="oddix-hero-main" style={styles.heroMain}>
           <div className="oddix-hero-text" style={styles.heroTextBlock}>
             <span style={styles.sectionKicker}>ODDIX SMART BETTING</span>
-            <h1>Dashboard premium para entradas, live e bilhetes VIP com IA.</h1>
+            <h1>ODDIX IA V4</h1>
             <p>
-              A Oddix combina filtros de ligas, score V4, odds, estatísticas ao vivo e gestão de risco para mostrar somente oportunidades com valor real.
+              A inteligência artificial que filtra milhares de jogos, elimina entradas ruins e destaca apenas oportunidades com valor.
             </p>
+            <div style={styles.heroFeatureList}>
+              <span>✓ Top Picks Premium</span>
+              <span>✓ Player Props</span>
+              <span>✓ Leitura Ao Vivo</span>
+              <span>✓ Bilhetes VIP</span>
+              <span>✓ Gestão de banca</span>
+            </div>
             <div style={styles.heroStats}>
               <InfoMetric label="Jogos" value={games.length} />
               <InfoMetric label="Ao vivo" value={liveGames.length} />
@@ -1643,6 +1689,17 @@ export default function Dashboard() {
         game={topGames[0]}
         liveTick={liveTick}
         onAnalyze={(game: any) => openMatchDetail(game)}
+      />
+
+      <PlayerPropsHome
+        props={homePlayerProps}
+        games={games}
+        isPaidPlan={isPaidPlan}
+        onOpen={(prop: any) => {
+          const game = getGameByTip(prop, games);
+          if (game) openMatchDetail(game);
+        }}
+        onUpgrade={() => (window.location.href = "/plans")}
       />
 
       <PremiumTicketPreview
@@ -2570,6 +2627,89 @@ function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
   );
 }
 
+function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
+  const safeProps = Array.isArray(props) ? props.slice(0, 3) : [];
+
+  if (!safeProps.length) return null;
+
+  return (
+    <section style={styles.playerPropsHomeSection}>
+      <div style={styles.playerPropsHomeHeader}>
+        <div>
+          <span style={styles.playerPropsHomeKicker}>⚽ PLAYER PROPS EM DESTAQUE</span>
+          <h2 style={styles.playerPropsHomeTitle}>Mercados de jogador filtrados pela IA</h2>
+          <p style={styles.playerPropsHomeText}>
+            Chutes no gol, finalizações e participação ofensiva com leitura Oddix para aumentar a percepção premium do VIP.
+          </p>
+        </div>
+
+        <button style={styles.playerPropsHomeAction} onClick={() => (isPaidPlan ? onOpen?.(safeProps[0]) : onUpgrade?.())}>
+          {isPaidPlan ? "Ver mercado" : "Liberar Player Props"}
+        </button>
+      </div>
+
+      <div className="oddix-player-props-home-grid" style={styles.playerPropsHomeGrid}>
+        {safeProps.map((prop: any, index: number) => {
+          const game = getGameByTip(prop, games);
+          const playerName = playerNameFromProp(prop);
+          const playerPhoto = playerPhotoFromProp(prop, game);
+          const type = playerPropType(prop);
+          const line = playerPropLine(prop);
+          const confidence = safeNumber(prop?.confidence, 0);
+
+          return (
+            <button
+              key={`${prop.fixtureId || index}-${prop.tip || prop.selection || playerName}`}
+              style={styles.playerPropsHomeCard}
+              onClick={() => {
+                if (!isPaidPlan) {
+                  onUpgrade?.();
+                  return;
+                }
+                onOpen?.(prop);
+              }}
+            >
+              <div style={styles.playerPropsHomePhotoBox}>
+                <img
+                  src={playerPhoto}
+                  alt={playerName}
+                  style={styles.playerPropsHomePhoto}
+                  onError={(event) => {
+                    event.currentTarget.src = game?.teams?.home?.logo || game?.teams?.away?.logo || logoFallback(playerName, "4c1d95", "facc15");
+                  }}
+                />
+                <span style={styles.playerPropsHomeRank}>#{index + 1}</span>
+              </div>
+
+              <div style={styles.playerPropsHomeBody}>
+                <span style={styles.playerPropsHomeType}>{type}</span>
+                <h3 style={styles.playerPropsHomePlayer}>{playerName}</h3>
+                <p style={styles.playerPropsHomeGame}>{prop.game || (game ? `${game?.teams?.home?.name} x ${game?.teams?.away?.name}` : "Jogo Oddix")}</p>
+
+                <div style={styles.playerPropsHomePick}>
+                  <small>Entrada</small>
+                  <strong>{line}</strong>
+                </div>
+
+                <div style={styles.playerPropsHomeMetrics}>
+                  <div>
+                    <span>ODD</span>
+                    <strong>{prop.odd || "-"}</strong>
+                  </div>
+                  <div>
+                    <span>IA</span>
+                    <strong>{confidence ? `${confidence}%` : "VIP"}</strong>
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function PremiumTicketPreview({ tips, games, isPaidPlan, onOpen, onUpgrade }: any) {
   const ticket = buildVipTicket(tips);
 
@@ -3442,6 +3582,145 @@ const styles: Record<string, CSSProperties> = {
     color: "#111827",
     fontWeight: 950,
     cursor: "pointer",
+  },
+
+  heroFeatureList: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 14,
+    marginBottom: 16,
+  },
+  playerPropsHomeSection: {
+    margin: "0 26px 20px",
+    borderRadius: 28,
+    padding: 22,
+    background: "linear-gradient(135deg,rgba(11,5,32,.98),rgba(72,22,138,.96) 48%,rgba(251,146,60,.18))",
+    border: "1px solid rgba(250,204,21,.28)",
+    color: "#fff",
+    boxShadow: "0 22px 60px rgba(0,0,0,.28)",
+    overflow: "hidden",
+  },
+  playerPropsHomeHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 18,
+    marginBottom: 18,
+  },
+  playerPropsHomeKicker: {
+    color: "#facc15",
+    fontSize: 12,
+    fontWeight: 950,
+    letterSpacing: .8,
+  },
+  playerPropsHomeTitle: {
+    margin: "6px 0 4px",
+    fontSize: 28,
+    lineHeight: 1,
+    fontWeight: 950,
+  },
+  playerPropsHomeText: {
+    margin: 0,
+    maxWidth: 720,
+    color: "rgba(255,255,255,.75)",
+    fontSize: 13,
+    lineHeight: 1.45,
+  },
+  playerPropsHomeAction: {
+    border: 0,
+    borderRadius: 999,
+    padding: "13px 18px",
+    background: "linear-gradient(135deg,#facc15,#fb923c)",
+    color: "#111827",
+    fontWeight: 950,
+    cursor: "pointer",
+    boxShadow: "0 14px 30px rgba(250,204,21,.22)",
+    whiteSpace: "nowrap",
+  },
+  playerPropsHomeGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+    gap: 16,
+  },
+  playerPropsHomeCard: {
+    border: "1px solid rgba(255,255,255,.12)",
+    borderRadius: 24,
+    background: "linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.04))",
+    color: "#fff",
+    textAlign: "left",
+    padding: 0,
+    cursor: "pointer",
+    overflow: "hidden",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,.13), 0 14px 34px rgba(0,0,0,.20)",
+  },
+  playerPropsHomePhotoBox: {
+    position: "relative",
+    height: 156,
+    background: "radial-gradient(circle at 50% 10%,rgba(250,204,21,.34),rgba(124,58,237,.24),rgba(0,0,0,.20))",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playerPropsHomePhoto: {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+    padding: 18,
+    filter: "drop-shadow(0 14px 22px rgba(0,0,0,.42))",
+  },
+  playerPropsHomeRank: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    background: "rgba(0,0,0,.58)",
+    border: "1px solid rgba(250,204,21,.30)",
+    color: "#facc15",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 950,
+  },
+  playerPropsHomeBody: {
+    padding: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  playerPropsHomeType: {
+    color: "#facc15",
+    fontSize: 11,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: .7,
+  },
+  playerPropsHomePlayer: {
+    margin: 0,
+    fontSize: 20,
+    fontWeight: 950,
+  },
+  playerPropsHomeGame: {
+    margin: 0,
+    color: "rgba(255,255,255,.68)",
+    fontSize: 12,
+    fontWeight: 800,
+  },
+  playerPropsHomePick: {
+    borderRadius: 16,
+    padding: 12,
+    background: "rgba(0,0,0,.30)",
+    border: "1px solid rgba(250,204,21,.18)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  playerPropsHomeMetrics: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 10,
   },
 
   playerPropsHero: {
