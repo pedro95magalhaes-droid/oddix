@@ -2569,10 +2569,10 @@ export default function Dashboard() {
       <section className="oddix-hero-grid" style={styles.heroGrid}>
         <div className="oddix-hero-main" style={styles.heroMain}>
           <div className="oddix-hero-text" style={styles.heroTextBlock}>
-            <span style={styles.sectionKicker}>ODDIX SMART BETTING</span>
-            <h1>ODDIX IA V4</h1>
+            <span style={styles.sectionKicker}>POWERED BY ODDIX INTELLIGENCE</span>
+            <h1>ODDIX INTELLIGENCE</h1>
             <p>
-              A inteligência artificial que filtra milhares de jogos, elimina entradas ruins e destaca apenas oportunidades com valor.
+              A inteligência esportiva que cruza estatísticas, odds e leitura de jogo para destacar apenas entradas com valor real para membros VIP.
             </p>
             <div style={styles.heroFeatureList}>
               <span>✓ Top Picks Premium</span>
@@ -2580,6 +2580,7 @@ export default function Dashboard() {
               <span>✓ Leitura Ao Vivo</span>
               <span>✓ Bilhetes VIP</span>
               <span>✓ Gestão de banca</span>
+              <span>✓ Odds Boost</span>
             </div>
             <div style={styles.heroCtaRow}>
               <button style={styles.heroPrimaryCta} onClick={() => setActiveTab("highlights")}>🔥 VER TOP PICK</button>
@@ -2906,8 +2907,8 @@ function getTabTitle(tab: TabKey) {
 function InfoMetric({ label, value }: { label: string; value: any }) {
   return (
     <div className="oddix-info-metric" style={styles.infoMetric}>
-      <span>{label}</span>
       <strong>{value}</strong>
+      <span>{label}</span>
     </div>
   );
 }
