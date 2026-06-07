@@ -2150,6 +2150,296 @@ export default function Dashboard() {
           }
         }
 
+
+        /* ODDIX V15 ADAPTIVE PROPORTION FIX
+           Enquadra o dashboard conforme largura/altura da tela, remove sobreposição no hero
+           e deixa Top Pick / Boost / Mercado Quente proporcionais em desktop, notebook e mobile. */
+        .oddix-dashboard {
+          min-height: 100svh !important;
+          overflow-x: clip !important;
+        }
+
+        .oddix-top-header,
+        .oddix-sports-rail {
+          width: 100% !important;
+        }
+
+        .oddix-hero-grid,
+        .oddix-vip-marketing-strip,
+        .oddix-premium-ticket,
+        .oddix-top-pick-hero,
+        .oddix-marketing-banner,
+        .oddix-top-widgets,
+        .oddix-featured-strip,
+        .oddix-tabs-wrapper,
+        .oddix-layout,
+        .oddix-footer,
+        .oddix-player-props-home-section,
+        .oddix-vip-results,
+        .oddix-hot-markets,
+        .oddix-hot-entries {
+          width: min(1440px, calc(100vw - clamp(20px, 3vw, 48px))) !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+        }
+
+        .oddix-hero-grid {
+          grid-template-columns: minmax(0, 1fr) clamp(250px, 22vw, 320px) !important;
+          gap: clamp(14px, 1.6vw, 22px) !important;
+          margin-top: clamp(14px, 1.6vw, 24px) !important;
+          margin-bottom: clamp(16px, 2vw, 26px) !important;
+          align-items: stretch !important;
+        }
+
+        .oddix-hero-main {
+          height: auto !important;
+          min-height: clamp(410px, 39vw, 520px) !important;
+          grid-template-columns: minmax(330px, 0.92fr) minmax(300px, 1.08fr) !important;
+          gap: clamp(10px, 1.5vw, 24px) !important;
+          padding: clamp(28px, 3vw, 44px) clamp(28px, 3vw, 46px) clamp(28px, 3vw, 42px) !important;
+          align-items: center !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-hero-text {
+          max-width: 620px !important;
+          min-width: 0 !important;
+        }
+
+        .oddix-hero-text h1 {
+          font-size: clamp(48px, 5.8vw, 92px) !important;
+          line-height: .88 !important;
+          letter-spacing: clamp(-4px, -.28vw, -2px) !important;
+          margin: 10px 0 14px !important;
+        }
+
+        .oddix-hero-text p {
+          max-width: 560px !important;
+          font-size: clamp(14px, 1.1vw, 17px) !important;
+          line-height: 1.42 !important;
+        }
+
+        .oddix-hero-stats {
+          display: grid !important;
+          grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          gap: 10px !important;
+          max-width: 620px !important;
+          margin-top: 16px !important;
+          position: relative !important;
+          z-index: 5 !important;
+        }
+
+        .oddix-info-metric {
+          min-height: clamp(58px, 5vw, 72px) !important;
+          padding: clamp(10px, 1vw, 14px) !important;
+          border-radius: 15px !important;
+        }
+
+        .oddix-info-metric strong {
+          font-size: clamp(18px, 1.7vw, 24px) !important;
+        }
+
+        .oddix-info-metric span {
+          font-size: clamp(9px, .75vw, 11px) !important;
+        }
+
+        .oddix-hero-player-box {
+          height: 100% !important;
+          min-height: clamp(300px, 33vw, 470px) !important;
+          align-self: end !important;
+          overflow: visible !important;
+        }
+
+        .oddix-hero-player {
+          height: clamp(350px, 39vw, 520px) !important;
+          max-height: 100% !important;
+          width: min(100%, 600px) !important;
+          right: clamp(-44px, -2vw, -10px) !important;
+          bottom: 0 !important;
+          transform: none !important;
+          object-fit: contain !important;
+          object-position: right bottom !important;
+        }
+
+        .oddix-hero-bottom-features {
+          display: none !important;
+        }
+
+        .oddix-vip-panel {
+          min-height: clamp(410px, 39vw, 520px) !important;
+          height: auto !important;
+          padding: clamp(22px, 2vw, 30px) !important;
+        }
+
+        .oddix-vip-panel strong {
+          font-size: clamp(42px, 4vw, 58px) !important;
+        }
+
+        .oddix-top-pick-hero {
+          min-height: clamp(138px, 12vw, 168px) !important;
+          grid-template-columns: clamp(92px, 9vw, 124px) minmax(250px, 1fr) minmax(260px, 1.2fr) minmax(250px, .9fr) !important;
+          gap: clamp(12px, 1.3vw, 18px) !important;
+          padding: clamp(16px, 1.7vw, 22px) !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-top-pick-hero > * {
+          min-width: 0 !important;
+        }
+
+        .oddix-hot-markets,
+        .oddix-hot-entries {
+          margin-bottom: clamp(16px, 2vw, 26px) !important;
+        }
+
+        .oddix-hot-markets-grid,
+        .oddix-hot-entries > div:last-child {
+          grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important;
+        }
+
+        .oddix-hot-markets button,
+        .oddix-hot-entries button {
+          min-height: 138px !important;
+        }
+
+        .oddix-player-props-home-grid {
+          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
+        }
+
+        .oddix-games-grid {
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)) !important;
+          max-height: min(860px, calc(100svh - 180px)) !important;
+        }
+
+        .oddix-layout {
+          grid-template-columns: clamp(230px, 18vw, 280px) minmax(0, 1fr) !important;
+        }
+
+        @media (max-width: 1320px) {
+          .oddix-hero-main {
+            grid-template-columns: minmax(320px, 1fr) minmax(280px, .82fr) !important;
+            min-height: 430px !important;
+          }
+
+          .oddix-hero-stats {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+
+          .oddix-top-pick-hero {
+            grid-template-columns: 96px minmax(250px, 1fr) minmax(250px, 1fr) minmax(210px, .72fr) !important;
+          }
+        }
+
+        @media (max-width: 1180px) {
+          .oddix-hero-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-vip-panel {
+            min-height: auto !important;
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) auto !important;
+            gap: 16px !important;
+          }
+
+          .oddix-top-pick-hero {
+            grid-template-columns: 110px minmax(0, 1fr) !important;
+          }
+
+          .oddix-layout {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 920px) {
+          .oddix-hero-grid,
+          .oddix-vip-marketing-strip,
+          .oddix-premium-ticket,
+          .oddix-top-pick-hero,
+          .oddix-marketing-banner,
+          .oddix-top-widgets,
+          .oddix-featured-strip,
+          .oddix-tabs-wrapper,
+          .oddix-layout,
+          .oddix-footer,
+          .oddix-player-props-home-section,
+          .oddix-vip-results,
+          .oddix-hot-markets,
+          .oddix-hot-entries {
+            width: min(100% - 24px, 100%) !important;
+          }
+
+          .oddix-hero-main {
+            grid-template-columns: 1fr !important;
+            min-height: auto !important;
+            padding: 26px 18px 0 !important;
+            text-align: center !important;
+          }
+
+          .oddix-hero-stats {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+          }
+
+          .oddix-hero-player-box {
+            min-height: 250px !important;
+            height: 250px !important;
+          }
+
+          .oddix-hero-player {
+            position: relative !important;
+            height: 278px !important;
+            right: auto !important;
+            bottom: auto !important;
+            object-position: center bottom !important;
+          }
+
+          .oddix-vip-panel {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-top-pick-hero {
+            grid-template-columns: 1fr !important;
+            text-align: center !important;
+          }
+
+          .oddix-games-grid {
+            max-height: none !important;
+            overflow-y: visible !important;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .oddix-hero-main {
+            padding: 22px 14px 0 !important;
+            border-radius: 22px !important;
+          }
+
+          .oddix-hero-text h1 {
+            font-size: clamp(30px, 11vw, 42px) !important;
+            letter-spacing: -1px !important;
+          }
+
+          .oddix-hero-stats {
+            grid-template-columns: 1fr 1fr !important;
+            gap: 8px !important;
+          }
+
+          .oddix-info-metric:nth-child(n+5) {
+            display: none !important;
+          }
+
+          .oddix-hero-player-box {
+            height: 210px !important;
+            min-height: 210px !important;
+          }
+
+          .oddix-hero-player {
+            height: 230px !important;
+          }
+        }
+
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
@@ -2295,7 +2585,7 @@ export default function Dashboard() {
               <button style={styles.heroPrimaryCta} onClick={() => setActiveTab("highlights")}>🔥 VER TOP PICK</button>
               <button style={styles.heroSecondaryCta} onClick={() => (window.location.href = "/plans")}>💎 ASSINAR VIP</button>
             </div>
-            <div style={styles.heroStats}>
+            <div className="oddix-hero-stats" style={styles.heroStats}>
               <InfoMetric label="Assertividade" value={`${stats?.roi || 72}%`} />
               <InfoMetric label="ROI 7D" value={`+${stats?.roi || 63}%`} />
               <InfoMetric label="Vips online" value="247" />
@@ -2310,7 +2600,7 @@ export default function Dashboard() {
             <img className="oddix-hero-player" src={ODDIX_PLAYER_IMAGE} alt="Jogador Oddix" style={styles.heroPlayerImage} />
           </div>
 
-          <div style={styles.heroBottomFeatures}>
+          <div className="oddix-hero-bottom-features" style={styles.heroBottomFeatures}>
             <span>🏆 ANÁLISE PREMIUM</span>
             <span>⚡ PREVISÕES EM TEMPO REAL</span>
             <span>📊 ESTATÍSTICAS AVANÇADAS</span>

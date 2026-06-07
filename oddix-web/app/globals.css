@@ -482,3 +482,29 @@ img {
     grid-template-columns: 1fr !important;
   }
 }
+/* ODDIX V15 - Ajuste global para proporção da tela */
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  min-width: 320px;
+  width: 100%;
+  overflow-x: clip;
+}
+
+#__next,
+main {
+  max-width: 100vw;
+}
+
+.oddix-dashboard {
+  min-height: 100svh;
+  overflow-x: clip !important;
+}
+
+@media (max-width: 920px) {
+  body {
+    overflow-x: hidden;
+  }
+}
