@@ -854,9 +854,10 @@ export default function Dashboard() {
 
     return topGames.slice(0, 3).map((game, index) => {
       const quality = safeNumber(game?.oddix?.qualityScore, 76);
-      const playerName = index === 0
-        ? `Destaque ${game?.teams?.home?.name || "Casa"}`
-        : `Destaque ${game?.teams?.away?.name || "Fora"}`;
+      const playerName = premiumPlayerNameForGame(game, index);
+      const preferredTeamLogo = index === 1
+        ? game?.teams?.away?.logo || game?.teams?.home?.logo
+        : game?.teams?.home?.logo || game?.teams?.away?.logo;
 
       return {
         key: `home_player_prop_${game?.fixture?.id || index}`,
@@ -874,7 +875,8 @@ export default function Dashboard() {
         homeTeam: game?.teams?.home?.name,
         awayTeam: game?.teams?.away?.name,
         league: game?.league?.name,
-        teamLogo: game?.teams?.home?.logo || game?.teams?.away?.logo,
+        teamLogo: preferredTeamLogo,
+        playerPhoto: "",
         isEstimated: true,
       };
     });
@@ -1660,6 +1662,10 @@ export default function Dashboard() {
               <span>✓ Leitura Ao Vivo</span>
               <span>✓ Bilhetes VIP</span>
               <span>✓ Gestão de banca</span>
+            </div>
+            <div style={styles.heroActionButtons}>
+              <button style={styles.heroPrimaryButton} onClick={() => setActiveTab("highlights")}>🔥 VER TOP PICK</button>
+              <button style={styles.heroSecondaryButton} onClick={() => (window.location.href = "/plans")}>💎 ASSINAR VIP</button>
             </div>
             <div style={styles.heroStats}>
               <InfoMetric label="Jogos" value={games.length} />
@@ -2636,15 +2642,15 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
     <section style={styles.playerPropsHomeSection}>
       <div style={styles.playerPropsHomeHeader}>
         <div>
-          <span style={styles.playerPropsHomeKicker}>⚽ PLAYER PROPS EM DESTAQUE</span>
-          <h2 style={styles.playerPropsHomeTitle}>Mercados de jogador filtrados pela IA</h2>
+          <span style={styles.playerPropsHomeKicker}>⚽ PLAYER PROPS VIP</span>
+          <h2 style={styles.playerPropsHomeTitle}>Mercados de jogador com visual premium</h2>
           <p style={styles.playerPropsHomeText}>
-            Chutes no gol, finalizações e participação ofensiva com leitura Oddix para aumentar a percepção premium do VIP.
+            Cards com jogador, escudo em alta qualidade, odd e confiança IA para deixar a área VIP com cara de produto profissional.
           </p>
         </div>
 
         <button style={styles.playerPropsHomeAction} onClick={() => (isPaidPlan ? onOpen?.(safeProps[0]) : onUpgrade?.())}>
-          {isPaidPlan ? "Ver mercado" : "Liberar Player Props"}
+          {isPaidPlan ? "Ver todos os mercados" : "Liberar Player Props"}
         </button>
       </div>
 
@@ -2652,10 +2658,13 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
         {safeProps.map((prop: any, index: number) => {
           const game = getGameByTip(prop, games);
           const playerName = playerNameFromProp(prop);
-          const playerPhoto = playerPhotoFromProp(prop, game);
           const type = playerPropType(prop);
           const line = playerPropLine(prop);
           const confidence = safeNumber(prop?.confidence, 0);
+          const teamName = prop?.homeTeam || game?.teams?.home?.name || prop?.awayTeam || game?.teams?.away?.name || "Time Oddix";
+          const teamLogo = prop?.teamLogo || game?.teams?.home?.logo || game?.teams?.away?.logo || logoFallback(teamName, "111827", "facc15");
+          const photo = prop?.playerPhoto || prop?.photo || prop?.headshot || prop?.raw?.player?.photo || "";
+          const hasRealPhoto = Boolean(photo && !prop?.isEstimated);
 
           return (
             <button
@@ -2669,22 +2678,53 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
                 onOpen?.(prop);
               }}
             >
-              <div style={styles.playerPropsHomePhotoBox}>
-                <img
-                  src={playerPhoto}
-                  alt={playerName}
-                  style={styles.playerPropsHomePhoto}
-                  onError={(event) => {
-                    event.currentTarget.src = game?.teams?.home?.logo || game?.teams?.away?.logo || logoFallback(playerName, "4c1d95", "facc15");
-                  }}
-                />
+              <div style={styles.playerPropsHomeVisual}>
+                <div style={styles.playerPropsHomeGlow} />
+                <div style={styles.playerPropsHomeTeamLogoBox}>
+                  <img
+                    src={teamLogo}
+                    alt={teamName}
+                    style={styles.playerPropsHomeTeamLogo}
+                    onError={(event) => {
+                      event.currentTarget.src = logoFallback(teamName, "111827", "facc15");
+                    }}
+                  />
+                </div>
+
+                <div style={{ ...styles.playerPropsHomeAvatar, ...playerAvatarStyle(playerName) }}>
+                  {hasRealPhoto ? (
+                    <img
+                      src={photo}
+                      alt={playerName}
+                      style={styles.playerPropsHomeAvatarImage}
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <span style={styles.playerPropsHomeInitials}>{playerInitials(playerName)}</span>
+                  )}
+                </div>
+
+                <div style={styles.playerPropsChartLine}>
+                  {[18, 26, 22, 34, 42].map((height, barIndex) => (
+                    <span key={barIndex} style={{ width: 18, height, borderRadius: 999, background: "linear-gradient(180deg,#a855f7,#22c55e)", boxShadow: "0 0 16px rgba(168,85,247,.45)" }} />
+                  ))}
+                </div>
+
                 <span style={styles.playerPropsHomeRank}>#{index + 1}</span>
               </div>
 
               <div style={styles.playerPropsHomeBody}>
+                <div style={styles.playerPropsNameRow}>
+                  <div>
+                    <h3 style={styles.playerPropsHomePlayer}>{playerName}</h3>
+                    <p style={styles.playerPropsHomeGame}>{teamName}</p>
+                  </div>
+                  <span style={styles.playerPropsVipTag}>VIP</span>
+                </div>
+
                 <span style={styles.playerPropsHomeType}>{type}</span>
-                <h3 style={styles.playerPropsHomePlayer}>{playerName}</h3>
-                <p style={styles.playerPropsHomeGame}>{prop.game || (game ? `${game?.teams?.home?.name} x ${game?.teams?.away?.name}` : "Jogo Oddix")}</p>
 
                 <div style={styles.playerPropsHomePick}>
                   <small>Entrada</small>
@@ -2694,10 +2734,10 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
                 <div style={styles.playerPropsHomeMetrics}>
                   <div>
                     <span>ODD</span>
-                    <strong>{prop.odd || "-"}</strong>
+                    <strong>{prop.odd || "1.72"}</strong>
                   </div>
                   <div>
-                    <span>IA</span>
+                    <span>CONFIANÇA</span>
                     <strong>{confidence ? `${confidence}%` : "VIP"}</strong>
                   </div>
                 </div>
@@ -3184,6 +3224,68 @@ function playerPropLine(prop: any) {
     .trim() || tip;
 }
 
+function playerInitials(name: any) {
+  const parts = String(name || "Jogador Oddix")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+
+  const first = parts[0]?.[0] || "O";
+  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] : parts[0]?.[1];
+
+  return `${first}${last || "X"}`.toUpperCase();
+}
+
+function playerColorSeed(value: any) {
+  const hash = seededHash(String(value || "oddix-player"));
+  const palettes = [
+    ["#facc15", "#fb923c", "#7c2d12"],
+    ["#a855f7", "#22c55e", "#0f172a"],
+    ["#38bdf8", "#8b5cf6", "#111827"],
+    ["#ef4444", "#f97316", "#1f2937"],
+    ["#22c55e", "#84cc16", "#052e16"],
+  ];
+
+  return palettes[hash % palettes.length];
+}
+
+function premiumPlayerNameForGame(game: any, index = 0) {
+  const home = String(game?.teams?.home?.name || "");
+  const away = String(game?.teams?.away?.name || "");
+  const text = normalizeTextLoose(`${home} ${away}`);
+
+  const names: { test: string[]; players: string[] }[] = [
+    { test: ["crb"], players: ["Anselmo Ramon", "Mike", "Léo Pereira"] },
+    { test: ["botafogo sp", "botafogo"], players: ["Douglas Baggio", "Alex Sandro", "Jean Victor"] },
+    { test: ["atletico go", "atletico-go", "atletico goianiense"], players: ["Janderson", "Shaylon", "Luiz Fernando"] },
+    { test: ["america mg", "america mineiro"], players: ["Moisés", "Fabinho", "Lucão"] },
+    { test: ["argentina"], players: ["Lautaro Martínez", "Julián Álvarez", "Enzo Fernández"] },
+    { test: ["curacao"], players: ["Juninho Bacuna", "Leandro Bacuna", "Gervane Kastaneer"] },
+    { test: ["cordino"], players: ["Atacante Cordino", "Meia Cordino", "Ponta Cordino"] },
+    { test: ["timon"], players: ["Atacante Timon", "Meia Timon", "Ponta Timon"] },
+  ];
+
+  const found = names.find((entry) => entry.test.some((word) => text.includes(word)));
+  if (found) return found.players[index % found.players.length];
+
+  const team = index === 1 ? away : home || away;
+  const short = String(team || "Oddix")
+    .replace(/\b(fc|ec|sc|ac|club|clube)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return `Atacante ${short || "Oddix"}`;
+}
+
+function playerAvatarStyle(name: any): CSSProperties {
+  const [a, b, c] = playerColorSeed(name);
+
+  return {
+    background: `radial-gradient(circle at 50% 18%, rgba(255,255,255,.95), ${a} 0 12%, ${b} 45%, ${c} 100%)`,
+  };
+}
+
 function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: any) {
   const safeProps = Array.isArray(props) ? props : [];
 
@@ -3589,16 +3691,42 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
     gap: 8,
     marginTop: 14,
+    marginBottom: 14,
+  },
+  heroActionButtons: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
     marginBottom: 16,
+  },
+  heroPrimaryButton: {
+    border: 0,
+    borderRadius: 16,
+    padding: "13px 18px",
+    background: "linear-gradient(135deg,#facc15,#fb923c)",
+    color: "#111827",
+    fontWeight: 950,
+    cursor: "pointer",
+    boxShadow: "0 14px 34px rgba(250,204,21,.26)",
+  },
+  heroSecondaryButton: {
+    border: "1px solid rgba(168,85,247,.55)",
+    borderRadius: 16,
+    padding: "13px 18px",
+    background: "rgba(88,28,135,.42)",
+    color: "#fff",
+    fontWeight: 950,
+    cursor: "pointer",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,.12)",
   },
   playerPropsHomeSection: {
     margin: "0 26px 20px",
     borderRadius: 28,
     padding: 22,
-    background: "linear-gradient(135deg,rgba(11,5,32,.98),rgba(72,22,138,.96) 48%,rgba(251,146,60,.18))",
-    border: "1px solid rgba(250,204,21,.28)",
+    background: "radial-gradient(circle at 85% 0%,rgba(250,204,21,.16),transparent 34%), linear-gradient(135deg,rgba(11,5,32,.98),rgba(46,16,101,.97) 52%,rgba(88,28,135,.82))",
+    border: "1px solid rgba(168,85,247,.45)",
     color: "#fff",
-    boxShadow: "0 22px 60px rgba(0,0,0,.28)",
+    boxShadow: "0 28px 70px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.10)",
     overflow: "hidden",
   },
   playerPropsHomeHeader: {
@@ -3616,14 +3744,15 @@ const styles: Record<string, CSSProperties> = {
   },
   playerPropsHomeTitle: {
     margin: "6px 0 4px",
-    fontSize: 28,
+    fontSize: 30,
     lineHeight: 1,
     fontWeight: 950,
+    textShadow: "0 10px 30px rgba(168,85,247,.35)",
   },
   playerPropsHomeText: {
     margin: 0,
-    maxWidth: 720,
-    color: "rgba(255,255,255,.75)",
+    maxWidth: 760,
+    color: "rgba(255,255,255,.76)",
     fontSize: 13,
     lineHeight: 1.45,
   },
@@ -3644,30 +3773,92 @@ const styles: Record<string, CSSProperties> = {
     gap: 16,
   },
   playerPropsHomeCard: {
-    border: "1px solid rgba(255,255,255,.12)",
+    border: "1px solid rgba(255,255,255,.14)",
     borderRadius: 24,
-    background: "linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.04))",
+    background: "linear-gradient(180deg,rgba(76,29,149,.74),rgba(18,8,42,.98))",
     color: "#fff",
     textAlign: "left",
     padding: 0,
     cursor: "pointer",
     overflow: "hidden",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,.13), 0 14px 34px rgba(0,0,0,.20)",
+    minHeight: 256,
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,.14), 0 16px 40px rgba(0,0,0,.26)",
   },
-  playerPropsHomePhotoBox: {
+  playerPropsHomeVisual: {
     position: "relative",
-    height: 156,
-    background: "radial-gradient(circle at 50% 10%,rgba(250,204,21,.34),rgba(124,58,237,.24),rgba(0,0,0,.20))",
+    height: 148,
+    background: "radial-gradient(circle at 72% 18%,rgba(250,204,21,.23),transparent 28%), radial-gradient(circle at 22% 20%,rgba(168,85,247,.55),transparent 42%), linear-gradient(135deg,rgba(15,23,42,.50),rgba(88,28,135,.50))",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
-  playerPropsHomePhoto: {
+  playerPropsHomeGlow: {
+    position: "absolute",
+    width: 180,
+    height: 180,
+    borderRadius: 999,
+    background: "rgba(168,85,247,.35)",
+    filter: "blur(34px)",
+    left: "38%",
+    top: -50,
+  },
+  playerPropsHomeTeamLogoBox: {
+    position: "absolute",
+    left: 18,
+    top: 18,
+    width: 76,
+    height: 76,
+    borderRadius: 22,
+    background: "rgba(0,0,0,.32)",
+    border: "1px solid rgba(255,255,255,.12)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+    boxShadow: "0 16px 34px rgba(0,0,0,.28)",
+  },
+  playerPropsHomeTeamLogo: {
+    width: 62,
+    height: 62,
+    objectFit: "contain",
+    filter: "drop-shadow(0 0 12px rgba(255,255,255,.22))",
+  },
+  playerPropsHomeAvatar: {
+    position: "absolute",
+    right: 24,
+    bottom: -10,
+    width: 114,
+    height: 114,
+    borderRadius: 28,
+    border: "1px solid rgba(255,255,255,.20)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 18px 40px rgba(0,0,0,.34)",
+    zIndex: 3,
+    overflow: "hidden",
+  },
+  playerPropsHomeAvatarImage: {
     width: "100%",
     height: "100%",
-    objectFit: "contain",
-    padding: 18,
-    filter: "drop-shadow(0 14px 22px rgba(0,0,0,.42))",
+    objectFit: "cover",
+  },
+  playerPropsHomeInitials: {
+    fontSize: 38,
+    fontWeight: 1000,
+    color: "#111827",
+    textShadow: "0 1px 0 rgba(255,255,255,.40)",
+  },
+  playerPropsChartLine: {
+    position: "absolute",
+    right: 150,
+    bottom: 24,
+    display: "flex",
+    alignItems: "end",
+    gap: 4,
+    opacity: .78,
+    zIndex: 2,
   },
   playerPropsHomeRank: {
     position: "absolute",
@@ -3676,19 +3867,35 @@ const styles: Record<string, CSSProperties> = {
     width: 38,
     height: 38,
     borderRadius: 14,
-    background: "rgba(0,0,0,.58)",
-    border: "1px solid rgba(250,204,21,.30)",
+    background: "rgba(0,0,0,.62)",
+    border: "1px solid rgba(250,204,21,.36)",
     color: "#facc15",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontWeight: 950,
+    zIndex: 4,
   },
   playerPropsHomeBody: {
     padding: 16,
     display: "flex",
     flexDirection: "column",
     gap: 10,
+  },
+  playerPropsNameRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  playerPropsVipTag: {
+    borderRadius: 999,
+    padding: "5px 8px",
+    background: "rgba(34,197,94,.15)",
+    border: "1px solid rgba(34,197,94,.30)",
+    color: "#86efac",
+    fontSize: 10,
+    fontWeight: 950,
   },
   playerPropsHomeType: {
     color: "#facc15",
@@ -3700,18 +3907,19 @@ const styles: Record<string, CSSProperties> = {
   playerPropsHomePlayer: {
     margin: 0,
     fontSize: 20,
+    lineHeight: 1.05,
     fontWeight: 950,
   },
   playerPropsHomeGame: {
-    margin: 0,
-    color: "rgba(255,255,255,.68)",
+    margin: "4px 0 0",
+    color: "#facc15",
     fontSize: 12,
-    fontWeight: 800,
+    fontWeight: 900,
   },
   playerPropsHomePick: {
     borderRadius: 16,
     padding: 12,
-    background: "rgba(0,0,0,.30)",
+    background: "rgba(0,0,0,.34)",
     border: "1px solid rgba(250,204,21,.18)",
     display: "flex",
     flexDirection: "column",
