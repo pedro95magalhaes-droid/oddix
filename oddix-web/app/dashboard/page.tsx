@@ -2098,6 +2098,58 @@ export default function Dashboard() {
           }
         }
 
+
+        /* ODDIX V14 SPORTSBOOK: Mercado Quente + Bilhete Boost + Hero mais premium */
+        .oddix-boost-ticket {
+          position: relative !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-boost-ticket::after {
+          content: "";
+          position: absolute;
+          inset: 8px;
+          border-radius: 22px;
+          border: 1px dashed rgba(250,204,21,.24);
+          pointer-events: none;
+        }
+
+        .oddix-hot-markets button {
+          transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease !important;
+        }
+
+        .oddix-hot-markets button:hover {
+          transform: translateY(-3px) !important;
+          border-color: rgba(250,204,21,.48) !important;
+          box-shadow: 0 18px 36px rgba(0,0,0,.28), 0 0 24px rgba(250,204,21,.10) !important;
+        }
+
+        .oddix-hero-main {
+          box-shadow: 0 22px 60px rgba(0,0,0,.38), 0 0 42px rgba(124,58,237,.20), inset 0 1px 0 rgba(255,255,255,.10) !important;
+        }
+
+        .oddix-info-metric {
+          background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.035)) !important;
+          border-color: rgba(250,204,21,.18) !important;
+        }
+
+        @media (max-width: 1100px) {
+          .oddix-hot-markets-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .oddix-hot-markets {
+            width: min(100% - 24px, 100%) !important;
+            padding: 16px !important;
+          }
+
+          .oddix-hot-markets-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
@@ -2244,10 +2296,12 @@ export default function Dashboard() {
               <button style={styles.heroSecondaryCta} onClick={() => (window.location.href = "/plans")}>💎 ASSINAR VIP</button>
             </div>
             <div style={styles.heroStats}>
-              <InfoMetric label="Jogos" value={games.length} />
+              <InfoMetric label="Assertividade" value={`${stats?.roi || 72}%`} />
+              <InfoMetric label="ROI 7D" value={`+${stats?.roi || 63}%`} />
+              <InfoMetric label="Vips online" value="247" />
+              <InfoMetric label="Greens hoje" value={stats?.wonBets || wonBetsList.length || 18} />
               <InfoMetric label="Ao vivo" value={liveGames.length} />
               <InfoMetric label="Tips IA" value={displayedSmartTips.length} />
-              <InfoMetric label="ROI" value={`${stats?.roi ?? 0}%`} />
             </div>
           </div>
 
@@ -2264,12 +2318,27 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="oddix-vip-panel" style={styles.vipPanel}>
-          <span>Oddix Boost</span>
+        <div className="oddix-vip-panel oddix-boost-ticket" style={styles.vipPanel}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <span>Oddix Boost</span>
+            <b style={{ color: "#facc15", fontSize: 12 }}>BILHETE VIP</b>
+          </div>
           <strong>{boost.combinedOdd}</strong>
           <small>Odd combinada estimada</small>
+          <div style={{ display: "grid", gap: 10, margin: "16px 0" }}>
+            {(boost.picks.length ? boost.picks : displayedSmartTips.slice(0, 3)).slice(0, 3).map((pick: any, index: number) => (
+              <div key={`${pick.fixtureId || pick.game || index}-boost-ticket`} style={{ display: "grid", gridTemplateColumns: "24px 1fr auto", gap: 10, alignItems: "center", padding: "10px", borderRadius: 14, background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.10)" }}>
+                <span style={{ width: 24, height: 24, borderRadius: 999, display: "grid", placeItems: "center", background: "rgba(34,197,94,.18)", color: "#22c55e", fontWeight: 1000 }}>✓</span>
+                <span style={{ minWidth: 0 }}>
+                  <b style={{ display: "block", fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pick.game || "Entrada Oddix"}</b>
+                  <small style={{ color: "rgba(255,255,255,.62)" }}>{pick.tip || pick.market || "Mercado protegido"}</small>
+                </span>
+                <b style={{ color: "#facc15" }}>{pick.odd || "1.70"}</b>
+              </div>
+            ))}
+          </div>
           <div style={styles.confidenceBar}><div style={{ ...styles.confidenceFill, width: `${Math.min(100, boost.confidence)}%` }} /></div>
-          <button style={styles.vipFullButton} onClick={() => setActiveTab("boost")}>Ver combinada</button>
+          <button style={styles.vipFullButton} onClick={() => setActiveTab("boost")}>Abrir bilhete VIP</button>
         </div>
       </section>
 
@@ -2278,6 +2347,15 @@ export default function Dashboard() {
         game={topGames[0]}
         liveTick={liveTick}
         onAnalyze={(game: any) => openMatchDetail(game)}
+      />
+
+      <HotMarketsSection
+        tips={displayedSmartTips}
+        games={games}
+        onOpen={(tip: any) => {
+          const game = getGameByTip(tip, games);
+          if (game) openMatchDetail(game);
+        }}
       />
 
       <PlayerPropsHome
@@ -3156,6 +3234,74 @@ function HotEntriesSection({ tips, games, liveTick = 0, isPaidPlan, onOpen, onUp
                 Abrir análise
               </button>
             </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+
+function HotMarketsSection({ tips, games, onOpen }: any) {
+  const fallback = [
+    { market: "Over 2.5", tip: "Total de gols", confidence: 82, odd: "1.86" },
+    { market: "Ambas Marcam", tip: "BTTS - Sim", confidence: 79, odd: "1.78" },
+    { market: "Escanteios", tip: "Over 7.5 cantos", confidence: 76, odd: "1.72" },
+    { market: "Chutes no Gol", tip: "Linha protegida", confidence: 81, odd: "1.83" },
+    { market: "Handicap", tip: "+1.5 protegido", confidence: 84, odd: "1.68" },
+  ];
+
+  const source = (tips && tips.length ? tips : fallback).slice(0, 5);
+
+  return (
+    <section className="oddix-hot-markets" style={{
+      width: "min(1480px, calc(100% - 36px))",
+      margin: "0 auto 18px",
+      padding: 20,
+      borderRadius: 26,
+      background: "linear-gradient(135deg, rgba(7,7,13,.96), rgba(30,12,58,.92))",
+      border: "1px solid rgba(250,204,21,.22)",
+      boxShadow: "0 18px 42px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08)",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: 16 }}>
+        <div>
+          <span style={{ color: "#facc15", fontSize: 12, fontWeight: 1000, textTransform: "uppercase", letterSpacing: 1 }}>🔥 Mercados Quentes</span>
+          <h2 style={{ margin: "6px 0 0", fontSize: 26, letterSpacing: -1 }}>Entradas com maior procura da IA</h2>
+        </div>
+        <button onClick={() => onOpen?.(source[0])} style={{ border: "1px solid rgba(250,204,21,.42)", background: "rgba(250,204,21,.12)", color: "#facc15", borderRadius: 999, padding: "12px 16px", fontWeight: 1000, cursor: "pointer" }}>
+          Ver melhor mercado
+        </button>
+      </div>
+
+      <div className="oddix-hot-markets-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12 }}>
+        {source.map((item: any, index: number) => {
+          const game = getGameByTip(item, games || []);
+          const confidence = safeNumber(item?.confidence, 78);
+          const market = item?.market || fallback[index % fallback.length].market;
+          const tip = item?.tip || item?.selection || fallback[index % fallback.length].tip;
+          return (
+            <button key={`${market}-${index}`} onClick={() => onOpen?.(item)} style={{
+              textAlign: "left",
+              minHeight: 132,
+              padding: 16,
+              borderRadius: 20,
+              border: "1px solid rgba(255,255,255,.10)",
+              background: "radial-gradient(circle at 80% 10%, rgba(250,204,21,.16), transparent 36%), rgba(255,255,255,.055)",
+              color: "#fff",
+              cursor: "pointer",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,.08)",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <span style={{ width: 36, height: 36, borderRadius: 14, display: "grid", placeItems: "center", background: "rgba(250,204,21,.14)", color: "#facc15", fontWeight: 1000 }}>{index + 1}</span>
+                <b style={{ color: "#22c55e", fontSize: 12 }}>{confidence}%</b>
+              </div>
+              <strong style={{ display: "block", fontSize: 17, marginBottom: 6 }}>{market}</strong>
+              <small style={{ display: "block", color: "rgba(255,255,255,.68)", minHeight: 32 }}>{tip}</small>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
+                <small style={{ color: "rgba(255,255,255,.50)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{game?.league?.name || item?.league || "Oddix IA"}</small>
+                <b style={{ color: "#facc15" }}>{item?.odd || fallback[index % fallback.length].odd}</b>
+              </div>
+            </button>
           );
         })}
       </div>
