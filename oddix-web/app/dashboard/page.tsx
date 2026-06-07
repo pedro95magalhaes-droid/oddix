@@ -643,6 +643,9 @@ function HeroSection({ games, live, tips, roi }: { games: number; live: number; 
           />
           <span style={styles.heroVersionBadge}>IA V4</span>
         </div>
+        <h1 style={styles.heroTitle}>
+          ODDIX IA <span style={styles.heroTitleAccent}>V4</span>
+        </h1>
         <p style={styles.heroText}>
           A inteligência artificial que filtra milhares de jogos, elimina entradas ruins e destaca apenas oportunidades com valor.
         </p>
@@ -705,6 +708,10 @@ function BoostPanel({ odd, confidence, onOpen }: { odd: string; confidence: numb
       <span style={styles.boostTitle}>🚀 Oddix Boost</span>
       <strong style={styles.boostOdd}>{odd}</strong>
       <small style={styles.boostText}>Odd combinada estimada</small>
+      <div style={styles.boostMiniGrid}>
+        <div><span>Confiança</span><strong>{confidence}%</strong></div>
+        <div><span>ROI</span><strong>+18%</strong></div>
+      </div>
       <div style={styles.boostProgress}><div style={{ ...styles.boostProgressFill, width: `${Math.min(100, confidence)}%` }} /></div>
       <button style={styles.boostButton} onClick={onOpen}>Ver combinada</button>
     </aside>
@@ -793,8 +800,7 @@ function PlayerPropCard({ prop, index }: { prop: any; index: number }) {
       <div style={styles.playerCardTop}>
         <img src={propLogo} alt={teamName} style={styles.playerTeamLogo} />
         <div style={styles.playerAvatarPremium}>
-          <span style={styles.playerAvatarHead} />
-          <span style={styles.playerAvatarBody} />
+          <img src={ODDIX_PLAYER_IMAGE} alt="Jogador destaque" style={styles.playerAvatarImage} />
         </div>
         <TrendChart />
         <small style={styles.cardRank}>#{index + 1}</small>
@@ -865,11 +871,11 @@ function VipTicket({ picks }: { picks: any[] }) {
 
       <div style={styles.ticketSummary}>
         <span>ODD TOTAL</span>
-        <strong>{totalOdd.toFixed(2)}</strong>
+        <strong style={styles.ticketBigOdd}>{totalOdd.toFixed(2)}</strong>
         <span>STAKE SUGERIDA</span>
         <b>R$ {stake.toFixed(2).replace(".", ",")}</b>
         <span>RETORNO POTENCIAL</span>
-        <em>R$ {returnValue.toFixed(2).replace(".", ",")}</em>
+        <em style={styles.ticketReturn}>R$ {returnValue.toFixed(2).replace(".", ",")}</em>
         <div style={styles.vipSeal}>VIP<br />PREMIUM</div>
       </div>
     </section>
@@ -890,7 +896,7 @@ function PerformancePanel({ greens, winRate, roi, entries }: { greens: number; w
       <div style={styles.performanceGrid}>
         {cards.map((card) => (
           <div key={card.label} style={styles.performanceCard}>
-            <strong style={{ color: card.color }}>{card.value}</strong>
+            <strong style={{ color: card.color, fontSize: 38, lineHeight: 1, textShadow: `0 0 18px ${card.color}55` }}>{card.value}</strong>
             <span>{card.label}</span>
             <small>Últimos 7 dias</small>
             <MiniLine color={card.color} />
@@ -1003,6 +1009,9 @@ const globalCss = `
     .oddix-rebuild { padding: 0 12px 28px !important; }
     .hero-title-responsive { font-size: 52px !important; }
   }
+  @media (max-width: 1320px) {
+    .oddix-rebuild { zoom: .92; }
+  }
 `;
 
 const styles: Record<string, CSSProperties> = {
@@ -1104,18 +1113,18 @@ const styles: Record<string, CSSProperties> = {
   heroBoostGrid: { display: "grid", gap: 18, marginBottom: 22 },
   heroCard: {
     position: "relative",
-    minHeight: 640,
+    minHeight: 680,
     overflow: "hidden",
     borderRadius: 32,
     border: "1px solid rgba(247,201,72,.38)",
-    background: "radial-gradient(circle at 70% 40%, rgba(123,44,255,.70), transparent 35%), linear-gradient(135deg, #12051F 0%, #1A0836 42%, #0D0718 100%)",
+    background: "radial-gradient(circle at 72% 44%, rgba(123,44,255,.92), transparent 38%), radial-gradient(circle at 38% 18%, rgba(247,201,72,.10), transparent 30%), linear-gradient(135deg, #12051F 0%, #1A0836 42%, #0D0718 100%)",
     boxShadow: "0 0 58px rgba(123,44,255,.32)",
     display: "grid",
-    gridTemplateColumns: "minmax(430px, 44%) minmax(0, 56%)",
+    gridTemplateColumns: "minmax(430px, 50%) minmax(0, 50%)",
     alignItems: "stretch",
     isolation: "isolate",
   },
-  heroContent: { position: "relative", zIndex: 5, padding: "50px 0 92px 46px", maxWidth: 640 },
+  heroContent: { position: "relative", zIndex: 5, padding: "46px 0 96px 46px", maxWidth: 650 },
   heroBadge: {
     display: "inline-flex",
     border: "1px solid rgba(168,85,247,.75)",
@@ -1128,20 +1137,24 @@ const styles: Record<string, CSSProperties> = {
     letterSpacing: 1.2,
   },
   heroTitle: {
-    margin: "20px 0 18px",
+    margin: "10px 0 18px",
     color: "#fff",
-    fontSize: "clamp(76px, 8vw, 128px)",
+    fontSize: "clamp(76px, 7vw, 118px)",
     lineHeight: 0.86,
     letterSpacing: -5,
     fontWeight: 1000,
-    textShadow: "0 0 38px rgba(123,44,255,.54)",
+    textShadow: "0 0 42px rgba(123,44,255,.58)",
+  },
+  heroTitleAccent: {
+    color: "#a855f7",
+    textShadow: "0 0 34px rgba(168,85,247,.75)",
   },
   heroBrand: {
     position: "relative",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "flex-start",
-    margin: "28px 0 24px",
+    margin: "22px 0 10px",
     padding: 0,
     borderRadius: 0,
     border: "none",
@@ -1149,7 +1162,7 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: "none",
   },
   heroMainLogo: {
-    width: 520,
+    width: 310,
     maxWidth: "100%",
     height: "auto",
     objectFit: "contain",
@@ -1197,23 +1210,23 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 1000,
     cursor: "pointer",
   },
-  heroVisual: { position: "relative", zIndex: 2, minHeight: 640 },
+  heroVisual: { position: "relative", zIndex: 2, minHeight: 680 },
   energyOrb: {
     position: "absolute",
-    width: 760,
-    height: 760,
+    width: 900,
+    height: 900,
     borderRadius: 999,
-    right: -30,
-    top: -86,
+    right: -170,
+    top: -130,
     background: "radial-gradient(circle, rgba(123,44,255,.95), rgba(123,44,255,.36) 38%, transparent 68%)",
     filter: "blur(12px)",
     opacity: .95,
   },
   heroLogoGhost: {
     position: "absolute",
-    right: -34,
-    bottom: 142,
-    fontSize: 174,
+    right: -50,
+    bottom: 150,
+    fontSize: 210,
     fontWeight: 1000,
     letterSpacing: -5,
     color: "rgba(255,255,255,.11)",
@@ -1221,18 +1234,19 @@ const styles: Record<string, CSSProperties> = {
   },
   heroPlayer: {
     position: "absolute",
-    right: -6,
-    bottom: 54,
-    height: 560,
-    width: 720,
+    right: -28,
+    bottom: 36,
+    height: 660,
+    width: 820,
     objectFit: "contain",
     objectPosition: "center bottom",
-    filter: "drop-shadow(0 0 44px rgba(123,44,255,.64)) drop-shadow(0 22px 34px rgba(0,0,0,.46))",
+    filter: "drop-shadow(0 0 58px rgba(123,44,255,.72)) drop-shadow(0 28px 42px rgba(0,0,0,.56))",
+    zIndex: 5,
   },
   smartphoneMock: {
     position: "absolute",
-    left: 12,
-    bottom: 170,
+    left: -30,
+    bottom: 178,
     width: 164,
     height: 246,
     borderRadius: 26,
@@ -1241,10 +1255,10 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(34,197,94,.45)",
     boxShadow: "0 0 40px rgba(34,197,94,.24)",
     transform: "rotate(-8deg)",
-    zIndex: 4,
+    zIndex: 3,
   },
   phoneLine: { height: 8, width: "90%", marginTop: 14, borderRadius: 999, background: "linear-gradient(90deg, #22c55e, #F7C948)" },
-  heroSlogan: { position: "absolute", right: 98, bottom: 86, fontSize: 16, fontWeight: 1000, textAlign: "center", color: "rgba(255,255,255,.96)", textShadow: "0 0 20px rgba(123,44,255,.55)", zIndex: 5 },
+  heroSlogan: { position: "absolute", right: 128, bottom: 72, fontSize: 16, fontWeight: 1000, textAlign: "center", color: "rgba(255,255,255,.96)", textShadow: "0 0 20px rgba(123,44,255,.55)", zIndex: 5 },
   heroBottomBar: {
     position: "absolute",
     left: 32,
@@ -1264,10 +1278,10 @@ const styles: Record<string, CSSProperties> = {
     color: "#F7C948",
   },
   boostPanel: {
-    minHeight: 640,
-    borderRadius: 30,
+    minHeight: 680,
+    borderRadius: 34,
     border: "1px solid rgba(123,44,255,.45)",
-    background: "linear-gradient(180deg, rgba(13,7,24,.98), rgba(7,7,13,.98))",
+    background: "radial-gradient(circle at 50% 10%, rgba(247,201,72,.14), transparent 34%), linear-gradient(180deg, rgba(13,7,24,.98), rgba(7,7,13,.98))",
     padding: 34,
     display: "flex",
     flexDirection: "column",
@@ -1275,14 +1289,20 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: "0 0 42px rgba(123,44,255,.24)",
   },
   boostTitle: { color: "#d8b4fe", fontSize: 22, fontWeight: 950, marginBottom: 28 },
-  boostOdd: { color: "#F7C948", fontSize: 58, lineHeight: 1, fontWeight: 1000, marginBottom: 12 },
+  boostOdd: { color: "#F7C948", fontSize: 74, lineHeight: 1, fontWeight: 1000, marginBottom: 12 },
   boostText: { color: "rgba(255,255,255,.85)", fontWeight: 800, marginBottom: 24 },
+  boostMiniGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 12,
+    marginBottom: 22,
+  },
   boostProgress: { height: 13, borderRadius: 999, background: "rgba(255,255,255,.1)", overflow: "hidden", marginBottom: 30 },
   boostProgressFill: { height: "100%", borderRadius: 999, background: "linear-gradient(90deg, #22c55e, #F7C948)" },
   boostButton: { border: 0, borderRadius: 18, padding: "19px 18px", background: "linear-gradient(135deg, #F7C948, #fb923c)", color: "#050510", fontWeight: 1000, cursor: "pointer" },
   topPickCard: {
     marginBottom: 22,
-    minHeight: 240,
+    minHeight: 260,
     borderRadius: 26,
     border: "1px solid rgba(247,201,72,.58)",
     background: "linear-gradient(135deg, rgba(7,7,13,.96), rgba(45,17,77,.78))",
@@ -1295,7 +1315,7 @@ const styles: Record<string, CSSProperties> = {
   },
   topPickLabel: { display: "flex", alignItems: "center", gap: 14, color: "#F7C948", fontSize: 21, fontWeight: 1000 },
   topPickTeams: { display: "grid", gridTemplateColumns: "126px minmax(0, 1fr) 126px", gap: 20, alignItems: "center" },
-  topPickLogo: { width: 126, height: 126, objectFit: "contain", filter: "drop-shadow(0 0 18px rgba(255,255,255,.30))" },
+  topPickLogo: { width: 142, height: 142, objectFit: "contain", filter: "drop-shadow(0 0 18px rgba(255,255,255,.30))" },
   topPickMatchText: { display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", fontWeight: 950 },
   topPickMarket: { border: "1px solid rgba(247,201,72,.42)", borderRadius: 22, background: "linear-gradient(135deg, rgba(247,201,72,.11), rgba(255,255,255,.06))", padding: 28, minHeight: 170, display: "flex", flexDirection: "column", justifyContent: "center" },
   topPickStats: { display: "grid", gridTemplateColumns: "108px 132px 142px 220px", gap: 12, alignItems: "stretch" },
@@ -1308,19 +1328,29 @@ const styles: Record<string, CSSProperties> = {
   sectionSubtitle: { margin: 0, color: "rgba(255,255,255,.72)", fontSize: 13, fontWeight: 700 },
   sectionButton: { border: 0, borderRadius: 18, background: "linear-gradient(135deg, #F7C948, #fb923c)", color: "#050510", padding: "14px 18px", fontWeight: 1000, cursor: "pointer" },
   playerPropsGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 18 },
-  playerCard: { position: "relative", overflow: "hidden", minHeight: 350, border: "1px solid rgba(255,255,255,.13)", borderRadius: 22, background: "linear-gradient(160deg, rgba(123,44,255,.72), rgba(45,17,77,.96) 60%, rgba(7,7,13,.96))", color: "#fff", textAlign: "left", cursor: "pointer", boxShadow: "inset 0 1px 0 rgba(255,255,255,.18), 0 18px 36px rgba(0,0,0,.28)" },
-  playerCardTop: { position: "relative", height: 178, padding: 18, background: "radial-gradient(circle at 52% 22%, rgba(255,255,255,.18), transparent 32%), linear-gradient(90deg, rgba(255,255,255,.12), rgba(123,44,255,.18))" },
-  playerTeamLogo: { width: 108, height: 108, objectFit: "contain", filter: "drop-shadow(0 0 16px rgba(255,255,255,.30))" },
-  playerAvatarPremium: { position: "absolute", left: "40%", top: 22, width: 138, height: 138, borderRadius: 30, background: "radial-gradient(circle at 50% 18%, #fff7ad, transparent 22%), linear-gradient(135deg, #F7C948, #fb923c 46%, #22c55e)", display: "flex", alignItems: "center", justifyContent: "center", color: "#050510", fontSize: 36, fontWeight: 1000, boxShadow: "0 20px 38px rgba(0,0,0,.40)", overflow: "hidden" },
+  playerCard: { position: "relative", overflow: "hidden", minHeight: 420, border: "1px solid rgba(255,255,255,.13)", borderRadius: 22, background: "linear-gradient(160deg, rgba(123,44,255,.72), rgba(45,17,77,.96) 60%, rgba(7,7,13,.96))", color: "#fff", textAlign: "left", cursor: "pointer", boxShadow: "inset 0 1px 0 rgba(255,255,255,.18), 0 18px 36px rgba(0,0,0,.28)" },
+  playerCardTop: { position: "relative", height: 238, padding: 18, background: "radial-gradient(circle at 52% 22%, rgba(255,255,255,.18), transparent 32%), linear-gradient(90deg, rgba(255,255,255,.12), rgba(123,44,255,.18))" },
+  playerTeamLogo: { width: 116, height: 116, objectFit: "contain", filter: "drop-shadow(0 0 16px rgba(255,255,255,.30))" },
+  playerAvatarPremium: { position: "absolute", left: "33%", top: -2, width: 226, height: 246, borderRadius: 34, background: "radial-gradient(circle at 50% 18%, rgba(255,255,255,.22), transparent 34%), linear-gradient(135deg, rgba(247,201,72,.28), rgba(123,44,255,.18))", display: "flex", alignItems: "center", justifyContent: "center", color: "#050510", fontSize: 36, fontWeight: 1000, boxShadow: "0 24px 46px rgba(0,0,0,.48)", overflow: "hidden" },
   playerAvatarHead: { position: "absolute", top: 30, width: 38, height: 38, borderRadius: 999, background: "#12051F", boxShadow: "0 0 0 5px rgba(255,255,255,.12)" },
   playerAvatarBody: { position: "absolute", bottom: 22, width: 82, height: 58, borderRadius: "46px 46px 18px 18px", background: "linear-gradient(135deg, #12051F, #2D114D)", boxShadow: "inset 0 0 0 4px rgba(255,255,255,.10)" },
+  playerAvatarImage: {
+    position: "absolute",
+    left: "50%",
+    bottom: -18,
+    transform: "translateX(-50%)",
+    width: 240,
+    height: 250,
+    objectFit: "contain",
+    filter: "drop-shadow(0 0 26px rgba(123,44,255,.58))",
+  },
   trendChart: { position: "absolute", right: 18, bottom: 14, display: "flex", alignItems: "flex-end", gap: 5 },
   cardRank: { position: "absolute", right: 12, top: 12, width: 34, height: 34, borderRadius: 999, background: "#050510", color: "#F7C948", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 1000 },
   playerCardBody: { padding: "28px 24px 16px" },
   playerSelectionBox: { marginTop: 14, border: "1px solid rgba(247,201,72,.28)", borderRadius: 14, padding: 13, background: "rgba(7,7,13,.55)", display: "flex", flexDirection: "column", gap: 4 },
   playerCardFooter: { display: "flex", justifyContent: "space-between", padding: "0 20px 18px", fontWeight: 1000 },
   ticketPerformanceGrid: { display: "grid", gap: 18, marginBottom: 22 },
-  ticketSection: { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 280px", minHeight: 310, borderRadius: 26, border: "1px solid rgba(247,201,72,.48)", background: "linear-gradient(135deg, rgba(7,7,13,.98), rgba(45,17,77,.65))", overflow: "hidden" },
+  ticketSection: { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", minHeight: 340, borderRadius: 26, border: "1px solid rgba(247,201,72,.48)", background: "linear-gradient(135deg, rgba(7,7,13,.98), rgba(45,17,77,.65))", overflow: "hidden" },
   ticketList: { padding: 24 },
   ticketTitle: { margin: "6px 0 4px", fontSize: 25, fontWeight: 1000 },
   ticketRows: { display: "flex", flexDirection: "column", gap: 12, marginTop: 20 },
@@ -1328,10 +1358,12 @@ const styles: Record<string, CSSProperties> = {
   ticketNumber: { width: 38, height: 38, borderRadius: 12, background: "rgba(255,255,255,.14)", color: "#F7C948", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 1000 },
   greenCheck: { width: 28, height: 28, borderRadius: 999, border: "2px solid #22c55e", color: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 1000 },
   ticketSummary: { position: "relative", padding: 28, background: "linear-gradient(135deg, rgba(247,201,72,.18), rgba(251,146,60,.32), rgba(7,7,13,.92))", borderLeft: "1px dashed rgba(247,201,72,.45)", display: "flex", flexDirection: "column", gap: 8 },
+  ticketBigOdd: { color: "#F7C948", fontSize: 64, lineHeight: 1, fontWeight: 1000, textShadow: "0 0 24px rgba(247,201,72,.34)" },
+  ticketReturn: { color: "#F7C948", fontSize: 32, fontStyle: "normal", fontWeight: 1000 },
   vipSeal: { position: "absolute", right: 24, bottom: 24, width: 82, height: 82, borderRadius: 999, background: "linear-gradient(135deg, #F7C948, #a16207)", color: "#050510", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontWeight: 1000, boxShadow: "0 0 24px rgba(247,201,72,.35)" },
   performancePanel: { borderRadius: 26, border: "1px solid rgba(168,85,247,.45)", background: "linear-gradient(135deg, rgba(13,7,24,.98), rgba(45,17,77,.78))", padding: 24 },
   performanceGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14, marginTop: 18 },
-  performanceCard: { minHeight: 126, border: "1px solid rgba(255,255,255,.12)", borderRadius: 18, padding: 18, background: "rgba(255,255,255,.05)", position: "relative", overflow: "hidden" },
+  performanceCard: { minHeight: 150, border: "1px solid rgba(255,255,255,.12)", borderRadius: 18, padding: 18, background: "rgba(255,255,255,.05)", position: "relative", overflow: "hidden" },
   miniLine: { position: "absolute", right: 12, bottom: 12, width: 96, height: 34, opacity: .9 },
   gamesSection: { marginBottom: 22, padding: 24, borderRadius: 26, border: "1px solid rgba(123,44,255,.36)", background: "rgba(13,7,24,.76)" },
   gamesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 },
