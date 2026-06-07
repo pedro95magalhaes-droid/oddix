@@ -846,27 +846,28 @@ export default function Dashboard() {
   }, [displayedSmartTips]);
 
   const homePlayerProps = useMemo(() => {
-    const realOrEstimated = playerPropsTips.length
-      ? playerPropsTips
-      : buildEstimatedPlayerPropsFromGames(topGames);
-
-    if (realOrEstimated.length) return realOrEstimated.slice(0, 3);
-
+    // V11: Player Props da home ficam travados no confronto correto.
+    // Enquanto não houver dados reais de jogadores por API, não exibimos nomes reais de clubes aleatórios.
     return topGames.slice(0, 3).map((game, index) => {
       const quality = safeNumber(game?.oddix?.qualityScore, 76);
-      const playerName = premiumPlayerNameForGame(game, index);
-      const preferredTeamLogo = index === 1
-        ? game?.teams?.away?.logo || game?.teams?.home?.logo
-        : game?.teams?.home?.logo || game?.teams?.away?.logo;
+      const useHome = index !== 1;
+      const team = useHome ? game?.teams?.home : game?.teams?.away;
+      const opponent = useHome ? game?.teams?.away : game?.teams?.home;
+      const teamName = team?.name || (useHome ? "Casa" : "Fora");
+      const playerName = `Destaque ${teamName}`;
+      const market = index === 1 ? "Finalizações" : index === 2 ? "Participação ofensiva" : "Chutes no Gol";
+      const line = index === 1 ? "Over 1.5 finalizações" : index === 2 ? "1+ participação em gol" : "Over 0.5 chute no gol";
 
       return {
-        key: `home_player_prop_${game?.fixture?.id || index}`,
+        key: `home_player_prop_${game?.fixture?.id || index}_${teamName}`,
         category: "Player Props",
-        market: index === 1 ? "Jogador finalizações" : "Jogador chutes no gol",
+        market,
         player: playerName,
-        tip: index === 1 ? `${playerName} Over 1.5 finalizações` : `${playerName} Over 0.5 chute no gol`,
-        odd: quality >= 85 ? "1.72" : quality >= 78 ? "1.84" : "1.95",
-        confidence: Math.min(89, Math.max(74, quality)),
+        playerTeam: teamName,
+        tip: line,
+        selection: line,
+        odd: index === 1 ? "1.84" : index === 2 ? "1.68" : "1.72",
+        confidence: Math.min(90, Math.max(82, quality)),
         risk: quality >= 85 ? "Baixo" : "Médio",
         source: "Oddix Player Props IA",
         bookmaker: "Oddix estimada",
@@ -875,12 +876,12 @@ export default function Dashboard() {
         homeTeam: game?.teams?.home?.name,
         awayTeam: game?.teams?.away?.name,
         league: game?.league?.name,
-        teamLogo: preferredTeamLogo,
-        playerPhoto: "",
+        teamLogo: team?.logo || logoFallback(teamName, "111827", "facc15"),
+        opponentLogo: opponent?.logo || "",
         isEstimated: true,
       };
     });
-  }, [playerPropsTips, topGames]);
+  }, [topGames]);
 
   const filteredGames = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -1350,6 +1351,16 @@ export default function Dashboard() {
         }
 
 
+
+        .oddix-player-props-home-grid button [style*="align-items: end"] span:nth-child(1){height:14px;background:#22c55e;}
+        .oddix-player-props-home-grid button [style*="align-items: end"] span:nth-child(2){height:20px;background:#22c55e;}
+        .oddix-player-props-home-grid button [style*="align-items: end"] span:nth-child(3){height:28px;background:#8b5cf6;}
+        .oddix-player-props-home-grid button [style*="align-items: end"] span:nth-child(4){height:34px;background:#8b5cf6;}
+        .oddix-player-props-home-grid button [style*="align-items: end"] span:nth-child(5){height:42px;background:#a855f7;}
+        .oddix-player-props-home-grid button [style*="align-items: end"] span:nth-child(6){height:50px;background:#c084fc;}
+        .oddix-player-props-home-grid button [style*="align-items: end"] span{display:block;width:8px;border-radius:999px;box-shadow:0 0 12px rgba(168,85,247,.45);}
+        .oddix-hero-text h1{font-size:clamp(56px,7vw,104px)!important;line-height:.88!important;letter-spacing:-4px!important;margin:12px 0 18px!important;color:#fff!important;text-shadow:0 0 34px rgba(123,44,255,.50);}
+
         @media (max-width: 980px) {
           .oddix-vip-results-grid {
             grid-template-columns: 1fr !important;
@@ -1663,9 +1674,9 @@ export default function Dashboard() {
               <span>✓ Bilhetes VIP</span>
               <span>✓ Gestão de banca</span>
             </div>
-            <div style={styles.heroActionButtons}>
-              <button style={styles.heroPrimaryButton} onClick={() => setActiveTab("highlights")}>🔥 VER TOP PICK</button>
-              <button style={styles.heroSecondaryButton} onClick={() => (window.location.href = "/plans")}>💎 ASSINAR VIP</button>
+            <div style={styles.heroCtaRow}>
+              <button style={styles.heroPrimaryCta} onClick={() => setActiveTab("highlights")}>🔥 VER TOP PICK</button>
+              <button style={styles.heroSecondaryCta} onClick={() => (window.location.href = "/plans")}>💎 ASSINAR VIP</button>
             </div>
             <div style={styles.heroStats}>
               <InfoMetric label="Jogos" value={games.length} />
@@ -1678,6 +1689,13 @@ export default function Dashboard() {
           <div className="oddix-hero-player-box" style={styles.heroPlayerBox}>
             <div style={styles.heroPlayerGlow} />
             <img className="oddix-hero-player" src={ODDIX_PLAYER_IMAGE} alt="Jogador Oddix" style={styles.heroPlayerImage} />
+          </div>
+
+          <div style={styles.heroBottomFeatures}>
+            <span>🏆 ANÁLISE PREMIUM</span>
+            <span>⚡ PREVISÕES EM TEMPO REAL</span>
+            <span>📊 ESTATÍSTICAS AVANÇADAS</span>
+            <span>🎧 SUPORTE PREMIUM</span>
           </div>
         </div>
 
@@ -2633,6 +2651,17 @@ function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
   );
 }
 
+function initialsFromName(value: any) {
+  const words = String(value || "OD")
+    .replace(/\b(futebol|football|clube|club|fc|ec|sc|afc|cf)\b/gi, "")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const first = words[0]?.[0] || "O";
+  const second = words[1]?.[0] || words[0]?.[1] || "D";
+  return `${first}${second}`.toUpperCase();
+}
+
 function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
   const safeProps = Array.isArray(props) ? props.slice(0, 3) : [];
 
@@ -2642,10 +2671,10 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
     <section style={styles.playerPropsHomeSection}>
       <div style={styles.playerPropsHomeHeader}>
         <div>
-          <span style={styles.playerPropsHomeKicker}>⚽ PLAYER PROPS VIP</span>
+          <span style={styles.playerPropsHomeKicker}>⚽ PLAYER PROPS EM DESTAQUE</span>
           <h2 style={styles.playerPropsHomeTitle}>Mercados de jogador com visual premium</h2>
           <p style={styles.playerPropsHomeText}>
-            Cards com jogador, escudo em alta qualidade, odd e confiança IA para deixar a área VIP com cara de produto profissional.
+            Cards com jogador, escudo em alta qualidade, odd e confiança IA. Enquanto os dados reais não chegam, cada card fica preso ao clube do confronto correto.
           </p>
         </div>
 
@@ -2658,13 +2687,12 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
         {safeProps.map((prop: any, index: number) => {
           const game = getGameByTip(prop, games);
           const playerName = playerNameFromProp(prop);
+          const teamName = prop?.playerTeam || prop?.homeTeam || game?.teams?.home?.name || "Oddix FC";
+          const teamLogo = prop?.teamLogo || game?.teams?.home?.logo || logoFallback(teamName, "111827", "facc15");
           const type = playerPropType(prop);
           const line = playerPropLine(prop);
           const confidence = safeNumber(prop?.confidence, 0);
-          const teamName = prop?.homeTeam || game?.teams?.home?.name || prop?.awayTeam || game?.teams?.away?.name || "Time Oddix";
-          const teamLogo = prop?.teamLogo || game?.teams?.home?.logo || game?.teams?.away?.logo || logoFallback(teamName, "111827", "facc15");
-          const photo = prop?.playerPhoto || prop?.photo || prop?.headshot || prop?.raw?.player?.photo || "";
-          const hasRealPhoto = Boolean(photo && !prop?.isEstimated);
+          const initials = initialsFromName(playerName.replace(/^Destaque\s+/i, teamName));
 
           return (
             <button
@@ -2678,52 +2706,35 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
                 onOpen?.(prop);
               }}
             >
-              <div style={styles.playerPropsHomeVisual}>
-                <div style={styles.playerPropsHomeGlow} />
-                <div style={styles.playerPropsHomeTeamLogoBox}>
-                  <img
-                    src={teamLogo}
-                    alt={teamName}
-                    style={styles.playerPropsHomeTeamLogo}
-                    onError={(event) => {
-                      event.currentTarget.src = logoFallback(teamName, "111827", "facc15");
-                    }}
-                  />
+              <div style={styles.playerPropsCardTopPremium}>
+                <img
+                  src={teamLogo}
+                  alt={teamName}
+                  style={styles.playerPropsClubLogoPremium}
+                  onError={(event) => {
+                    event.currentTarget.src = logoFallback(teamName, "111827", "facc15");
+                  }}
+                />
+
+                <div style={styles.playerPropsAvatarPremium}>
+                  <span>{initials}</span>
                 </div>
 
-                <div style={{ ...styles.playerPropsHomeAvatar, ...playerAvatarStyle(playerName) }}>
-                  {hasRealPhoto ? (
-                    <img
-                      src={photo}
-                      alt={playerName}
-                      style={styles.playerPropsHomeAvatarImage}
-                      onError={(event) => {
-                        event.currentTarget.style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <span style={styles.playerPropsHomeInitials}>{playerInitials(playerName)}</span>
-                  )}
-                </div>
-
-                <div style={styles.playerPropsChartLine}>
-                  {[18, 26, 22, 34, 42].map((height, barIndex) => (
-                    <span key={barIndex} style={{ width: 18, height, borderRadius: 999, background: "linear-gradient(180deg,#a855f7,#22c55e)", boxShadow: "0 0 16px rgba(168,85,247,.45)" }} />
-                  ))}
+                <div style={styles.playerPropsTrend}>
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
                 </div>
 
                 <span style={styles.playerPropsHomeRank}>#{index + 1}</span>
               </div>
 
               <div style={styles.playerPropsHomeBody}>
-                <div style={styles.playerPropsNameRow}>
-                  <div>
-                    <h3 style={styles.playerPropsHomePlayer}>{playerName}</h3>
-                    <p style={styles.playerPropsHomeGame}>{teamName}</p>
-                  </div>
-                  <span style={styles.playerPropsVipTag}>VIP</span>
-                </div>
-
+                <h3 style={styles.playerPropsHomePlayer}>{playerName}</h3>
+                <p style={styles.playerPropsHomeTeam}>{teamName}</p>
                 <span style={styles.playerPropsHomeType}>{type}</span>
 
                 <div style={styles.playerPropsHomePick}>
@@ -2734,7 +2745,7 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
                 <div style={styles.playerPropsHomeMetrics}>
                   <div>
                     <span>ODD</span>
-                    <strong>{prop.odd || "1.72"}</strong>
+                    <strong>{prop.odd || "-"}</strong>
                   </div>
                   <div>
                     <span>CONFIANÇA</span>
@@ -2752,6 +2763,8 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
 
 function PremiumTicketPreview({ tips, games, isPaidPlan, onOpen, onUpgrade }: any) {
   const ticket = buildVipTicket(tips);
+  const stake = 100;
+  const potentialReturn = Math.round(stake * safeNumber(ticket.combinedOdd, 0));
 
   if (!ticket.picks.length) return null;
 
@@ -2764,7 +2777,7 @@ function PremiumTicketPreview({ tips, games, isPaidPlan, onOpen, onUpgrade }: an
           <p style={styles.ticketText}>Seleções com odd controlada, confiança alta e jogos diferentes para reduzir exposição.</p>
         </div>
         <div style={styles.ticketSummaryBox}>
-          <span>Odd combinada</span>
+          <span>ODD TOTAL</span>
           <strong>{ticket.combinedOdd}</strong>
           <small>{ticket.confidence}% confiança média</small>
         </div>
@@ -2801,6 +2814,18 @@ function PremiumTicketPreview({ tips, games, isPaidPlan, onOpen, onUpgrade }: an
             </button>
           );
         })}
+
+        <div style={styles.ticketSummaryPremiumGrid}>
+          <div>
+            <span>STAKE SUGERIDA</span>
+            <strong>R$ {stake.toLocaleString("pt-BR")},00</strong>
+          </div>
+          <div>
+            <span>RETORNO POTENCIAL</span>
+            <strong>R$ {potentialReturn.toLocaleString("pt-BR")},00</strong>
+          </div>
+          <div style={styles.ticketVipSeal}>VIP<br />PREMIUM</div>
+        </div>
 
         <div style={styles.ticketFooterPremium}>
           <span>Gestão sugerida: 0.25u a 0.5u</span>
@@ -3224,68 +3249,6 @@ function playerPropLine(prop: any) {
     .trim() || tip;
 }
 
-function playerInitials(name: any) {
-  const parts = String(name || "Jogador Oddix")
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .filter(Boolean);
-
-  const first = parts[0]?.[0] || "O";
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] : parts[0]?.[1];
-
-  return `${first}${last || "X"}`.toUpperCase();
-}
-
-function playerColorSeed(value: any) {
-  const hash = seededHash(String(value || "oddix-player"));
-  const palettes = [
-    ["#facc15", "#fb923c", "#7c2d12"],
-    ["#a855f7", "#22c55e", "#0f172a"],
-    ["#38bdf8", "#8b5cf6", "#111827"],
-    ["#ef4444", "#f97316", "#1f2937"],
-    ["#22c55e", "#84cc16", "#052e16"],
-  ];
-
-  return palettes[hash % palettes.length];
-}
-
-function premiumPlayerNameForGame(game: any, index = 0) {
-  const home = String(game?.teams?.home?.name || "");
-  const away = String(game?.teams?.away?.name || "");
-  const text = normalizeTextLoose(`${home} ${away}`);
-
-  const names: { test: string[]; players: string[] }[] = [
-    { test: ["crb"], players: ["Anselmo Ramon", "Mike", "Léo Pereira"] },
-    { test: ["botafogo sp", "botafogo"], players: ["Douglas Baggio", "Alex Sandro", "Jean Victor"] },
-    { test: ["atletico go", "atletico-go", "atletico goianiense"], players: ["Janderson", "Shaylon", "Luiz Fernando"] },
-    { test: ["america mg", "america mineiro"], players: ["Moisés", "Fabinho", "Lucão"] },
-    { test: ["argentina"], players: ["Lautaro Martínez", "Julián Álvarez", "Enzo Fernández"] },
-    { test: ["curacao"], players: ["Juninho Bacuna", "Leandro Bacuna", "Gervane Kastaneer"] },
-    { test: ["cordino"], players: ["Atacante Cordino", "Meia Cordino", "Ponta Cordino"] },
-    { test: ["timon"], players: ["Atacante Timon", "Meia Timon", "Ponta Timon"] },
-  ];
-
-  const found = names.find((entry) => entry.test.some((word) => text.includes(word)));
-  if (found) return found.players[index % found.players.length];
-
-  const team = index === 1 ? away : home || away;
-  const short = String(team || "Oddix")
-    .replace(/\b(fc|ec|sc|ac|club|clube)\b/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return `Atacante ${short || "Oddix"}`;
-}
-
-function playerAvatarStyle(name: any): CSSProperties {
-  const [a, b, c] = playerColorSeed(name);
-
-  return {
-    background: `radial-gradient(circle at 50% 18%, rgba(255,255,255,.95), ${a} 0 12%, ${b} 45%, ${c} 100%)`,
-  };
-}
-
 function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: any) {
   const safeProps = Array.isArray(props) ? props : [];
 
@@ -3691,42 +3654,16 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
     gap: 8,
     marginTop: 14,
-    marginBottom: 14,
-  },
-  heroActionButtons: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 10,
     marginBottom: 16,
-  },
-  heroPrimaryButton: {
-    border: 0,
-    borderRadius: 16,
-    padding: "13px 18px",
-    background: "linear-gradient(135deg,#facc15,#fb923c)",
-    color: "#111827",
-    fontWeight: 950,
-    cursor: "pointer",
-    boxShadow: "0 14px 34px rgba(250,204,21,.26)",
-  },
-  heroSecondaryButton: {
-    border: "1px solid rgba(168,85,247,.55)",
-    borderRadius: 16,
-    padding: "13px 18px",
-    background: "rgba(88,28,135,.42)",
-    color: "#fff",
-    fontWeight: 950,
-    cursor: "pointer",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,.12)",
   },
   playerPropsHomeSection: {
     margin: "0 26px 20px",
     borderRadius: 28,
     padding: 22,
-    background: "radial-gradient(circle at 85% 0%,rgba(250,204,21,.16),transparent 34%), linear-gradient(135deg,rgba(11,5,32,.98),rgba(46,16,101,.97) 52%,rgba(88,28,135,.82))",
-    border: "1px solid rgba(168,85,247,.45)",
+    background: "linear-gradient(135deg,rgba(11,5,32,.98),rgba(72,22,138,.96) 48%,rgba(251,146,60,.18))",
+    border: "1px solid rgba(250,204,21,.28)",
     color: "#fff",
-    boxShadow: "0 28px 70px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.10)",
+    boxShadow: "0 22px 60px rgba(0,0,0,.28)",
     overflow: "hidden",
   },
   playerPropsHomeHeader: {
@@ -3744,15 +3681,14 @@ const styles: Record<string, CSSProperties> = {
   },
   playerPropsHomeTitle: {
     margin: "6px 0 4px",
-    fontSize: 30,
+    fontSize: 28,
     lineHeight: 1,
     fontWeight: 950,
-    textShadow: "0 10px 30px rgba(168,85,247,.35)",
   },
   playerPropsHomeText: {
     margin: 0,
-    maxWidth: 760,
-    color: "rgba(255,255,255,.76)",
+    maxWidth: 720,
+    color: "rgba(255,255,255,.75)",
     fontSize: 13,
     lineHeight: 1.45,
   },
@@ -3773,92 +3709,30 @@ const styles: Record<string, CSSProperties> = {
     gap: 16,
   },
   playerPropsHomeCard: {
-    border: "1px solid rgba(255,255,255,.14)",
+    border: "1px solid rgba(255,255,255,.12)",
     borderRadius: 24,
-    background: "linear-gradient(180deg,rgba(76,29,149,.74),rgba(18,8,42,.98))",
+    background: "linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.04))",
     color: "#fff",
     textAlign: "left",
     padding: 0,
     cursor: "pointer",
     overflow: "hidden",
-    minHeight: 256,
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,.14), 0 16px 40px rgba(0,0,0,.26)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,.13), 0 14px 34px rgba(0,0,0,.20)",
   },
-  playerPropsHomeVisual: {
+  playerPropsHomePhotoBox: {
     position: "relative",
-    height: 148,
-    background: "radial-gradient(circle at 72% 18%,rgba(250,204,21,.23),transparent 28%), radial-gradient(circle at 22% 20%,rgba(168,85,247,.55),transparent 42%), linear-gradient(135deg,rgba(15,23,42,.50),rgba(88,28,135,.50))",
+    height: 156,
+    background: "radial-gradient(circle at 50% 10%,rgba(250,204,21,.34),rgba(124,58,237,.24),rgba(0,0,0,.20))",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
   },
-  playerPropsHomeGlow: {
-    position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 999,
-    background: "rgba(168,85,247,.35)",
-    filter: "blur(34px)",
-    left: "38%",
-    top: -50,
-  },
-  playerPropsHomeTeamLogoBox: {
-    position: "absolute",
-    left: 18,
-    top: 18,
-    width: 76,
-    height: 76,
-    borderRadius: 22,
-    background: "rgba(0,0,0,.32)",
-    border: "1px solid rgba(255,255,255,.12)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 2,
-    boxShadow: "0 16px 34px rgba(0,0,0,.28)",
-  },
-  playerPropsHomeTeamLogo: {
-    width: 62,
-    height: 62,
-    objectFit: "contain",
-    filter: "drop-shadow(0 0 12px rgba(255,255,255,.22))",
-  },
-  playerPropsHomeAvatar: {
-    position: "absolute",
-    right: 24,
-    bottom: -10,
-    width: 114,
-    height: 114,
-    borderRadius: 28,
-    border: "1px solid rgba(255,255,255,.20)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    boxShadow: "0 18px 40px rgba(0,0,0,.34)",
-    zIndex: 3,
-    overflow: "hidden",
-  },
-  playerPropsHomeAvatarImage: {
+  playerPropsHomePhoto: {
     width: "100%",
     height: "100%",
-    objectFit: "cover",
-  },
-  playerPropsHomeInitials: {
-    fontSize: 38,
-    fontWeight: 1000,
-    color: "#111827",
-    textShadow: "0 1px 0 rgba(255,255,255,.40)",
-  },
-  playerPropsChartLine: {
-    position: "absolute",
-    right: 150,
-    bottom: 24,
-    display: "flex",
-    alignItems: "end",
-    gap: 4,
-    opacity: .78,
-    zIndex: 2,
+    objectFit: "contain",
+    padding: 18,
+    filter: "drop-shadow(0 14px 22px rgba(0,0,0,.42))",
   },
   playerPropsHomeRank: {
     position: "absolute",
@@ -3867,35 +3741,19 @@ const styles: Record<string, CSSProperties> = {
     width: 38,
     height: 38,
     borderRadius: 14,
-    background: "rgba(0,0,0,.62)",
-    border: "1px solid rgba(250,204,21,.36)",
+    background: "rgba(0,0,0,.58)",
+    border: "1px solid rgba(250,204,21,.30)",
     color: "#facc15",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontWeight: 950,
-    zIndex: 4,
   },
   playerPropsHomeBody: {
     padding: 16,
     display: "flex",
     flexDirection: "column",
     gap: 10,
-  },
-  playerPropsNameRow: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  playerPropsVipTag: {
-    borderRadius: 999,
-    padding: "5px 8px",
-    background: "rgba(34,197,94,.15)",
-    border: "1px solid rgba(34,197,94,.30)",
-    color: "#86efac",
-    fontSize: 10,
-    fontWeight: 950,
   },
   playerPropsHomeType: {
     color: "#facc15",
@@ -3907,19 +3765,18 @@ const styles: Record<string, CSSProperties> = {
   playerPropsHomePlayer: {
     margin: 0,
     fontSize: 20,
-    lineHeight: 1.05,
     fontWeight: 950,
   },
   playerPropsHomeGame: {
-    margin: "4px 0 0",
-    color: "#facc15",
+    margin: 0,
+    color: "rgba(255,255,255,.68)",
     fontSize: 12,
-    fontWeight: 900,
+    fontWeight: 800,
   },
   playerPropsHomePick: {
     borderRadius: 16,
     padding: 12,
-    background: "rgba(0,0,0,.34)",
+    background: "rgba(0,0,0,.30)",
     border: "1px solid rgba(250,204,21,.18)",
     display: "flex",
     flexDirection: "column",
@@ -4078,7 +3935,7 @@ const styles: Record<string, CSSProperties> = {
     position: "relative",
     overflow: "hidden",
     display: "grid",
-    gridTemplateColumns: "1.1fr 1fr 280px",
+    gridTemplateColumns: "1.05fr .95fr 330px",
     alignItems: "center",
     gap: 18,
     margin: "0 26px 18px",
@@ -4328,9 +4185,9 @@ const styles: Record<string, CSSProperties> = {
     backdropFilter: "blur(14px)",
   },
   brand: {
-    width: 290,
-    minWidth: 250,
-    height: 78,
+    width: 210,
+    minWidth: 190,
+    height: 56,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -4343,7 +4200,7 @@ const styles: Record<string, CSSProperties> = {
   },
   brandLogo: {
     width: "100%",
-    height: 62,
+    height: 44,
     objectFit: "contain",
     objectPosition: "center",
     display: "block",
@@ -4422,7 +4279,7 @@ const styles: Record<string, CSSProperties> = {
   },
   heroGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 280px",
+    gridTemplateColumns: "minmax(0, 1fr) 300px",
     gap: 14,
     margin: "22px 26px 18px",
     alignItems: "stretch",
@@ -4430,16 +4287,16 @@ const styles: Record<string, CSSProperties> = {
   heroMain: {
     position: "relative",
     overflow: "hidden",
-    minHeight: 390,
+    minHeight: 520,
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 460px",
+    gridTemplateColumns: "minmax(0, 1fr) 560px",
     alignItems: "center",
     gap: 12,
     background: "radial-gradient(circle at 78% 46%, rgba(250,204,21,.20), transparent 28%), radial-gradient(circle at 70% 30%, rgba(124,58,237,.58), transparent 36%), linear-gradient(135deg,rgba(12,8,26,.99),rgba(46,16,101,.94))",
     color: "#fff",
     border: "1px solid rgba(250,204,21,.34)",
     borderRadius: 30,
-    padding: "38px 32px 34px",
+    padding: "48px 38px 96px",
     boxShadow: "0 28px 80px rgba(0,0,0,.34)",
   },
   heroTextBlock: {
@@ -4450,16 +4307,16 @@ const styles: Record<string, CSSProperties> = {
   },
   heroPlayerBox: {
     position: "relative",
-    height: 365,
-    minWidth: 390,
+    height: 500,
+    minWidth: 520,
     display: "flex",
     alignItems: "flex-end",
     justifyContent: "center",
   },
   heroPlayerGlow: {
     position: "absolute",
-    width: 420,
-    height: 420,
+    width: 560,
+    height: 560,
     borderRadius: 999,
     background: "radial-gradient(circle, rgba(250,204,21,.22), rgba(124,58,237,.55), transparent 68%)",
     filter: "blur(2px)",
@@ -4469,8 +4326,8 @@ const styles: Record<string, CSSProperties> = {
   heroPlayerImage: {
     position: "relative",
     zIndex: 2,
-    height: 390,
-    width: "125%",
+    height: 535,
+    width: "145%",
     objectFit: "contain",
     objectPosition: "center bottom",
     transform: "translateX(-16px)",
@@ -4778,7 +4635,7 @@ const styles: Record<string, CSSProperties> = {
   marketingBanner: {
     position: "relative",
     margin: "0 26px 20px",
-    minHeight: 390,
+    minHeight: 520,
     borderRadius: 30,
     overflow: "hidden",
     color: "white",
@@ -6055,5 +5912,19 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
 
+
+
+  // ===== ODDIX PREMIUM V11 OVERRIDES =====
+  heroCtaRow: { display: "flex", gap: 14, flexWrap: "wrap", marginTop: 18 },
+  heroPrimaryCta: { border: 0, borderRadius: 18, padding: "16px 26px", background: "linear-gradient(135deg,#facc15,#f97316)", color: "#07070d", fontWeight: 1000, cursor: "pointer", boxShadow: "0 18px 36px rgba(247,201,72,.30)" },
+  heroSecondaryCta: { border: "1px solid rgba(168,85,247,.80)", borderRadius: 18, padding: "16px 26px", background: "rgba(123,44,255,.16)", color: "#d8b4fe", fontWeight: 1000, cursor: "pointer", boxShadow: "0 0 28px rgba(123,44,255,.22)" },
+  heroBottomFeatures: { position: "absolute", left: "50%", bottom: 22, transform: "translateX(-50%)", zIndex: 4, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, width: "calc(100% - 80px)", padding: 10, borderRadius: 18, background: "rgba(0,0,0,.42)", border: "1px solid rgba(250,204,21,.18)", backdropFilter: "blur(12px)", color: "#facc15", fontSize: 11, fontWeight: 900, textAlign: "center" },
+  playerPropsCardTopPremium: { position: "relative", height: 178, display: "grid", gridTemplateColumns: "86px 1fr 90px", alignItems: "center", gap: 12, padding: 16, background: "radial-gradient(circle at 42% 12%,rgba(250,204,21,.18),transparent 30%),linear-gradient(135deg,rgba(123,44,255,.70),rgba(45,17,77,.92))", overflow: "hidden" },
+  playerPropsClubLogoPremium: { width: 82, height: 82, objectFit: "contain", borderRadius: 22, padding: 8, background: "rgba(255,255,255,.10)", filter: "drop-shadow(0 0 16px rgba(255,255,255,.20)) drop-shadow(0 18px 28px rgba(0,0,0,.38))" },
+  playerPropsAvatarPremium: { width: 112, height: 112, justifySelf: "center", borderRadius: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg,#facc15,#f97316 48%,#22c55e)", color: "#111827", fontSize: 36, fontWeight: 1000, boxShadow: "0 22px 36px rgba(0,0,0,.35), 0 0 22px rgba(250,204,21,.18)" },
+  playerPropsTrend: { alignSelf: "end", justifySelf: "end", display: "flex", alignItems: "end", gap: 4, height: 58 },
+  playerPropsHomeTeam: { margin: "-6px 0 0", color: "#facc15", fontSize: 12, fontWeight: 950, textTransform: "uppercase" },
+  ticketSummaryPremiumGrid: { display: "grid", gridTemplateColumns: "1fr 1fr 104px", gap: 12, marginTop: 10, padding: 14, borderRadius: 22, background: "linear-gradient(135deg,rgba(250,204,21,.18),rgba(251,146,60,.11))", border: "1px solid rgba(250,204,21,.28)" },
+  ticketVipSeal: { width: 92, height: 92, borderRadius: 999, background: "radial-gradient(circle,#facc15,#b45309)", color: "#111827", fontWeight: 1000, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", lineHeight: 1.05, boxShadow: "0 0 26px rgba(250,204,21,.34)" },
 
 };
