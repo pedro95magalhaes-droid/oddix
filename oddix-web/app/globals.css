@@ -825,3 +825,267 @@ main {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ODDIX V18 - REGUA FINAL / NOTEBOOK 1366 / SEM CORTES */
+.oddix-dashboard {
+  --oddix-shell: min(calc(100vw - 48px), 1480px) !important;
+}
+
+.oddix-top-header,
+.oddix-sports-rail {
+  width: 100% !important;
+  max-width: 100vw !important;
+}
+
+.oddix-access-banner,
+.oddix-hero-grid,
+.oddix-top-pick-hero,
+.oddix-hot-markets,
+.oddix-player-props-home-section,
+.oddix-layout,
+.oddix-footer {
+  width: var(--oddix-shell) !important;
+  max-width: var(--oddix-shell) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.oddix-top-pick-hero,
+.oddix-hot-markets,
+.oddix-player-props-home-section {
+  box-sizing: border-box !important;
+}
+
+/* Top Pick sem estourar botão lateral */
+.oddix-top-pick-hero {
+  grid-template-columns: minmax(115px, 150px) minmax(260px, .85fr) minmax(300px, 1fr) minmax(330px, 390px) !important;
+  gap: 14px !important;
+  padding: 20px !important;
+  overflow: visible !important;
+}
+
+.oddix-top-pick-hero > div {
+  min-width: 0 !important;
+}
+
+.oddix-top-pick-hero > div:nth-child(5) {
+  grid-template-columns: repeat(3, minmax(68px, 1fr)) minmax(126px, 146px) !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+}
+
+.oddix-top-pick-hero > div:nth-child(5) button {
+  min-width: 0 !important;
+  width: 100% !important;
+  padding: 10px 12px !important;
+  border-radius: 16px !important;
+  font-size: 13px !important;
+  line-height: 1.05 !important;
+  white-space: normal !important;
+}
+
+.oddix-top-pick-hero img {
+  width: clamp(58px, 4.4vw, 78px) !important;
+  height: clamp(58px, 4.4vw, 78px) !important;
+}
+
+/* Mercados quentes alinhados na régua */
+.oddix-hot-markets {
+  padding: clamp(18px, 1.6vw, 24px) !important;
+  overflow: hidden !important;
+}
+
+.oddix-hot-markets > div:first-child {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 188px !important;
+  align-items: start !important;
+  gap: 16px !important;
+}
+
+.oddix-hot-markets > div:first-child button {
+  width: 188px !important;
+  min-width: 0 !important;
+  height: 46px !important;
+  padding: 0 14px !important;
+  border-radius: 16px !important;
+  align-self: start !important;
+  justify-self: end !important;
+  font-size: 14px !important;
+  line-height: 1.1 !important;
+  white-space: normal !important;
+}
+
+.oddix-hot-markets-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+}
+
+.oddix-hot-markets-grid > button {
+  min-width: 0 !important;
+  min-height: 150px !important;
+  padding: 15px !important;
+}
+
+.oddix-hot-markets-grid strong,
+.oddix-hot-markets-grid small {
+  overflow-wrap: anywhere !important;
+}
+
+/* Player Props: altura igual, sem conteúdo sair da régua */
+.oddix-player-props-home-section {
+  padding: clamp(18px, 1.7vw, 24px) !important;
+  overflow: hidden !important;
+}
+
+.oddix-player-props-home-section > div:first-child {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: start !important;
+  gap: 16px !important;
+}
+
+.oddix-player-props-home-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+}
+
+.oddix-player-prop-card-v17 {
+  min-width: 0 !important;
+  min-height: 236px !important;
+  padding: 16px !important;
+}
+
+.oddix-player-prop-card-v17 h3,
+.oddix-player-prop-card-v17 p,
+.oddix-player-prop-card-v17 strong,
+.oddix-player-prop-card-v17 small {
+  max-width: 100% !important;
+}
+
+/* Notebook 1366x768 */
+@media (max-width: 1366px) {
+  .oddix-dashboard {
+    --oddix-shell: min(calc(100vw - 96px), 1080px) !important;
+  }
+
+  .oddix-hero-grid {
+    grid-template-columns: minmax(0, 1fr) 240px !important;
+    gap: 16px !important;
+  }
+
+  .oddix-hero-main {
+    min-height: 470px !important;
+    grid-template-columns: minmax(310px, .95fr) minmax(280px, .9fr) !important;
+    padding: 28px 32px 24px !important;
+  }
+
+  .oddix-hero-player {
+    height: clamp(340px, 34vw, 460px) !important;
+    right: -22px !important;
+    bottom: -8px !important;
+  }
+
+  .oddix-hero-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    max-width: 370px !important;
+  }
+
+  .oddix-info-metric {
+    min-height: 74px !important;
+  }
+
+  .oddix-info-metric strong {
+    font-size: 22px !important;
+  }
+
+  .oddix-top-pick-hero {
+    grid-template-columns: 116px minmax(300px, 1fr) minmax(300px, 1fr) minmax(280px, 300px) !important;
+    min-height: 126px !important;
+    padding: 18px !important;
+    gap: 12px !important;
+  }
+
+  .oddix-top-pick-hero > div:nth-child(5) {
+    grid-template-columns: repeat(3, minmax(58px, 1fr)) minmax(86px, 96px) !important;
+    gap: 8px !important;
+  }
+
+  .oddix-top-pick-hero > div:nth-child(5) > div {
+    padding: 10px 8px !important;
+    border-radius: 14px !important;
+  }
+
+  .oddix-top-pick-hero > div:nth-child(5) span {
+    font-size: 10px !important;
+  }
+
+  .oddix-top-pick-hero > div:nth-child(5) strong {
+    font-size: 14px !important;
+  }
+
+  .oddix-top-pick-hero > div:nth-child(5) button {
+    font-size: 12px !important;
+    padding: 8px 6px !important;
+  }
+
+  .oddix-hot-markets-grid {
+    gap: 10px !important;
+  }
+
+  .oddix-hot-markets-grid > button {
+    padding: 12px !important;
+    min-height: 148px !important;
+  }
+
+  .oddix-player-props-home-grid {
+    gap: 12px !important;
+  }
+
+  .oddix-player-prop-card-v17 {
+    padding: 14px !important;
+    min-height: 230px !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  .oddix-dashboard {
+    --oddix-shell: min(calc(100vw - 36px), 100%) !important;
+  }
+
+  .oddix-top-pick-hero {
+    grid-template-columns: 1fr !important;
+    overflow: hidden !important;
+  }
+
+  .oddix-top-pick-hero > div:nth-child(5) {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  .oddix-hot-markets-grid,
+  .oddix-player-props-home-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .oddix-dashboard {
+    --oddix-shell: min(calc(100vw - 20px), 100%) !important;
+  }
+
+  .oddix-hot-markets > div:first-child,
+  .oddix-player-props-home-section > div:first-child {
+    grid-template-columns: 1fr !important;
+  }
+
+  .oddix-hot-markets > div:first-child button,
+  .oddix-player-props-home-section > div:first-child button {
+    width: 100% !important;
+    justify-self: stretch !important;
+  }
+
+  .oddix-hot-markets-grid,
+  .oddix-player-props-home-grid,
+  .oddix-top-pick-hero > div:nth-child(5) {
+    grid-template-columns: 1fr !important;
+  }
+}
