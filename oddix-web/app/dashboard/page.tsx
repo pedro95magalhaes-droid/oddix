@@ -1734,6 +1734,370 @@ export default function Dashboard() {
             min-height: auto !important;
           }
         }
+
+
+        /* ODDIX V13 FINAL PREMIUM BALANCE OVERRIDES
+           Correção de proporção, altura, cards, roleta vertical e responsividade.
+           Mantém a estrutura antiga, apenas refina o visual. */
+        .oddix-dashboard * {
+          box-sizing: border-box !important;
+        }
+
+        .oddix-dashboard {
+          background:
+            radial-gradient(circle at 16% -8%, rgba(124,58,237,.30), transparent 32%),
+            radial-gradient(circle at 86% 8%, rgba(250,204,21,.13), transparent 28%),
+            linear-gradient(180deg, #06050b 0%, #100720 48%, #06050b 100%) !important;
+        }
+
+        .oddix-top-header {
+          min-height: 64px !important;
+          padding: 10px 20px !important;
+          background: rgba(6,5,11,.88) !important;
+          border-bottom: 1px solid rgba(255,255,255,.08) !important;
+        }
+
+        .oddix-brand img {
+          max-height: 42px !important;
+          width: auto !important;
+          object-fit: contain !important;
+        }
+
+        .oddix-header-actions button {
+          min-height: 36px !important;
+          padding: 9px 13px !important;
+          font-size: 12px !important;
+        }
+
+        .oddix-sports-rail {
+          top: 64px !important;
+          min-height: 50px !important;
+          padding: 8px 20px !important;
+          display: flex !important;
+          gap: 8px !important;
+          overflow-x: auto !important;
+          overflow-y: hidden !important;
+          scrollbar-width: none !important;
+        }
+
+        .oddix-sports-rail::-webkit-scrollbar {
+          display: none !important;
+        }
+
+        .oddix-sports-rail button {
+          flex: 0 0 auto !important;
+          min-height: 34px !important;
+          padding: 0 13px !important;
+          font-size: 12px !important;
+          font-weight: 900 !important;
+          background: rgba(255,255,255,.065) !important;
+        }
+
+        .oddix-hero-grid,
+        .oddix-vip-marketing-strip,
+        .oddix-premium-ticket,
+        .oddix-top-pick-hero,
+        .oddix-marketing-banner,
+        .oddix-top-widgets,
+        .oddix-featured-strip,
+        .oddix-tabs-wrapper,
+        .oddix-layout,
+        .oddix-footer,
+        .oddix-player-props-home-section,
+        .oddix-vip-results {
+          width: min(1480px, calc(100% - 36px)) !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+        }
+
+        .oddix-hero-grid {
+          grid-template-columns: minmax(0, 1fr) 280px !important;
+          gap: 16px !important;
+          margin-top: 18px !important;
+          margin-bottom: 18px !important;
+        }
+
+        .oddix-hero-main {
+          height: 430px !important;
+          min-height: 430px !important;
+          grid-template-columns: minmax(360px,.95fr) minmax(360px,1fr) !important;
+          padding: 34px 34px 56px !important;
+          border-radius: 26px !important;
+          background:
+            radial-gradient(circle at 74% 46%, rgba(124,58,237,.48), transparent 33%),
+            radial-gradient(circle at 58% 70%, rgba(250,204,21,.13), transparent 28%),
+            linear-gradient(135deg,#10051d,#1b0b39 56%,#080711) !important;
+        }
+
+        .oddix-hero-text h1 {
+          font-size: clamp(46px, 5.4vw, 82px) !important;
+          line-height: .88 !important;
+          letter-spacing: -3px !important;
+          margin: 10px 0 14px !important;
+        }
+
+        .oddix-hero-text p {
+          font-size: 16px !important;
+          line-height: 1.42 !important;
+          max-width: 520px !important;
+        }
+
+        .oddix-hero-player-box {
+          min-height: 0 !important;
+          height: 100% !important;
+        }
+
+        .oddix-hero-player {
+          height: 430px !important;
+          max-width: 520px !important;
+          right: -24px !important;
+          bottom: -28px !important;
+          transform: none !important;
+        }
+
+        .oddix-vip-panel {
+          min-height: 430px !important;
+          padding: 26px 22px !important;
+          border-radius: 26px !important;
+        }
+
+        .oddix-vip-panel strong {
+          font-size: 48px !important;
+        }
+
+        .oddix-info-metric {
+          min-height: 72px !important;
+          padding: 12px !important;
+        }
+
+        .oddix-info-metric strong {
+          font-size: 21px !important;
+        }
+
+        .oddix-top-pick-hero {
+          min-height: 132px !important;
+          grid-template-columns: 120px minmax(280px,.9fr) minmax(260px,1fr) 340px !important;
+          gap: 14px !important;
+          padding: 18px !important;
+          margin-bottom: 18px !important;
+          border-radius: 22px !important;
+        }
+
+        .oddix-player-props-home-grid,
+        .oddix-featured-strip,
+        .oddix-games-grid {
+          gap: 14px !important;
+        }
+
+        .oddix-player-props-home-section {
+          margin-bottom: 18px !important;
+          padding: 20px !important;
+          border-radius: 24px !important;
+        }
+
+        .oddix-player-props-home-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        }
+
+        .oddix-featured-strip {
+          display: grid !important;
+          grid-template-columns: repeat(auto-fill, minmax(245px, 1fr)) !important;
+          max-height: none !important;
+          padding: 0 !important;
+          margin-bottom: 18px !important;
+        }
+
+        .oddix-layout {
+          grid-template-columns: 260px minmax(0, 1fr) !important;
+          gap: 18px !important;
+          align-items: start !important;
+        }
+
+        .oddix-sidebar {
+          position: sticky !important;
+          top: 126px !important;
+          max-height: calc(100vh - 142px) !important;
+          overflow: auto !important;
+          scrollbar-width: thin !important;
+        }
+
+        .oddix-games-grid {
+          display: grid !important;
+          grid-template-columns: repeat(auto-fill, minmax(295px, 1fr)) !important;
+          max-height: 860px !important;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+          padding-right: 6px !important;
+          scroll-behavior: smooth !important;
+        }
+
+        .oddix-games-grid::-webkit-scrollbar,
+        .oddix-sidebar::-webkit-scrollbar {
+          width: 7px !important;
+        }
+
+        .oddix-games-grid::-webkit-scrollbar-thumb,
+        .oddix-sidebar::-webkit-scrollbar-thumb {
+          background: rgba(250,204,21,.35) !important;
+          border-radius: 999px !important;
+        }
+
+        .oddix-game-card {
+          min-height: 258px !important;
+          border-radius: 22px !important;
+          transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease !important;
+        }
+
+        .oddix-game-card:hover {
+          transform: translateY(-3px) !important;
+          border-color: rgba(250,204,21,.46) !important;
+          box-shadow: 0 20px 42px rgba(0,0,0,.32), 0 0 24px rgba(124,58,237,.18) !important;
+        }
+
+        .oddix-tabs-wrapper {
+          margin-bottom: 16px !important;
+        }
+
+        .oddix-tabs {
+          overflow-x: auto !important;
+          scrollbar-width: none !important;
+          padding: 6px !important;
+        }
+
+        .oddix-tabs::-webkit-scrollbar {
+          display: none !important;
+        }
+
+        .oddix-tabs button {
+          white-space: nowrap !important;
+        }
+
+        @media (max-width: 1260px) {
+          .oddix-hero-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-vip-panel {
+            min-height: auto !important;
+            display: grid !important;
+            grid-template-columns: 1fr auto auto !important;
+            align-items: center !important;
+            gap: 16px !important;
+          }
+
+          .oddix-top-pick-hero {
+            grid-template-columns: 1fr 1fr !important;
+          }
+
+          .oddix-layout {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-sidebar {
+            position: relative !important;
+            top: auto !important;
+            max-height: none !important;
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 920px) {
+          .oddix-top-header {
+            position: relative !important;
+            min-height: auto !important;
+          }
+
+          .oddix-sports-rail {
+            top: 0 !important;
+          }
+
+          .oddix-hero-grid,
+          .oddix-vip-marketing-strip,
+          .oddix-premium-ticket,
+          .oddix-top-pick-hero,
+          .oddix-marketing-banner,
+          .oddix-top-widgets,
+          .oddix-featured-strip,
+          .oddix-tabs-wrapper,
+          .oddix-layout,
+          .oddix-footer,
+          .oddix-player-props-home-section,
+          .oddix-vip-results {
+            width: min(100% - 24px, 100%) !important;
+          }
+
+          .oddix-hero-main {
+            height: auto !important;
+            min-height: 0 !important;
+            grid-template-columns: 1fr !important;
+            padding: 26px 20px 0 !important;
+            text-align: center !important;
+          }
+
+          .oddix-hero-text h1 {
+            font-size: clamp(36px, 10vw, 58px) !important;
+            letter-spacing: -1.8px !important;
+          }
+
+          .oddix-hero-text p {
+            margin-left: auto !important;
+            margin-right: auto !important;
+          }
+
+          .oddix-hero-player-box {
+            height: 260px !important;
+          }
+
+          .oddix-hero-player {
+            position: relative !important;
+            right: auto !important;
+            bottom: auto !important;
+            height: 285px !important;
+            width: 100% !important;
+          }
+
+          .oddix-hero-bottom-features,
+          .oddix-hero-main [style*="position: absolute"][style*="bottom"] {
+            display: none !important;
+          }
+
+          .oddix-vip-panel,
+          .oddix-top-pick-hero,
+          .oddix-sidebar,
+          .oddix-player-props-home-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-games-grid {
+            grid-template-columns: 1fr !important;
+            max-height: none !important;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .oddix-header-actions {
+            justify-content: center !important;
+          }
+
+          .oddix-hero-main {
+            border-radius: 22px !important;
+          }
+
+          .oddix-hero-text h1 {
+            font-size: 34px !important;
+          }
+
+          .oddix-hero-feature-list,
+          .oddix-hero-text [style*="flex-wrap"] {
+            justify-content: center !important;
+          }
+
+          .oddix-info-metric {
+            min-height: 62px !important;
+          }
+        }
+
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
@@ -2082,7 +2446,7 @@ export default function Dashboard() {
 
           {activeTab === "playerprops" && (
             <PlayerPropsSection
-              props={playerPropsTips}
+              props={playerPropsTips.length ? playerPropsTips : homePlayerProps}
               games={games}
               isPaidPlan={isPaidPlan}
               onUpgrade={() => (window.location.href = "/plans")}
@@ -6730,4 +7094,3 @@ Object.assign(styles, {
     opacity: .9,
   },
 });
-
