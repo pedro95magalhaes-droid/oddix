@@ -345,12 +345,13 @@ function playerPropFromGame(game: any, index: number) {
   const quality = safeNumber(game?.oddix?.qualityScore, 82);
   const market = index === 1 ? "Finalizações" : index === 2 ? "Participação ofensiva" : "Chutes no gol";
   const tip = index === 1 ? "Over 1.5 finalizações" : index === 2 ? "1+ participação em gol" : "Over 0.5 chute no gol";
+  const playerLabel = index === 1 ? "Principal Finalizador" : index === 2 ? "Atleta Decisivo" : "Atacante Destaque";
 
   return {
     key: `prop-${game?.fixture?.id}-${teamName}-${index}`,
     fixtureId: game?.fixture?.id,
     game: `${game?.teams?.home?.name || "Casa"} x ${game?.teams?.away?.name || "Fora"}`,
-    player: `Destaque ${teamName}`,
+    player: playerLabel,
     playerTeam: teamName,
     opponentTeam: opponent?.name || "Adversário",
     teamLogo: team?.logo || logoFallback(teamName),
@@ -634,9 +635,14 @@ function HeroSection({ games, live, tips, roi }: { games: number; live: number; 
     <section style={styles.heroCard}>
       <div style={styles.heroContent}>
         <span style={styles.heroBadge}>ODDIX SMART BETTING</span>
-        <h1 style={styles.heroTitle}>
-          ODDIX IA <span>V4</span>
-        </h1>
+        <div style={styles.heroBrand}>
+          <img
+            src="/logo-oddix-horizontal.png"
+            alt="ODDIX TIPSTER IA"
+            style={styles.heroMainLogo}
+          />
+          <span style={styles.heroVersionBadge}>IA V4</span>
+        </div>
         <p style={styles.heroText}>
           A inteligência artificial que filtra milhares de jogos, elimina entradas ruins e destaca apenas oportunidades com valor.
         </p>
@@ -776,6 +782,7 @@ function PlayerPropsPremium({ props, onOpen }: { props: any[]; onOpen: () => voi
 
 function PlayerPropCard({ prop, index }: { prop: any; index: number }) {
   const fallbackTeam = index === 0 ? "CRB" : index === 1 ? "Botafogo SP" : "América MG";
+  const fallbackPlayer = index === 1 ? "Principal Finalizador" : index === 2 ? "Atleta Decisivo" : "Atacante Destaque";
   const teamName = prop?.playerTeam || fallbackTeam;
   const propLogo = prop?.teamLogo || logoFallback(teamName);
   const propInitials = prop?.playerInitials || initials(teamName);
@@ -794,7 +801,7 @@ function PlayerPropCard({ prop, index }: { prop: any; index: number }) {
       </div>
 
       <div style={styles.playerCardBody}>
-        <h3>{prop?.player || `Destaque ${teamName}`}</h3>
+        <h3>{prop?.player || fallbackPlayer}</h3>
         <strong>{teamName}</strong>
         <span>{market}</span>
         <div style={styles.playerSelectionBox}>
@@ -980,6 +987,10 @@ const globalCss = `
   body { margin: 0; background: #07070D; }
   button { font-family: inherit; }
   .oddix-rebuild { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .oddix-rebuild img { image-rendering: auto; }
+  @media (max-width: 760px) {
+    .hero-boost-grid { grid-template-columns: 1fr !important; }
+  }
   .hero-boost-grid { grid-template-columns: minmax(0, 1fr) 300px; }
   .ticket-performance-grid { grid-template-columns: minmax(0, 1.2fr) minmax(360px, .8fr); }
   @media (max-width: 1180px) {
@@ -1007,7 +1018,7 @@ const styles: Record<string, CSSProperties> = {
     margin: "0 -24px",
     padding: "14px 26px",
     display: "grid",
-    gridTemplateColumns: "190px minmax(0, 1fr) auto",
+    gridTemplateColumns: "250px minmax(0, 1fr) auto",
     alignItems: "center",
     gap: 18,
     background: "rgba(7,7,13,.88)",
@@ -1015,7 +1026,7 @@ const styles: Record<string, CSSProperties> = {
     backdropFilter: "blur(18px)",
   },
   logoButton: {
-    height: 48,
+    height: 56,
     borderRadius: 18,
     border: "1px solid rgba(123,44,255,.52)",
     background: "linear-gradient(135deg, rgba(255,255,255,.08), rgba(123,44,255,.12))",
@@ -1024,7 +1035,7 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: "center",
     cursor: "pointer",
   },
-  headerLogo: { maxWidth: 118, maxHeight: 32, objectFit: "contain" },
+  headerLogo: { maxWidth: 190, maxHeight: 42, objectFit: "contain" },
   headerMenu: { display: "flex", alignItems: "center", gap: 8, overflowX: "auto", paddingBottom: 2 },
   menuButton: {
     border: "1px solid rgba(255,255,255,.12)",
@@ -1101,7 +1112,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "stretch",
     isolation: "isolate",
   },
-  heroContent: { position: "relative", zIndex: 3, padding: "54px 0 90px 42px", maxWidth: 610 },
+  heroContent: { position: "relative", zIndex: 3, padding: "56px 0 92px 46px", maxWidth: 650 },
   heroBadge: {
     display: "inline-flex",
     border: "1px solid rgba(168,85,247,.75)",
@@ -1121,6 +1132,37 @@ const styles: Record<string, CSSProperties> = {
     letterSpacing: -5,
     fontWeight: 1000,
     textShadow: "0 0 38px rgba(123,44,255,.54)",
+  },
+  heroBrand: {
+    position: "relative",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    margin: "22px 0 20px",
+    padding: "18px 20px",
+    borderRadius: 26,
+    border: "1px solid rgba(247,201,72,.36)",
+    background: "linear-gradient(135deg, rgba(255,255,255,.11), rgba(123,44,255,.18))",
+    boxShadow: "0 0 46px rgba(123,44,255,.34), inset 0 1px 0 rgba(255,255,255,.20)",
+  },
+  heroMainLogo: {
+    width: 560,
+    maxWidth: "100%",
+    height: "auto",
+    objectFit: "contain",
+    filter: "drop-shadow(0 0 28px rgba(123,44,255,.62))",
+  },
+  heroVersionBadge: {
+    position: "absolute",
+    right: -16,
+    top: -16,
+    borderRadius: 999,
+    padding: "10px 16px",
+    background: "linear-gradient(135deg, #F7C948, #fb923c)",
+    color: "#050510",
+    fontWeight: 1000,
+    fontSize: 14,
+    boxShadow: "0 0 24px rgba(247,201,72,.35)",
   },
   heroText: { maxWidth: 550, margin: 0, color: "rgba(255,255,255,.9)", fontSize: 18, lineHeight: 1.35, fontWeight: 700 },
   heroFeatures: { display: "flex", flexWrap: "wrap", gap: 10, marginTop: 26 },
@@ -1155,41 +1197,41 @@ const styles: Record<string, CSSProperties> = {
   heroVisual: { position: "relative", zIndex: 2, minHeight: 600 },
   energyOrb: {
     position: "absolute",
-    width: 580,
-    height: 580,
+    width: 690,
+    height: 690,
     borderRadius: 999,
-    right: 70,
-    top: 4,
+    right: 18,
+    top: -32,
     background: "radial-gradient(circle, rgba(123,44,255,.95), rgba(123,44,255,.36) 38%, transparent 68%)",
     filter: "blur(12px)",
     opacity: .95,
   },
   heroLogoGhost: {
     position: "absolute",
-    right: 26,
-    bottom: 96,
-    fontSize: 112,
+    right: -12,
+    bottom: 106,
+    fontSize: 152,
     fontWeight: 1000,
     letterSpacing: -5,
-    color: "rgba(255,255,255,.16)",
+    color: "rgba(255,255,255,.11)",
     textShadow: "0 0 42px rgba(255,255,255,.25)",
   },
   heroPlayer: {
     position: "absolute",
-    right: 36,
-    bottom: 52,
-    height: 500,
-    width: 620,
+    right: -18,
+    bottom: 26,
+    height: 640,
+    width: 790,
     objectFit: "contain",
     objectPosition: "center bottom",
     filter: "drop-shadow(0 0 40px rgba(123,44,255,.58))",
   },
   smartphoneMock: {
     position: "absolute",
-    left: 20,
-    bottom: 135,
-    width: 142,
-    height: 218,
+    left: -4,
+    bottom: 156,
+    width: 158,
+    height: 238,
     borderRadius: 26,
     padding: 18,
     background: "linear-gradient(180deg, #050510, #111827)",
@@ -1198,7 +1240,7 @@ const styles: Record<string, CSSProperties> = {
     transform: "rotate(-8deg)",
   },
   phoneLine: { height: 8, width: "90%", marginTop: 14, borderRadius: 999, background: "linear-gradient(90deg, #22c55e, #F7C948)" },
-  heroSlogan: { position: "absolute", right: 78, bottom: 50, fontSize: 16, fontWeight: 1000, textAlign: "center", color: "rgba(255,255,255,.92)" },
+  heroSlogan: { position: "absolute", right: 92, bottom: 54, fontSize: 18, fontWeight: 1000, textAlign: "center", color: "rgba(255,255,255,.94)", textShadow: "0 0 20px rgba(123,44,255,.55)" },
   heroBottomBar: {
     position: "absolute",
     left: 32,
@@ -1236,24 +1278,24 @@ const styles: Record<string, CSSProperties> = {
   boostButton: { border: 0, borderRadius: 18, padding: "19px 18px", background: "linear-gradient(135deg, #F7C948, #fb923c)", color: "#050510", fontWeight: 1000, cursor: "pointer" },
   topPickCard: {
     marginBottom: 22,
-    minHeight: 142,
+    minHeight: 220,
     borderRadius: 26,
     border: "1px solid rgba(247,201,72,.58)",
     background: "linear-gradient(135deg, rgba(7,7,13,.96), rgba(45,17,77,.78))",
     boxShadow: "0 0 36px rgba(247,201,72,.10)",
     padding: 22,
     display: "grid",
-    gridTemplateColumns: "140px 330px minmax(280px, 1fr) auto",
+    gridTemplateColumns: "160px 390px minmax(320px, 1fr) auto",
     gap: 22,
     alignItems: "center",
   },
   topPickLabel: { display: "flex", alignItems: "center", gap: 14, color: "#F7C948", fontSize: 18, fontWeight: 1000 },
-  topPickTeams: { display: "grid", gridTemplateColumns: "78px minmax(0, 1fr) 78px", gap: 16, alignItems: "center" },
-  topPickLogo: { width: 78, height: 78, objectFit: "contain", filter: "drop-shadow(0 0 14px rgba(255,255,255,.25))" },
+  topPickTeams: { display: "grid", gridTemplateColumns: "112px minmax(0, 1fr) 112px", gap: 18, alignItems: "center" },
+  topPickLogo: { width: 112, height: 112, objectFit: "contain", filter: "drop-shadow(0 0 18px rgba(255,255,255,.30))" },
   topPickMatchText: { display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", fontWeight: 950 },
-  topPickMarket: { border: "1px solid rgba(247,201,72,.35)", borderRadius: 18, background: "rgba(255,255,255,.06)", padding: 22 },
-  topPickStats: { display: "grid", gridTemplateColumns: "92px 116px 126px 190px", gap: 10, alignItems: "stretch" },
-  metricBox: { border: "1px solid rgba(255,255,255,.13)", borderRadius: 14, background: "rgba(255,255,255,.06)", padding: 13, display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 950 },
+  topPickMarket: { border: "1px solid rgba(247,201,72,.42)", borderRadius: 22, background: "linear-gradient(135deg, rgba(247,201,72,.11), rgba(255,255,255,.06))", padding: 28, minHeight: 150, display: "flex", flexDirection: "column", justifyContent: "center" },
+  topPickStats: { display: "grid", gridTemplateColumns: "104px 128px 138px 210px", gap: 12, alignItems: "stretch" },
+  metricBox: { border: "1px solid rgba(255,255,255,.13)", borderRadius: 18, background: "rgba(255,255,255,.07)", padding: 16, display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: 950, minHeight: 82 },
   topPickButton: { border: 0, borderRadius: 18, background: "linear-gradient(135deg, #fff7ad, #F7C948, #fb923c)", color: "#050510", fontWeight: 1000, cursor: "pointer" },
   playerPropsSection: { marginBottom: 22, padding: 24, borderRadius: 28, border: "1px solid rgba(168,85,247,.65)", background: "linear-gradient(135deg, rgba(45,17,77,.96), rgba(123,44,255,.34), rgba(13,7,24,.98))", boxShadow: "0 0 42px rgba(123,44,255,.24)" },
   sectionTitleRow: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 18, marginBottom: 20 },
@@ -1262,13 +1304,13 @@ const styles: Record<string, CSSProperties> = {
   sectionSubtitle: { margin: 0, color: "rgba(255,255,255,.72)", fontSize: 13, fontWeight: 700 },
   sectionButton: { border: 0, borderRadius: 18, background: "linear-gradient(135deg, #F7C948, #fb923c)", color: "#050510", padding: "14px 18px", fontWeight: 1000, cursor: "pointer" },
   playerPropsGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 18 },
-  playerCard: { position: "relative", overflow: "hidden", minHeight: 250, border: "1px solid rgba(255,255,255,.13)", borderRadius: 22, background: "linear-gradient(160deg, rgba(123,44,255,.72), rgba(45,17,77,.96) 60%, rgba(7,7,13,.96))", color: "#fff", textAlign: "left", cursor: "pointer", boxShadow: "inset 0 1px 0 rgba(255,255,255,.18), 0 18px 36px rgba(0,0,0,.28)" },
-  playerCardTop: { position: "relative", height: 118, padding: 18, background: "radial-gradient(circle at 52% 22%, rgba(255,255,255,.18), transparent 32%), linear-gradient(90deg, rgba(255,255,255,.12), rgba(123,44,255,.18))" },
-  playerTeamLogo: { width: 72, height: 72, objectFit: "contain", filter: "drop-shadow(0 0 16px rgba(255,255,255,.30))" },
-  playerAvatarPremium: { position: "absolute", left: "42%", top: 20, width: 92, height: 92, borderRadius: 20, background: "linear-gradient(135deg, #F7C948, #fb923c 48%, #22c55e)", display: "flex", alignItems: "center", justifyContent: "center", color: "#050510", fontSize: 28, fontWeight: 1000, boxShadow: "0 18px 34px rgba(0,0,0,.36)" },
+  playerCard: { position: "relative", overflow: "hidden", minHeight: 315, border: "1px solid rgba(255,255,255,.13)", borderRadius: 22, background: "linear-gradient(160deg, rgba(123,44,255,.72), rgba(45,17,77,.96) 60%, rgba(7,7,13,.96))", color: "#fff", textAlign: "left", cursor: "pointer", boxShadow: "inset 0 1px 0 rgba(255,255,255,.18), 0 18px 36px rgba(0,0,0,.28)" },
+  playerCardTop: { position: "relative", height: 154, padding: 18, background: "radial-gradient(circle at 52% 22%, rgba(255,255,255,.18), transparent 32%), linear-gradient(90deg, rgba(255,255,255,.12), rgba(123,44,255,.18))" },
+  playerTeamLogo: { width: 92, height: 92, objectFit: "contain", filter: "drop-shadow(0 0 16px rgba(255,255,255,.30))" },
+  playerAvatarPremium: { position: "absolute", left: "41%", top: 26, width: 122, height: 122, borderRadius: 28, background: "linear-gradient(135deg, #F7C948, #fb923c 48%, #22c55e)", display: "flex", alignItems: "center", justifyContent: "center", color: "#050510", fontSize: 36, fontWeight: 1000, boxShadow: "0 18px 34px rgba(0,0,0,.36)" },
   trendChart: { position: "absolute", right: 18, bottom: 14, display: "flex", alignItems: "flex-end", gap: 5 },
   cardRank: { position: "absolute", right: 12, top: 12, width: 34, height: 34, borderRadius: 999, background: "#050510", color: "#F7C948", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 1000 },
-  playerCardBody: { padding: "18px 20px 12px" },
+  playerCardBody: { padding: "24px 22px 14px" },
   playerSelectionBox: { marginTop: 14, border: "1px solid rgba(247,201,72,.28)", borderRadius: 14, padding: 13, background: "rgba(7,7,13,.55)", display: "flex", flexDirection: "column", gap: 4 },
   playerCardFooter: { display: "flex", justifyContent: "space-between", padding: "0 20px 18px", fontWeight: 1000 },
   ticketPerformanceGrid: { display: "grid", gap: 18, marginBottom: 22 },
