@@ -3533,64 +3533,127 @@ function HotEntriesSection({ tips, games, liveTick = 0, isPaidPlan, onOpen, onUp
 }
 
 
+
+function marketIcon(label: any) {
+  const text = normalizeTextLoose(label);
+  if (text.includes("ambas") || text.includes("btts")) return "⚽";
+  if (text.includes("escanteio") || text.includes("corner")) return "🚩";
+  if (text.includes("chute") || text.includes("finaliza")) return "🥅";
+  if (text.includes("handicap")) return "📈";
+  if (text.includes("under")) return "🛡️";
+  if (text.includes("over") || text.includes("gol")) return "🔥";
+  return "🎯";
+}
+
 function HotMarketsSection({ tips, games, onOpen }: any) {
   const fallback = [
-    { market: "Over 2.5", tip: "Total de gols", confidence: 82, odd: "1.86" },
-    { market: "Ambas Marcam", tip: "BTTS - Sim", confidence: 79, odd: "1.78" },
-    { market: "Escanteios", tip: "Over 7.5 cantos", confidence: 76, odd: "1.72" },
-    { market: "Chutes no Gol", tip: "Linha protegida", confidence: 81, odd: "1.83" },
-    { market: "Handicap", tip: "+1.5 protegido", confidence: 84, odd: "1.68" },
+    { market: "Over 2.5", tip: "Total de gols", confidence: 82, odd: "1.86", league: "Oddix IA" },
+    { market: "Ambas Marcam", tip: "BTTS - Sim", confidence: 79, odd: "1.78", league: "Oddix IA" },
+    { market: "Escanteios", tip: "Over 7.5 cantos", confidence: 76, odd: "1.72", league: "Oddix IA" },
+    { market: "Chutes no Gol", tip: "Linha protegida", confidence: 81, odd: "1.83", league: "Oddix IA" },
+    { market: "Handicap", tip: "+1.5 protegido", confidence: 84, odd: "1.68", league: "Oddix IA" },
   ];
 
-  const source = (tips && tips.length ? tips : fallback).slice(0, 5);
+  const source = (tips && tips.length ? tips : fallback)
+    .filter((item: any) => safeNumber(item?.confidence, 0) >= 60 || !tips?.length)
+    .slice(0, 5);
 
   return (
     <section className="oddix-hot-markets" style={{
       width: "min(1480px, calc(100% - 36px))",
       margin: "0 auto 18px",
-      padding: 20,
-      borderRadius: 26,
-      background: "linear-gradient(135deg, rgba(7,7,13,.96), rgba(30,12,58,.92))",
-      border: "1px solid rgba(250,204,21,.22)",
-      boxShadow: "0 18px 42px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08)",
+      padding: 22,
+      borderRadius: 28,
+      background: "radial-gradient(circle at 82% 0%, rgba(250,204,21,.12), transparent 24%), linear-gradient(135deg, rgba(7,7,13,.98), rgba(30,12,58,.95))",
+      border: "1px solid rgba(250,204,21,.26)",
+      boxShadow: "0 22px 54px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.08)",
+      overflow: "hidden",
     }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: 18, marginBottom: 18 }}>
         <div>
-          <span style={{ color: "#facc15", fontSize: 12, fontWeight: 1000, textTransform: "uppercase", letterSpacing: 1 }}>🔥 Mercados Quentes</span>
-          <h2 style={{ margin: "6px 0 0", fontSize: 26, letterSpacing: -1 }}>Entradas com maior procura da IA</h2>
+          <span style={{ color: "#facc15", fontSize: 12, fontWeight: 1000, textTransform: "uppercase", letterSpacing: 1 }}>🔥 MERCADOS QUENTES</span>
+          <h2 style={{ margin: "7px 0 4px", fontSize: "clamp(22px, 2vw, 30px)", lineHeight: 1, letterSpacing: -0.8, fontWeight: 1000 }}>
+            Entradas com maior procura da IA
+          </h2>
+          <p style={{ margin: 0, color: "rgba(255,255,255,.68)", fontSize: 13, fontWeight: 750 }}>
+            Mercados organizados por confiança, odd controlada e leitura de valor.
+          </p>
         </div>
-        <button onClick={() => onOpen?.(source[0])} style={{ border: "1px solid rgba(250,204,21,.42)", background: "rgba(250,204,21,.12)", color: "#facc15", borderRadius: 999, padding: "12px 16px", fontWeight: 1000, cursor: "pointer" }}>
+
+        <button
+          onClick={() => onOpen?.(source[0])}
+          style={{
+            height: 46,
+            minWidth: 176,
+            border: "1px solid rgba(250,204,21,.50)",
+            background: "linear-gradient(135deg, rgba(250,204,21,.18), rgba(251,146,60,.10))",
+            color: "#facc15",
+            borderRadius: 16,
+            padding: "0 18px",
+            fontWeight: 1000,
+            cursor: "pointer",
+            boxShadow: "0 12px 28px rgba(250,204,21,.08)",
+            whiteSpace: "nowrap",
+          }}
+        >
           Ver melhor mercado
         </button>
       </div>
 
-      <div className="oddix-hot-markets-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12 }}>
+      <div className="oddix-hot-markets-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 14 }}>
         {source.map((item: any, index: number) => {
           const game = getGameByTip(item, games || []);
-          const confidence = safeNumber(item?.confidence, 78);
+          const confidence = safeNumber(item?.confidence, fallback[index % fallback.length].confidence);
           const market = item?.market || fallback[index % fallback.length].market;
           const tip = item?.tip || item?.selection || fallback[index % fallback.length].tip;
+          const odd = item?.odd || fallback[index % fallback.length].odd;
+          const progress = Math.max(8, Math.min(100, confidence));
+
           return (
-            <button key={`${market}-${index}`} onClick={() => onOpen?.(item)} style={{
-              textAlign: "left",
-              minHeight: 132,
-              padding: 16,
-              borderRadius: 20,
-              border: "1px solid rgba(255,255,255,.10)",
-              background: "radial-gradient(circle at 80% 10%, rgba(250,204,21,.16), transparent 36%), rgba(255,255,255,.055)",
-              color: "#fff",
-              cursor: "pointer",
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,.08)",
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <span style={{ width: 36, height: 36, borderRadius: 14, display: "grid", placeItems: "center", background: "rgba(250,204,21,.14)", color: "#facc15", fontWeight: 1000 }}>{index + 1}</span>
-                <b style={{ color: "#22c55e", fontSize: 12 }}>{confidence}%</b>
+            <button
+              key={`${market}-${index}`}
+              onClick={() => onOpen?.(item)}
+              style={{
+                position: "relative",
+                minHeight: 154,
+                padding: 16,
+                borderRadius: 22,
+                border: "1px solid rgba(255,255,255,.12)",
+                background: "radial-gradient(circle at 82% 10%, rgba(250,204,21,.18), transparent 34%), linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.035))",
+                color: "#fff",
+                cursor: "pointer",
+                textAlign: "left",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,.10), 0 14px 32px rgba(0,0,0,.20)",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                gap: 12,
+                overflow: "hidden",
+              }}
+            >
+              <div style={{ position: "absolute", inset: "auto 0 0", height: 3, background: "rgba(255,255,255,.08)" }} />
+              <div style={{ position: "absolute", left: 0, bottom: 0, height: 3, width: `${progress}%`, background: "linear-gradient(90deg,#22c55e,#facc15)", boxShadow: "0 0 18px rgba(34,197,94,.35)" }} />
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <span style={{ width: 42, height: 42, borderRadius: 16, display: "grid", placeItems: "center", background: "rgba(250,204,21,.13)", border: "1px solid rgba(250,204,21,.20)", fontSize: 22 }}>
+                  {marketIcon(`${market} ${tip}`)}
+                </span>
+                <span style={{ color: "#22c55e", fontSize: 12, fontWeight: 1000 }}>{confidence}% IA</span>
               </div>
-              <strong style={{ display: "block", fontSize: 17, marginBottom: 6 }}>{market}</strong>
-              <small style={{ display: "block", color: "rgba(255,255,255,.68)", minHeight: 32 }}>{tip}</small>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
-                <small style={{ color: "rgba(255,255,255,.50)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{game?.league?.name || item?.league || "Oddix IA"}</small>
-                <b style={{ color: "#facc15" }}>{item?.odd || fallback[index % fallback.length].odd}</b>
+
+              <div>
+                <strong style={{ display: "block", fontSize: 17, lineHeight: 1.05, marginBottom: 6 }}>{market}</strong>
+                <small style={{ display: "block", color: "rgba(255,255,255,.72)", lineHeight: 1.25, minHeight: 32 }}>{tip}</small>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 10 }}>
+                <small style={{ color: "rgba(255,255,255,.48)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {game?.league?.name || item?.league || "Oddix Intelligence"}
+                </small>
+                <div style={{ textAlign: "right" }}>
+                  <span style={{ display: "block", color: "rgba(255,255,255,.48)", fontSize: 10, fontWeight: 900 }}>ODD</span>
+                  <b style={{ color: "#facc15", fontSize: 19 }}>{odd}</b>
+                </div>
               </div>
             </button>
           );
@@ -3684,42 +3747,88 @@ function initialsFromName(value: any) {
   return `${first}${second}`.toUpperCase();
 }
 
+
 function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
   const safeProps = Array.isArray(props) ? props.slice(0, 3) : [];
 
   if (!safeProps.length) return null;
 
   return (
-    <section style={styles.playerPropsHomeSection}>
-      <div style={styles.playerPropsHomeHeader}>
+    <section className="oddix-player-props-home-section" style={{
+      width: "min(1480px, calc(100% - 36px))",
+      margin: "0 auto 22px",
+      borderRadius: 30,
+      padding: 24,
+      background: "radial-gradient(circle at 76% 0%, rgba(250,204,21,.11), transparent 28%), linear-gradient(135deg,rgba(11,5,32,.98),rgba(54,18,112,.96) 58%,rgba(8,7,20,.98))",
+      border: "1px solid rgba(123,44,255,.58)",
+      color: "#fff",
+      boxShadow: "0 24px 70px rgba(0,0,0,.32), 0 0 44px rgba(123,44,255,.18)",
+      overflow: "hidden",
+    }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: 18, marginBottom: 18 }}>
         <div>
-          <span style={styles.playerPropsHomeKicker}>⚽ PLAYER PROPS EM DESTAQUE</span>
-          <h2 style={styles.playerPropsHomeTitle}>Mercados de jogadores filtrados pela IA</h2>
-          <p style={styles.playerPropsHomeText}>
-            Chutes no gol, finalizações e participação ofensiva com leitura Oddix para aumentar a percepção premium do VIP.
+          <span style={{ color: "#facc15", fontSize: 12, fontWeight: 1000, letterSpacing: 1, textTransform: "uppercase" }}>🥅 PLAYER PROPS EM DESTAQUE</span>
+          <h2 style={{ margin: "7px 0 5px", fontSize: "clamp(24px, 2.2vw, 34px)", lineHeight: 1, fontWeight: 1000, letterSpacing: -0.9 }}>
+            Linhas de jogadores filtradas pela IA
+          </h2>
+          <p style={{ margin: 0, maxWidth: 760, color: "rgba(255,255,255,.72)", fontSize: 13, lineHeight: 1.45, fontWeight: 750 }}>
+            Chutes no gol, finalizações e participação ofensiva com odd controlada, confiança alta e leitura premium.
           </p>
         </div>
 
-        <button style={styles.playerPropsHomeAction} onClick={() => (isPaidPlan ? onOpen?.(safeProps[0]) : onUpgrade?.())}>
+        <button
+          style={{
+            height: 48,
+            border: 0,
+            borderRadius: 16,
+            padding: "0 20px",
+            background: "linear-gradient(135deg,#facc15,#fb923c)",
+            color: "#111827",
+            fontWeight: 1000,
+            cursor: "pointer",
+            boxShadow: "0 14px 30px rgba(250,204,21,.22)",
+            whiteSpace: "nowrap",
+          }}
+          onClick={() => (isPaidPlan ? onOpen?.(safeProps[0]) : onUpgrade?.())}
+        >
           {isPaidPlan ? "Ver todos os mercados" : "Liberar Player Props"}
         </button>
       </div>
 
-      <div className="oddix-player-props-home-grid" style={styles.playerPropsHomeGrid}>
+      <div className="oddix-player-props-home-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 18 }}>
         {safeProps.map((prop: any, index: number) => {
           const game = getGameByTip(prop, games);
           const playerName = playerNameFromProp(prop);
           const teamName = prop?.playerTeam || prop?.homeTeam || game?.teams?.home?.name || "Oddix FC";
           const teamLogo = prop?.teamLogo || game?.teams?.home?.logo || logoFallback(teamName, "111827", "facc15");
+          const opponentLogo = prop?.opponentLogo || game?.teams?.away?.logo || "";
           const type = playerPropType(prop);
           const line = playerPropLine(prop);
           const confidence = safeNumber(prop?.confidence, 0);
-          const playerPhoto = prop?.playerPhoto || prop?.photo || prop?.image || ODDIX_PLAYER_IMAGE;
+          const odd = prop.odd || "-";
+          const progress = Math.max(12, Math.min(100, confidence || 78));
 
           return (
             <button
               key={`${prop.fixtureId || index}-${prop.tip || prop.selection || playerName}`}
-              style={styles.playerPropsHomeCard}
+              className="oddix-player-prop-card-v17"
+              style={{
+                position: "relative",
+                border: "1px solid rgba(255,255,255,.14)",
+                borderRadius: 24,
+                background: "radial-gradient(circle at 80% 0%, rgba(250,204,21,.12), transparent 28%), linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.045))",
+                color: "#fff",
+                textAlign: "left",
+                padding: 18,
+                cursor: "pointer",
+                overflow: "hidden",
+                minHeight: 245,
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,.13), 0 16px 38px rgba(0,0,0,.24)",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                gap: 14,
+              }}
               onClick={() => {
                 if (!isPaidPlan) {
                   onUpgrade?.();
@@ -3728,58 +3837,45 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
                 onOpen?.(prop);
               }}
             >
-              <div style={styles.playerPropsCardTopPremium}>
-                <img
-                  src={teamLogo}
-                  alt={teamName}
-                  style={styles.playerPropsClubLogoPremium}
-                  onError={(event) => {
-                    event.currentTarget.src = logoFallback(teamName, "111827", "facc15");
-                  }}
-                />
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(115deg, transparent 0%, rgba(123,44,255,.14) 46%, transparent 72%)", pointerEvents: "none" }} />
 
-                <div style={styles.playerPropsPlayerPhotoWrap}>
+              <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
                   <img
-                    src={playerPhoto}
-                    alt={playerName}
-                    style={styles.playerPropsPlayerCutout}
+                    src={teamLogo}
+                    alt={teamName}
+                    style={{ width: 62, height: 62, objectFit: "contain", borderRadius: 18, padding: 8, background: "rgba(3,7,18,.50)", border: "1px solid rgba(255,255,255,.12)", boxShadow: "0 12px 24px rgba(0,0,0,.28)" }}
                     onError={(event) => {
-                      event.currentTarget.src = ODDIX_PLAYER_IMAGE;
+                      event.currentTarget.src = logoFallback(teamName, "111827", "facc15");
                     }}
                   />
+
+                  <div style={{ minWidth: 0 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#facc15", fontSize: 11, fontWeight: 1000, textTransform: "uppercase", letterSpacing: .7 }}>{marketIcon(type)} {type}</span>
+                    <h3 style={{ margin: "6px 0 2px", fontSize: 20, lineHeight: 1.05, fontWeight: 1000, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{playerName}</h3>
+                    <p style={{ margin: 0, color: "rgba(255,255,255,.68)", fontSize: 12, fontWeight: 900, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{teamName}</p>
+                  </div>
                 </div>
 
-                <div style={styles.playerPropsTrend}>
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                </div>
-
-                <span style={styles.playerPropsHomeRank}>#{index + 1}</span>
+                <div style={{ display: "grid", placeItems: "center", width: 42, height: 42, borderRadius: 16, color: "#facc15", fontWeight: 1000, background: "rgba(0,0,0,.42)", border: "1px solid rgba(250,204,21,.24)", boxShadow: "0 0 18px rgba(250,204,21,.10)" }}>#{index + 1}</div>
               </div>
 
-              <div style={styles.playerPropsHomeBody}>
-                <h3 style={styles.playerPropsHomePlayer}>{playerName}</h3>
-                <p style={styles.playerPropsHomeTeam}>{teamName}</p>
-                <span style={styles.playerPropsHomeType}>{type}</span>
-
-                <div style={styles.playerPropsHomePick}>
-                  <small>Entrada</small>
-                  <strong>{line}</strong>
+              <div style={{ position: "relative", borderRadius: 18, padding: 14, background: "rgba(3,7,18,.36)", border: "1px solid rgba(255,255,255,.10)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.08)" }}>
+                <small style={{ display: "block", color: "rgba(255,255,255,.58)", fontWeight: 900, marginBottom: 6 }}>Entrada selecionada</small>
+                <strong style={{ display: "block", fontSize: 17, lineHeight: 1.18 }}>{line}</strong>
+                <div style={{ marginTop: 12, height: 7, borderRadius: 999, background: "rgba(255,255,255,.10)", overflow: "hidden" }}>
+                  <span style={{ display: "block", width: `${progress}%`, height: "100%", borderRadius: 999, background: "linear-gradient(90deg,#22c55e,#facc15)", boxShadow: "0 0 16px rgba(34,197,94,.30)" }} />
                 </div>
+              </div>
 
-                <div style={styles.playerPropsHomeMetrics}>
-                  <div>
-                    <span>ODD</span>
-                    <strong>{prop.odd || "-"}</strong>
-                  </div>
-                  <div>
-                    <span>CONFIANÇA</span>
-                    <strong>{confidence ? `${confidence}%` : "VIP"}</strong>
-                  </div>
+              <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div style={{ borderRadius: 16, padding: "12px 14px", background: "rgba(0,0,0,.24)", border: "1px solid rgba(250,204,21,.18)" }}>
+                  <span style={{ display: "block", color: "rgba(255,255,255,.58)", fontSize: 11, fontWeight: 950, marginBottom: 4 }}>ODD</span>
+                  <strong style={{ color: "#facc15", fontSize: 22, lineHeight: 1 }}>{odd}</strong>
+                </div>
+                <div style={{ borderRadius: 16, padding: "12px 14px", background: "rgba(34,197,94,.08)", border: "1px solid rgba(34,197,94,.22)" }}>
+                  <span style={{ display: "block", color: "rgba(255,255,255,.58)", fontSize: 11, fontWeight: 950, marginBottom: 4 }}>CONFIANÇA</span>
+                  <strong style={{ color: "#22c55e", fontSize: 22, lineHeight: 1 }}>{confidence ? `${confidence}%` : "VIP"}</strong>
                 </div>
               </div>
             </button>
@@ -3789,7 +3885,6 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
     </section>
   );
 }
-
 
 function PremiumTicketPreview({ tips, games, isPaidPlan, onOpen, onUpgrade }: any) {
   const ticket = buildVipTicket(tips);

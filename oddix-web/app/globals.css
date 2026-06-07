@@ -781,3 +781,47 @@ main {
     width: 100% !important;
   }
 }
+
+/* ODDIX V17 - Correção das seções Mercado Quente e Player Props */
+.oddix-hot-markets,
+.oddix-player-props-home-section {
+  max-width: 1480px !important;
+}
+
+.oddix-hot-markets button,
+.oddix-player-prop-card-v17 {
+  transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease, filter .22s ease !important;
+}
+
+.oddix-hot-markets button:hover,
+.oddix-player-prop-card-v17:hover {
+  transform: translateY(-4px) !important;
+  border-color: rgba(250, 204, 21, .44) !important;
+  box-shadow: 0 22px 46px rgba(0,0,0,.32), 0 0 28px rgba(123,44,255,.16) !important;
+}
+
+@media (max-width: 1180px) {
+  .oddix-hot-markets-grid,
+  .oddix-player-props-home-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .oddix-hot-markets,
+  .oddix-player-props-home-section {
+    width: min(100% - 20px, 100%) !important;
+    padding: 16px !important;
+    border-radius: 22px !important;
+  }
+
+  .oddix-hot-markets > div:first-child,
+  .oddix-player-props-home-section > div:first-child {
+    grid-template-columns: 1fr !important;
+  }
+
+  .oddix-hot-markets-grid,
+  .oddix-player-props-home-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
