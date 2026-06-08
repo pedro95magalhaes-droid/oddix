@@ -850,8 +850,11 @@ export default function Dashboard() {
   }, [displayedSmartTips]);
 
   const homePlayerProps = useMemo(() => {
-    // Player Props reais: sem escalação real, sem card fake.
-    return realPlayerProps.slice(0, 6);
+    // Player Props reais: top 3, com foto real e sem card fake.
+    return realPlayerProps
+      .filter((prop: any) => hasRealPlayerPhoto(prop))
+      .sort((a: any, b: any) => safeNumber(b?.confidence ?? b?.confiança, 0) - safeNumber(a?.confidence ?? a?.confiança, 0))
+      .slice(0, 3);
   }, [realPlayerProps]);
 
   const filteredGames = useMemo(() => {
@@ -962,14 +965,28 @@ export default function Dashboard() {
       });
 
       const seen = new Set<string>();
-      const unique = props.filter((prop: any) => {
-        const key = `${prop.fixtureId || ""}-${prop.playerId || prop.playerName || prop.player || ""}-${prop.tip || prop.selection || ""}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+      const unique = props
+        .filter((prop: any) => hasRealPlayerPhoto(prop))
+        .filter((prop: any) => {
+          const role = String(prop?.playerRole || prop?.role || "").toLowerCase();
+          return !role.includes("goleiro") && !role.includes("defensor") && !role.includes("zagueiro") && !role.includes("lateral");
+        })
+        .filter((prop: any) => {
+          const key = `${prop.fixtureId || ""}-${prop.playerId || prop.playerName || prop.player || ""}-${prop.tip || prop.selection || ""}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a: any, b: any) => {
+          const score = (prop: any) => {
+            const role = String(prop?.playerRole || prop?.role || "").toLowerCase();
+            const roleScore = role.includes("atacante") ? 30 : role.includes("meia") ? 15 : 0;
+            return safeNumber(prop?.confidence ?? prop?.confiança, 0) + roleScore;
+          };
+          return score(b) - score(a);
+        });
 
-      setRealPlayerProps(unique.slice(0, 12));
+      setRealPlayerProps(unique.slice(0, 3));
     } catch {
       setRealPlayerProps([]);
     } finally {
@@ -3764,7 +3781,12 @@ function initialsFromName(value: any) {
 
 
 function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade, loading }: any) {
-  const safeProps = Array.isArray(props) ? props.slice(0, 3) : [];
+  const safeProps = Array.isArray(props)
+    ? props
+        .filter((prop: any) => hasRealPlayerPhoto(prop))
+        .sort((a: any, b: any) => safeNumber(b?.confidence ?? b?.confiança, 0) - safeNumber(a?.confidence ?? a?.confiança, 0))
+        .slice(0, 3)
+    : [];
 
   if (!safeProps.length && !loading) return null;
 
@@ -3787,7 +3809,7 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade, loading 
             Linhas de jogadores filtradas pela IA
           </h2>
           <p style={{ margin: 0, maxWidth: 760, color: "rgba(255,255,255,.72)", fontSize: 13, lineHeight: 1.45, fontWeight: 750 }}>
-            Chutes no gol, finalizações e participação ofensiva com odd controlada, confiança alta e leitura premium.
+            Top 3 jogadores da escalação real, com foto oficial, odd controlada e leitura premium da Oddix Intelligence.
           </p>
         </div>
 
@@ -3825,7 +3847,7 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade, loading 
           const opponentLogo = prop?.opponentLogo || game?.teams?.away?.logo || "";
           const type = playerPropType(prop);
           const line = playerPropLine(prop);
-          const confidence = safeNumber(prop?.confidence, 0);
+          const confidence = safeNumber(prop?.confidence ?? prop?.confiança, 0);
           const odd = prop.odd || "-";
           const progress = Math.max(12, Math.min(100, confidence || 78));
 
@@ -4323,6 +4345,23 @@ function SmartTipsSection({ tips, games, liveTick = 0, onAnalyze }: any) {
 }
 
 
+
+function hasRealPlayerPhoto(prop: any) {
+  const photo =
+    prop?.playerPhoto ||
+    prop?.photo ||
+    prop?.headshot ||
+    prop?.avatar ||
+    prop?.raw?.playerPhoto ||
+    prop?.raw?.player?.photo ||
+    prop?.raw?.player?.image ||
+    prop?.raw?.athlete?.photo ||
+    prop?.raw?.photo ||
+    prop?.raw?.image ||
+    "";
+
+  return /^https?:\/\//i.test(String(photo || "").trim().replace(/\s+/g, ""));
+}
 
 function playerNameFromProp(prop: any) {
   const explicit =

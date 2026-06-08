@@ -3145,7 +3145,7 @@ export class FootballService {
   private cleanPlayerPhoto(value: any) {
     const raw = String(value || "").trim().replace(/\s+/g, "");
     if (!raw) return null;
-    if (!raw.startsWith("http")) return null;
+    if (!/^https?:\/\//i.test(raw)) return null;
     return raw;
   }
 
@@ -3159,48 +3159,89 @@ export class FootballService {
     return fallback;
   }
 
-  private normalizeLineupPlayer(player: any, side: "home" | "away", teamName: string, index: number) {
-    const name = String(
-      this.readLineupPlayerField(player, [
-        "name",
-        "nome",
-        "fieldName",
-        "field_name",
-        "nomeDoCampo",
-        "nome_campo",
-        "campoName",
-        "playerName",
-        "player_name",
-      ], ""),
-    ).trim();
+  private normalizePlayerName(value: any) {
+    return String(value || "")
+      .replace(/\s+/g, " ")
+      .replace(/\s+\./g, ".")
+      .trim();
+  }
+
+  private normalizeLineupPlayer(
+    player: any,
+    side: "home" | "away",
+    teamName: string,
+    index: number,
+  ) {
+    const name = this.normalizePlayerName(
+      this.readLineupPlayerField(
+        player,
+        [
+          "name",
+          "nome",
+          "fieldName",
+          "field_name",
+          "nomeDoCampo",
+          "nome_campo",
+          "nome do campo",
+          "playerName",
+          "player_name",
+        ],
+        "",
+      ),
+    );
 
     if (!name) return null;
 
     const number = String(
-      this.readLineupPlayerField(player, ["number", "número", "numero", "shirtNumber", "shirt_number"], ""),
+      this.readLineupPlayerField(
+        player,
+        ["number", "número", "numero", "shirtNumber", "shirt_number"],
+        "",
+      ),
     ).trim() || null;
 
     const playerId = String(
-      this.readLineupPlayerField(player, ["player_id", "id_jogador", "playerId", "id"], ""),
+      this.readLineupPlayerField(
+        player,
+        ["player_id", "id_jogador", "playerId", "id"],
+        "",
+      ),
     ).trim() || `${side}-${index}-${name}`;
 
     const photo = this.cleanPlayerPhoto(
-      this.readLineupPlayerField(player, [
-        "image_path",
-        "caminho_imagem",
-        "photo",
-        "playerPhoto",
-        "image",
-        "avatar",
-      ], null),
+      this.readLineupPlayerField(
+        player,
+        [
+          "image_path",
+          "caminho_imagem",
+          "photo",
+          "foto",
+          "playerPhoto",
+          "image",
+          "avatar",
+        ],
+        null,
+      ),
     );
 
     const playerUrl = String(
-      this.readLineupPlayerField(player, ["player_url", "url_jogador", "url", "profileUrl"], ""),
+      this.readLineupPlayerField(
+        player,
+        ["player_url", "url_jogador", "playerUrl", "url do jogador", "url", "profileUrl"],
+        "",
+      ),
     ).trim() || null;
 
-    // Quando a API não envia posição, usamos a posição provável pela ordem da escalação.
-    // Em formações comuns: 0 = goleiro, 1-4 defensores, 5-7 meias, 8-10 ataque.
+    const country = String(
+      this.readLineupPlayerField(
+        player,
+        ["country_name", "nome_país", "nome_pais", "país", "pais", "country"],
+        "",
+      ),
+    ).trim() || null;
+
+    // Quando a API não envia posição, a Oddix estima pela ordem da escalação.
+    // 0 = goleiro, 1-4 defesa, 5-7 meio, 8-10 ataque.
     let role = "Meia";
     if (index === 0) role = "Goleiro";
     else if (index <= 4) role = "Defensor";
@@ -3210,21 +3251,28 @@ export class FootballService {
     return {
       id: playerId,
       name,
-      fieldName: String(player?.fieldName || player?.nomeDoCampo || player?.nome_campo || name),
+      fieldName: this.normalizePlayerName(
+        player?.fieldName ||
+          player?.nomeDoCampo ||
+          player?.nome_campo ||
+          player?.["nome do campo"] ||
+          name,
+      ),
       number,
       photo,
       playerUrl,
-      country: String(player?.country_name || player?.nome_país || player?.pais_nome || "").trim() || null,
+      country,
       side,
       teamName,
       role,
       lineupIndex: index,
-      raw: player,
     };
   }
 
   private getLineupTeamName(cached: any, side: "home" | "away") {
-    return String(cached?.teams?.[side]?.name || (side === "home" ? "Casa" : "Fora")).trim();
+    return String(
+      cached?.teams?.[side]?.name || (side === "home" ? "Casa" : "Fora"),
+    ).trim();
   }
 
   private extractPredictedPlayersFromLineups(lineupResult: any, cached: any) {
@@ -3233,7 +3281,8 @@ export class FootballService {
 
     for (const row of rows) {
       const sideRaw = String(row?.side || row?.lado || "").toLowerCase();
-      const side: "home" | "away" = sideRaw.includes("away") || sideRaw.includes("fora") ? "away" : "home";
+      const side: "home" | "away" =
+        sideRaw.includes("away") || sideRaw.includes("fora") ? "away" : "home";
       const teamName = this.getLineupTeamName(cached, side);
       const predicted =
         row?.predictedLineups ||
@@ -3257,30 +3306,62 @@ export class FootballService {
     return players;
   }
 
+  private playerRoleScore(player: any) {
+    const role = String(player?.role || "").toLowerCase();
+    const index = Number(player?.lineupIndex || 0);
+    const hasPhoto = !!player?.photo;
+
+    let score = 0;
+    if (role.includes("atacante")) score += 100;
+    if (role.includes("meia")) score += 55;
+    if (hasPhoto) score += 25;
+    score += Math.max(0, index);
+
+    return score;
+  }
+
+  private selectBestPlayerPropCandidates(players: any[]) {
+    const withPhoto = (players || [])
+      .filter((player: any) => player?.photo)
+      .filter((player: any) => !["Goleiro", "Defensor"].includes(String(player?.role || "")))
+      .sort((a: any, b: any) => this.playerRoleScore(b) - this.playerRoleScore(a));
+
+    // Regra profissional Oddix: sem foto real, não exibe Player Props no dashboard.
+    return withPhoto.slice(0, 3);
+  }
+
   private buildPropForLineupPlayer(player: any, fixtureId: string, cached: any, index: number) {
     const quality = Number(cached?.oddix?.qualityScore || 84);
     const role = String(player?.role || "");
     const isAttacker = role === "Atacante";
-    const isMid = role === "Meia";
 
-    const market = index % 3 === 1 ? "Finalizações" : index % 3 === 2 ? "Participação ofensiva" : "Chutes no Gol";
+    const marketRotation = ["Chutes no Gol", "Finalizações", "Participação em Gol"];
+    const market = marketRotation[index % marketRotation.length];
+
     const tip =
       market === "Finalizações"
         ? `${player.name} Over 1.5 finalizações`
-        : market === "Participação ofensiva"
+        : market === "Participação em Gol"
           ? `${player.name} 1+ participação em gol`
           : `${player.name} Over 0.5 chute no gol`;
 
     const odd =
       market === "Finalizações"
         ? isAttacker ? 1.76 : 1.88
-        : market === "Participação ofensiva"
-          ? isAttacker ? 2.25 : 2.65
+        : market === "Participação em Gol"
+          ? isAttacker ? 2.25 : 2.55
           : isAttacker ? 1.72 : 1.86;
 
     const confidence = Math.max(
-      74,
-      Math.min(90, Math.round((quality || 82) - (market === "Participação ofensiva" ? 5 : 0) + (isAttacker ? 3 : isMid ? 1 : -2))),
+      78,
+      Math.min(
+        90,
+        Math.round(
+          (quality || 82) -
+            (market === "Participação em Gol" ? 4 : 0) +
+            (isAttacker ? 3 : 1),
+        ),
+      ),
     );
 
     return {
@@ -3315,7 +3396,7 @@ export class FootballService {
       awayTeam: cached?.teams?.away?.name || "Fora",
       league: cached?.league?.name || "Liga",
       teamLogo: cached?.teams?.[player.side]?.logo || null,
-      reason: `Player Prop gerada apenas porque existe escalação real da ${String(cached?.provider || "FlashScore")}. Jogador: ${player.name}, função provável: ${player.role}.`,
+      reason: `Player Prop gerada apenas porque existe escalação real. Jogador: ${player.name}, função provável: ${player.role}.`,
     };
   }
 
@@ -3331,10 +3412,11 @@ export class FootballService {
         source: "none",
         message: `Fixture ${fixtureId} não encontrado no cache.`,
         playerProps: [],
+        players: [],
       };
     }
 
-    const lineup = await this.getLineups(fixtureId);
+    const lineup: any = await this.getLineups(fixtureId);
 
     if (!lineup?.available) {
       return {
@@ -3344,22 +3426,17 @@ export class FootballService {
         source: "none",
         message: "Player Props indisponível: escalação oficial ainda não disponível.",
         playerProps: [],
+        players: [],
         lineups: [],
-        errors: "errors" in lineup ? lineup.errors : [],
+        errors: lineup && "errors" in lineup ? lineup.errors : [],
       };
     }
 
-    const players = this.extractPredictedPlayersFromLineups(lineup, cached)
-      .filter((player: any) => player.role !== "Goleiro" && player.role !== "Defensor")
-      .sort((a: any, b: any) => {
-        const score = (player: any) =>
-          (player.role === "Atacante" ? 30 : 20) +
-          (player.photo ? 8 : 0) +
-          Math.max(0, Number(player.lineupIndex || 0));
-        return score(b) - score(a);
-      });
+    const allPlayers = this.extractPredictedPlayersFromLineups(lineup, cached)
+      .filter((player: any) => !["Goleiro", "Defensor"].includes(String(player?.role || "")))
+      .sort((a: any, b: any) => this.playerRoleScore(b) - this.playerRoleScore(a));
 
-    const selected = players.slice(0, Number(process.env.ODDIX_LINEUP_PLAYER_PROPS_LIMIT || 8));
+    const selected = this.selectBestPlayerPropCandidates(allPlayers);
     const playerProps = selected.map((player: any, index: number) =>
       this.buildPropForLineupPlayer(player, fixtureId, cached, index),
     );
@@ -3370,14 +3447,26 @@ export class FootballService {
       fixtureId,
       source: lineup.source || "flashscore-lineups",
       message: playerProps.length
-        ? "Player Props geradas com escalação real e fotos reais quando disponíveis."
-        : "Escalação encontrada, mas sem jogadores ofensivos suficientes para Player Props.",
+        ? "Top 3 Player Props geradas com escalação real, atacantes priorizados e foto real obrigatória."
+        : "Escalação encontrada, mas sem jogadores ofensivos com foto real para exibir Player Props.",
       game: `${cached?.teams?.home?.name || "Casa"} x ${cached?.teams?.away?.name || "Fora"}`,
       homeTeam: cached?.teams?.home?.name || "Casa",
       awayTeam: cached?.teams?.away?.name || "Fora",
       league: cached?.league?.name || "Liga",
       playerProps,
-      players,
+      players: allPlayers.map((player: any) => ({
+        id: player.id,
+        name: player.name,
+        fieldName: player.fieldName,
+        number: player.number,
+        photo: player.photo,
+        playerUrl: player.playerUrl,
+        country: player.country,
+        side: player.side,
+        teamName: player.teamName,
+        role: player.role,
+        lineupIndex: player.lineupIndex,
+      })),
       lineups: lineup.lineups || [],
     };
   }
