@@ -3238,6 +3238,241 @@ export default function Dashboard() {
           }
         }
 
+
+
+        /* ODDIX V23.5 REAL SIDEBAR LAYOUT FIX */
+        .oddix-dashboard {
+          width: 100% !important;
+          max-width: 100vw !important;
+          overflow-x: hidden !important;
+          box-sizing: border-box !important;
+          padding-left: 276px !important;
+        }
+
+        .oddix-side-menu {
+          position: fixed !important;
+          top: 214px !important;
+          left: 16px !important;
+          right: auto !important;
+          bottom: auto !important;
+          z-index: 80 !important;
+          width: 244px !important;
+          max-width: 244px !important;
+          max-height: calc(100vh - 236px) !important;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+          padding: 16px !important;
+          border-radius: 24px !important;
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 10px !important;
+          background:
+            radial-gradient(circle at 50% 0%, rgba(123,44,255,.26), transparent 42%),
+            linear-gradient(180deg, rgba(12,7,24,.98), rgba(8,5,16,.96)) !important;
+          border: 1px solid rgba(139,92,246,.36) !important;
+          box-shadow: 0 24px 70px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.08) !important;
+          backdrop-filter: blur(16px) !important;
+        }
+
+        .oddix-side-menu-title {
+          display: block !important;
+          opacity: 1 !important;
+          height: auto !important;
+          width: 100% !important;
+          margin: 0 0 6px !important;
+          padding: 0 4px !important;
+          color: #facc15 !important;
+          font-size: 11px !important;
+          font-weight: 1000 !important;
+          letter-spacing: .9px !important;
+          text-transform: uppercase !important;
+        }
+
+        .oddix-side-menu a,
+        .oddix-side-menu:hover a,
+        .oddix-side-menu:focus-within a {
+          width: 100% !important;
+          min-width: 0 !important;
+          height: 44px !important;
+          min-height: 44px !important;
+          border-radius: 16px !important;
+          padding: 0 13px !important;
+          display: grid !important;
+          grid-template-columns: 26px minmax(0, 1fr) !important;
+          align-items: center !important;
+          gap: 10px !important;
+          text-decoration: none !important;
+          background: rgba(255,255,255,.065) !important;
+          border: 1px solid rgba(255,255,255,.11) !important;
+          color: rgba(255,255,255,.86) !important;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.06) !important;
+          transition: transform .18s ease, border-color .18s ease, background .18s ease !important;
+        }
+
+        .oddix-side-menu a span:first-child {
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 26px !important;
+          height: 26px !important;
+          border-radius: 10px !important;
+          background: rgba(123,44,255,.24) !important;
+        }
+
+        .oddix-side-menu a span:last-child,
+        .oddix-side-menu:hover a span:last-child,
+        .oddix-side-menu:focus-within a span:last-child {
+          opacity: 1 !important;
+          display: block !important;
+          color: rgba(255,255,255,.90) !important;
+          font-size: 12px !important;
+          font-weight: 950 !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+
+        .oddix-side-menu a:hover {
+          transform: translateX(3px) !important;
+          border-color: rgba(250,204,21,.48) !important;
+          background: linear-gradient(135deg, rgba(123,44,255,.28), rgba(250,204,21,.08)) !important;
+        }
+
+        .oddix-top-header,
+        .oddix-sports-rail {
+          width: 100% !important;
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+        }
+
+        .oddix-hero-grid,
+        .oddix-top-widgets,
+        .oddix-featured-strip,
+        .oddix-tabs-wrapper,
+        .oddix-layout,
+        .oddix-footer,
+        .oddix-top-pick-hero,
+        .oddix-marketing-banner,
+        .oddix-vip-results,
+        .oddix-vip-marketing-strip,
+        .oddix-premium-ticket {
+          margin-left: 20px !important;
+          margin-right: 20px !important;
+          max-width: calc(100vw - 316px) !important;
+          box-sizing: border-box !important;
+        }
+
+        .oddix-hero-grid {
+          grid-template-columns: minmax(0, 1fr) minmax(260px, 300px) !important;
+        }
+
+        .oddix-hero-main,
+        .oddix-vip-panel,
+        .oddix-main-content,
+        .oddix-layout,
+        .oddix-games-grid,
+        .oddix-featured-strip,
+        .oddix-top-widgets-grid,
+        .oddix-footer-metrics {
+          min-width: 0 !important;
+        }
+
+        .oddix-layout {
+          display: grid !important;
+          grid-template-columns: 260px minmax(0, 1fr) !important;
+          gap: 18px !important;
+          align-items: start !important;
+        }
+
+        .oddix-sidebar {
+          position: sticky !important;
+          top: 142px !important;
+          align-self: start !important;
+          max-height: calc(100vh - 162px) !important;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+        }
+
+        .oddix-games-grid {
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+        }
+
+        .oddix-games-grid > *,
+        .oddix-featured-strip > *,
+        .oddix-player-props-home-grid > *,
+        .oddix-top-widgets-grid > * {
+          min-width: 0 !important;
+          max-width: 100% !important;
+        }
+
+        @media (max-width: 1180px) {
+          .oddix-dashboard {
+            padding-left: 0 !important;
+          }
+
+          .oddix-side-menu {
+            position: sticky !important;
+            top: 0 !important;
+            left: auto !important;
+            width: calc(100% - 28px) !important;
+            max-width: none !important;
+            max-height: none !important;
+            margin: 12px 14px !important;
+            padding: 10px !important;
+            flex-direction: row !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            border-radius: 18px !important;
+          }
+
+          .oddix-side-menu-title {
+            display: none !important;
+          }
+
+          .oddix-side-menu a,
+          .oddix-side-menu:hover a,
+          .oddix-side-menu:focus-within a {
+            width: auto !important;
+            min-width: 118px !important;
+            grid-template-columns: 24px auto !important;
+          }
+
+          .oddix-hero-grid,
+          .oddix-top-widgets,
+          .oddix-featured-strip,
+          .oddix-tabs-wrapper,
+          .oddix-layout,
+          .oddix-footer,
+          .oddix-top-pick-hero,
+          .oddix-marketing-banner,
+          .oddix-vip-results,
+          .oddix-vip-marketing-strip,
+          .oddix-premium-ticket {
+            max-width: calc(100vw - 28px) !important;
+            margin-left: 14px !important;
+            margin-right: 14px !important;
+          }
+
+          .oddix-layout {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .oddix-side-menu a,
+          .oddix-side-menu:hover a,
+          .oddix-side-menu:focus-within a {
+            min-width: 92px !important;
+            height: 40px !important;
+            padding: 0 10px !important;
+          }
+
+          .oddix-side-menu a span:last-child,
+          .oddix-side-menu:hover a span:last-child,
+          .oddix-side-menu:focus-within a span:last-child {
+            font-size: 11px !important;
+          }
+        }
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
