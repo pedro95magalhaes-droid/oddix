@@ -3045,9 +3045,9 @@ export default function Dashboard() {
         }
 
 
-        /* ODDIX V23.4 ADAPTIVE SIDE MENU
-           Menu lateral compacto: não empurra o dashboard, não cobre o bilhete
-           e se adapta em dock horizontal no mobile. */
+        /* ODDIX V24 PROFESSIONAL REAL SIDEBAR
+           Sidebar real de dashboard: fica ao lado do conteúdo, mostra links com texto,
+           estatísticas rápidas, grupo free e parceiro sem cobrir cards. */
         html {
           scroll-behavior: smooth;
         }
@@ -3057,135 +3057,218 @@ export default function Dashboard() {
         }
 
         .oddix-dashboard {
-          padding-left: 0 !important;
+          padding-left: 238px !important;
         }
 
         .oddix-side-menu {
           position: fixed;
-          left: 12px;
-          top: 50%;
-          transform: translateY(-50%);
+          left: 14px;
+          top: 96px;
+          bottom: 18px;
           z-index: 118;
-          width: 54px;
-          max-height: calc(100vh - 170px);
-          display: grid;
-          gap: 8px;
-          padding: 10px 7px;
-          border-radius: 22px;
-          background: linear-gradient(180deg, rgba(8,7,15,.72), rgba(20,8,44,.64));
-          border: 1px solid rgba(168,85,247,.28);
-          box-shadow: 0 16px 42px rgba(0,0,0,.38), 0 0 24px rgba(123,44,255,.13), inset 0 1px 0 rgba(255,255,255,.08);
+          width: 210px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          padding: 16px 14px;
+          border-radius: 24px;
+          background:
+            radial-gradient(circle at 30% 0%, rgba(123,44,255,.24), transparent 40%),
+            linear-gradient(180deg, rgba(12,8,24,.96), rgba(17,7,39,.94));
+          border: 1px solid rgba(168,85,247,.34);
+          box-shadow: 0 18px 55px rgba(0,0,0,.42), 0 0 28px rgba(123,44,255,.16), inset 0 1px 0 rgba(255,255,255,.08);
           backdrop-filter: blur(18px);
-          overflow: hidden;
-          transition: width .22s ease, background .22s ease, border-color .22s ease, box-shadow .22s ease;
+          overflow-y: auto;
+          overflow-x: hidden;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(168,85,247,.45) transparent;
         }
 
-        .oddix-side-menu:hover,
-        .oddix-side-menu:focus-within {
-          width: 188px;
-          background: linear-gradient(180deg, rgba(8,7,15,.94), rgba(20,8,44,.90));
-          border-color: rgba(250,204,21,.36);
-          box-shadow: 0 22px 58px rgba(0,0,0,.46), 0 0 30px rgba(123,44,255,.18), inset 0 1px 0 rgba(255,255,255,.10);
+        .oddix-side-menu::-webkit-scrollbar {
+          width: 5px;
+        }
+
+        .oddix-side-menu::-webkit-scrollbar-thumb {
+          background: rgba(168,85,247,.45);
+          border-radius: 999px;
         }
 
         .oddix-side-menu-title {
-          height: 22px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
           color: #facc15;
-          font-size: 8px;
+          font-size: 10px;
           line-height: 1;
           font-weight: 1000;
           text-transform: uppercase;
-          letter-spacing: .7px;
-          white-space: nowrap;
-          opacity: .9;
+          letter-spacing: .9px;
+          padding: 2px 4px 4px;
         }
 
-        .oddix-side-menu:hover .oddix-side-menu-title,
-        .oddix-side-menu:focus-within .oddix-side-menu-title {
-          justify-content: flex-start;
-          padding-left: 12px;
-          font-size: 10px;
+        .oddix-side-menu-group {
+          display: grid;
+          gap: 8px;
         }
 
+        .oddix-side-menu button,
         .oddix-side-menu a {
-          width: 40px;
-          height: 40px;
-          min-width: 40px;
+          width: 100%;
+          min-height: 42px;
           display: flex;
           align-items: center;
           justify-content: flex-start;
           gap: 10px;
-          padding: 0;
+          padding: 0 12px;
           border-radius: 14px;
-          border: 1px solid rgba(255,255,255,.11);
-          background: rgba(255,255,255,.06);
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.055);
           color: rgba(255,255,255,.92);
-          font-size: 11px;
+          font-size: 12px;
           font-weight: 1000;
           line-height: 1;
           text-decoration: none;
           cursor: pointer;
           white-space: nowrap;
           overflow: hidden;
-          transition: width .22s ease, padding .22s ease, background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+          transition: .18s ease;
         }
 
-        .oddix-side-menu:hover a,
-        .oddix-side-menu:focus-within a {
-          width: 172px;
-          padding: 0 12px;
-          border-radius: 999px;
-        }
-
+        .oddix-side-menu button span:first-child,
         .oddix-side-menu a span:first-child {
-          width: 40px;
-          min-width: 40px;
-          height: 40px;
+          width: 24px;
+          height: 24px;
+          min-width: 24px;
           display: grid;
           place-items: center;
-          font-size: 16px;
+          border-radius: 9px;
+          background: rgba(123,44,255,.32);
+          font-size: 14px;
           line-height: 1;
         }
 
-        .oddix-side-menu a span:last-child {
-          opacity: 0;
-          max-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          transform: translateX(-6px);
-          transition: opacity .18s ease, max-width .18s ease, transform .18s ease;
-        }
-
-        .oddix-side-menu:hover a span:last-child,
-        .oddix-side-menu:focus-within a span:last-child {
-          opacity: 1;
-          max-width: 116px;
-          transform: translateX(0);
-        }
-
+        .oddix-side-menu button:hover,
         .oddix-side-menu a:hover {
           transform: translateX(3px);
-          border-color: rgba(250,204,21,.70);
+          border-color: rgba(250,204,21,.66);
           color: #facc15;
-          background: rgba(250,204,21,.11);
+          background: rgba(250,204,21,.10);
           box-shadow: 0 0 18px rgba(250,204,21,.12);
         }
 
+        .oddix-side-box {
+          border-radius: 18px;
+          padding: 13px;
+          background: rgba(255,255,255,.055);
+          border: 1px solid rgba(255,255,255,.10);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+        }
+
+
+
+        .oddix-side-search {
+          display: grid;
+          gap: 8px;
+        }
+
+        .oddix-side-search input,
+        .oddix-side-search select {
+          width: 100%;
+          height: 36px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,.12);
+          background: rgba(4,3,12,.72);
+          color: #fff;
+          outline: none;
+          padding: 0 10px;
+          font-size: 11px;
+          font-weight: 800;
+        }
+
+        .oddix-side-search select option {
+          background: #10051f;
+          color: #fff;
+        }
+        .oddix-side-box h4 {
+          margin: 0 0 9px;
+          color: #fff;
+          font-size: 12px;
+          font-weight: 1000;
+          letter-spacing: .2px;
+        }
+
+        .oddix-side-box p {
+          margin: 0 0 10px;
+          color: rgba(255,255,255,.70);
+          font-size: 11px;
+          line-height: 1.25;
+          font-weight: 700;
+        }
+
+        .oddix-side-stat-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          padding: 7px 0;
+          border-bottom: 1px solid rgba(255,255,255,.07);
+          color: rgba(255,255,255,.70);
+          font-size: 11px;
+          font-weight: 800;
+        }
+
+        .oddix-side-stat-row:last-child {
+          border-bottom: 0;
+        }
+
+        .oddix-side-stat-row strong {
+          color: #facc15;
+          font-weight: 1000;
+        }
+
+        .oddix-side-cta {
+          width: 100%;
+          height: 38px;
+          border: 0;
+          border-radius: 12px;
+          background: linear-gradient(135deg,#22c55e,#16a34a) !important;
+          color: #052e16 !important;
+          font-size: 12px !important;
+          font-weight: 1000 !important;
+          justify-content: center !important;
+          padding: 0 10px !important;
+          box-shadow: 0 10px 22px rgba(34,197,94,.18);
+        }
+
+        .oddix-side-cta.partner {
+          background: linear-gradient(135deg,#facc15,#fb923c) !important;
+          color: #1f1300 !important;
+          box-shadow: 0 10px 22px rgba(250,204,21,.18);
+        }
+
+
+        #oddix-games > .oddix-sidebar {
+          display: none !important;
+        }
+
+        #oddix-games > .oddix-main-content {
+          min-width: 0 !important;
+          width: 100% !important;
+        }
         @media (max-width: 1180px) {
+          .oddix-dashboard {
+            padding-left: 0 !important;
+            padding-bottom: 78px !important;
+          }
+
           .oddix-side-menu {
             left: 50%;
             right: auto;
             top: auto;
-            bottom: 14px;
+            bottom: 12px;
             transform: translateX(-50%);
-            width: min(92vw, 520px);
-            max-height: none;
+            width: min(94vw, 720px);
+            max-height: 62px;
+            min-height: 62px;
             display: flex;
+            flex-direction: row;
             align-items: center;
-            justify-content: center;
             gap: 8px;
             padding: 8px;
             border-radius: 999px;
@@ -3194,285 +3277,53 @@ export default function Dashboard() {
             scrollbar-width: none;
           }
 
-          .oddix-side-menu:hover,
-          .oddix-side-menu:focus-within {
-            width: min(92vw, 520px);
-          }
-
           .oddix-side-menu::-webkit-scrollbar {
             display: none;
           }
 
-          .oddix-side-menu-title {
+          .oddix-side-menu-title,
+          .oddix-side-box {
             display: none;
           }
 
-          .oddix-side-menu a,
-          .oddix-side-menu:hover a,
-          .oddix-side-menu:focus-within a {
-            width: 42px;
-            min-width: 42px;
-            height: 42px;
-            padding: 0;
+          .oddix-side-menu-group {
+            display: flex;
+            gap: 8px;
+            min-width: max-content;
+          }
+
+          .oddix-side-menu button,
+          .oddix-side-menu a {
+            width: auto;
+            min-width: 46px;
+            height: 46px;
+            min-height: 46px;
             border-radius: 999px;
+            padding: 0 13px;
           }
 
+          .oddix-side-menu button span:first-child,
           .oddix-side-menu a span:first-child {
-            width: 42px;
-            min-width: 42px;
-            height: 42px;
-          }
-
-          .oddix-side-menu a span:last-child,
-          .oddix-side-menu:hover a span:last-child,
-          .oddix-side-menu:focus-within a span:last-child {
-            display: none;
+            width: 24px;
+            height: 24px;
           }
         }
 
         @media (max-width: 640px) {
-          .oddix-side-menu {
-            bottom: 10px;
-            width: calc(100vw - 20px);
-            justify-content: flex-start;
+          .oddix-side-menu button span:last-child,
+          .oddix-side-menu a span:last-child {
+            display: none;
+          }
+
+          .oddix-side-menu button,
+          .oddix-side-menu a {
+            width: 46px;
+            min-width: 46px;
+            padding: 0;
+            justify-content: center;
           }
         }
 
-
-
-        /* ODDIX V23.5 REAL SIDEBAR LAYOUT FIX */
-        .oddix-dashboard {
-          width: 100% !important;
-          max-width: 100vw !important;
-          overflow-x: hidden !important;
-          box-sizing: border-box !important;
-          padding-left: 276px !important;
-        }
-
-        .oddix-side-menu {
-          position: fixed !important;
-          top: 214px !important;
-          left: 16px !important;
-          right: auto !important;
-          bottom: auto !important;
-          z-index: 80 !important;
-          width: 244px !important;
-          max-width: 244px !important;
-          max-height: calc(100vh - 236px) !important;
-          overflow-y: auto !important;
-          overflow-x: hidden !important;
-          padding: 16px !important;
-          border-radius: 24px !important;
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 10px !important;
-          background:
-            radial-gradient(circle at 50% 0%, rgba(123,44,255,.26), transparent 42%),
-            linear-gradient(180deg, rgba(12,7,24,.98), rgba(8,5,16,.96)) !important;
-          border: 1px solid rgba(139,92,246,.36) !important;
-          box-shadow: 0 24px 70px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.08) !important;
-          backdrop-filter: blur(16px) !important;
-        }
-
-        .oddix-side-menu-title {
-          display: block !important;
-          opacity: 1 !important;
-          height: auto !important;
-          width: 100% !important;
-          margin: 0 0 6px !important;
-          padding: 0 4px !important;
-          color: #facc15 !important;
-          font-size: 11px !important;
-          font-weight: 1000 !important;
-          letter-spacing: .9px !important;
-          text-transform: uppercase !important;
-        }
-
-        .oddix-side-menu a,
-        .oddix-side-menu:hover a,
-        .oddix-side-menu:focus-within a {
-          width: 100% !important;
-          min-width: 0 !important;
-          height: 44px !important;
-          min-height: 44px !important;
-          border-radius: 16px !important;
-          padding: 0 13px !important;
-          display: grid !important;
-          grid-template-columns: 26px minmax(0, 1fr) !important;
-          align-items: center !important;
-          gap: 10px !important;
-          text-decoration: none !important;
-          background: rgba(255,255,255,.065) !important;
-          border: 1px solid rgba(255,255,255,.11) !important;
-          color: rgba(255,255,255,.86) !important;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,.06) !important;
-          transition: transform .18s ease, border-color .18s ease, background .18s ease !important;
-        }
-
-        .oddix-side-menu a span:first-child {
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          width: 26px !important;
-          height: 26px !important;
-          border-radius: 10px !important;
-          background: rgba(123,44,255,.24) !important;
-        }
-
-        .oddix-side-menu a span:last-child,
-        .oddix-side-menu:hover a span:last-child,
-        .oddix-side-menu:focus-within a span:last-child {
-          opacity: 1 !important;
-          display: block !important;
-          color: rgba(255,255,255,.90) !important;
-          font-size: 12px !important;
-          font-weight: 950 !important;
-          white-space: nowrap !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-        }
-
-        .oddix-side-menu a:hover {
-          transform: translateX(3px) !important;
-          border-color: rgba(250,204,21,.48) !important;
-          background: linear-gradient(135deg, rgba(123,44,255,.28), rgba(250,204,21,.08)) !important;
-        }
-
-        .oddix-top-header,
-        .oddix-sports-rail {
-          width: 100% !important;
-          max-width: 100% !important;
-          box-sizing: border-box !important;
-        }
-
-        .oddix-hero-grid,
-        .oddix-top-widgets,
-        .oddix-featured-strip,
-        .oddix-tabs-wrapper,
-        .oddix-layout,
-        .oddix-footer,
-        .oddix-top-pick-hero,
-        .oddix-marketing-banner,
-        .oddix-vip-results,
-        .oddix-vip-marketing-strip,
-        .oddix-premium-ticket {
-          margin-left: 20px !important;
-          margin-right: 20px !important;
-          max-width: calc(100vw - 316px) !important;
-          box-sizing: border-box !important;
-        }
-
-        .oddix-hero-grid {
-          grid-template-columns: minmax(0, 1fr) minmax(260px, 300px) !important;
-        }
-
-        .oddix-hero-main,
-        .oddix-vip-panel,
-        .oddix-main-content,
-        .oddix-layout,
-        .oddix-games-grid,
-        .oddix-featured-strip,
-        .oddix-top-widgets-grid,
-        .oddix-footer-metrics {
-          min-width: 0 !important;
-        }
-
-        .oddix-layout {
-          display: grid !important;
-          grid-template-columns: 260px minmax(0, 1fr) !important;
-          gap: 18px !important;
-          align-items: start !important;
-        }
-
-        .oddix-sidebar {
-          position: sticky !important;
-          top: 142px !important;
-          align-self: start !important;
-          max-height: calc(100vh - 162px) !important;
-          overflow-y: auto !important;
-          overflow-x: hidden !important;
-        }
-
-        .oddix-games-grid {
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
-        }
-
-        .oddix-games-grid > *,
-        .oddix-featured-strip > *,
-        .oddix-player-props-home-grid > *,
-        .oddix-top-widgets-grid > * {
-          min-width: 0 !important;
-          max-width: 100% !important;
-        }
-
-        @media (max-width: 1180px) {
-          .oddix-dashboard {
-            padding-left: 0 !important;
-          }
-
-          .oddix-side-menu {
-            position: sticky !important;
-            top: 0 !important;
-            left: auto !important;
-            width: calc(100% - 28px) !important;
-            max-width: none !important;
-            max-height: none !important;
-            margin: 12px 14px !important;
-            padding: 10px !important;
-            flex-direction: row !important;
-            overflow-x: auto !important;
-            overflow-y: hidden !important;
-            border-radius: 18px !important;
-          }
-
-          .oddix-side-menu-title {
-            display: none !important;
-          }
-
-          .oddix-side-menu a,
-          .oddix-side-menu:hover a,
-          .oddix-side-menu:focus-within a {
-            width: auto !important;
-            min-width: 118px !important;
-            grid-template-columns: 24px auto !important;
-          }
-
-          .oddix-hero-grid,
-          .oddix-top-widgets,
-          .oddix-featured-strip,
-          .oddix-tabs-wrapper,
-          .oddix-layout,
-          .oddix-footer,
-          .oddix-top-pick-hero,
-          .oddix-marketing-banner,
-          .oddix-vip-results,
-          .oddix-vip-marketing-strip,
-          .oddix-premium-ticket {
-            max-width: calc(100vw - 28px) !important;
-            margin-left: 14px !important;
-            margin-right: 14px !important;
-          }
-
-          .oddix-layout {
-            grid-template-columns: 1fr !important;
-          }
-        }
-
-        @media (max-width: 720px) {
-          .oddix-side-menu a,
-          .oddix-side-menu:hover a,
-          .oddix-side-menu:focus-within a {
-            min-width: 92px !important;
-            height: 40px !important;
-            padding: 0 10px !important;
-          }
-
-          .oddix-side-menu a span:last-child,
-          .oddix-side-menu:hover a span:last-child,
-          .oddix-side-menu:focus-within a span:last-child {
-            font-size: 11px !important;
-          }
-        }
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
@@ -3480,15 +3331,48 @@ export default function Dashboard() {
         onUpgrade={() => (window.location.href = "/plans")}
       />
 
-      <nav className="oddix-side-menu" aria-label="Menu lateral do dashboard Oddix">
-        <div className="oddix-side-menu-title">Menu</div>
-        <a href="#oddix-hero"><span>🔥</span><span>Topo</span></a>
-        <a href="#oddix-results"><span>✅</span><span>Resultados</span></a>
-        <a href="#oddix-trust"><span>📊</span><span>Ranking</span></a>
-        <a href="#oddix-markets"><span>⚡</span><span>Mercados</span></a>
-        <a href="#oddix-playerprops"><span>🎯</span><span>Props</span></a>
-        <a href="#oddix-games"><span>⚽</span><span>Jogos</span></a>
-        <a href="#oddix-footer"><span>🏁</span><span>Final</span></a>
+      <nav className="oddix-side-menu" aria-label="Sidebar do dashboard Oddix">
+        <div className="oddix-side-menu-title">Dashboard</div>
+
+        <div className="oddix-side-menu-group">
+          <button type="button" onClick={() => openSportsButton("dashboard")}><span>🏠</span><span>Destaques</span></button>
+          <button type="button" onClick={() => openSportsButton("live")}><span>🔴</span><span>Ao Vivo</span></button>
+          <button type="button" onClick={() => openSportsButton("smart")}><span>🤖</span><span>IA Premium</span></button>
+          <button type="button" onClick={() => openSportsButton("boost")}><span>🔥</span><span>Combinadas</span></button>
+          <button type="button" onClick={() => openSportsButton("playerprops")}><span>👤</span><span>Player Props</span></button>
+          <button type="button" onClick={() => openSportsButton("greens")}><span>✅</span><span>Greens</span></button>
+          <button type="button" onClick={() => document.getElementById("oddix-games")?.scrollIntoView({ behavior: "smooth", block: "start" })}><span>⚽</span><span>Jogos</span></button>
+        </div>
+
+        <div className="oddix-side-box oddix-side-search">
+          <h4>🔎 Busca</h4>
+          <input placeholder="Buscar time ou liga" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <select value={leagueFilter} onChange={(e) => setLeagueFilter(e.target.value)}>
+            <option value="all">Todas as ligas</option>
+            {leagues.map((league) => <option key={league} value={league}>{league}</option>)}
+          </select>
+          <button type="button" className="oddix-side-cta partner" onClick={() => loadAll(false)}>{refreshing ? "Atualizando..." : "Atualizar"}</button>
+        </div>
+
+        <div className="oddix-side-box">
+          <h4>📊 Estatísticas</h4>
+          <div className="oddix-side-stat-row"><span>Jogos</span><strong>{games.length}</strong></div>
+          <div className="oddix-side-stat-row"><span>Ao vivo</span><strong>{liveGames.length}</strong></div>
+          <div className="oddix-side-stat-row"><span>Pré-jogo</span><strong>{futureGames.length}</strong></div>
+          <div className="oddix-side-stat-row"><span>Tips IA</span><strong>{displayedSmartTips.length}</strong></div>
+        </div>
+
+        <div className="oddix-side-box">
+          <h4>🎁 Grupo FREE</h4>
+          <p>Receba amostras e chamadas para o VIP.</p>
+          <button type="button" className="oddix-side-cta" onClick={() => window.open(FREE_GROUP_LINK, "_blank")}>Entrar no grupo</button>
+        </div>
+
+        <div className="oddix-side-box">
+          <h4>💰 Parceiro</h4>
+          <p>EstrelaBet oficial da Oddix.</p>
+          <button type="button" className="oddix-side-cta partner" onClick={() => window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer")}>Apostar agora</button>
+        </div>
       </nav>
       <header className="oddix-top-header" style={styles.topHeader}>
         <div className="oddix-brand" style={styles.brand} onClick={() => (window.location.href = "/dashboard")}>
@@ -7505,7 +7389,7 @@ const styles: Record<string, CSSProperties> = {
   },
   layout: {
     display: "grid",
-    gridTemplateColumns: "280px 1fr",
+    gridTemplateColumns: "minmax(0, 1fr)",
     gap: 18,
     margin: "0 26px 28px",
     alignItems: "start",
