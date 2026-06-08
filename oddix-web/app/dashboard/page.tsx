@@ -3324,6 +3324,96 @@ export default function Dashboard() {
           }
         }
 
+
+
+        /* ODDIX V24.1 - FIX DESTAQUES IA GRID
+           Corrige a área de Destaques que ficava estreita quando a sidebar fixa escondia a sidebar antiga. */
+        #oddix-games.oddix-layout {
+          display: block !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          margin-left: 26px !important;
+          margin-right: 26px !important;
+        }
+
+        #oddix-games > .oddix-main-content {
+          display: block !important;
+          grid-column: 1 / -1 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-section-header {
+          display: flex !important;
+          align-items: flex-end !important;
+          justify-content: space-between !important;
+          gap: 16px !important;
+          flex-wrap: wrap !important;
+          width: 100% !important;
+        }
+
+        .oddix-games-grid {
+          width: 100% !important;
+          display: grid !important;
+          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important;
+          gap: 16px !important;
+          max-height: 860px !important;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+          padding: 10px 10px 18px !important;
+        }
+
+        .oddix-game-card {
+          width: 100% !important;
+          min-width: 0 !important;
+          max-width: 100% !important;
+        }
+
+        .oddix-game-card [style*="justify-content: space-between"] {
+          min-width: 0 !important;
+        }
+
+        .oddix-game-card [style*="align-items: center"] span,
+        .oddix-game-card [style*="align-items: center"] strong {
+          min-width: 0 !important;
+          max-width: 100% !important;
+          white-space: normal !important;
+          word-break: normal !important;
+          overflow-wrap: normal !important;
+          line-height: 1.12 !important;
+        }
+
+        .oddix-game-card [style*="display: flex"][style*="align-items: center"] {
+          min-width: 0 !important;
+        }
+
+        .oddix-game-card img {
+          flex-shrink: 0 !important;
+        }
+
+        .oddix-featured-strip {
+          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important;
+        }
+
+        @media (max-width: 1180px) {
+          #oddix-games.oddix-layout {
+            margin-left: 14px !important;
+            margin-right: 14px !important;
+          }
+
+          .oddix-games-grid {
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 680px) {
+          .oddix-games-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
