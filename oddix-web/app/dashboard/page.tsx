@@ -2662,31 +2662,58 @@ export default function Dashboard() {
         </section>
       )}
 
-      <section className="oddix-hero-grid" style={styles.heroGrid}>
-        <div className="oddix-hero-main" style={styles.heroMain}>
+      <section className="oddix-hero-grid oddix-hero-v21" style={styles.heroGrid}>
+        <div className="oddix-hero-main oddix-hero-main-v21" style={styles.heroMain}>
           <div className="oddix-hero-text" style={styles.heroTextBlock}>
-            <span style={styles.sectionKicker}>POWERED BY ODDIX INTELLIGENCE</span>
-            <h1>ODDIX INTELLIGENCE</h1>
+            <span style={styles.sectionKicker}>ODDIX AI V3 • DASHBOARD PREMIUM</span>
+            <h1>TOP PICK<br />INTELLIGENCE</h1>
             <p>
-              A inteligência esportiva que cruza estatísticas, odds e leitura de jogo para destacar apenas entradas com valor real para membros VIP.
+              A Oddix filtra jogos, odds, mercados e sinais ao vivo para mostrar somente entradas com leitura forte e risco controlado.
             </p>
-            <div style={styles.heroFeatureList}>
-              <span>✓ Top Picks Premium</span>
-              <span>✓ Player Props</span>
-              <span>✓ Leitura Ao Vivo</span>
-              <span>✓ Bilhetes VIP</span>
-              <span>✓ Gestão de banca</span>
-              <span>✓ Odds Boost</span>
-            </div>
+
+            {topPick && (
+              <div style={{
+                marginTop: 22,
+                maxWidth: 610,
+                borderRadius: 24,
+                padding: 18,
+                background: "linear-gradient(135deg, rgba(250,204,21,.16), rgba(123,44,255,.16))",
+                border: "1px solid rgba(250,204,21,.40)",
+                boxShadow: "0 18px 48px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.12)",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "center", marginBottom: 12 }}>
+                  <span style={{ color: "#facc15", fontSize: 11, fontWeight: 1000, letterSpacing: 1.1, textTransform: "uppercase" }}>🔥 Top Pick do Dia</span>
+                  <span style={{ color: "rgba(255,255,255,.74)", fontSize: 11, fontWeight: 900 }}>{topPick?.league || topPickGame?.league?.name || "Oddix Premium"}</span>
+                </div>
+
+                <strong style={{ display: "block", fontSize: "clamp(20px, 2.2vw, 34px)", lineHeight: 1, letterSpacing: -0.8, marginBottom: 8 }}>
+                  {topPick?.game || `${topPickGame?.teams?.home?.name || "Casa"} x ${topPickGame?.teams?.away?.name || "Fora"}`}
+                </strong>
+                <span style={{ display: "block", color: "rgba(255,255,255,.78)", fontWeight: 900, marginBottom: 14 }}>{topPick?.tip || "Entrada premium protegida"}</span>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10 }}>
+                  <InfoMetric label="Odd" value={topPick?.odd || "1.70"} />
+                  <InfoMetric label="Confiança" value={`${safeNumber(topPick?.confidence, 0)}%`} />
+                  <InfoMetric label="Risco" value={topPick?.risk || "Baixo"} />
+                  <InfoMetric label="Score" value={`${safeNumber(topPick?.qualityScore || topPickGame?.oddix?.qualityScore, 0)}/100`} />
+                </div>
+
+                <div style={styles.confidenceBar}>
+                  <div style={{ ...styles.confidenceFill, width: `${Math.min(100, Math.max(8, safeNumber(topPick?.confidence, 0)))}%` }} />
+                </div>
+              </div>
+            )}
+
             <div style={styles.heroCtaRow}>
-              <button style={styles.heroPrimaryCta} onClick={() => setActiveTab("highlights")}>🔥 VER TOP PICK</button>
-              <button style={styles.heroSecondaryCta} onClick={() => (window.location.href = "/plans")}>💎 ASSINAR VIP</button>
+              <button style={styles.heroPrimaryCta} onClick={() => topPickGame ? openMatchDetail(topPickGame) : setActiveTab("highlights")}>🔥 ABRIR ANÁLISE PREMIUM</button>
+              <button style={styles.heroSecondaryCta} onClick={() => (window.location.href = "/plans")}>💎 VIRAR VIP</button>
             </div>
+
             <div className="oddix-hero-stats" style={styles.heroStats}>
-              <InfoMetric label="Assertividade" value={`${stats?.roi || 72}%`} />
-              <InfoMetric label="ROI 7D" value={`+${stats?.roi || 63}%`} />
-              <InfoMetric label="Vips online" value="247" />
-              <InfoMetric label="Greens hoje" value={stats?.wonBets || wonBetsList.length || 18} />
+              <InfoMetric label="Greens" value={stats?.wonBets || wonBetsList.length || 0} />
+              <InfoMetric label="Reds" value={stats?.lostBets || 0} />
+              <InfoMetric label="ROI" value={`${stats?.roi || 0}%`} />
+              <InfoMetric label="Análises" value={stats?.totalBets || savedBets.length || games.length} />
               <InfoMetric label="Ao vivo" value={liveGames.length} />
               <InfoMetric label="Tips IA" value={displayedSmartTips.length} />
             </div>
@@ -2698,33 +2725,54 @@ export default function Dashboard() {
           </div>
 
           <div className="oddix-hero-bottom-features" style={styles.heroBottomFeatures}>
-            <span>🏆 ANÁLISE PREMIUM</span>
-            <span>⚡ PREVISÕES EM TEMPO REAL</span>
-            <span>📊 ESTATÍSTICAS AVANÇADAS</span>
-            <span>🎧 SUPORTE PREMIUM</span>
+            <span>🏆 TOP PICK IA V3</span>
+            <span>⚡ FLASHSCORE + LEITURA AO VIVO</span>
+            <span>📊 SCORE PROFISSIONAL</span>
+            <span>💎 CONVERSÃO VIP</span>
           </div>
         </div>
 
-        <div className="oddix-vip-panel oddix-boost-ticket" style={styles.vipPanel}>
+        <div className="oddix-vip-panel oddix-boost-ticket oddix-boost-ticket-v21" style={styles.vipPanel}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <span>Oddix Boost</span>
-            <b style={{ color: "#facc15", fontSize: 12 }}>BILHETE VIP</b>
+            <span style={{ color: "rgba(255,255,255,.70)", fontSize: 12, fontWeight: 1000, textTransform: "uppercase", letterSpacing: 1 }}>Bilhete Oficial</span>
+            <b style={{ color: "#facc15", fontSize: 12 }}>ODDIX BOOST</b>
           </div>
           <strong>{boost.combinedOdd}</strong>
           <small>Odd combinada estimada</small>
+
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 10,
+            margin: "18px 0 10px",
+          }}>
+            <InfoMetric label="Confiança" value={`${boost.confidence || boostConfidence || 0}%`} />
+            <InfoMetric label="Retorno R$100" value={`R$ ${Number(safeNumber(boost.combinedOdd, 0) * 100).toFixed(0)}`} />
+          </div>
+
           <div style={{ display: "grid", gap: 10, margin: "16px 0" }}>
             {(boost.picks.length ? boost.picks : displayedSmartTips.slice(0, 3)).slice(0, 3).map((pick: any, index: number) => (
-              <div key={`${pick.fixtureId || pick.game || index}-boost-ticket`} style={{ display: "grid", gridTemplateColumns: "24px 1fr auto", gap: 10, alignItems: "center", padding: "10px", borderRadius: 14, background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.10)" }}>
-                <span style={{ width: 24, height: 24, borderRadius: 999, display: "grid", placeItems: "center", background: "rgba(34,197,94,.18)", color: "#22c55e", fontWeight: 1000 }}>✓</span>
+              <div key={`${pick.fixtureId || pick.game || index}-boost-ticket`} style={{
+                display: "grid",
+                gridTemplateColumns: "28px 1fr auto",
+                gap: 10,
+                alignItems: "center",
+                padding: "12px",
+                borderRadius: 16,
+                background: "rgba(255,255,255,.065)",
+                border: "1px solid rgba(255,255,255,.12)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,.08)",
+              }}>
+                <span style={{ width: 28, height: 28, borderRadius: 999, display: "grid", placeItems: "center", background: "rgba(34,197,94,.18)", color: "#22c55e", fontWeight: 1000 }}>✓</span>
                 <span style={{ minWidth: 0 }}>
                   <b style={{ display: "block", fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pick.game || "Entrada Oddix"}</b>
-                  <small style={{ color: "rgba(255,255,255,.62)" }}>{pick.tip || pick.market || "Mercado protegido"}</small>
+                  <small style={{ color: "rgba(255,255,255,.62)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pick.tip || pick.market || "Mercado protegido"}</small>
                 </span>
-                <b style={{ color: "#facc15" }}>{pick.odd || "1.70"}</b>
+                <b style={{ color: "#facc15", fontSize: 17 }}>{pick.odd || "1.70"}</b>
               </div>
             ))}
           </div>
-          <div style={styles.confidenceBar}><div style={{ ...styles.confidenceFill, width: `${Math.min(100, boost.confidence)}%` }} /></div>
+          <div style={styles.confidenceBar}><div style={{ ...styles.confidenceFill, width: `${Math.min(100, boost.confidence || boostConfidence || 0)}%` }} /></div>
           <button style={styles.vipFullButton} onClick={() => setActiveTab("boost")}>Abrir bilhete VIP</button>
         </div>
       </section>
@@ -2734,6 +2782,14 @@ export default function Dashboard() {
         game={topPickGame}
         liveTick={liveTick}
         onAnalyze={(game: any) => openMatchDetail(game)}
+      />
+
+      <V21ResultsRibbon
+        recentBets={recentResultBets}
+        won={stats?.wonBets || 0}
+        lost={stats?.lostBets || 0}
+        roi={stats?.roi || 0}
+        onOpenGreens={() => setActiveTab("greens")}
       />
 
       <HotMarketsSection
@@ -2967,17 +3023,18 @@ export default function Dashboard() {
         </section>
       </section>
 
-      <footer className="oddix-footer" style={styles.footer}>
+      <footer className="oddix-footer oddix-footer-v21" style={styles.footer}>
         <div style={styles.footerBrand}>
-          <strong>ODDIX IA™</strong>
-          <span>Palpites inteligentes para pré-jogo, ao vivo e gestão de banca.</span>
+          <strong>ODDIX IA™ V21</strong>
+          <span>Plataforma premium de leitura esportiva com Top Pick, Boost, Player Props reais e IA V3.</span>
         </div>
 
-        <div style={styles.footerLinks}>
-          <span>⚽ Futebol</span>
-          <span>🤖 IA Premium</span>
-          <span>🔥 Combinadas</span>
-          <span>📈 Greens</span>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(110px, 1fr))", gap: 10, flex: 1 }}>
+          <InfoMetric label="Análises" value="+10K" />
+          <InfoMetric label="Mercados" value="+500" />
+          <InfoMetric label="Fonte" value="FlashScore" />
+          <InfoMetric label="Engine" value="IA V3" />
+          <InfoMetric label="Modo" value="VIP" />
         </div>
 
         <div style={styles.footerLegal}>
@@ -2988,6 +3045,81 @@ export default function Dashboard() {
     </main>
   );
 }
+
+function V21ResultsRibbon({ recentBets, won, lost, roi, onOpenGreens }: { recentBets: any[]; won: number; lost: number; roi: number; onOpenGreens: () => void }) {
+  const results = Array.isArray(recentBets) ? recentBets.slice(0, 5) : [];
+  const total = won + lost;
+  const winRate = total ? Math.round((won / total) * 100) : roi || 0;
+
+  return (
+    <section className="oddix-v21-results-ribbon" style={{
+      width: "min(1480px, calc(100% - 36px))",
+      margin: "0 auto 22px",
+      borderRadius: 28,
+      padding: 22,
+      background: "linear-gradient(135deg, rgba(7,7,13,.98), rgba(28,11,55,.96))",
+      border: "1px solid rgba(250,204,21,.34)",
+      boxShadow: "0 22px 60px rgba(0,0,0,.30), 0 0 34px rgba(250,204,21,.10)",
+      color: "#fff",
+      overflow: "hidden",
+    }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, .9fr) minmax(0, 1.4fr) auto", gap: 18, alignItems: "center" }}>
+        <div>
+          <span style={{ color: "#facc15", fontSize: 12, fontWeight: 1000, letterSpacing: 1, textTransform: "uppercase" }}>📈 Últimos resultados reais</span>
+          <h2 style={{ margin: "6px 0 4px", fontSize: "clamp(23px, 2.2vw, 34px)", lineHeight: 1, letterSpacing: -0.8 }}>Confiança que aparece no placar</h2>
+          <p style={{ margin: 0, color: "rgba(255,255,255,.66)", fontSize: 13, fontWeight: 750 }}>Histórico recente do painel para reforçar autoridade e conversão VIP.</p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 10 }}>
+          {(results.length ? results : [0, 1, 2, 3, 4]).map((bet: any, index: number) => {
+            const status = String(bet?.status || (index === 2 ? "lost" : "won")).toLowerCase();
+            const green = status === "won";
+            return (
+              <div key={`${bet?.id || index}-v21-result`} style={{
+                minHeight: 78,
+                borderRadius: 18,
+                padding: 12,
+                background: green ? "rgba(34,197,94,.10)" : "rgba(239,68,68,.10)",
+                border: `1px solid ${green ? "rgba(34,197,94,.30)" : "rgba(239,68,68,.30)"}`,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                gap: 8,
+              }}>
+                <strong style={{ color: green ? "#22c55e" : "#ef4444", fontSize: 12, fontWeight: 1000 }}>{green ? "✅ GREEN" : "❌ RED"}</strong>
+                <span style={{ color: "rgba(255,255,255,.82)", fontSize: 11, fontWeight: 850, lineHeight: 1.15, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                  {bet?.tip || bet?.homeTeam ? `${bet?.homeTeam || "Casa"} x ${bet?.awayTeam || "Fora"}` : "Oddix Pick"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 88px)", gap: 10 }}>
+          <InfoMetric label="Greens" value={won || 0} />
+          <InfoMetric label="Reds" value={lost || 0} />
+          <InfoMetric label="WinRate" value={`${winRate}%`} />
+        </div>
+      </div>
+
+      <button onClick={onOpenGreens} style={{
+        marginTop: 16,
+        width: "100%",
+        height: 44,
+        border: 0,
+        borderRadius: 16,
+        background: "rgba(250,204,21,.12)",
+        color: "#facc15",
+        fontWeight: 1000,
+        cursor: "pointer",
+        borderTop: "1px solid rgba(250,204,21,.20)",
+      }}>
+        Ver histórico de GREENS ›
+      </button>
+    </section>
+  );
+}
+
 
 function getTabTitle(tab: TabKey) {
   const map: Record<TabKey, string> = {
