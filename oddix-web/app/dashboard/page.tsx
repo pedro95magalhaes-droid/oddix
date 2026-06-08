@@ -2747,6 +2747,303 @@ export default function Dashboard() {
           }
         }
 
+
+
+        /* ODDIX V23.1 LAYOUT FIX - enquadramento definitivo */
+        .oddix-dashboard,
+        .oddix-dashboard * {
+          box-sizing: border-box !important;
+        }
+
+        .oddix-dashboard {
+          overflow-x: hidden !important;
+        }
+
+        .oddix-brand img {
+          height: 58px !important;
+          width: auto !important;
+          max-width: 142px !important;
+          object-fit: contain !important;
+          filter: drop-shadow(0 0 16px rgba(168,85,247,.55)) !important;
+        }
+
+        .oddix-brand {
+          min-width: 150px !important;
+          min-height: 58px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          overflow: visible !important;
+        }
+
+        .oddix-hero-grid {
+          grid-template-columns: minmax(0, 1fr) clamp(260px, 21vw, 310px) !important;
+          gap: clamp(16px, 1.8vw, 24px) !important;
+          align-items: stretch !important;
+          overflow: visible !important;
+        }
+
+        .oddix-hero-main {
+          min-height: clamp(660px, 56vw, 760px) !important;
+          grid-template-columns: minmax(0, .86fr) minmax(360px, 1.14fr) !important;
+          align-items: stretch !important;
+          padding: clamp(30px, 3vw, 46px) clamp(30px, 3vw, 48px) 0 !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-hero-text {
+          align-self: center !important;
+          max-width: 560px !important;
+          padding-bottom: clamp(24px, 3vw, 42px) !important;
+        }
+
+        .oddix-hero-text h1 {
+          max-width: 460px !important;
+          font-size: clamp(56px, 5.3vw, 86px) !important;
+          line-height: .9 !important;
+          letter-spacing: -3px !important;
+          margin-bottom: 16px !important;
+        }
+
+        .oddix-hero-text p {
+          max-width: 430px !important;
+        }
+
+        .oddix-hero-text > div[style*="margin-top: 22px"] {
+          max-width: 460px !important;
+          padding: 14px !important;
+          border-radius: 22px !important;
+        }
+
+        .oddix-hero-text > div[style*="margin-top: 22px"] strong {
+          font-size: clamp(21px, 2vw, 30px) !important;
+        }
+
+        .oddix-hero-text > div[style*="margin-top: 22px"] > div[style*="repeat(4"] {
+          grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+          gap: 8px !important;
+        }
+
+        .oddix-hero-stats {
+          grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          max-width: 460px !important;
+          gap: 10px !important;
+          margin-top: 18px !important;
+        }
+
+        .oddix-hero-stats .oddix-info-metric {
+          min-height: 64px !important;
+          padding: 10px !important;
+        }
+
+        .oddix-hero-stats .oddix-info-metric strong {
+          font-size: clamp(19px, 1.8vw, 26px) !important;
+        }
+
+        .oddix-hero-player-box {
+          position: relative !important;
+          min-height: clamp(560px, 50vw, 720px) !important;
+          height: 100% !important;
+          align-self: end !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-hero-player {
+          position: absolute !important;
+          right: clamp(0px, 1.5vw, 24px) !important;
+          bottom: 0 !important;
+          height: min(88%, 640px) !important;
+          max-height: 640px !important;
+          width: 100% !important;
+          transform: none !important;
+          object-fit: contain !important;
+          object-position: center bottom !important;
+        }
+
+        .oddix-vip-panel.oddix-boost-ticket,
+        .oddix-boost-ticket-v21 {
+          min-height: clamp(660px, 56vw, 760px) !important;
+          padding: clamp(22px, 2vw, 30px) !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-boost-ticket-v22-return {
+          margin-top: 20px !important;
+          padding: 18px 16px !important;
+        }
+
+        .oddix-boost-ticket-v22-return strong {
+          font-size: clamp(42px, 3.9vw, 62px) !important;
+          line-height: .9 !important;
+          letter-spacing: -2px !important;
+          white-space: nowrap !important;
+        }
+
+        .oddix-boost-mini-grid {
+          display: grid !important;
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          gap: 10px !important;
+          margin: 18px 0 10px !important;
+        }
+
+        .oddix-boost-mini-metric {
+          min-width: 0 !important;
+          min-height: 86px !important;
+          border-radius: 16px !important;
+          padding: 13px 12px !important;
+          background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04)) !important;
+          border: 1px solid rgba(250,204,21,.22) !important;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.12) !important;
+          display: flex !important;
+          flex-direction: column !important;
+          justify-content: center !important;
+        }
+
+        .oddix-boost-mini-metric span {
+          color: rgba(255,255,255,.82) !important;
+          font-size: 10px !important;
+          line-height: 1.1 !important;
+          font-weight: 1000 !important;
+          text-transform: uppercase !important;
+          letter-spacing: .65px !important;
+          white-space: nowrap !important;
+        }
+
+        .oddix-boost-mini-metric strong {
+          color: #facc15 !important;
+          font-size: clamp(31px, 2.6vw, 42px) !important;
+          line-height: .95 !important;
+          letter-spacing: -1.8px !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: clip !important;
+          text-shadow: 0 0 20px rgba(250,204,21,.25) !important;
+        }
+
+        .oddix-boost-ticket [style*="grid-template-columns: 28px 1fr auto"] {
+          min-width: 0 !important;
+          grid-template-columns: 28px minmax(0, 1fr) auto !important;
+        }
+
+        .oddix-games-grid {
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)) !important;
+          overflow-x: hidden !important;
+        }
+
+        .oddix-games-grid > *,
+        .oddix-featured-strip > *,
+        .oddix-layout > *,
+        .oddix-sidebar > * {
+          min-width: 0 !important;
+          max-width: 100% !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-games-grid button,
+        .oddix-featured-strip button {
+          min-width: 0 !important;
+          max-width: 100% !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-games-grid b,
+        .oddix-games-grid span,
+        .oddix-games-grid small,
+        .oddix-featured-strip b,
+        .oddix-featured-strip span,
+        .oddix-featured-strip small {
+          min-width: 0 !important;
+          overflow-wrap: anywhere !important;
+        }
+
+        .oddix-footer {
+          overflow: hidden !important;
+        }
+
+        .oddix-footer > div,
+        .oddix-footer * {
+          min-width: 0 !important;
+        }
+
+        @media (max-width: 1180px) {
+          .oddix-hero-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-hero-main {
+            min-height: auto !important;
+            grid-template-columns: 1fr !important;
+            padding-bottom: 0 !important;
+          }
+
+          .oddix-hero-text {
+            max-width: 100% !important;
+            text-align: center !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+          }
+
+          .oddix-hero-text h1,
+          .oddix-hero-text p,
+          .oddix-hero-text > div[style*="margin-top: 22px"],
+          .oddix-hero-stats {
+            margin-left: auto !important;
+            margin-right: auto !important;
+          }
+
+          .oddix-hero-player-box {
+            min-height: 360px !important;
+            height: 360px !important;
+          }
+
+          .oddix-hero-player {
+            position: absolute !important;
+            height: 360px !important;
+            max-height: 360px !important;
+            right: 0 !important;
+            left: 0 !important;
+            margin: auto !important;
+            object-position: center bottom !important;
+          }
+
+          .oddix-vip-panel.oddix-boost-ticket,
+          .oddix-boost-ticket-v21 {
+            min-height: auto !important;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .oddix-brand img {
+            height: 44px !important;
+          }
+
+          .oddix-brand {
+            min-width: 118px !important;
+            min-height: 48px !important;
+          }
+
+          .oddix-hero-text h1 {
+            font-size: clamp(38px, 13vw, 52px) !important;
+            letter-spacing: -1.5px !important;
+          }
+
+          .oddix-hero-text > div[style*="margin-top: 22px"] > div[style*="repeat(4"] {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+
+          .oddix-hero-stats {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+
+          .oddix-boost-mini-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-boost-mini-metric strong {
+            font-size: 38px !important;
+          }
+        }
+
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
@@ -2961,14 +3258,15 @@ export default function Dashboard() {
             <small style={{ color: "rgba(255,255,255,.64)", fontWeight: 900 }}>Simulação com entrada de R$100</small>
           </div>
 
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: 10,
-            margin: "18px 0 10px",
-          }}>
-            <InfoMetric label="Odd total" value={boost.combinedOdd} />
-            <InfoMetric label="Confiança" value={`${boost.confidence || boostConfidence || 0}%`} />
+          <div className="oddix-boost-mini-grid">
+            <div className="oddix-boost-mini-metric">
+              <span>Odd total</span>
+              <strong>{boost.combinedOdd}</strong>
+            </div>
+            <div className="oddix-boost-mini-metric">
+              <span>Confiança</span>
+              <strong>{boost.confidence || boostConfidence || 0}%</strong>
+            </div>
           </div>
 
           <div style={{ display: "grid", gap: 10, margin: "16px 0" }}>
