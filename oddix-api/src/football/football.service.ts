@@ -3140,6 +3140,249 @@ export class FootballService {
     return this.emptyLineups(fixtureId, errors);
   }
 
+
+
+  private cleanPlayerPhoto(value: any) {
+    const raw = String(value || "").trim().replace(/\s+/g, "");
+    if (!raw) return null;
+    if (!raw.startsWith("http")) return null;
+    return raw;
+  }
+
+  private readLineupPlayerField(player: any, keys: string[], fallback: any = null) {
+    for (const key of keys) {
+      const value = player?.[key];
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        return value;
+      }
+    }
+    return fallback;
+  }
+
+  private normalizeLineupPlayer(player: any, side: "home" | "away", teamName: string, index: number) {
+    const name = String(
+      this.readLineupPlayerField(player, [
+        "name",
+        "nome",
+        "fieldName",
+        "field_name",
+        "nomeDoCampo",
+        "nome_campo",
+        "campoName",
+        "playerName",
+        "player_name",
+      ], ""),
+    ).trim();
+
+    if (!name) return null;
+
+    const number = String(
+      this.readLineupPlayerField(player, ["number", "número", "numero", "shirtNumber", "shirt_number"], ""),
+    ).trim() || null;
+
+    const playerId = String(
+      this.readLineupPlayerField(player, ["player_id", "id_jogador", "playerId", "id"], ""),
+    ).trim() || `${side}-${index}-${name}`;
+
+    const photo = this.cleanPlayerPhoto(
+      this.readLineupPlayerField(player, [
+        "image_path",
+        "caminho_imagem",
+        "photo",
+        "playerPhoto",
+        "image",
+        "avatar",
+      ], null),
+    );
+
+    const playerUrl = String(
+      this.readLineupPlayerField(player, ["player_url", "url_jogador", "url", "profileUrl"], ""),
+    ).trim() || null;
+
+    // Quando a API não envia posição, usamos a posição provável pela ordem da escalação.
+    // Em formações comuns: 0 = goleiro, 1-4 defensores, 5-7 meias, 8-10 ataque.
+    let role = "Meia";
+    if (index === 0) role = "Goleiro";
+    else if (index <= 4) role = "Defensor";
+    else if (index <= 7) role = "Meia";
+    else role = "Atacante";
+
+    return {
+      id: playerId,
+      name,
+      fieldName: String(player?.fieldName || player?.nomeDoCampo || player?.nome_campo || name),
+      number,
+      photo,
+      playerUrl,
+      country: String(player?.country_name || player?.nome_país || player?.pais_nome || "").trim() || null,
+      side,
+      teamName,
+      role,
+      lineupIndex: index,
+      raw: player,
+    };
+  }
+
+  private getLineupTeamName(cached: any, side: "home" | "away") {
+    return String(cached?.teams?.[side]?.name || (side === "home" ? "Casa" : "Fora")).trim();
+  }
+
+  private extractPredictedPlayersFromLineups(lineupResult: any, cached: any) {
+    const rows = Array.isArray(lineupResult?.lineups) ? lineupResult.lineups : [];
+    const players: any[] = [];
+
+    for (const row of rows) {
+      const sideRaw = String(row?.side || row?.lado || "").toLowerCase();
+      const side: "home" | "away" = sideRaw.includes("away") || sideRaw.includes("fora") ? "away" : "home";
+      const teamName = this.getLineupTeamName(cached, side);
+      const predicted =
+        row?.predictedLineups ||
+        row?.escalaçõesPrevistas ||
+        row?.escalacoesPrevistas ||
+        row?.startingXI ||
+        row?.startXI ||
+        row?.escalações_iniciais ||
+        row?.escalacoes_iniciais ||
+        row?.players ||
+        [];
+
+      if (!Array.isArray(predicted)) continue;
+
+      predicted.forEach((player: any, index: number) => {
+        const normalized = this.normalizeLineupPlayer(player, side, teamName, index);
+        if (normalized) players.push(normalized);
+      });
+    }
+
+    return players;
+  }
+
+  private buildPropForLineupPlayer(player: any, fixtureId: string, cached: any, index: number) {
+    const quality = Number(cached?.oddix?.qualityScore || 84);
+    const role = String(player?.role || "");
+    const isAttacker = role === "Atacante";
+    const isMid = role === "Meia";
+
+    const market = index % 3 === 1 ? "Finalizações" : index % 3 === 2 ? "Participação ofensiva" : "Chutes no Gol";
+    const tip =
+      market === "Finalizações"
+        ? `${player.name} Over 1.5 finalizações`
+        : market === "Participação ofensiva"
+          ? `${player.name} 1+ participação em gol`
+          : `${player.name} Over 0.5 chute no gol`;
+
+    const odd =
+      market === "Finalizações"
+        ? isAttacker ? 1.76 : 1.88
+        : market === "Participação ofensiva"
+          ? isAttacker ? 2.25 : 2.65
+          : isAttacker ? 1.72 : 1.86;
+
+    const confidence = Math.max(
+      74,
+      Math.min(90, Math.round((quality || 82) - (market === "Participação ofensiva" ? 5 : 0) + (isAttacker ? 3 : isMid ? 1 : -2))),
+    );
+
+    return {
+      key: `lineup_player_prop_${fixtureId}_${player.id}_${index}`,
+      category: "Player Props",
+      market,
+      marketName: market,
+      player: player.name,
+      playerName: player.name,
+      playerId: player.id,
+      playerPhoto: player.photo,
+      photo: player.photo,
+      playerUrl: player.playerUrl,
+      playerNumber: player.number,
+      playerRole: player.role,
+      playerTeam: player.teamName,
+      teamName: player.teamName,
+      side: player.side,
+      tip,
+      selection: tip,
+      odd: Number(odd.toFixed(2)),
+      confidence,
+      risk: confidence >= 84 ? "Baixo" : "Médio",
+      source: "flashscore-lineups",
+      bookmaker: "Oddix estimada com escalação real",
+      oddsSource: "oddix-lineup-estimated",
+      isRealLineup: true,
+      isEstimated: false,
+      fixtureId,
+      game: `${cached?.teams?.home?.name || "Casa"} x ${cached?.teams?.away?.name || "Fora"}`,
+      homeTeam: cached?.teams?.home?.name || "Casa",
+      awayTeam: cached?.teams?.away?.name || "Fora",
+      league: cached?.league?.name || "Liga",
+      teamLogo: cached?.teams?.[player.side]?.logo || null,
+      reason: `Player Prop gerada apenas porque existe escalação real da ${String(cached?.provider || "FlashScore")}. Jogador: ${player.name}, função provável: ${player.role}.`,
+    };
+  }
+
+  async getPlayerProps(fixtureId: string) {
+    const cachedRaw = await this.getFixtureFromCacheById(fixtureId);
+    const cached = cachedRaw ? this.standardizeFixture(cachedRaw) : null;
+
+    if (!cached) {
+      return {
+        available: false,
+        simulated: false,
+        fixtureId,
+        source: "none",
+        message: `Fixture ${fixtureId} não encontrado no cache.`,
+        playerProps: [],
+      };
+    }
+
+    const lineup = await this.getLineups(fixtureId);
+
+    if (!lineup?.available) {
+      return {
+        available: false,
+        simulated: false,
+        fixtureId,
+        source: "none",
+        message: "Player Props indisponível: escalação oficial ainda não disponível.",
+        playerProps: [],
+        lineups: [],
+        errors: "errors" in lineup ? lineup.errors : [],
+      };
+    }
+
+    const players = this.extractPredictedPlayersFromLineups(lineup, cached)
+      .filter((player: any) => player.role !== "Goleiro" && player.role !== "Defensor")
+      .sort((a: any, b: any) => {
+        const score = (player: any) =>
+          (player.role === "Atacante" ? 30 : 20) +
+          (player.photo ? 8 : 0) +
+          Math.max(0, Number(player.lineupIndex || 0));
+        return score(b) - score(a);
+      });
+
+    const selected = players.slice(0, Number(process.env.ODDIX_LINEUP_PLAYER_PROPS_LIMIT || 8));
+    const playerProps = selected.map((player: any, index: number) =>
+      this.buildPropForLineupPlayer(player, fixtureId, cached, index),
+    );
+
+    return {
+      available: playerProps.length > 0,
+      simulated: false,
+      fixtureId,
+      source: lineup.source || "flashscore-lineups",
+      message: playerProps.length
+        ? "Player Props geradas com escalação real e fotos reais quando disponíveis."
+        : "Escalação encontrada, mas sem jogadores ofensivos suficientes para Player Props.",
+      game: `${cached?.teams?.home?.name || "Casa"} x ${cached?.teams?.away?.name || "Fora"}`,
+      homeTeam: cached?.teams?.home?.name || "Casa",
+      awayTeam: cached?.teams?.away?.name || "Fora",
+      league: cached?.league?.name || "Liga",
+      playerProps,
+      players,
+      lineups: lineup.lineups || [],
+    };
+  }
+
+
   private emptyRealStatistics(fixtureId: string, reason: string) {
     return {
       available: false,

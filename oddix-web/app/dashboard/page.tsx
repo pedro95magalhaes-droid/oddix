@@ -801,6 +801,8 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [liveTick, setLiveTick] = useState(0);
   const [freeLockOpen, setFreeLockOpen] = useState(false);
+  const [realPlayerProps, setRealPlayerProps] = useState<any[]>([]);
+  const [playerPropsLoading, setPlayerPropsLoading] = useState(false);
 
   const isPaidPlan = ["PRO", "VIP", "Pro", "Vip", "pro", "vip"].includes(String(plan));
   const today = dateKey(new Date());
@@ -833,6 +835,8 @@ export default function Dashboard() {
       .slice(0, 12);
   }, [games]);
 
+  const topGameIds = useMemo(() => topGames.slice(0, 6).map((game) => String(game?.fixture?.id || "")).filter(Boolean).join("|"), [topGames]);
+
   const localTips = useMemo(() => {
     return dedupeSmartTips(topGames.map((game) => smartLocalTip(game)));
   }, [topGames]);
@@ -846,42 +850,9 @@ export default function Dashboard() {
   }, [displayedSmartTips]);
 
   const homePlayerProps = useMemo(() => {
-    // V11: Player Props da home ficam travados no confronto correto.
-    // Enquanto não houver dados reais de jogadores por API, não exibimos nomes reais de clubes aleatórios.
-    return topGames.slice(0, 3).map((game, index) => {
-      const quality = safeNumber(game?.oddix?.qualityScore, 76);
-      const useHome = index !== 1;
-      const team = useHome ? game?.teams?.home : game?.teams?.away;
-      const opponent = useHome ? game?.teams?.away : game?.teams?.home;
-      const teamName = team?.name || (useHome ? "Casa" : "Fora");
-      const playerName = `Destaque ${teamName}`;
-      const market = index === 1 ? "Finalizações" : index === 2 ? "Participação ofensiva" : "Chutes no Gol";
-      const line = index === 1 ? "Over 1.5 finalizações" : index === 2 ? "1+ participação em gol" : "Over 0.5 chute no gol";
-
-      return {
-        key: `home_player_prop_${game?.fixture?.id || index}_${teamName}`,
-        category: "Player Props",
-        market,
-        player: playerName,
-        playerTeam: teamName,
-        tip: line,
-        selection: line,
-        odd: index === 1 ? "1.84" : index === 2 ? "1.68" : "1.72",
-        confidence: Math.min(90, Math.max(82, quality)),
-        risk: quality >= 85 ? "Baixo" : "Médio",
-        source: "Oddix Player Props IA",
-        bookmaker: "Oddix estimada",
-        fixtureId: game?.fixture?.id,
-        game: `${game?.teams?.home?.name || "Casa"} x ${game?.teams?.away?.name || "Fora"}`,
-        homeTeam: game?.teams?.home?.name,
-        awayTeam: game?.teams?.away?.name,
-        league: game?.league?.name,
-        teamLogo: team?.logo || logoFallback(teamName, "111827", "facc15"),
-        opponentLogo: opponent?.logo || "",
-        isEstimated: true,
-      };
-    });
-  }, [topGames]);
+    // Player Props reais: sem escalação real, sem card fake.
+    return realPlayerProps.slice(0, 6);
+  }, [realPlayerProps]);
 
   const filteredGames = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -969,6 +940,43 @@ export default function Dashboard() {
     }
   }
 
+
+  async function loadRealPlayerProps() {
+    const ids = topGameIds.split("|").filter(Boolean);
+    if (!ids.length) {
+      setRealPlayerProps([]);
+      return;
+    }
+
+    try {
+      setPlayerPropsLoading(true);
+      const responses = await Promise.allSettled(
+        ids.map((fixtureId) => api.get(`/football/player-props/${fixtureId}`)),
+      );
+
+      const props = responses.flatMap((response: any) => {
+        if (response.status !== "fulfilled") return [];
+        const data = response.value?.data || {};
+        const rows = data.playerProps || data.props || [];
+        return Array.isArray(rows) ? rows : [];
+      });
+
+      const seen = new Set<string>();
+      const unique = props.filter((prop: any) => {
+        const key = `${prop.fixtureId || ""}-${prop.playerId || prop.playerName || prop.player || ""}-${prop.tip || prop.selection || ""}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      setRealPlayerProps(unique.slice(0, 12));
+    } catch {
+      setRealPlayerProps([]);
+    } finally {
+      setPlayerPropsLoading(false);
+    }
+  }
+
   async function loadUser() {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -1005,6 +1013,11 @@ export default function Dashboard() {
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today]);
+
+  useEffect(() => {
+    loadRealPlayerProps();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topGameIds]);
 
   async function openMatchDetail(rawGame: any) {
     const game = normalizeGame(rawGame);
@@ -2651,6 +2664,7 @@ export default function Dashboard() {
 
       <PlayerPropsHome
         props={homePlayerProps}
+        loading={playerPropsLoading}
         games={games}
         isPaidPlan={isPaidPlan}
         onOpen={(prop: any) => {
@@ -2816,6 +2830,7 @@ export default function Dashboard() {
           {activeTab === "playerprops" && (
             <PlayerPropsSection
               props={playerPropsTips.length ? playerPropsTips : homePlayerProps}
+              loading={playerPropsLoading}
               games={games}
               isPaidPlan={isPaidPlan}
               onUpgrade={() => (window.location.href = "/plans")}
@@ -3748,10 +3763,10 @@ function initialsFromName(value: any) {
 }
 
 
-function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
+function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade, loading }: any) {
   const safeProps = Array.isArray(props) ? props.slice(0, 3) : [];
 
-  if (!safeProps.length) return null;
+  if (!safeProps.length && !loading) return null;
 
   return (
     <section className="oddix-player-props-home-section" style={{
@@ -3796,11 +3811,17 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
       </div>
 
       <div className="oddix-player-props-home-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 18 }}>
+        {loading && !safeProps.length && [0, 1, 2].map((index) => (
+          <div key={`player-props-loading-${index}`} style={{ minHeight: 245, borderRadius: 24, background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.10)", display: "grid", placeItems: "center", color: "rgba(255,255,255,.70)", fontWeight: 900 }}>
+            Buscando escalações reais...
+          </div>
+        ))}
         {safeProps.map((prop: any, index: number) => {
           const game = getGameByTip(prop, games);
           const playerName = playerNameFromProp(prop);
           const teamName = prop?.playerTeam || prop?.homeTeam || game?.teams?.home?.name || "Oddix FC";
           const teamLogo = prop?.teamLogo || game?.teams?.home?.logo || logoFallback(teamName, "111827", "facc15");
+          const playerPhoto = playerPhotoFromProp(prop, game);
           const opponentLogo = prop?.opponentLogo || game?.teams?.away?.logo || "";
           const type = playerPropType(prop);
           const line = playerPropLine(prop);
@@ -3842,11 +3863,11 @@ function PlayerPropsHome({ props, games, isPaidPlan, onOpen, onUpgrade }: any) {
               <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
                   <img
-                    src={teamLogo}
-                    alt={teamName}
-                    style={{ width: 62, height: 62, objectFit: "contain", borderRadius: 18, padding: 8, background: "rgba(3,7,18,.50)", border: "1px solid rgba(255,255,255,.12)", boxShadow: "0 12px 24px rgba(0,0,0,.28)" }}
+                    src={playerPhoto}
+                    alt={playerName}
+                    style={{ width: 62, height: 62, objectFit: "cover", borderRadius: 18, padding: 0, background: "rgba(3,7,18,.50)", border: "1px solid rgba(255,255,255,.12)", boxShadow: "0 12px 24px rgba(0,0,0,.28)" }}
                     onError={(event) => {
-                      event.currentTarget.src = logoFallback(teamName, "111827", "facc15");
+                      event.currentTarget.src = logoFallback(playerName, "111827", "facc15");
                     }}
                   />
 
@@ -4329,6 +4350,7 @@ function playerNameFromProp(prop: any) {
 }
 
 function playerPhotoFromProp(prop: any, game?: any) {
+  game;
   const photo =
     prop?.playerPhoto ||
     prop?.photo ||
@@ -4342,15 +4364,11 @@ function playerPhotoFromProp(prop: any, game?: any) {
     prop?.raw?.image ||
     "";
 
-  if (photo && !prop?.isEstimated) return photo;
+  if (photo && String(photo).startsWith("http")) return String(photo).replace(/\s+/g, "");
 
-  return (
-    prop?.teamLogo ||
-    prop?.raw?.team?.logo ||
-    game?.teams?.home?.logo ||
-    game?.teams?.away?.logo ||
-    logoFallback(prop?.homeTeam || prop?.awayTeam || playerNameFromProp(prop), "4c1d95", "facc15")
-  );
+  // Regra Oddix: sem foto real da API, não usar imagem genérica do Oddix.
+  // Usamos apenas avatar neutro por iniciais.
+  return logoFallback(playerNameFromProp(prop), "111827", "facc15");
 }
 
 function playerPropType(prop: any) {
@@ -4374,7 +4392,7 @@ function playerPropLine(prop: any) {
     .trim() || tip;
 }
 
-function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: any) {
+function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze, loading }: any) {
   const safeProps = Array.isArray(props) ? props : [];
 
   return (
@@ -4396,7 +4414,13 @@ function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: 
         )}
       </div>
 
-      {safeProps.length ? (
+      {loading && !safeProps.length ? (
+        <div style={styles.playerPropsEmpty}>
+          <div style={styles.playerPropsEmptyIcon}>⏳</div>
+          <h3>Buscando escalações reais</h3>
+          <p>A Oddix está consultando titulares, fotos e mercados permitidos para liberar Player Props confiáveis.</p>
+        </div>
+      ) : safeProps.length ? (
         <div style={styles.playerPropsGrid}>
           {safeProps.map((prop: any, index: number) => {
             const game = getGameByTip(prop, games);
@@ -4471,10 +4495,9 @@ function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: 
       ) : (
         <div style={styles.playerPropsEmpty}>
           <div style={styles.playerPropsEmptyIcon}>⚽</div>
-          <h3>Player Props aguardando odds reais</h3>
+          <h3>Player Props aguardando escalação real</h3>
           <p>
-            Quando a Odds API retornar mercados reais ou quando houver escalação confiável,
-            os cards de jogador aparecem aqui com foto, linha, odd e análise.
+            Sem escalação oficial, a Oddix não mostra jogador fake. Quando a FlashScore liberar titulares, os cards aparecem com nome, foto real, linha, odd e confiança.
           </p>
         </div>
       )}

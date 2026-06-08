@@ -43,11 +43,6 @@ export class FootballController {
     return this.footballService.getStatistics(fixtureId);
   }
 
-  @Get('lineups/:fixtureId')
-  async getLineups(@Param('fixtureId') fixtureId: string) {
-    return this.footballService.getLineups(fixtureId);
-  }
-
   @Get('debug')
   async debug(@Query('date') date?: string) {
     return this.footballService.debug(date);
@@ -75,6 +70,17 @@ export class FootballController {
   @Get('sportscore/debug')
   async sportScoreDebug(@Query('date') date?: string) {
     return this.footballService.debug(date);
+  }
+
+
+  @Get('lineups/:fixtureId')
+  async getLineups(@Param('fixtureId') fixtureId: string) {
+    return this.footballService.getLineups(fixtureId);
+  }
+
+  @Get('player-props/:fixtureId')
+  async getPlayerProps(@Param('fixtureId') fixtureId: string) {
+    return this.footballService.getPlayerProps(fixtureId);
   }
 
   @Get('fixture/:fixtureId')
