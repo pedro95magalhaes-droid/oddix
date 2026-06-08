@@ -840,6 +840,70 @@ export class ResultsCronService {
       .join("\n");
   }
 
+
+  private normalizeConfidence(value: any, fallback = 0) {
+    const parsed = Number(String(value ?? fallback).replace("%", "").replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  private getPropPhoto(prop: any) {
+    return prop?.playerPhoto || prop?.photo || prop?.foto || prop?.image_path || prop?.caminho_imagem || null;
+  }
+
+  private getPropName(prop: any) {
+    return prop?.playerName || prop?.player || prop?.name || prop?.nome || "";
+  }
+
+  private getPropConfidence(prop: any) {
+    return this.normalizeConfidence(prop?.confidence ?? prop?.confiança ?? prop?.confianca, 0);
+  }
+
+  private async getBestPlayerPropForFixture(fixtureId: string | number, bet?: any) {
+    const localProps = Array.isArray(bet?.playerProps) ? bet.playerProps : [];
+    const localBest = localProps
+      .filter((prop: any) => this.getPropName(prop))
+      .filter((prop: any) => this.getPropPhoto(prop))
+      .sort((a: any, b: any) => this.getPropConfidence(b) - this.getPropConfidence(a))[0];
+
+    if (localBest) return localBest;
+
+    try {
+      const service: any = this.footballService as any;
+      if (typeof service.getPlayerProps !== "function") return null;
+      const response = await service.getPlayerProps(String(fixtureId));
+      const rows = Array.isArray(response?.playerProps) ? response.playerProps : [];
+      return rows
+        .filter((prop: any) => this.getPropName(prop))
+        .filter((prop: any) => this.getPropPhoto(prop))
+        .sort((a: any, b: any) => this.getPropConfidence(b) - this.getPropConfidence(a))[0] || null;
+    } catch (error: any) {
+      this.logger.warn(`Player Props LIVE indisponível para fixtureId=${fixtureId}: ${error?.message || error}`);
+      return null;
+    }
+  }
+
+  private buildPlayerPropLiveCaption(bet: any, prop: any) {
+    const confidence = this.getPropConfidence(prop) || Number(bet?.confidence || 0) || 80;
+    return [
+      "🧠 *ODDIX INTELLIGENCE | PLAYER PROP LIVE*",
+      "",
+      `⚽ *${bet.homeTeam} x ${bet.awayTeam}*`,
+      bet.league ? `🏆 ${bet.league}` : "",
+      "",
+      `👤 Jogador: *${this.getPropName(prop)}*`,
+      prop?.teamName || prop?.playerTeam ? `🏟️ Time: *${prop.teamName || prop.playerTeam}*` : "",
+      `🎯 Mercado: *${prop?.marketName || prop?.market || "Player Props"}*`,
+      `✅ Entrada: *${prop?.tip || prop?.selection || bet.tip}*`,
+      `📈 Odd: *${prop?.odd || bet.odd || "-"}*`,
+      `🧠 Confiança: *${confidence}%*`,
+      `⚠️ Risco: *${prop?.risk || bet.risk || "Médio"}*`,
+      "",
+      "📌 Seleção validada com escalação real e filtro profissional Oddix.",
+      "💵 Gestão: até 1 unidade. Sem all-in.",
+      this.partnerBetBlock(),
+    ].filter(Boolean).join("\n");
+  }
+
   private createFreeTipMessage(bet: any) {
     return [
       "🔥 *ODDIX FREE | AMOSTRA*",
@@ -1043,19 +1107,39 @@ export class ResultsCronService {
         await this.oddixHumanMessageService.sendBeforeTip("vip");
         await this.sleepRandom(20_000, 45_000);
 
-        const imagePath = await this.oddixImageService.createVipCard({
-          homeTeam: bet.homeTeam,
-          awayTeam: bet.awayTeam,
-          league: bet.league,
-          market: bet.markets?.[0]?.market || "Entrada ao vivo",
-          tip: bet.tip,
-          odd: bet.odd,
-          confidence: bet.confidence,
-          risk: bet.risk || "Médio",
-          stake: "até 1 unidade",
-          homeLogo: game.teams?.home?.logo || game.times?.home?.logo,
-          awayLogo: game.teams?.away?.logo || game.times?.away?.logo,
-        });
+        const playerProp = await this.getBestPlayerPropForFixture(rawFixtureId || fixtureId, bet);
+
+        const imagePath = playerProp
+          ? await this.oddixImageService.createVipPlayerPropCard({
+              homeTeam: bet.homeTeam,
+              awayTeam: bet.awayTeam,
+              league: bet.league,
+              playerName: this.getPropName(playerProp),
+              playerTeam: playerProp.teamName || playerProp.playerTeam || "",
+              playerRole: playerProp.playerRole || playerProp.role || "Atacante",
+              playerPhoto: this.getPropPhoto(playerProp),
+              market: playerProp.marketName || playerProp.market || "Player Props",
+              tip: playerProp.tip || playerProp.selection || bet.tip,
+              odd: playerProp.odd || bet.odd,
+              confidence: this.getPropConfidence(playerProp) || bet.confidence,
+              risk: playerProp.risk || bet.risk || "Médio",
+              teamLogo: playerProp.teamLogo || (playerProp.side === "away" ? game.teams?.away?.logo : game.teams?.home?.logo),
+              status: "AO VIVO",
+              source: "flashscore-lineups",
+            })
+          : await this.oddixImageService.createVipCard({
+              homeTeam: bet.homeTeam,
+              awayTeam: bet.awayTeam,
+              league: bet.league,
+              market: bet.markets?.[0]?.market || "Entrada ao vivo",
+              tip: bet.tip,
+              odd: bet.odd,
+              confidence: bet.confidence,
+              risk: bet.risk || "Médio",
+              stake: "até 1 unidade",
+              homeLogo: game.teams?.home?.logo || game.times?.home?.logo,
+              awayLogo: game.teams?.away?.logo || game.times?.away?.logo,
+            });
 
         await this.whatsappWebService.sendButtonText({
           target: "free",
@@ -1075,7 +1159,10 @@ export class ResultsCronService {
 
         await this.sleepRandom(40_000, 90_000);
 
-        const vipMessage = this.createVipTipMessage(bet);
+        const vipMessage = playerProp
+          ? this.buildPlayerPropLiveCaption(bet, playerProp)
+          : this.createVipTipMessage(bet);
+
         if (imagePath)
           await this.whatsappWebService.sendImageFile({
             filePath: imagePath,

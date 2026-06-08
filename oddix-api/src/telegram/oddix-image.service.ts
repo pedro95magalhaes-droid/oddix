@@ -29,6 +29,38 @@ export type OddixVipCardInput = {
   visualPrompt?: string;
 };
 
+export type OddixVipPlayerPropCardInput = {
+  playerName: string;
+  playerPhoto?: string | null;
+  playerTeam?: string;
+  playerRole?: string;
+  playerNumber?: string | number | null;
+  playerId?: string;
+  playerUrl?: string;
+
+  market?: string;
+  marketName?: string;
+  tip: string;
+  selection?: string;
+  odd: string | number;
+  confidence?: string | number;
+  risk?: string;
+
+  league?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  opponentTeam?: string;
+  homeLogo?: string;
+  awayLogo?: string;
+  teamLogo?: string;
+
+  fixtureId?: string | number;
+  source?: string;
+  valueLabel?: string;
+  status?: string;
+  elapsed?: string | number | null;
+};
+
 export type OddixVipMultipleCardInput = {
   title?: string;
   oddTotal: string | number;
@@ -130,6 +162,62 @@ export class OddixImageService {
     };
   }
 
+  private splitPlayerPropLine(input: OddixVipPlayerPropCardInput) {
+    const playerName = this.cleanText(input.playerName);
+    const rawTip = this.stripPrefixTip(input.selection || input.tip || "");
+    const cleaned = rawTip
+      .replace(new RegExp(playerName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const source = cleaned || rawTip;
+    const normalized = this.normalize(source);
+
+    if (
+      normalized.includes("chute no gol") ||
+      normalized.includes("shots on target") ||
+      normalized.includes("sot")
+    ) {
+      const match = source.match(/(?:over|mais de|\+)?\s*([0-9]+(?:[.,][0-9]+)?)/i);
+      return {
+        main: `${match?.[1]?.replace(".", ",") || "0,5"}+ SOT`,
+        secondary: "CHUTES NO GOL",
+      };
+    }
+
+    if (
+      normalized.includes("finaliz") ||
+      normalized.includes("chutes") ||
+      normalized.includes("shots")
+    ) {
+      const match = source.match(/(?:over|mais de|\+)?\s*([0-9]+(?:[.,][0-9]+)?)/i);
+      return {
+        main: `${match?.[1]?.replace(".", ",") || "1,5"}+`,
+        secondary: "FINALIZAÇÕES",
+      };
+    }
+
+    if (normalized.includes("assist")) {
+      return {
+        main: "0,5+",
+        secondary: "ASSISTÊNCIA",
+      };
+    }
+
+    if (normalized.includes("participa") || normalized.includes("gol")) {
+      return {
+        main: "1+",
+        secondary: "PARTICIPAÇÃO EM GOL",
+      };
+    }
+
+    const lines = this.wrapText(source, 18, 2);
+    return {
+      main: lines[0]?.toUpperCase() || "PLAYER PROP",
+      secondary: lines.slice(1).join(" ").toUpperCase() || "MERCADO DE JOGADOR",
+    };
+  }
+
   private initials(name: string) {
     return String(name || "OD")
       .split(/\s+/)
@@ -152,6 +240,12 @@ export class OddixImageService {
     const parsed = Number(String(value ?? "").replace(",", "."));
     if (!Number.isFinite(parsed) || parsed <= 0) return String(value ?? "-");
     return parsed.toFixed(2);
+  }
+
+  private confidenceNumber(value: any) {
+    const parsed = Number(String(value ?? "").replace("%", "").replace(",", "."));
+    if (!Number.isFinite(parsed)) return 85;
+    return Math.max(0, Math.min(100, Math.round(parsed)));
   }
 
   private formatConfidence(value: any, label?: any) {
@@ -179,7 +273,8 @@ export class OddixImageService {
   private async downloadImage(url?: string): Promise<Buffer | null> {
     if (!url) return null;
     try {
-      const response = await axios.get(url, {
+      const safeUrl = String(url).replace(/\s+/g, "");
+      const response = await axios.get(safeUrl, {
         responseType: "arraybuffer",
         timeout: 12000,
         headers: { "User-Agent": "Oddix/2.0" },
@@ -190,8 +285,8 @@ export class OddixImageService {
     }
   }
 
-  private async logoBuffer(url: string | undefined, teamName: string, size: number): Promise<Buffer> {
-    const downloaded = await this.downloadImage(url);
+  private async logoBuffer(url: string | undefined | null, teamName: string, size: number): Promise<Buffer> {
+    const downloaded = await this.downloadImage(url || undefined);
 
     if (downloaded) {
       return sharp(downloaded)
@@ -219,6 +314,25 @@ export class OddixImageService {
       </svg>
     `;
     return sharp(Buffer.from(svg)).png().toBuffer();
+  }
+
+  private async playerPhotoBuffer(url?: string | null, width = 330, height = 430): Promise<Buffer | null> {
+    const downloaded = await this.downloadImage(url || undefined);
+
+    if (!downloaded) return null;
+
+    try {
+      return await sharp(downloaded)
+        .resize(width, height, {
+          fit: "cover",
+          position: "top",
+        })
+        .png()
+        .toBuffer();
+    } catch (error: any) {
+      this.logger.warn(`Falha ao tratar foto real do jogador: ${error?.message || error}`);
+      return null;
+    }
   }
 
   private playerCandidatePaths() {
@@ -360,7 +474,7 @@ export class OddixImageService {
         <text x="390" y="238" text-anchor="middle" class="impact" font-size="42" fill="#ffffff" filter="url(#purpleGlow)">VS</text>
         <text x="626" y="252" text-anchor="middle" class="heavy" font-size="25" fill="#ffffff">${away}</text>
         <rect x="350" y="238" width="80" height="32" rx="10" fill="rgba(0,0,0,.72)" stroke="#facc15"/>
-        <text x="390" y="261" text-anchor="middle" class="heavy" font-size="19" fill="#facc15">LIVE</text>
+        <text x="390" y="261" text-anchor="middle" class="heavy" font-size="19" fill="#facc15">${market}</text>
 
         <rect x="48" y="294" width="684" height="106" rx="18" fill="rgba(0,0,0,.82)" stroke="#facc15" stroke-width="2" filter="url(#glow)"/>
         <text x="88" y="327" class="heavy" font-size="22" fill="#facc15">🎯 PALPITE VIP</text>
@@ -405,6 +519,143 @@ export class OddixImageService {
         <text x="883" y="484" text-anchor="middle" class="small" font-size="12" fill="#ffffff">ACESSO VIA WEB APP</text>
       </svg>
     `);
+  }
+
+  private playerPropOverlaySvg(input: OddixVipPlayerPropCardInput, hasPlayerPhoto = true) {
+    const playerName = this.escape(this.short(input.playerName, 28).toUpperCase());
+    const team = this.escape(this.short(input.playerTeam, 28).toUpperCase());
+    const opponent = this.escape(this.short(input.opponentTeam || "", 24).toUpperCase());
+    const league = this.escape(this.short(input.league || "PLAYER PROPS", 32).toUpperCase());
+    const market = this.escape(this.short(input.marketName || input.market || "PLAYER PROP", 24).toUpperCase());
+    const role = this.escape(this.short(input.playerRole || "Atacante", 16).toUpperCase());
+    const number = this.escape(input.playerNumber ? `#${input.playerNumber}` : "#ODX");
+    const line = this.splitPlayerPropLine(input);
+    const mainLine = this.escape(this.short(line.main, 15).toUpperCase());
+    const secondaryLine = this.escape(this.short(line.secondary, 28).toUpperCase());
+    const odd = this.escape(this.formatOdd(input.odd));
+    const confidenceValue = this.confidenceNumber(input.confidence);
+    const confidence = this.escape(`${confidenceValue}%`);
+    const risk = this.escape(this.short(input.risk || "Baixo", 14).toUpperCase());
+    const source = this.escape(this.short(input.source || "FLASHScore Lineups", 24).toUpperCase());
+    const code = this.escape(this.ticketCode(`${input.fixtureId || ""}-${input.playerName}-${input.tip}-${input.odd}`));
+    const valueLabel = this.escape(input.valueLabel || "ESCALAÇÃO REAL");
+    const barWidth = Math.max(12, Math.round((confidenceValue / 100) * 214));
+    const photoShade = hasPlayerPhoto ? "rgba(0,0,0,.05)" : "rgba(0,0,0,.55)";
+
+    return Buffer.from(`
+      <svg width="${this.width}" height="${this.height}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="gold" x1="0" x2="1"><stop offset="0%" stop-color="#ff8a00"/><stop offset="50%" stop-color="#facc15"/><stop offset="100%" stop-color="#fff7ad"/></linearGradient>
+          <linearGradient id="green" x1="0" x2="1"><stop offset="0%" stop-color="#05a344"/><stop offset="100%" stop-color="#4ade80"/></linearGradient>
+          <linearGradient id="purple" x1="0" x2="1"><stop offset="0%" stop-color="#6d28d9"/><stop offset="100%" stop-color="#a855f7"/></linearGradient>
+          <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#050505"/><stop offset="54%" stop-color="#080b14"/><stop offset="100%" stop-color="#17072a"/></linearGradient>
+          <filter id="shadow"><feDropShadow dx="0" dy="14" stdDeviation="13" flood-color="#000" flood-opacity=".75"/></filter>
+          <filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#facc15" flood-opacity=".75"/></filter>
+          <filter id="purpleGlow"><feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="#a855f7" flood-opacity=".75"/></filter>
+          <clipPath id="photoClip"><rect x="656" y="75" width="302" height="392" rx="26"/></clipPath>
+          <style>
+            .impact{font-family:Impact,Arial Black,Arial,sans-serif;font-weight:900;letter-spacing:1px}
+            .heavy{font-family:Arial Black,Arial,sans-serif;font-weight:900}
+            .small{font-family:Arial,sans-serif;font-weight:700}
+            .regular{font-family:Arial,sans-serif;font-weight:600}
+          </style>
+        </defs>
+
+        <rect x="22" y="24" width="970" height="468" rx="28" fill="url(#panel)" stroke="#facc15" stroke-width="3" filter="url(#shadow)"/>
+        <rect x="42" y="42" width="590" height="64" rx="18" fill="rgba(0,0,0,.78)" stroke="rgba(168,85,247,.35)"/>
+        <text x="62" y="83" class="impact" font-size="42" fill="url(#gold)" filter="url(#glow)">ODDIX <tspan fill="#ffffff">PLAYER PROP</tspan></text>
+        <rect x="502" y="55" width="112" height="34" rx="12" fill="rgba(250,204,21,.16)" stroke="rgba(250,204,21,.55)"/>
+        <text x="558" y="78" text-anchor="middle" class="small" font-size="14" fill="#facc15">${valueLabel}</text>
+
+        <rect x="42" y="122" width="215" height="38" rx="13" fill="url(#gold)" filter="url(#glow)"/>
+        <text x="150" y="147" text-anchor="middle" class="heavy" font-size="18" fill="#120a00">♛ TOP PROP VIP</text>
+        <rect x="268" y="122" width="174" height="38" rx="13" fill="rgba(0,0,0,.72)" stroke="rgba(250,204,21,.38)"/>
+        <text x="355" y="147" text-anchor="middle" class="small" font-size="16" fill="#ffffff">${market}</text>
+        <rect x="454" y="122" width="178" height="38" rx="13" fill="rgba(0,0,0,.72)" stroke="rgba(168,85,247,.45)"/>
+        <text x="543" y="147" text-anchor="middle" class="small" font-size="16" fill="#d8b4fe">${source}</text>
+
+        <rect x="48" y="178" width="560" height="96" rx="18" fill="rgba(0,0,0,.64)" stroke="rgba(250,204,21,.34)"/>
+        <text x="74" y="211" class="small" font-size="15" fill="#facc15">JOGADOR</text>
+        <text x="74" y="249" class="impact" font-size="43" fill="#ffffff" stroke="#000" stroke-width="1" paint-order="stroke">${playerName}</text>
+        <rect x="424" y="195" width="76" height="58" rx="15" fill="rgba(250,204,21,.14)" stroke="rgba(250,204,21,.52)"/>
+        <text x="462" y="233" text-anchor="middle" class="impact" font-size="34" fill="#facc15">${number}</text>
+        <rect x="510" y="195" width="76" height="58" rx="15" fill="rgba(168,85,247,.14)" stroke="rgba(168,85,247,.52)"/>
+        <text x="548" y="218" text-anchor="middle" class="small" font-size="12" fill="#d8b4fe">FUNÇÃO</text>
+        <text x="548" y="241" text-anchor="middle" class="heavy" font-size="15" fill="#ffffff">${role}</text>
+
+        <rect x="48" y="288" width="560" height="100" rx="20" fill="rgba(0,0,0,.84)" stroke="#facc15" stroke-width="2" filter="url(#glow)"/>
+        <text x="76" y="320" class="small" font-size="16" fill="#facc15">🎯 ENTRADA ODDIX</text>
+        <text x="76" y="363" class="impact" font-size="51" fill="#ffffff" stroke="#000" stroke-width="2" paint-order="stroke">${mainLine}</text>
+        <text x="282" y="361" class="heavy" font-size="25" fill="#facc15">${secondaryLine}</text>
+
+        <rect x="48" y="404" width="168" height="62" rx="18" fill="rgba(0,0,0,.80)" stroke="#22c55e" stroke-width="2"/>
+        <text x="132" y="427" text-anchor="middle" class="small" font-size="15" fill="#4ade80">ODD</text>
+        <text x="132" y="460" text-anchor="middle" class="impact" font-size="40" fill="#4ade80">${odd}</text>
+
+        <rect x="232" y="404" width="222" height="62" rx="18" fill="rgba(0,0,0,.80)" stroke="#facc15" stroke-width="2"/>
+        <text x="343" y="427" text-anchor="middle" class="small" font-size="15" fill="#facc15">CONFIANÇA</text>
+        <rect x="276" y="440" width="134" height="10" rx="5" fill="rgba(255,255,255,.15)"/>
+        <rect x="276" y="440" width="${Math.round((confidenceValue / 100) * 134)}" height="10" rx="5" fill="url(#green)"/>
+        <text x="343" y="465" text-anchor="middle" class="heavy" font-size="22" fill="#ffffff">${confidence}</text>
+
+        <rect x="470" y="404" width="138" height="62" rx="18" fill="rgba(0,0,0,.80)" stroke="#a855f7" stroke-width="2"/>
+        <text x="539" y="427" text-anchor="middle" class="small" font-size="15" fill="#d8b4fe">RISCO</text>
+        <text x="539" y="459" text-anchor="middle" class="heavy" font-size="24" fill="#ffffff">${risk}</text>
+
+        <rect x="656" y="75" width="302" height="392" rx="26" fill="rgba(0,0,0,.74)" stroke="#a855f7" stroke-width="2" filter="url(#shadow)"/>
+        <rect x="656" y="75" width="302" height="392" rx="26" fill="${photoShade}"/>
+        <rect x="676" y="92" width="262" height="38" rx="13" fill="rgba(0,0,0,.72)" stroke="rgba(250,204,21,.38)"/>
+        <text x="807" y="117" text-anchor="middle" class="heavy" font-size="18" fill="#facc15">${team}</text>
+
+        <rect x="681" y="378" width="252" height="70" rx="18" fill="rgba(0,0,0,.78)" stroke="rgba(250,204,21,.35)"/>
+        <text x="807" y="405" text-anchor="middle" class="small" font-size="14" fill="#ffffff">${league}</text>
+        <text x="807" y="431" text-anchor="middle" class="heavy" font-size="18" fill="#facc15">${opponent ? `VS ${opponent}` : code}</text>
+
+        <rect x="672" y="470" width="270" height="18" rx="7" fill="rgba(0,0,0,.78)" stroke="rgba(255,255,255,.16)"/>
+        <text x="807" y="484" text-anchor="middle" class="small" font-size="11" fill="#ffffff">ESCALAÇÃO REAL • SEM JOGADOR GENÉRICO</text>
+      </svg>
+    `);
+  }
+
+  async createVipPlayerPropCard(input: OddixVipPlayerPropCardInput): Promise<string | null> {
+    try {
+      this.logger.log("ODDIX PLAYER PROP VIP card com foto real ativo");
+
+      if (!input.playerPhoto) {
+        this.logger.warn(`Player Prop sem foto real ignorado: ${input.playerName}`);
+        return null;
+      }
+
+      const outputPath = path.join(this.outputDir(), `vip-player-prop-${Date.now()}.png`);
+      const background = await this.createPremiumBackground();
+      const playerPhoto = await this.playerPhotoBuffer(input.playerPhoto, 330, 430);
+      const teamLogo = await this.logoBuffer(
+        input.teamLogo || input.homeLogo || input.awayLogo || "",
+        input.playerTeam || input.homeTeam || input.awayTeam || "Oddix",
+        74,
+      );
+      const overlay = this.playerPropOverlaySvg(input, !!playerPhoto);
+
+      if (!playerPhoto) {
+        this.logger.warn(`Não foi possível baixar a foto real do jogador: ${input.playerName}`);
+        return null;
+      }
+
+      await sharp(background)
+        .resize(this.width, this.height, { fit: "cover" })
+        .composite([
+          { input: playerPhoto, left: 642, top: 72 },
+          { input: teamLogo, left: 915, top: 91 },
+          { input: overlay, left: 0, top: 0 },
+        ])
+        .png()
+        .toFile(outputPath);
+
+      return outputPath;
+    } catch (error: any) {
+      this.logger.error(`Erro ao criar card Player Prop VIP Oddix: ${error?.message || "erro desconhecido"}`);
+      return null;
+    }
   }
 
   async createVipCard(input: OddixVipCardInput): Promise<string | null> {

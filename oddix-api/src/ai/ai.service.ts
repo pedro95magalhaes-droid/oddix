@@ -84,7 +84,7 @@ export class AiService {
     };
 
     const minimumProfessionalScore = Number(
-      process.env.ODDIX_PROFESSIONAL_MIN_SCORE || 80,
+      process.env.ODDIX_PROFESSIONAL_MIN_SCORE || 75,
     );
 
     if (
@@ -461,7 +461,7 @@ export class AiService {
 
       playerProps: playerPropMarkets
         .filter((market: any) => market.isRealOdd)
-        .slice(0, Number(process.env.ODDIX_PLAYER_PROPS_RESPONSE_LIMIT || 12))
+        .slice(0, Number(process.env.ODDIX_PLAYER_PROPS_RESPONSE_LIMIT || 3))
         .map((market: any) => ({
           ...market,
           tip: this.sanitizeTip(market.tip, homeTeam, awayTeam, context),

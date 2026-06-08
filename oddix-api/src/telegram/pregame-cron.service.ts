@@ -359,6 +359,73 @@ export class PregameCronService {
     });
   }
 
+
+  private normalizeConfidence(value: any, fallback = 0) {
+    const parsed = Number(String(value ?? fallback).replace("%", "").replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  private getPropPhoto(prop: any) {
+    return (
+      prop?.playerPhoto ||
+      prop?.photo ||
+      prop?.foto ||
+      prop?.image_path ||
+      prop?.caminho_imagem ||
+      null
+    );
+  }
+
+  private getPropName(prop: any) {
+    return prop?.playerName || prop?.player || prop?.name || prop?.nome || "";
+  }
+
+  private getPropConfidence(prop: any) {
+    return this.normalizeConfidence(prop?.confidence ?? prop?.confiança ?? prop?.confianca, 0);
+  }
+
+  private async getBestPlayerPropForFixture(fixtureId: string | number) {
+    try {
+      const service: any = this.footballService as any;
+      if (typeof service.getPlayerProps !== "function") return null;
+
+      const response = await service.getPlayerProps(String(fixtureId));
+      const rows = Array.isArray(response?.playerProps) ? response.playerProps : [];
+
+      return rows
+        .filter((prop: any) => this.getPropName(prop))
+        .filter((prop: any) => this.getPropPhoto(prop))
+        .sort((a: any, b: any) => this.getPropConfidence(b) - this.getPropConfidence(a))[0] || null;
+    } catch (error: any) {
+      this.logger.warn(`Player Props pré-jogo indisponível para fixtureId=${fixtureId}: ${error?.message || error}`);
+      return null;
+    }
+  }
+
+  private buildPlayerPropVipCaption(game: any, bet: any, prop: any, stage: PregameStage) {
+    const kickoff = this.formatKickoff(game?.fixture?.date);
+    const confidence = this.getPropConfidence(prop) || Number(bet?.confidence || 0) || 80;
+
+    return [
+      "🧠 *ODDIX INTELLIGENCE | PLAYER PROP VIP*",
+      "",
+      `⚽ *${bet.homeTeam} x ${bet.awayTeam}*`,
+      bet.league ? `🏆 ${bet.league}` : "",
+      kickoff ? `⏰ ${kickoff}` : "",
+      "",
+      `👤 Jogador: *${this.getPropName(prop)}*`,
+      prop?.teamName || prop?.playerTeam ? `🏟️ Time: *${prop.teamName || prop.playerTeam}*` : "",
+      `🎯 Mercado: *${prop?.marketName || prop?.market || "Player Props"}*`,
+      `✅ Entrada: *${prop?.tip || prop?.selection || bet.tip}*`,
+      `📈 Odd: *${prop?.odd || bet.odd || "-"}*`,
+      `🧠 Confiança: *${confidence}%*`,
+      `⚠️ Risco: *${prop?.risk || bet.risk || "Médio"}*`,
+      "",
+      "📌 Seleção validada com escalação real. Sem jogador fake, sem imagem genérica.",
+      "💵 Gestão: 0.5 a 1 unidade. Sem all-in.",
+    ].filter(Boolean).join("\n");
+  }
+
   private createFreeMessage(game: any, bet: any, stage: PregameStage) {
     const kickoff = this.formatKickoff(game?.fixture?.date);
 
@@ -562,6 +629,8 @@ export class PregameCronService {
           stage,
         });
 
+        const playerProp = await this.getBestPlayerPropForFixture(fixtureId);
+
         const analysisTag = [
           `ODDIX_PREGAME_${stage.toUpperCase()}`,
           `EDGE_IA_${creative.edge}`,
@@ -634,72 +703,76 @@ export class PregameCronService {
           "vip",
         );
 
-        const imagePath = await this.oddixImageService.createVipCard({
-          homeTeam: bet.homeTeam,
-          awayTeam: bet.awayTeam,
-          league: bet.league,
-          market: bet.markets?.[0]?.market || "Pré-jogo",
-          tip: bet.tip,
-          odd: bet.odd,
-          confidence: bet.confidence,
-          risk: bet.risk || "Médio",
-          stake: "0.5 a 1 unidade",
-          homeLogo: game.teams?.home?.logo,
-          awayLogo: game.teams?.away?.logo,
-          status: "PRÉ-JOGO",
-          elapsed: null,
-          source: game.provider || "fixtures",
-          headline: creative.headline,
-          subheadline: creative.subheadline,
-          vipBadge: creative.vipBadge,
-          edge: creative.edge,
-          confidenceLabel: creative.confidenceLabel,
-          valueLabel: creative.valueLabel,
-          theme: creative.theme,
-          visualPrompt: creative.visualPrompt,
-        });
+        const imagePath = playerProp
+          ? await this.oddixImageService.createVipPlayerPropCard({
+              homeTeam: bet.homeTeam,
+              awayTeam: bet.awayTeam,
+              league: bet.league,
+              playerName: this.getPropName(playerProp),
+              playerTeam: playerProp.teamName || playerProp.playerTeam || "",
+              playerRole: playerProp.playerRole || playerProp.role || "Atacante",
+              playerPhoto: this.getPropPhoto(playerProp),
+              market: playerProp.marketName || playerProp.market || "Player Props",
+              tip: playerProp.tip || playerProp.selection || bet.tip,
+              odd: playerProp.odd || bet.odd,
+              confidence: this.getPropConfidence(playerProp) || bet.confidence,
+              risk: playerProp.risk || bet.risk || "Médio",
+              teamLogo: playerProp.teamLogo || (playerProp.side === "away" ? game.teams?.away?.logo : game.teams?.home?.logo),
+              status: "PRÉ-JOGO",
+              source: "flashscore-lineups",
+            })
+          : await this.oddixImageService.createVipCard({
+              homeTeam: bet.homeTeam,
+              awayTeam: bet.awayTeam,
+              league: bet.league,
+              market: bet.markets?.[0]?.market || "Pré-jogo",
+              tip: bet.tip,
+              odd: bet.odd,
+              confidence: bet.confidence,
+              risk: bet.risk || "Médio",
+              stake: "0.5 a 1 unidade",
+              homeLogo: game.teams?.home?.logo,
+              awayLogo: game.teams?.away?.logo,
+              status: "PRÉ-JOGO",
+              elapsed: null,
+              source: game.provider || "fixtures",
+              headline: creative.headline,
+              subheadline: creative.subheadline,
+              vipBadge: creative.vipBadge,
+              edge: creative.edge,
+              confidenceLabel: creative.confidenceLabel,
+              valueLabel: creative.valueLabel,
+              theme: creative.theme,
+              visualPrompt: creative.visualPrompt,
+            });
+
+        const vipCaption = playerProp
+          ? this.buildPlayerPropVipCaption(game, bet, playerProp, stage)
+          : [
+              this.oddixCopyService.vipCaption({
+                homeTeam: bet.homeTeam,
+                awayTeam: bet.awayTeam,
+                league: bet.league,
+                tip: bet.tip,
+                odd: bet.odd,
+                risk: bet.risk || "Médio",
+                stage,
+                creative,
+                vipLink: this.vipLink(),
+              }),
+              "",
+              "📌 *Leitura Oddix:*",
+              this.shortAnalysis(bet.analysis),
+            ].join("\n");
 
         if (imagePath) {
           await this.whatsappWebService.sendImageFile({
             filePath: imagePath,
-            caption: [
-              this.oddixCopyService.vipCaption({
-                homeTeam: bet.homeTeam,
-                awayTeam: bet.awayTeam,
-                league: bet.league,
-                tip: bet.tip,
-                odd: bet.odd,
-                risk: bet.risk || "Médio",
-                stage,
-                creative,
-                vipLink: this.vipLink(),
-              }),
-              "",
-              "📌 *Leitura Oddix:*",
-              this.shortAnalysis(bet.analysis),
-            ].join("\n"),
+            caption: vipCaption,
             target: "vip",
           });
         } else {
-          await this.whatsappWebService.sendText(
-            [
-              this.oddixCopyService.vipCaption({
-                homeTeam: bet.homeTeam,
-                awayTeam: bet.awayTeam,
-                league: bet.league,
-                tip: bet.tip,
-                odd: bet.odd,
-                risk: bet.risk || "Médio",
-                stage,
-                creative,
-                vipLink: this.vipLink(),
-              }),
-              "",
-              "📌 *Leitura Oddix:*",
-              this.shortAnalysis(bet.analysis),
-            ].join("\n"),
-            "vip",
-          );
+          await this.whatsappWebService.sendText(vipCaption, "vip");
         }
 
         this.logger.log(

@@ -846,7 +846,11 @@ export default function Dashboard() {
   }, [smartTips, localTips]);
 
   const playerPropsTips = useMemo(() => {
-    return extractPlayerPropsFromTips(displayedSmartTips);
+    // Mantido apenas para compatibilidade com versões antigas.
+    // O dashboard premium agora usa somente Player Props reais vindos de /football/player-props/:fixtureId.
+    // Sem escalação real e foto real, a seção não renderiza jogador fake.
+    displayedSmartTips;
+    return [];
   }, [displayedSmartTips]);
 
   const homePlayerProps = useMemo(() => {
@@ -1273,8 +1277,15 @@ export default function Dashboard() {
   }
 
   function buildBoost() {
-    const picks = displayedSmartTips
-      .filter((tip) => safeNumber(tip.confidence, 0) >= 70)
+    const picks = [...displayedSmartTips]
+      .filter((tip) => safeNumber(tip.confidence, 0) >= 75)
+      .filter((tip) => safeNumber(tip.odd, 0) >= 1.35)
+      .filter((tip) => safeNumber(tip.odd, 0) <= 2.05)
+      .sort((a, b) => {
+        const scoreA = safeNumber(a.confidence, 0) + safeNumber(a.qualityScore, 0) * 0.35 - Math.abs(safeNumber(a.odd, 1.7) - 1.7) * 8;
+        const scoreB = safeNumber(b.confidence, 0) + safeNumber(b.qualityScore, 0) * 0.35 - Math.abs(safeNumber(b.odd, 1.7) - 1.7) * 8;
+        return scoreB - scoreA;
+      })
       .slice(0, 3);
 
     const combinedOdd = picks.reduce((acc, item) => acc * safeNumber(item.odd, 1.35), 1);
@@ -1282,7 +1293,7 @@ export default function Dashboard() {
       ? Math.round(picks.reduce((acc, item) => acc + safeNumber(item.confidence, 70), 0) / picks.length)
       : 0;
 
-    return { picks, combinedOdd: combinedOdd.toFixed(2), confidence };
+    return { picks, combinedOdd: picks.length ? combinedOdd.toFixed(2) : "0.00", confidence };
   }
 
   const boost = buildBoost();
@@ -1295,6 +1306,22 @@ export default function Dashboard() {
       return safeNumber(b.qualityScore, 0) - safeNumber(a.qualityScore, 0);
     })
     .slice(0, 5);
+
+  const topPick = useMemo(() => {
+    return [...displayedSmartTips]
+      .filter((tip) => safeNumber(tip.confidence, 0) >= 78)
+      .filter((tip) => safeNumber(tip.odd, 0) >= 1.45)
+      .filter((tip) => safeNumber(tip.odd, 0) <= 2.05)
+      .sort((a, b) => {
+        const scoreA = safeNumber(a.confidence, 0) + safeNumber(a.qualityScore, 0) * 0.45 - Math.abs(safeNumber(a.odd, 1.75) - 1.75) * 10;
+        const scoreB = safeNumber(b.confidence, 0) + safeNumber(b.qualityScore, 0) * 0.45 - Math.abs(safeNumber(b.odd, 1.75) - 1.75) * 10;
+        return scoreB - scoreA;
+      })[0] || displayedSmartTips[0] || localTips[0] || null;
+  }, [displayedSmartTips, localTips]);
+
+  const topPickGame = useMemo(() => {
+    return topPick ? getGameByTip(topPick, games) || topGames[0] : topGames[0];
+  }, [topPick, games, topGames]);
 
   const premiumBoost = [...displayedSmartTips]
     .filter((tip) => safeNumber(tip.confidence, 0) >= 75)
@@ -1317,6 +1344,45 @@ export default function Dashboard() {
       <style jsx global>{`
 
         /* ODDIX V12 SPORTSBOOK PREMIUM OVERRIDES */
+
+        /* ODDIX V20 REAL PLAYER PROPS + TOP PICK FIX */
+        .oddix-player-props-home-grid {
+          display: grid !important;
+          grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          gap: 18px !important;
+        }
+
+        .oddix-player-prop-card-v17 {
+          min-height: 330px !important;
+          align-items: stretch !important;
+          isolation: isolate !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-player-prop-card-v17::before {
+          content: "";
+          position: absolute;
+          inset: -60px -40px auto auto;
+          width: 180px;
+          height: 180px;
+          border-radius: 999px;
+          background: rgba(250,204,21,.16);
+          filter: blur(18px);
+          pointer-events: none;
+          z-index: -1;
+        }
+
+        .oddix-top-pick-hero {
+          width: min(1480px, calc(100% - 36px)) !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+        }
+
+        @media (max-width: 1100px) {
+          .oddix-player-props-home-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
         .oddix-dashboard {
           background:
             radial-gradient(circle at 22% 0%, rgba(123,44,255,.30), transparent 34%),
@@ -2664,8 +2730,8 @@ export default function Dashboard() {
       </section>
 
       <TopPickHero
-        tip={displayedSmartTips[0]}
-        game={topGames[0]}
+        tip={topPick}
+        game={topPickGame}
         liveTick={liveTick}
         onAnalyze={(game: any) => openMatchDetail(game)}
       />
@@ -2846,7 +2912,7 @@ export default function Dashboard() {
 
           {activeTab === "playerprops" && (
             <PlayerPropsSection
-              props={playerPropsTips.length ? playerPropsTips : homePlayerProps}
+              props={homePlayerProps}
               loading={playerPropsLoading}
               games={games}
               isPaidPlan={isPaidPlan}
