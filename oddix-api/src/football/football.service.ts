@@ -2876,6 +2876,270 @@ export class FootballService {
     }
   }
 
+  private getFlashScoreMatchIdFromCachedFixture(cached: any) {
+    return String(
+      cached?.fixture?.externalId ||
+        cached?.fixture?.external_id ||
+        cached?.fixture?.externalID ||
+        cached?.fixture?.match_id ||
+        cached?.fixture?.matchId ||
+        cached?.flashScoreRaw?.match_id ||
+        cached?.flashScoreRaw?.id ||
+        cached?.flashScoreRaw?.eventId ||
+        cached?.flashScoreRaw?.matchId ||
+        "",
+    ).trim();
+  }
+
+  private lineupArrayFromAny(input: any): any[] {
+    if (!input) return [];
+    if (Array.isArray(input)) return input;
+
+    const directArrays = [
+      input?.lineups,
+      input?.lineup,
+      input?.data,
+      input?.response,
+      input?.result,
+      input?.payload,
+      input?.home,
+      input?.away,
+      input?.data?.lineups,
+      input?.data?.lineup,
+      input?.response?.lineups,
+      input?.response?.lineup,
+      input?.result?.lineups,
+      input?.payload?.lineups,
+    ];
+
+    for (const candidate of directArrays) {
+      if (Array.isArray(candidate)) return candidate;
+    }
+
+    return [];
+  }
+
+  private hasLineupPayload(payload: any) {
+    if (!payload) return false;
+
+    const arrays = this.lineupArrayFromAny(payload);
+    if (arrays.length > 0) return true;
+
+    const possibleGroups = [
+      payload?.home?.startingXI,
+      payload?.home?.substitutes,
+      payload?.away?.startingXI,
+      payload?.away?.substitutes,
+      payload?.home?.players,
+      payload?.away?.players,
+      payload?.data?.home?.startingXI,
+      payload?.data?.away?.startingXI,
+      payload?.response?.home?.startingXI,
+      payload?.response?.away?.startingXI,
+    ];
+
+    return possibleGroups.some((group) => Array.isArray(group) && group.length > 0);
+  }
+
+  private emptyLineups(fixtureId: string, errors: string[] = []) {
+    return {
+      available: false,
+      simulated: false,
+      fixtureId,
+      source: "none",
+      message: "Escalação oficial ainda não disponível para este jogo.",
+      lineups: [],
+      errors,
+    };
+  }
+
+  async getLineupsFromFlashScore(fixtureId: string) {
+    const cachedRaw = await this.getFixtureFromCacheById(fixtureId);
+    const cached = cachedRaw as any;
+    const provider = String(cached?.provider || cached?.provedor || "").toLowerCase();
+
+    if (!cached) {
+      return {
+        ok: false,
+        data: null,
+        error: `Fixture ${fixtureId} não encontrado no cache`,
+      };
+    }
+
+    if (!provider.includes("flashscore")) {
+      return {
+        ok: false,
+        data: null,
+        error: `Fixture não é FlashScore. provider=${provider || "unknown"}`,
+      };
+    }
+
+    const matchId = this.getFlashScoreMatchIdFromCachedFixture(cached);
+
+    if (!matchId) {
+      return {
+        ok: false,
+        data: null,
+        error: `Fixture FlashScore sem match_id/externalId. fixtureId=${fixtureId}`,
+      };
+    }
+
+    try {
+      const response = await this.flashScoreService.getLineups(matchId);
+
+      if (!response.ok || !response.data) {
+        return {
+          ok: false,
+          data: null,
+          error:
+            response.error ||
+            `FlashScore não retornou escalação para match_id=${matchId}`,
+        };
+      }
+
+      const payload = response.data;
+      const available = this.hasLineupPayload(payload);
+
+      return {
+        ok: available,
+        data: {
+          available,
+          simulated: false,
+          fixtureId,
+          flashScoreId: matchId,
+          source: "flashscore",
+          message: available
+            ? "Escalação real da FlashScore."
+            : "FlashScore respondeu, mas sem escalação disponível.",
+          lineups: this.lineupArrayFromAny(payload),
+          raw: payload,
+        },
+        error: available
+          ? null
+          : `Sem escalação real na FlashScore para match_id=${matchId}`,
+      };
+    } catch (error: any) {
+      return {
+        ok: false,
+        data: null,
+        error: error?.message || "Erro ao buscar escalação FlashScore",
+      };
+    }
+  }
+
+  async getLineupsFromSportScore6(fixtureId: string) {
+    const cachedRaw = await this.getFixtureFromCacheById(fixtureId);
+    const cached = cachedRaw as any;
+
+    if (!cached) {
+      return {
+        ok: false,
+        data: null,
+        error: `Fixture ${fixtureId} não encontrado no cache`,
+      };
+    }
+
+    const provider = String(cached?.provider || cached?.provedor || "").toLowerCase();
+    if (!provider.includes("sportscore6")) {
+      return {
+        ok: false,
+        data: null,
+        error: `Fixture não é SportScore6. provider=${provider || "unknown"}`,
+      };
+    }
+
+    const slug = String(
+      cached?.fixture?.externalId ||
+        cached?.sportScore6Raw?.slug ||
+        cached?.sportScore6Raw?.urlSlug ||
+        "",
+    ).trim();
+
+    const trackerId = String(
+      cached?.fixture?.trackerId || cached?.sportScore6Raw?.tracker?.id || "",
+    ).trim();
+
+    try {
+      if (slug) {
+        const bySlug = await this.sportScore6Service.getFixtureBySlug(slug);
+        const lineups = (bySlug.data as any)?.lineups || null;
+
+        if (bySlug.ok && this.hasLineupPayload(lineups)) {
+          return {
+            ok: true,
+            data: {
+              available: true,
+              simulated: false,
+              fixtureId,
+              source: "sportscore6",
+              message: "Escalação real da SportScore6.",
+              lineups: this.lineupArrayFromAny(lineups),
+              raw: lineups,
+            },
+            error: null,
+          };
+        }
+      }
+
+      if (trackerId) {
+        const tracker = await this.sportScore6Service.getTracker(trackerId);
+        const payload = tracker.data;
+
+        if (tracker.ok && this.hasLineupPayload(payload)) {
+          return {
+            ok: true,
+            data: {
+              available: true,
+              simulated: false,
+              fixtureId,
+              source: "sportscore6-tracker",
+              message: "Escalação real da SportScore6 Tracker.",
+              lineups: this.lineupArrayFromAny(payload),
+              raw: payload,
+            },
+            error: null,
+          };
+        }
+
+        return {
+          ok: false,
+          data: null,
+          error: tracker.error || "Tracker SportScore6 sem escalação",
+        };
+      }
+
+      return {
+        ok: false,
+        data: null,
+        error: "SportScore6 sem slug/trackerId para buscar escalação",
+      };
+    } catch (error: any) {
+      return {
+        ok: false,
+        data: null,
+        error: error?.message || "Erro ao buscar escalação SportScore6",
+      };
+    }
+  }
+
+  async getLineups(fixtureId: string) {
+    const errors: string[] = [];
+
+    const flashScore = await this.getLineupsFromFlashScore(fixtureId);
+    if (flashScore.ok && flashScore.data?.available) {
+      return flashScore.data;
+    }
+    if (flashScore.error) errors.push(`FlashScore: ${flashScore.error}`);
+
+    const sportScore6 = await this.getLineupsFromSportScore6(fixtureId);
+    if (sportScore6.ok && sportScore6.data?.available) {
+      return sportScore6.data;
+    }
+    if (sportScore6.error) errors.push(`SportScore6: ${sportScore6.error}`);
+
+    return this.emptyLineups(fixtureId, errors);
+  }
+
   private emptyRealStatistics(fixtureId: string, reason: string) {
     return {
       available: false,

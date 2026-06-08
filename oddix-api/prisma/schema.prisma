@@ -8,47 +8,43 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
+  id        String            @id @default(uuid())
   name      String
-  email     String   @unique
+  email     String            @unique
   password  String
-  role      String   @default("USER")
-  plan      String   @default("Free")
-  createdAt DateTime @default(now())
-
+  role      String            @default("USER")
+  plan      String            @default("Free")
+  createdAt DateTime          @default(now())
   histories UserBetHistory[]
   favorites UserFavoriteBet[]
 }
 
 model Bet {
-  id         String   @id @default(uuid())
-  homeTeam   String
-  awayTeam   String
-  league     String
-  tip        String
-  odd        Float
-  confidence Int
-  status     String   @default("open")
-  createdAt  DateTime @default(now())
-
-  homeLogo   String?
-  awayLogo   String?
-  leagueLogo String?
-  fixtureId  Int?
-  gameDate   DateTime?
-
-  markets    Json?
-  analysis   String?
-  risk       String?
-  homeScore   Int?
+  id          String            @id @default(uuid())
+  homeTeam    String
+  awayTeam    String
+  league      String
+  tip         String
+  odd         Float
+  confidence  Int
+  status      String            @default("open")
+  createdAt   DateTime          @default(now())
+  awayLogo    String?
+  fixtureId   Int?
+  gameDate    DateTime?
+  homeLogo    String?
+  leagueLogo  String?
+  analysis    String?
+  markets     Json?
+  risk        String?
   awayScore   Int?
-  statusShort String?
   elapsed     Int?
+  homeScore   Int?
   provider    String?
-  multiples Json?
-
-  histories UserBetHistory[]
-  favorites UserFavoriteBet[]
+  statusShort String?
+  multiples   Json?
+  histories   UserBetHistory[]
+  favorites   UserFavoriteBet[]
 }
 
 model UserBetHistory {
@@ -56,9 +52,8 @@ model UserBetHistory {
   userId    String
   betId     String
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bet  Bet  @relation(fields: [betId], references: [id], onDelete: Cascade)
+  bet       Bet      @relation(fields: [betId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, betId])
 }
@@ -68,16 +63,15 @@ model UserFavoriteBet {
   userId    String
   betId     String
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bet  Bet  @relation(fields: [betId], references: [id], onDelete: Cascade)
+  bet       Bet      @relation(fields: [betId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, betId])
 }
 
 model CachedFixture {
-  id          String   @id @default(uuid())
-  fixtureId   String   @unique
+  id          String    @id @default(uuid())
+  fixtureId   String    @unique
   provider    String
   date        DateTime?
   league      String?
@@ -93,16 +87,10 @@ model CachedFixture {
   statusLong  String?
   elapsed     Int?
   raw         Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([date])
   @@index([provider])
   @@index([statusShort])
-}
-model AudioHistory {
-  id        String   @id @default(uuid())
-  audioKey  String
-  category  String
-  createdAt DateTime @default(now())
 }
