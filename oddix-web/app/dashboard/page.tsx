@@ -3045,97 +3045,133 @@ export default function Dashboard() {
         }
 
 
-        /* ODDIX V23.2 QUICK ACCESS NAV
-           Atalhos fixos para evitar rolagem longa no dashboard. */
+        /* ODDIX V23.3 SIDE MENU NAV
+           Menu lateral fixo, sem cobrir o bilhete nem os cards. */
         html {
           scroll-behavior: smooth;
         }
 
         .oddix-anchor-target {
-          scroll-margin-top: 140px;
+          scroll-margin-top: 154px;
         }
 
-        .oddix-right-shortcuts {
+        .oddix-dashboard {
+          padding-left: 96px !important;
+        }
+
+        .oddix-side-menu {
           position: fixed;
-          right: 14px;
-          top: 50%;
-          transform: translateY(-50%);
-          z-index: 120;
+          left: 14px;
+          top: 214px;
+          z-index: 115;
+          width: 72px;
           display: grid;
-          gap: 8px;
-          padding: 10px;
-          border-radius: 22px;
-          background: linear-gradient(180deg, rgba(7,7,13,.88), rgba(22,8,46,.84));
-          border: 1px solid rgba(168,85,247,.35);
-          box-shadow: 0 18px 46px rgba(0,0,0,.45), 0 0 28px rgba(123,44,255,.20), inset 0 1px 0 rgba(255,255,255,.10);
+          gap: 10px;
+          padding: 12px 8px;
+          border-radius: 24px;
+          background: linear-gradient(180deg, rgba(7,7,13,.92), rgba(21,8,45,.88));
+          border: 1px solid rgba(168,85,247,.36);
+          box-shadow: 0 18px 46px rgba(0,0,0,.45), 0 0 28px rgba(123,44,255,.18), inset 0 1px 0 rgba(255,255,255,.10);
           backdrop-filter: blur(16px);
         }
 
-        .oddix-right-shortcuts a,
-        .oddix-right-shortcuts button {
-          width: 128px;
-          min-height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: flex-start;
-          gap: 8px;
-          padding: 0 11px;
-          border-radius: 999px;
+        .oddix-side-menu-title {
+          width: 100%;
+          color: #facc15;
+          font-size: 9px;
+          line-height: 1.1;
+          font-weight: 1000;
+          text-transform: uppercase;
+          letter-spacing: .9px;
+          text-align: center;
+          padding: 2px 0 4px;
+        }
+
+        .oddix-side-menu a {
+          width: 56px;
+          height: 56px;
+          display: grid;
+          place-items: center;
+          gap: 2px;
+          border-radius: 18px;
           border: 1px solid rgba(255,255,255,.12);
           background: rgba(255,255,255,.065);
           color: rgba(255,255,255,.90);
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 1000;
-          letter-spacing: .15px;
+          line-height: 1.05;
+          letter-spacing: .05px;
           text-decoration: none;
           cursor: pointer;
           white-space: nowrap;
           transition: .18s ease;
         }
 
-        .oddix-right-shortcuts a:hover,
-        .oddix-right-shortcuts button:hover {
-          transform: translateX(-3px);
-          border-color: rgba(250,204,21,.65);
+        .oddix-side-menu a span:first-child {
+          font-size: 16px;
+          line-height: 1;
+        }
+
+        .oddix-side-menu a span:last-child {
+          max-width: 52px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .oddix-side-menu a:hover {
+          transform: translateX(4px);
+          border-color: rgba(250,204,21,.72);
           color: #facc15;
           background: rgba(250,204,21,.10);
           box-shadow: 0 0 18px rgba(250,204,21,.13);
         }
 
-        .oddix-right-shortcuts-title {
-          color: #facc15;
-          font-size: 10px;
-          font-weight: 1000;
-          text-transform: uppercase;
-          letter-spacing: 1.2px;
-          text-align: center;
-          padding: 2px 0 4px;
+        @media (min-width: 1500px) {
+          .oddix-dashboard {
+            padding-left: 238px !important;
+          }
+
+          .oddix-side-menu {
+            width: 208px;
+            left: 18px;
+            padding: 14px;
+          }
+
+          .oddix-side-menu-title {
+            text-align: left;
+            padding-left: 8px;
+          }
+
+          .oddix-side-menu a {
+            width: 100%;
+            height: 44px;
+            display: flex;
+            justify-content: flex-start;
+            padding: 0 14px;
+            gap: 10px;
+            border-radius: 999px;
+            font-size: 12px;
+          }
+
+          .oddix-side-menu a span:last-child {
+            max-width: none;
+            overflow: visible;
+            text-overflow: unset;
+          }
         }
 
-        @media (max-width: 1380px) {
-          .oddix-right-shortcuts {
-            right: 8px;
+        @media (max-width: 1180px) {
+          .oddix-dashboard {
+            padding-left: 0 !important;
           }
-          .oddix-right-shortcuts a,
-          .oddix-right-shortcuts button {
-            width: 42px;
-            justify-content: center;
-            padding: 0;
-          }
-          .oddix-right-shortcuts a span:last-child,
-          .oddix-right-shortcuts button span:last-child,
-          .oddix-right-shortcuts-title {
-            display: none;
-          }
-        }
 
-        @media (max-width: 980px) {
-          .oddix-right-shortcuts {
-            left: 10px;
-            right: 10px;
-            top: auto;
-            bottom: 10px;
-            transform: none;
+          .oddix-side-menu {
+            position: sticky;
+            top: 126px;
+            left: auto;
+            z-index: 96;
+            width: auto;
+            margin: 0 14px 14px;
             display: flex;
             overflow-x: auto;
             overflow-y: hidden;
@@ -3143,21 +3179,38 @@ export default function Dashboard() {
             padding: 8px;
             scrollbar-width: none;
           }
-          .oddix-right-shortcuts::-webkit-scrollbar {
+
+          .oddix-side-menu::-webkit-scrollbar {
             display: none;
           }
-          .oddix-right-shortcuts a,
-          .oddix-right-shortcuts button {
+
+          .oddix-side-menu-title {
+            display: none;
+          }
+
+          .oddix-side-menu a {
             width: auto;
+            height: 38px;
             min-width: max-content;
+            display: flex;
             padding: 0 12px;
+            gap: 8px;
+            border-radius: 999px;
+            font-size: 11px;
           }
-          .oddix-right-shortcuts a span:last-child,
-          .oddix-right-shortcuts button span:last-child {
-            display: inline;
+
+          .oddix-side-menu a span:last-child {
+            max-width: none;
+            overflow: visible;
+            text-overflow: unset;
           }
-          .oddix-dashboard {
-            padding-bottom: 74px !important;
+        }
+
+        @media (max-width: 640px) {
+          .oddix-side-menu {
+            top: 116px;
+            margin-left: 10px;
+            margin-right: 10px;
           }
         }
 
@@ -3168,11 +3221,11 @@ export default function Dashboard() {
         onUpgrade={() => (window.location.href = "/plans")}
       />
 
-      <nav className="oddix-right-shortcuts" aria-label="Atalhos do dashboard Oddix">
-        <div className="oddix-right-shortcuts-title">Atalhos</div>
+      <nav className="oddix-side-menu" aria-label="Menu lateral do dashboard Oddix">
+        <div className="oddix-side-menu-title">Menu</div>
         <a href="#oddix-hero"><span>🔥</span><span>Topo</span></a>
         <a href="#oddix-results"><span>✅</span><span>Resultados</span></a>
-        <a href="#oddix-trust"><span>📊</span><span>Ranking IA</span></a>
+        <a href="#oddix-trust"><span>📊</span><span>Ranking</span></a>
         <a href="#oddix-markets"><span>⚡</span><span>Mercados</span></a>
         <a href="#oddix-playerprops"><span>🎯</span><span>Props</span></a>
         <a href="#oddix-games"><span>⚽</span><span>Jogos</span></a>
