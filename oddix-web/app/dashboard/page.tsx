@@ -1345,6 +1345,340 @@ export default function Dashboard() {
 
         /* ODDIX V22 SPORTSBOOK PREMIUM OVERRIDES */
 
+        /* ODDIX V25 PREMIUM GAME CARDS */
+        .oddix-game-card-v25 {
+          position: relative !important;
+          overflow: hidden !important;
+          min-width: 0 !important;
+          min-height: 360px !important;
+          padding: 18px !important;
+          border-radius: 24px !important;
+          cursor: pointer !important;
+          background:
+            radial-gradient(circle at 20% 0%, rgba(139,92,246,.20), transparent 34%),
+            linear-gradient(180deg, rgba(17,12,31,.98), rgba(7,7,13,.98)) !important;
+          border: 1px solid rgba(255,255,255,.12) !important;
+          box-shadow: 0 18px 44px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.10) !important;
+          transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease !important;
+        }
+
+        .oddix-game-card-v25:hover {
+          transform: translateY(-4px) !important;
+          border-color: rgba(250,204,21,.45) !important;
+          box-shadow: 0 26px 68px rgba(0,0,0,.42), 0 0 36px rgba(139,92,246,.20), inset 0 1px 0 rgba(255,255,255,.14) !important;
+        }
+
+        .oddix-card-v25-glow {
+          position: absolute;
+          inset: -80px -80px auto auto;
+          width: 190px;
+          height: 190px;
+          border-radius: 999px;
+          background: rgba(250,204,21,.12);
+          filter: blur(22px);
+          pointer-events: none;
+        }
+
+        .oddix-card-v25-top,
+        .oddix-card-v25-league,
+        .oddix-card-v25-match,
+        .oddix-card-v25-pick,
+        .oddix-card-v25-confidence,
+        .oddix-card-v25-metrics,
+        .oddix-card-v25-actions {
+          position: relative;
+          z-index: 2;
+        }
+
+        .oddix-card-v25-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+
+        .oddix-card-v25-badge,
+        .oddix-card-v25-badge-live,
+        .oddix-card-v25-premium {
+          min-width: 0;
+          max-width: 100%;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          border-radius: 999px;
+          padding: 7px 10px;
+          font-size: 10px;
+          line-height: 1;
+          letter-spacing: .7px;
+          font-weight: 1000;
+          text-transform: uppercase;
+        }
+
+        .oddix-card-v25-badge {
+          color: rgba(255,255,255,.78);
+          background: rgba(255,255,255,.08);
+          border: 1px solid rgba(255,255,255,.12);
+        }
+
+        .oddix-card-v25-badge-live {
+          color: #22c55e;
+          background: rgba(34,197,94,.13);
+          border: 1px solid rgba(34,197,94,.28);
+          box-shadow: 0 0 18px rgba(34,197,94,.12);
+        }
+
+        .oddix-card-v25-premium {
+          flex: 0 0 auto;
+          color: #facc15;
+          background: rgba(250,204,21,.11);
+          border: 1px solid rgba(250,204,21,.22);
+        }
+
+        .oddix-card-v25-league {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 0;
+          margin-bottom: 16px;
+          color: rgba(255,255,255,.68);
+          font-size: 11px;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: .7px;
+        }
+
+        .oddix-card-v25-league img {
+          width: 20px;
+          height: 20px;
+          border-radius: 999px;
+          object-fit: contain;
+          flex: 0 0 auto;
+        }
+
+        .oddix-card-v25-league span {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .oddix-card-v25-match {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 86px minmax(0, 1fr);
+          gap: 10px;
+          align-items: center;
+          padding: 14px;
+          border-radius: 20px;
+          background: rgba(255,255,255,.055);
+          border: 1px solid rgba(255,255,255,.10);
+        }
+
+        .oddix-card-v25-team {
+          min-width: 0;
+          display: grid;
+          justify-items: center;
+          gap: 8px;
+          text-align: center;
+        }
+
+        .oddix-card-v25-team img {
+          width: 52px;
+          height: 52px;
+          border-radius: 999px;
+          object-fit: contain;
+          padding: 7px;
+          background: rgba(0,0,0,.24);
+          border: 1px solid rgba(255,255,255,.12);
+          box-shadow: 0 10px 24px rgba(0,0,0,.25);
+        }
+
+        .oddix-card-v25-team strong {
+          width: 100%;
+          min-width: 0;
+          color: #fff;
+          font-size: 13px;
+          line-height: 1.12;
+          font-weight: 950;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .oddix-card-v25-score {
+          display: grid;
+          justify-items: center;
+          align-content: center;
+          min-height: 76px;
+          border-radius: 18px;
+          background: linear-gradient(180deg, rgba(250,204,21,.13), rgba(139,92,246,.08));
+          border: 1px solid rgba(250,204,21,.22);
+        }
+
+        .oddix-card-v25-score span {
+          color: #facc15;
+          font-size: 22px;
+          line-height: .92;
+          font-weight: 1000;
+        }
+
+        .oddix-card-v25-score small {
+          color: rgba(255,255,255,.54);
+          font-size: 9px;
+          font-weight: 1000;
+          letter-spacing: 1px;
+          margin: 2px 0;
+        }
+
+        .oddix-card-v25-pick {
+          margin-top: 14px;
+          padding: 14px;
+          border-radius: 18px;
+          background: rgba(250,204,21,.08);
+          border: 1px solid rgba(250,204,21,.18);
+        }
+
+        .oddix-card-v25-pick span,
+        .oddix-card-v25-pick small {
+          display: block;
+          color: rgba(255,255,255,.62);
+          font-size: 10px;
+          font-weight: 1000;
+          text-transform: uppercase;
+          letter-spacing: .7px;
+        }
+
+        .oddix-card-v25-pick strong {
+          display: block;
+          min-width: 0;
+          margin: 6px 0 4px;
+          color: #fff;
+          font-size: 18px;
+          line-height: 1.08;
+          font-weight: 1000;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .oddix-card-v25-confidence {
+          margin-top: 14px;
+        }
+
+        .oddix-card-v25-confidence > div:first-child {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin-bottom: 8px;
+        }
+
+        .oddix-card-v25-confidence span {
+          color: rgba(255,255,255,.68);
+          font-size: 11px;
+          font-weight: 950;
+          text-transform: uppercase;
+          letter-spacing: .7px;
+        }
+
+        .oddix-card-v25-confidence strong {
+          color: #22c55e;
+          font-size: 18px;
+          font-weight: 1000;
+        }
+
+        .oddix-card-v25-bar {
+          height: 9px;
+          overflow: hidden;
+          border-radius: 999px;
+          background: rgba(255,255,255,.10);
+          border: 1px solid rgba(255,255,255,.10);
+        }
+
+        .oddix-card-v25-bar i {
+          display: block;
+          height: 100%;
+          border-radius: inherit;
+          background: linear-gradient(90deg, #22c55e, #a3e635, #facc15);
+          box-shadow: 0 0 18px rgba(34,197,94,.32);
+        }
+
+        .oddix-card-v25-metrics {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+          margin-top: 14px;
+        }
+
+        .oddix-card-v25-metrics div {
+          min-width: 0;
+          padding: 10px;
+          border-radius: 15px;
+          background: rgba(255,255,255,.06);
+          border: 1px solid rgba(255,255,255,.10);
+        }
+
+        .oddix-card-v25-metrics span {
+          display: block;
+          color: rgba(255,255,255,.55);
+          font-size: 9px;
+          font-weight: 1000;
+          letter-spacing: .7px;
+          text-transform: uppercase;
+        }
+
+        .oddix-card-v25-metrics strong {
+          display: block;
+          min-width: 0;
+          margin-top: 4px;
+          color: #fff;
+          font-size: 13px;
+          font-weight: 1000;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .oddix-card-v25-actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          margin-top: 14px;
+        }
+
+        .oddix-card-v25-actions button {
+          min-width: 0;
+          height: 42px;
+          border: 0;
+          border-radius: 14px;
+          cursor: pointer;
+          color: #fff;
+          font-size: 12px;
+          font-weight: 1000;
+        }
+
+        .oddix-card-v25-actions button:first-child {
+          background: linear-gradient(135deg, #7c3aed, #a855f7);
+          box-shadow: 0 14px 26px rgba(124,58,237,.24);
+        }
+
+        .oddix-card-v25-actions button:last-child {
+          color: #111827;
+          background: linear-gradient(135deg, #facc15, #fb923c);
+          box-shadow: 0 14px 26px rgba(250,204,21,.18);
+        }
+
+        @media (max-width: 640px) {
+          .oddix-card-v25-match {
+            grid-template-columns: 1fr;
+          }
+          .oddix-card-v25-score {
+            min-height: 58px;
+            grid-row: 2;
+          }
+        }
+
+
         /* ODDIX V20 REAL PLAYER PROPS + TOP PICK FIX */
         .oddix-player-props-home-grid {
           display: grid !important;
@@ -5847,40 +6181,84 @@ function GameCard({ game, liveTick = 0, analyzing, onAnalyze }: any) {
   const quality = safeNumber(game?.oddix?.qualityScore, 0);
   const tip = smartLocalTip(game);
   const live = isGameLive(game);
+  const confidence = Math.min(100, Math.max(0, safeNumber(tip?.confidence, quality)));
+  const risk = String(tip?.risk || "Médio");
+  const riskColor = risk.toLowerCase().includes("baixo") ? "#22c55e" : risk.toLowerCase().includes("alto") ? "#ef4444" : "#facc15";
+  const home = game?.teams?.home || {};
+  const away = game?.teams?.away || {};
 
   return (
-    <article className="oddix-game-card" style={live ? styles.gameCardLive : styles.gameCard} onClick={onAnalyze}>
-      <div style={styles.cardTop}>
-        <span style={live ? styles.liveBadge : styles.statusBadge}>{getStatusLabel(game, liveTick)}</span>
-        <span style={styles.qualityBadge}>{qualityBadge(quality)} {quality}</span>
+    <article className="oddix-game-card oddix-game-card-v25" onClick={onAnalyze}>
+      <div className="oddix-card-v25-glow" />
+
+      <div className="oddix-card-v25-top">
+        <span className={live ? "oddix-card-v25-badge-live" : "oddix-card-v25-badge"}>
+          {live ? `● AO VIVO ${gameTimeLabel(game, liveTick)}` : "PRÉ-JOGO"}
+        </span>
+        <span className="oddix-card-v25-premium">{qualityBadge(quality)} • {quality}</span>
       </div>
 
-      <div style={styles.leagueLine}>
-        <img src={game?.league?.logo || logoFallback(game?.league?.name, "7c3aed", "ffffff")} style={styles.leagueLogo} />
-        <span>{game?.league?.name}</span>
+      <div className="oddix-card-v25-league">
+        <img src={game?.league?.logo || logoFallback(game?.league?.name, "7c3aed", "ffffff")} alt="" />
+        <span>{game?.league?.name || "Liga"}</span>
       </div>
 
-      <div style={styles.matchLine}>
-        <TeamMini team={game?.teams?.home} />
-        <div style={styles.scoreBox}>{score.home}<span>-</span>{score.away}</div>
-        <TeamMini team={game?.teams?.away} />
-      </div>
+      <div className="oddix-card-v25-match">
+        <div className="oddix-card-v25-team">
+          <img src={home?.logo || logoFallback(home?.name)} alt={home?.name || "Casa"} />
+          <strong title={home?.name || "Casa"}>{home?.name || "Casa"}</strong>
+        </div>
 
-      <div style={styles.pickBox}>
-        <small>Palpite IA</small>
-        <strong>{tip.tip}</strong>
-        <div style={styles.pickMetrics}>
-          <span>Odd {tip.odd}</span>
-          <span>{tip.confidence}%</span>
-          <span>{tip.risk}</span>
+        <div className="oddix-card-v25-score">
+          <span>{score.home}</span>
+          <small>VS</small>
+          <span>{score.away}</span>
+        </div>
+
+        <div className="oddix-card-v25-team">
+          <img src={away?.logo || logoFallback(away?.name)} alt={away?.name || "Fora"} />
+          <strong title={away?.name || "Fora"}>{away?.name || "Fora"}</strong>
         </div>
       </div>
 
-      <div style={styles.cardActions}>
-        <button style={styles.analyzeButton} onClick={(event) => { event.stopPropagation(); onAnalyze(); }}>
-          {analyzing ? "Abrindo..." : "🎯 Pegar palpite"}
+      <div className="oddix-card-v25-pick">
+        <span>🎯 Melhor mercado IA</span>
+        <strong title={tip?.tip || "Entrada Oddix"}>{tip?.tip || "Entrada Oddix"}</strong>
+        <small>{tip?.market || "Mercado protegido"}</small>
+      </div>
+
+      <div className="oddix-card-v25-confidence">
+        <div>
+          <span>Confiança IA</span>
+          <strong>{confidence}%</strong>
+        </div>
+        <div className="oddix-card-v25-bar">
+          <i style={{ width: `${confidence}%` }} />
+        </div>
+      </div>
+
+      <div className="oddix-card-v25-metrics">
+        <div>
+          <span>ODD</span>
+          <strong>{tip?.odd || "1.70"}</strong>
+        </div>
+        <div>
+          <span>RISCO</span>
+          <strong style={{ color: riskColor }}>{risk}</strong>
+        </div>
+        <div>
+          <span>FONTE</span>
+          <strong>V3</strong>
+        </div>
+      </div>
+
+      <div className="oddix-card-v25-actions">
+        <button onClick={(event) => { event.stopPropagation(); onAnalyze(); }}>
+          {analyzing ? "Abrindo..." : "Ver análise"}
         </button>
-        <button style={styles.betNowButton} onClick={(event) => { event.stopPropagation(); window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer"); }}>💰 Apostar</button>
+        <button onClick={(event) => { event.stopPropagation(); window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer"); }}>
+          Apostar
+        </button>
       </div>
     </article>
   );
