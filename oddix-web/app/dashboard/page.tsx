@@ -2597,6 +2597,156 @@ export default function Dashboard() {
           .oddix-v23-heatmap { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
         }
 
+
+        /* ODDIX V23.1 FRAME FIX - corrige cards/rodapé saindo do enquadro */
+        .oddix-dashboard,
+        .oddix-dashboard * {
+          box-sizing: border-box !important;
+        }
+
+        .oddix-main-content,
+        .oddix-layout,
+        .oddix-games-grid,
+        .oddix-footer,
+        .oddix-footer-metrics {
+          min-width: 0 !important;
+          max-width: 100% !important;
+        }
+
+        .oddix-main-content {
+          overflow: hidden !important;
+        }
+
+        .oddix-games-grid {
+          width: 100% !important;
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)) !important;
+          gap: 14px !important;
+          padding: 8px 10px 18px 8px !important;
+          overflow-x: hidden !important;
+          overscroll-behavior: contain !important;
+        }
+
+        .oddix-game-card {
+          min-width: 0 !important;
+          max-width: 100% !important;
+          width: 100% !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-game-card > *,
+        .oddix-game-card div,
+        .oddix-game-card button {
+          min-width: 0 !important;
+          max-width: 100% !important;
+        }
+
+        .oddix-game-card span,
+        .oddix-game-card strong,
+        .oddix-game-card small,
+        .oddix-game-card p {
+          min-width: 0 !important;
+          max-width: 100% !important;
+          overflow-wrap: anywhere !important;
+        }
+
+        .oddix-game-card button {
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+
+        .oddix-game-card [style*="grid-template-columns: 1fr auto 1fr"] {
+          grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) !important;
+        }
+
+        .oddix-game-card [style*="display: flex"][style*="align-items: center"] span {
+          display: block !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+
+        .oddix-footer {
+          display: grid !important;
+          grid-template-columns: minmax(220px,.9fr) minmax(0,1.55fr) minmax(190px,.75fr) !important;
+          align-items: center !important;
+          gap: 18px !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-footer-metrics {
+          grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        }
+
+        .oddix-footer .oddix-info-metric {
+          min-width: 0 !important;
+          padding: 10px 8px !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-footer .oddix-info-metric strong {
+          font-size: clamp(14px, 1.25vw, 21px) !important;
+          line-height: 1.02 !important;
+          white-space: normal !important;
+          overflow-wrap: anywhere !important;
+        }
+
+        .oddix-footer .oddix-info-metric span {
+          font-size: 9px !important;
+        }
+
+        @media (max-width: 1280px) {
+          .oddix-layout {
+            grid-template-columns: 240px minmax(0, 1fr) !important;
+            gap: 16px !important;
+          }
+
+          .oddix-games-grid {
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)) !important;
+          }
+
+          .oddix-game-card {
+            padding: 14px !important;
+          }
+        }
+
+        @media (max-width: 1180px) {
+          .oddix-layout {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-sidebar {
+            position: relative !important;
+            top: auto !important;
+            max-height: none !important;
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 980px) {
+          .oddix-footer {
+            grid-template-columns: 1fr !important;
+            text-align: center !important;
+          }
+
+          .oddix-footer-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 620px) {
+          .oddix-sidebar,
+          .oddix-footer-metrics {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-games-grid {
+            grid-template-columns: 1fr !important;
+            max-height: none !important;
+            overflow-y: visible !important;
+          }
+        }
+
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
@@ -3110,7 +3260,7 @@ export default function Dashboard() {
           <span>Plataforma premium de leitura esportiva com Top Pick, Boost, Player Props reais e IA V3.</span>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(110px, 1fr))", gap: 10, flex: 1 }}>
+        <div className="oddix-footer-metrics" style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 10, flex: 1, minWidth: 0 }}>
           <InfoMetric label="Análises" value="+10K" />
           <InfoMetric label="Mercados" value="+500" />
           <InfoMetric label="Fonte" value="FlashScore" />
