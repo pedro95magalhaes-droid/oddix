@@ -1343,7 +1343,7 @@ export default function Dashboard() {
     <main className="oddix-dashboard" style={styles.page}>
       <style jsx global>{`
 
-        /* ODDIX V12 SPORTSBOOK PREMIUM OVERRIDES */
+        /* ODDIX V22 SPORTSBOOK PREMIUM OVERRIDES */
 
         /* ODDIX V20 REAL PLAYER PROPS + TOP PICK FIX */
         .oddix-player-props-home-grid {
@@ -1502,13 +1502,13 @@ export default function Dashboard() {
         .oddix-hero-player {
           position: absolute !important;
           right: -10px !important;
-          bottom: -36px !important;
+          bottom: -10px !important;
           height: 540px !important;
           width: min(620px, 100%) !important;
           object-fit: contain !important;
           object-position: center bottom !important;
           filter: drop-shadow(0 28px 42px rgba(0,0,0,.55)) drop-shadow(0 0 22px rgba(123,44,255,.45)) !important;
-          transform: scale(1.07) !important;
+          transform: scale(1.18) !important;
         }
 
         .oddix-vip-panel {
@@ -1586,6 +1586,28 @@ export default function Dashboard() {
           max-width: 100vw;
           overflow-x: hidden;
         }
+        .oddix-brand {
+          width: 180px !important;
+          height: 68px !important;
+          border-radius: 22px !important;
+          box-shadow: 0 0 28px rgba(123,44,255,.28), inset 0 1px 0 rgba(255,255,255,.10) !important;
+        }
+
+        .oddix-brand img {
+          height: 58px !important;
+          max-width: 154px !important;
+          filter: drop-shadow(0 0 18px rgba(168,85,247,.55)) drop-shadow(0 0 8px rgba(247,201,72,.18)) !important;
+        }
+
+        .oddix-hero-text h1 {
+          font-size: clamp(58px, 6.9vw, 108px) !important;
+        }
+
+        .oddix-boost-ticket-v22-return strong {
+          font-size: clamp(58px, 5vw, 82px) !important;
+          line-height: .85 !important;
+        }
+
 
         .oddix-info-metric {
           background: linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.06)) !important;
@@ -2666,9 +2688,9 @@ export default function Dashboard() {
         <div className="oddix-hero-main oddix-hero-main-v21" style={styles.heroMain}>
           <div className="oddix-hero-text" style={styles.heroTextBlock}>
             <span style={styles.sectionKicker}>ODDIX AI V3 • DASHBOARD PREMIUM</span>
-            <h1>TOP PICK<br />INTELLIGENCE</h1>
+            <h1>TOP PICK<br />DO DIA</h1>
             <p>
-              A Oddix filtra jogos, odds, mercados e sinais ao vivo para mostrar somente entradas com leitura forte e risco controlado.
+              {topPick ? `${topPick.game || "Entrada premium Oddix"} • ${topPick.tip || "Mercado protegido"} • Odd ${topPick.odd || "1.70"} com ${safeNumber(topPick.confidence, 0)}% de confiança.` : "A Oddix filtra jogos, odds, mercados e sinais ao vivo para mostrar somente entradas com leitura forte e risco controlado."}
             </p>
 
             {topPick && (
@@ -2737,8 +2759,18 @@ export default function Dashboard() {
             <span style={{ color: "rgba(255,255,255,.70)", fontSize: 12, fontWeight: 1000, textTransform: "uppercase", letterSpacing: 1 }}>Bilhete Oficial</span>
             <b style={{ color: "#facc15", fontSize: 12 }}>ODDIX BOOST</b>
           </div>
-          <strong>{boost.combinedOdd}</strong>
-          <small>Odd combinada estimada</small>
+          <div className="oddix-boost-ticket-v22-return" style={{
+            marginTop: 10,
+            padding: "18px 16px",
+            borderRadius: 24,
+            background: "linear-gradient(135deg, rgba(250,204,21,.18), rgba(251,146,60,.10))",
+            border: "1px solid rgba(250,204,21,.34)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,.12), 0 18px 40px rgba(250,204,21,.10)",
+          }}>
+            <span style={{ display: "block", color: "rgba(255,255,255,.72)", fontSize: 11, fontWeight: 1000, textTransform: "uppercase", letterSpacing: 1.1 }}>Retorno potencial</span>
+            <strong style={{ display: "block", color: "#facc15", marginTop: 6 }}>R$ {Number(safeNumber(boost.combinedOdd, 0) * 100).toFixed(0)}</strong>
+            <small style={{ color: "rgba(255,255,255,.64)", fontWeight: 900 }}>Simulação com entrada de R$100</small>
+          </div>
 
           <div style={{
             display: "grid",
@@ -2746,8 +2778,8 @@ export default function Dashboard() {
             gap: 10,
             margin: "18px 0 10px",
           }}>
+            <InfoMetric label="Odd total" value={boost.combinedOdd} />
             <InfoMetric label="Confiança" value={`${boost.confidence || boostConfidence || 0}%`} />
-            <InfoMetric label="Retorno R$100" value={`R$ ${Number(safeNumber(boost.combinedOdd, 0) * 100).toFixed(0)}`} />
           </div>
 
           <div style={{ display: "grid", gap: 10, margin: "16px 0" }}>
@@ -2777,19 +2809,19 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <TopPickHero
-        tip={topPick}
-        game={topPickGame}
-        liveTick={liveTick}
-        onAnalyze={(game: any) => openMatchDetail(game)}
-      />
-
       <V21ResultsRibbon
         recentBets={recentResultBets}
         won={stats?.wonBets || 0}
         lost={stats?.lostBets || 0}
         roi={stats?.roi || 0}
         onOpenGreens={() => setActiveTab("greens")}
+      />
+
+      <TopPickHero
+        tip={topPick}
+        game={topPickGame}
+        liveTick={liveTick}
+        onAnalyze={(game: any) => openMatchDetail(game)}
       />
 
       <HotMarketsSection
@@ -5585,7 +5617,7 @@ const styles: Record<string, CSSProperties> = {
   },
   brandLogo: {
     width: "100%",
-    height: 44,
+    height: 58,
     objectFit: "contain",
     objectPosition: "center",
     display: "block",
@@ -7337,7 +7369,7 @@ Object.assign(styles, {
   },
 
   brandLogo: {
-    height: 48,
+    height: 58,
     width: "auto",
     objectFit: "contain",
     filter: "drop-shadow(0 0 18px rgba(123,44,255,.45))",
@@ -7500,13 +7532,13 @@ Object.assign(styles, {
   heroPlayerImage: {
     position: "absolute",
     right: -10,
-    bottom: -36,
+    bottom: -10,
     height: 540,
     width: "min(620px, 100%)",
     objectFit: "contain",
     objectPosition: "center bottom",
     filter: "drop-shadow(0 28px 42px rgba(0,0,0,.55)) drop-shadow(0 0 22px rgba(123,44,255,.45))",
-    transform: "scale(1.07)",
+    transform: "scale(1.18)",
   },
 
   heroBottomFeatures: {
