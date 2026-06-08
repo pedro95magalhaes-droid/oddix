@@ -100,6 +100,33 @@ export class ResultsCronService {
     return { key, start, end };
   }
 
+  private currentFortalezaHour() {
+    const hourText = new Intl.DateTimeFormat("en-US", {
+      timeZone: this.timezone,
+      hour: "2-digit",
+      hour12: false,
+    }).format(new Date());
+
+    const hour = Number(hourText);
+    if (!Number.isFinite(hour)) return 0;
+    return hour === 24 ? 0 : hour;
+  }
+
+  private isQuietHours() {
+    const hour = this.currentFortalezaHour();
+    const start = Number(process.env.ODDIX_QUIET_START || 0);
+    const end = Number(process.env.ODDIX_QUIET_END || 9);
+
+    if (start === end) return false;
+
+    if (start < end) {
+      return hour >= start && hour < end;
+    }
+
+    return hour >= start || hour < end;
+  }
+
+
   private normalize(text: any) {
     return String(text || "")
       .toLowerCase()
@@ -943,6 +970,13 @@ export class ResultsCronService {
   @Cron("*/15 * * * *")
   async sendLiveTipsAutomatically() {
     try {
+      if (this.isQuietHours()) {
+        this.logger.log(
+          "🌙 Horário silencioso ativo (00:00 às 09:00). LIVE bloqueado.",
+        );
+        return;
+      }
+
       this.logger.log("🔥 ODDIX cron de palpites iniciado | modo stats reais");
 
       if (!this.liveTipsEnabled()) {
@@ -1243,6 +1277,13 @@ export class ResultsCronService {
   @Cron("*/5 * * * *")
   async checkOpenBetsResults() {
     try {
+      if (this.isQuietHours()) {
+        this.logger.log(
+          "🌙 Horário silencioso ativo (00:00 às 09:00). Resultados/GREEN/RED bloqueados.",
+        );
+        return;
+      }
+
       const maxHours = Number(process.env.ODDIX_MAX_OPEN_BET_HOURS || 24);
       const expiredCount = await this.expireOldOpenBets(maxHours);
 

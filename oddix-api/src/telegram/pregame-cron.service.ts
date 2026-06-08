@@ -88,6 +88,33 @@ export class PregameCronService {
     return this.formatDateKey(new Date());
   }
 
+  private currentFortalezaHour() {
+    const hourText = new Intl.DateTimeFormat("en-US", {
+      timeZone: this.timezone,
+      hour: "2-digit",
+      hour12: false,
+    }).format(new Date());
+
+    const hour = Number(hourText);
+    if (!Number.isFinite(hour)) return 0;
+    return hour === 24 ? 0 : hour;
+  }
+
+  private isQuietHours() {
+    const hour = this.currentFortalezaHour();
+    const start = Number(process.env.ODDIX_QUIET_START || 0);
+    const end = Number(process.env.ODDIX_QUIET_END || 9);
+
+    if (start === end) return false;
+
+    if (start < end) {
+      return hour >= start && hour < end;
+    }
+
+    return hour >= start || hour < end;
+  }
+
+
   private normalize(text: any) {
     return String(text || "")
       .toLowerCase()
