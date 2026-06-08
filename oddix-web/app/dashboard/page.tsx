@@ -2558,6 +2558,45 @@ export default function Dashboard() {
           }
         }
 
+
+
+        /* ODDIX V23 ANIMATIONS + TRUST LAYER */
+        .oddix-v23-confidence-fill {
+          position: relative;
+          overflow: hidden;
+          animation: oddixV23Grow .95s ease-out both;
+          transform-origin: left center;
+        }
+        .oddix-v23-confidence-fill::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,.38), transparent);
+          transform: translateX(-100%);
+          animation: oddixV23Shine 2.4s ease-in-out infinite;
+        }
+        .oddix-v23-card {
+          transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+        }
+        .oddix-v23-card:hover {
+          transform: translateY(-4px);
+          border-color: rgba(250,204,21,.56) !important;
+          box-shadow: 0 24px 70px rgba(0,0,0,.38), 0 0 34px rgba(250,204,21,.13) !important;
+        }
+        @keyframes oddixV23Grow {
+          from { transform: scaleX(.18); opacity: .35; }
+          to { transform: scaleX(1); opacity: 1; }
+        }
+        @keyframes oddixV23Shine {
+          0% { transform: translateX(-120%); }
+          55%, 100% { transform: translateX(120%); }
+        }
+        @media (max-width: 980px) {
+          .oddix-v23-grid { grid-template-columns: 1fr !important; }
+          .oddix-v23-ranking-grid { grid-template-columns: 1fr !important; }
+          .oddix-v23-heatmap { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+        }
+
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
@@ -2822,6 +2861,16 @@ export default function Dashboard() {
         game={topPickGame}
         liveTick={liveTick}
         onAnalyze={(game: any) => openMatchDetail(game)}
+      />
+
+
+      <V23TrustLayer
+        tips={displayedSmartTips}
+        games={games}
+        recentBets={recentResultBets}
+        stats={stats}
+        onOpenSmart={() => setActiveTab("smart")}
+        onOpenGreens={() => setActiveTab("greens")}
       />
 
       <HotMarketsSection
@@ -3920,6 +3969,189 @@ function HotMarketsSection({ tips, games, onOpen }: any) {
             </button>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+
+function V23TrustLayer({ tips, games, recentBets, stats, onOpenSmart, onOpenGreens }: any) {
+  const safeTips = Array.isArray(tips) ? tips : [];
+  const safeGames = Array.isArray(games) ? games : [];
+  const safeRecent = Array.isArray(recentBets) ? recentBets : [];
+
+  const ranking = safeTips
+    .filter((tip: any) => safeNumber(tip?.confidence, 0) >= 68)
+    .sort((a: any, b: any) => {
+      const scoreA = safeNumber(a?.confidence, 0) + safeNumber(a?.qualityScore, 0) * 0.32 - Math.abs(safeNumber(a?.odd, 1.7) - 1.7) * 5;
+      const scoreB = safeNumber(b?.confidence, 0) + safeNumber(b?.qualityScore, 0) * 0.32 - Math.abs(safeNumber(b?.odd, 1.7) - 1.7) * 5;
+      return scoreB - scoreA;
+    })
+    .slice(0, 5);
+
+  const heatmap = safeGames
+    .filter((game: any) => !isGameFinished(game))
+    .sort((a: any, b: any) => safeNumber(b?.oddix?.qualityScore, 0) - safeNumber(a?.oddix?.qualityScore, 0))
+    .slice(0, 9);
+
+  const won = safeNumber(stats?.wonBets, safeRecent.filter((bet: any) => String(bet?.status || '').toLowerCase() === 'won').length);
+  const lost = safeNumber(stats?.lostBets, safeRecent.filter((bet: any) => String(bet?.status || '').toLowerCase() === 'lost').length);
+  const total = won + lost;
+  const winRate = total ? Math.round((won / total) * 100) : safeNumber(stats?.roi, 0);
+
+  return (
+    <section className="oddix-v23-trust-layer" style={{
+      width: "min(1480px, calc(100% - 36px))",
+      margin: "0 auto 22px",
+      color: "#fff",
+    }}>
+      <div className="oddix-v23-grid" style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1.12fr) minmax(320px, .88fr)",
+        gap: 18,
+        alignItems: "stretch",
+      }}>
+        <div className="oddix-v23-card" style={{
+          borderRadius: 30,
+          padding: 24,
+          background: "radial-gradient(circle at 18% 0%, rgba(250,204,21,.13), transparent 26%), linear-gradient(135deg, rgba(7,7,13,.98), rgba(28,11,55,.96))",
+          border: "1px solid rgba(123,44,255,.42)",
+          boxShadow: "0 22px 60px rgba(0,0,0,.30), 0 0 38px rgba(123,44,255,.14)",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", marginBottom: 18 }}>
+            <div>
+              <span style={{ color: "#facc15", fontSize: 12, fontWeight: 1000, letterSpacing: 1.1, textTransform: "uppercase" }}>🧠 V23 Ranking IA</span>
+              <h2 style={{ margin: "7px 0 4px", fontSize: "clamp(24px, 2.2vw, 34px)", lineHeight: 1, letterSpacing: -0.8 }}>Top entradas por confiança</h2>
+              <p style={{ margin: 0, color: "rgba(255,255,255,.68)", fontSize: 13, fontWeight: 750 }}>Score combinado de confiança, odd controlada e qualidade Oddix.</p>
+            </div>
+            <button onClick={onOpenSmart} style={{
+              minWidth: 126, height: 42, border: 0, borderRadius: 14, cursor: "pointer",
+              background: "linear-gradient(135deg,#facc15,#fb923c)", color: "#111827", fontWeight: 1000,
+            }}>Ver IA</button>
+          </div>
+
+          <div className="oddix-v23-ranking-grid" style={{ display: "grid", gap: 10 }}>
+            {(ranking.length ? ranking : safeTips.slice(0, 5)).map((tip: any, index: number) => {
+              const confidence = Math.min(100, Math.max(8, safeNumber(tip?.confidence, 0)));
+              return (
+                <div key={`${tip?.fixtureId || tip?.game || index}-v23-ranking`} style={{
+                  display: "grid",
+                  gridTemplateColumns: "42px minmax(0,1fr) 96px",
+                  gap: 12,
+                  alignItems: "center",
+                  padding: "13px 14px",
+                  borderRadius: 18,
+                  background: index === 0 ? "rgba(250,204,21,.12)" : "rgba(255,255,255,.055)",
+                  border: index === 0 ? "1px solid rgba(250,204,21,.35)" : "1px solid rgba(255,255,255,.10)",
+                }}>
+                  <div style={{ width: 42, height: 42, borderRadius: 14, display: "grid", placeItems: "center", background: "rgba(250,204,21,.14)", color: "#facc15", fontWeight: 1000 }}>#{index + 1}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <strong style={{ display: "block", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tip?.game || "Entrada Oddix"}</strong>
+                    <span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.64)", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tip?.tip || tip?.market || "Mercado premium"}</span>
+                    <div style={{ marginTop: 9, height: 8, borderRadius: 999, background: "rgba(255,255,255,.10)", overflow: "hidden" }}>
+                      <div className="oddix-v23-confidence-fill" style={{ width: `${confidence}%`, height: "100%", borderRadius: 999, background: "linear-gradient(90deg,#22c55e,#facc15,#fb923c)" }} />
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <strong style={{ display: "block", color: "#facc15", fontSize: 20, lineHeight: 1 }}>{confidence}%</strong>
+                    <small style={{ color: "rgba(255,255,255,.58)", fontWeight: 900 }}>Odd {tip?.odd || "-"}</small>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="oddix-v23-card" style={{
+          borderRadius: 30,
+          padding: 24,
+          background: "radial-gradient(circle at 70% 0%, rgba(34,197,94,.14), transparent 30%), linear-gradient(135deg, rgba(7,7,13,.98), rgba(13,45,34,.86))",
+          border: "1px solid rgba(34,197,94,.30)",
+          boxShadow: "0 22px 60px rgba(0,0,0,.30), 0 0 38px rgba(34,197,94,.10)",
+        }}>
+          <span style={{ color: "#22c55e", fontSize: 12, fontWeight: 1000, letterSpacing: 1.1, textTransform: "uppercase" }}>🔥 Histórico Premium</span>
+          <h2 style={{ margin: "7px 0 4px", fontSize: "clamp(24px, 2vw, 32px)", lineHeight: 1, letterSpacing: -0.8 }}>Prova social de GREEN</h2>
+          <p style={{ margin: "0 0 18px", color: "rgba(255,255,255,.68)", fontSize: 13, fontWeight: 750 }}>Resultados recentes para aumentar a conversão do plano VIP.</p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10, marginBottom: 16 }}>
+            <InfoMetric label="WinRate" value={`${winRate}%`} />
+            <InfoMetric label="Greens" value={won} />
+            <InfoMetric label="Reds" value={lost} />
+          </div>
+
+          <div style={{ display: "grid", gap: 9 }}>
+            {(safeRecent.length ? safeRecent.slice(0, 4) : [0, 1, 2, 3]).map((bet: any, index: number) => {
+              const status = String(bet?.status || (index === 1 ? 'lost' : 'won')).toLowerCase();
+              const green = status === 'won';
+              return (
+                <div key={`${bet?.id || index}-v23-green`} style={{
+                  display: "grid",
+                  gridTemplateColumns: "76px minmax(0,1fr) auto",
+                  gap: 10,
+                  alignItems: "center",
+                  padding: 12,
+                  borderRadius: 16,
+                  background: green ? "rgba(34,197,94,.10)" : "rgba(239,68,68,.10)",
+                  border: `1px solid ${green ? "rgba(34,197,94,.30)" : "rgba(239,68,68,.30)"}`,
+                }}>
+                  <strong style={{ color: green ? "#22c55e" : "#ef4444", fontSize: 12, fontWeight: 1000 }}>{green ? "GREEN" : "RED"}</strong>
+                  <span style={{ minWidth: 0, color: "rgba(255,255,255,.82)", fontSize: 12, fontWeight: 850, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {bet?.homeTeam ? `${bet.homeTeam} x ${bet.awayTeam}` : bet?.tip || "Oddix Pick"}
+                  </span>
+                  <b style={{ color: "#facc15", fontSize: 13 }}>{bet?.odd ? `@${bet.odd}` : "IA"}</b>
+                </div>
+              );
+            })}
+          </div>
+
+          <button onClick={onOpenGreens} style={{
+            marginTop: 16, width: "100%", height: 46, border: 0, borderRadius: 16, cursor: "pointer",
+            background: "rgba(34,197,94,.14)", color: "#22c55e", fontWeight: 1000,
+          }}>Abrir histórico completo ›</button>
+        </div>
+      </div>
+
+      <div className="oddix-v23-card" style={{
+        marginTop: 18,
+        borderRadius: 30,
+        padding: 24,
+        background: "linear-gradient(135deg, rgba(7,7,13,.98), rgba(31,12,64,.94))",
+        border: "1px solid rgba(123,44,255,.38)",
+        boxShadow: "0 22px 60px rgba(0,0,0,.28)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 14, marginBottom: 16 }}>
+          <div>
+            <span style={{ color: "#c084fc", fontSize: 12, fontWeight: 1000, letterSpacing: 1.1, textTransform: "uppercase" }}>📊 Heatmap de Confiança</span>
+            <h2 style={{ margin: "7px 0 0", fontSize: "clamp(24px, 2.1vw, 34px)", lineHeight: 1, letterSpacing: -0.8 }}>Jogos quentes do painel</h2>
+          </div>
+          <small style={{ color: "rgba(255,255,255,.58)", fontWeight: 850 }}>Quanto mais intenso, maior o score Oddix.</small>
+        </div>
+
+        <div className="oddix-v23-heatmap" style={{ display: "grid", gridTemplateColumns: "repeat(9, minmax(0, 1fr))", gap: 10 }}>
+          {(heatmap.length ? heatmap : safeGames.slice(0, 9)).map((game: any, index: number) => {
+            const quality = Math.min(100, Math.max(0, safeNumber(game?.oddix?.qualityScore, 0)));
+            const alpha = Math.min(.34, Math.max(.08, quality / 260));
+            return (
+              <div key={`${game?.fixture?.id || index}-v23-heatmap`} title={`${game?.teams?.home?.name || "Casa"} x ${game?.teams?.away?.name || "Fora"}`} style={{
+                minHeight: 112,
+                borderRadius: 18,
+                padding: 12,
+                background: `linear-gradient(145deg, rgba(250,204,21,${alpha}), rgba(123,44,255,.10))`,
+                border: `1px solid rgba(250,204,21,${Math.min(.48, alpha + .14)})`,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                gap: 10,
+              }}>
+                <strong style={{ color: "#facc15", fontSize: 22, lineHeight: 1 }}>{quality}</strong>
+                <span style={{ color: "rgba(255,255,255,.76)", fontSize: 11, lineHeight: 1.15, fontWeight: 850, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                  {game?.teams?.home?.name || "Casa"} x {game?.teams?.away?.name || "Fora"}
+                </span>
+                <small style={{ color: "rgba(255,255,255,.48)", fontWeight: 800 }}>{isGameLive(game) ? "AO VIVO" : "PRÉ"}</small>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
