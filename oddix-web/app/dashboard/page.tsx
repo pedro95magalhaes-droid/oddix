@@ -3044,12 +3044,140 @@ export default function Dashboard() {
           }
         }
 
+
+        /* ODDIX V23.2 QUICK ACCESS NAV
+           Atalhos fixos para evitar rolagem longa no dashboard. */
+        html {
+          scroll-behavior: smooth;
+        }
+
+        .oddix-anchor-target {
+          scroll-margin-top: 140px;
+        }
+
+        .oddix-right-shortcuts {
+          position: fixed;
+          right: 14px;
+          top: 50%;
+          transform: translateY(-50%);
+          z-index: 120;
+          display: grid;
+          gap: 8px;
+          padding: 10px;
+          border-radius: 22px;
+          background: linear-gradient(180deg, rgba(7,7,13,.88), rgba(22,8,46,.84));
+          border: 1px solid rgba(168,85,247,.35);
+          box-shadow: 0 18px 46px rgba(0,0,0,.45), 0 0 28px rgba(123,44,255,.20), inset 0 1px 0 rgba(255,255,255,.10);
+          backdrop-filter: blur(16px);
+        }
+
+        .oddix-right-shortcuts a,
+        .oddix-right-shortcuts button {
+          width: 128px;
+          min-height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: flex-start;
+          gap: 8px;
+          padding: 0 11px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.12);
+          background: rgba(255,255,255,.065);
+          color: rgba(255,255,255,.90);
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: .15px;
+          text-decoration: none;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: .18s ease;
+        }
+
+        .oddix-right-shortcuts a:hover,
+        .oddix-right-shortcuts button:hover {
+          transform: translateX(-3px);
+          border-color: rgba(250,204,21,.65);
+          color: #facc15;
+          background: rgba(250,204,21,.10);
+          box-shadow: 0 0 18px rgba(250,204,21,.13);
+        }
+
+        .oddix-right-shortcuts-title {
+          color: #facc15;
+          font-size: 10px;
+          font-weight: 1000;
+          text-transform: uppercase;
+          letter-spacing: 1.2px;
+          text-align: center;
+          padding: 2px 0 4px;
+        }
+
+        @media (max-width: 1380px) {
+          .oddix-right-shortcuts {
+            right: 8px;
+          }
+          .oddix-right-shortcuts a,
+          .oddix-right-shortcuts button {
+            width: 42px;
+            justify-content: center;
+            padding: 0;
+          }
+          .oddix-right-shortcuts a span:last-child,
+          .oddix-right-shortcuts button span:last-child,
+          .oddix-right-shortcuts-title {
+            display: none;
+          }
+        }
+
+        @media (max-width: 980px) {
+          .oddix-right-shortcuts {
+            left: 10px;
+            right: 10px;
+            top: auto;
+            bottom: 10px;
+            transform: none;
+            display: flex;
+            overflow-x: auto;
+            overflow-y: hidden;
+            border-radius: 18px;
+            padding: 8px;
+            scrollbar-width: none;
+          }
+          .oddix-right-shortcuts::-webkit-scrollbar {
+            display: none;
+          }
+          .oddix-right-shortcuts a,
+          .oddix-right-shortcuts button {
+            width: auto;
+            min-width: max-content;
+            padding: 0 12px;
+          }
+          .oddix-right-shortcuts a span:last-child,
+          .oddix-right-shortcuts button span:last-child {
+            display: inline;
+          }
+          .oddix-dashboard {
+            padding-bottom: 74px !important;
+          }
+        }
+
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
         onClose={() => setFreeLockOpen(false)}
         onUpgrade={() => (window.location.href = "/plans")}
       />
+
+      <nav className="oddix-right-shortcuts" aria-label="Atalhos do dashboard Oddix">
+        <div className="oddix-right-shortcuts-title">Atalhos</div>
+        <a href="#oddix-hero"><span>🔥</span><span>Topo</span></a>
+        <a href="#oddix-results"><span>✅</span><span>Resultados</span></a>
+        <a href="#oddix-trust"><span>📊</span><span>Ranking IA</span></a>
+        <a href="#oddix-markets"><span>⚡</span><span>Mercados</span></a>
+        <a href="#oddix-playerprops"><span>🎯</span><span>Props</span></a>
+        <a href="#oddix-games"><span>⚽</span><span>Jogos</span></a>
+        <a href="#oddix-footer"><span>🏁</span><span>Final</span></a>
+      </nav>
       <header className="oddix-top-header" style={styles.topHeader}>
         <div className="oddix-brand" style={styles.brand} onClick={() => (window.location.href = "/dashboard")}>
           <img
@@ -3170,7 +3298,7 @@ export default function Dashboard() {
         </section>
       )}
 
-      <section className="oddix-hero-grid oddix-hero-v21" style={styles.heroGrid}>
+      <section id="oddix-hero" className="oddix-hero-grid oddix-hero-v21 oddix-anchor-target" style={styles.heroGrid}>
         <div className="oddix-hero-main oddix-hero-main-v21" style={styles.heroMain}>
           <div className="oddix-hero-text" style={styles.heroTextBlock}>
             <span style={styles.sectionKicker}>ODDIX AI V3 • DASHBOARD PREMIUM</span>
@@ -3296,13 +3424,15 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <V21ResultsRibbon
-        recentBets={recentResultBets}
-        won={stats?.wonBets || 0}
-        lost={stats?.lostBets || 0}
-        roi={stats?.roi || 0}
-        onOpenGreens={() => setActiveTab("greens")}
-      />
+      <div id="oddix-results" className="oddix-anchor-target">
+        <V21ResultsRibbon
+          recentBets={recentResultBets}
+          won={stats?.wonBets || 0}
+          lost={stats?.lostBets || 0}
+          roi={stats?.roi || 0}
+          onOpenGreens={() => setActiveTab("greens")}
+        />
+      </div>
 
       <TopPickHero
         tip={topPick}
@@ -3312,35 +3442,41 @@ export default function Dashboard() {
       />
 
 
-      <V23TrustLayer
-        tips={displayedSmartTips}
-        games={games}
-        recentBets={recentResultBets}
-        stats={stats}
-        onOpenSmart={() => setActiveTab("smart")}
-        onOpenGreens={() => setActiveTab("greens")}
-      />
+      <div id="oddix-trust" className="oddix-anchor-target">
+        <V23TrustLayer
+          tips={displayedSmartTips}
+          games={games}
+          recentBets={recentResultBets}
+          stats={stats}
+          onOpenSmart={() => setActiveTab("smart")}
+          onOpenGreens={() => setActiveTab("greens")}
+        />
+      </div>
 
-      <HotMarketsSection
-        tips={displayedSmartTips}
-        games={games}
-        onOpen={(tip: any) => {
-          const game = getGameByTip(tip, games);
-          if (game) openMatchDetail(game);
-        }}
-      />
+      <div id="oddix-markets" className="oddix-anchor-target">
+        <HotMarketsSection
+          tips={displayedSmartTips}
+          games={games}
+          onOpen={(tip: any) => {
+            const game = getGameByTip(tip, games);
+            if (game) openMatchDetail(game);
+          }}
+        />
+      </div>
 
-      <PlayerPropsHome
-        props={homePlayerProps}
-        loading={playerPropsLoading}
-        games={games}
-        isPaidPlan={isPaidPlan}
-        onOpen={(prop: any) => {
-          const game = getGameByTip(prop, games);
-          if (game) openMatchDetail(game);
-        }}
-        onUpgrade={() => (window.location.href = "/plans")}
-      />
+      <div id="oddix-playerprops" className="oddix-anchor-target">
+        <PlayerPropsHome
+          props={homePlayerProps}
+          loading={playerPropsLoading}
+          games={games}
+          isPaidPlan={isPaidPlan}
+          onOpen={(prop: any) => {
+            const game = getGameByTip(prop, games);
+            if (game) openMatchDetail(game);
+          }}
+          onUpgrade={() => (window.location.href = "/plans")}
+        />
+      </div>
 
       <PremiumTicketPreview
         tips={displayedSmartTips}
@@ -3452,7 +3588,7 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <section className="oddix-layout" style={styles.layout}>
+      <section id="oddix-games" className="oddix-layout oddix-anchor-target" style={styles.layout}>
         <aside className="oddix-sidebar" style={styles.sidebar}>
           <div style={styles.searchCard}>
             <strong>Filtros</strong>
@@ -3552,7 +3688,7 @@ export default function Dashboard() {
         </section>
       </section>
 
-      <footer className="oddix-footer oddix-footer-v21" style={styles.footer}>
+      <footer id="oddix-footer" className="oddix-footer oddix-footer-v21 oddix-anchor-target" style={styles.footer}>
         <div style={styles.footerBrand}>
           <strong>ODDIX IA™ V21</strong>
           <span>Plataforma premium de leitura esportiva com Top Pick, Boost, Player Props reais e IA V3.</span>
