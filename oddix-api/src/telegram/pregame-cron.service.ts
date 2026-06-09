@@ -240,9 +240,17 @@ export class PregameCronService {
   }
 
   private stageFor(minutes: number): PregameStage | null {
-    if (minutes >= 150 && minutes <= 210) return "early";
-    if (minutes >= 45 && minutes <= 90) return "main";
-    if (minutes >= 10 && minutes <= 35) return "final";
+    const earlyMin = Number(process.env.ODDIX_PREGAME_EARLY_MIN || 120);
+    const earlyMax = Number(process.env.ODDIX_PREGAME_EARLY_MAX || 240);
+    const mainMin = Number(process.env.ODDIX_PREGAME_MAIN_MIN || 45);
+    const mainMax = Number(process.env.ODDIX_PREGAME_MAIN_MAX || 120);
+    const finalMin = Number(process.env.ODDIX_PREGAME_FINAL_MIN || 10);
+    const finalMax = Number(process.env.ODDIX_PREGAME_FINAL_MAX || 45);
+
+    if (minutes >= earlyMin && minutes <= earlyMax) return "early";
+    if (minutes >= mainMin && minutes <= mainMax) return "main";
+    if (minutes >= finalMin && minutes <= finalMax) return "final";
+
     return null;
   }
 
@@ -575,15 +583,30 @@ export class PregameCronService {
     if (!this.enabled()) return;
 
     try {
+      if (this.isQuietHours()) {
+        this.logger.log(
+          `🌙 Horário silencioso ativo (${process.env.ODDIX_QUIET_START || 0}:00 às ${process.env.ODDIX_QUIET_END || 9}:00). PRÉ-JOGO bloqueado.`,
+        );
+        return;
+      }
+
       const date = this.todayKey();
       const fixtures = await this.footballService.getFixtures(date);
-      const candidates = this.buildCandidates(fixtures).slice(
+      const allPregame = (fixtures || []).filter((game: any) => this.isPregame(game));
+      const candidatesBeforeLimit = this.buildCandidates(fixtures);
+      const candidates = candidatesBeforeLimit.slice(
         0,
         this.maxPerRun(),
       );
 
+      this.logger.log(
+        `📅 Pré-jogo scan ${date}: fixtures=${fixtures?.length || 0} | pregame=${allPregame.length} | elegíveis=${candidatesBeforeLimit.length} | maxPerRun=${this.maxPerRun()}`,
+      );
+
       if (!candidates.length) {
-        this.logger.log("⏭️ Pré-jogo: nenhum jogo elegível na janela atual.");
+        this.logger.log(
+          "⏭️ Pré-jogo: nenhum jogo elegível na janela atual. Verifique janelas ODDIX_PREGAME_*_MIN/MAX, PRIORITY_ONLY e filtros de liga.",
+        );
         return;
       }
 
