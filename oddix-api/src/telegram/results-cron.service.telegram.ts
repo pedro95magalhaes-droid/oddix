@@ -947,6 +947,51 @@ export class ResultsCronService {
       .join("\n");
   }
 
+
+  private isNoBetOutput(bet: any) {
+    const status = this.normalize(bet?.status || bet?.engineStatus || bet?.engineLevel || "");
+    const tip = this.normalize(bet?.tip || bet?.palpite || "");
+
+    return (
+      status.includes("no bet") ||
+      status.includes("no_bet") ||
+      tip.includes("sem entrada") ||
+      tip.includes("no bet") ||
+      tip.includes("no_bet")
+    );
+  }
+
+  private applyLiveFallbackValues(bet: any) {
+    if (!bet || this.isNoBetOutput(bet)) return bet;
+
+    const fallbackOdd = Number(process.env.ODDIX_LIVE_FALLBACK_ODD || process.env.ODDIX_PREGAME_FALLBACK_ODD || 1.55);
+    const fallbackConfidence = Number(process.env.ODDIX_LIVE_FALLBACK_CONFIDENCE || process.env.ODDIX_PREGAME_FALLBACK_CONFIDENCE || 80);
+    const fallbackRisk = process.env.ODDIX_LIVE_FALLBACK_RISK || "Médio/Baixo";
+
+    const odd = Number(bet?.odd || 0);
+    const confidence = Number(bet?.confidence || 0);
+
+    if (!Number.isFinite(odd) || odd <= 0) {
+      bet.odd = fallbackOdd;
+      bet.analysis = [
+        bet.analysis || "Entrada validada pela IA Oddix com odd fallback.",
+        `ODDIX_LIVE_ODD_FALLBACK_${fallbackOdd}`,
+      ].filter(Boolean).join(" | ");
+    }
+
+    if (!Number.isFinite(confidence) || confidence <= 0) {
+      bet.confidence = fallbackConfidence;
+      bet.analysis = [
+        bet.analysis || "Entrada validada pela IA Oddix com confiança fallback.",
+        `ODDIX_LIVE_CONFIDENCE_FALLBACK_${fallbackConfidence}`,
+      ].filter(Boolean).join(" | ");
+    }
+
+    if (!bet.risk) bet.risk = fallbackRisk;
+
+    return bet;
+  }
+
   private createVipTipMessage(bet: any) {
     return [
       "🔥 *ODDIX VIP*",
@@ -1088,11 +1133,19 @@ export class ResultsCronService {
               };
 
         const enrichedGame = { ...game, statistics: stats };
-        const bet = await this.aiService.generateBet(enrichedGame);
+        const rawBet = await this.aiService.generateBet(enrichedGame);
+        const bet = this.applyLiveFallbackValues(rawBet);
 
         if (!bet) {
           this.logger.log(
             `⏭️ Palpite bloqueado fixtureId=${fixtureId}: sem estatística real suficiente para ${homeName} x ${awayName}`,
+          );
+          continue;
+        }
+
+        if (this.isNoBetOutput(rawBet)) {
+          this.logger.log(
+            `⏭️ Palpite NO_BET mantido fixtureId=${fixtureId}: IA sem leitura segura`,
           );
           continue;
         }

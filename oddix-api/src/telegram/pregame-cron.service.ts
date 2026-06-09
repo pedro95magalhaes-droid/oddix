@@ -595,6 +595,51 @@ export class PregameCronService {
     });
   }
 
+
+  private isNoBetOutput(bet: any) {
+    const status = this.normalize(bet?.status || bet?.engineStatus || bet?.engineLevel || "");
+    const tip = this.normalize(bet?.tip || bet?.palpite || "");
+
+    return (
+      status.includes("no bet") ||
+      status.includes("no_bet") ||
+      tip.includes("sem entrada") ||
+      tip.includes("no bet") ||
+      tip.includes("no_bet")
+    );
+  }
+
+  private applyPregameFallbackValues(bet: any) {
+    if (!bet || this.isNoBetOutput(bet)) return bet;
+
+    const fallbackOdd = Number(process.env.ODDIX_PREGAME_FALLBACK_ODD || 1.55);
+    const fallbackConfidence = Number(process.env.ODDIX_PREGAME_FALLBACK_CONFIDENCE || 80);
+    const fallbackRisk = process.env.ODDIX_PREGAME_FALLBACK_RISK || "Médio/Baixo";
+
+    const odd = Number(bet?.odd || 0);
+    const confidence = Number(bet?.confidence || 0);
+
+    if (!Number.isFinite(odd) || odd <= 0) {
+      bet.odd = fallbackOdd;
+      bet.analysis = [
+        bet.analysis || "Pré-jogo validado pela IA Oddix.",
+        `ODDIX_ODD_FALLBACK_${fallbackOdd}`,
+      ].filter(Boolean).join(" | ");
+    }
+
+    if (!Number.isFinite(confidence) || confidence <= 0) {
+      bet.confidence = fallbackConfidence;
+      bet.analysis = [
+        bet.analysis || "Pré-jogo validado pela IA Oddix.",
+        `ODDIX_CONFIDENCE_FALLBACK_${fallbackConfidence}`,
+      ].filter(Boolean).join(" | ");
+    }
+
+    if (!bet.risk) bet.risk = fallbackRisk;
+
+    return bet;
+  }
+
   private pregamePayload(game: any) {
     return {
       ...game,
@@ -710,13 +755,20 @@ export class PregameCronService {
         const rawBet = await this.aiService.generateBet(
           this.pregamePayload(game),
         );
-        const bet = {
+        const bet = this.applyPregameFallbackValues({
           ...rawBet,
           tip: this.cleanTip(rawBet?.tip),
           homeTeam: rawBet?.homeTeam || game?.teams?.home?.name,
           awayTeam: rawBet?.awayTeam || game?.teams?.away?.name,
           league: rawBet?.league || game?.league?.name,
-        };
+        });
+
+        if (this.isNoBetOutput(rawBet)) {
+          this.logger.log(
+            `⏭️ Pré-jogo NO_BET mantido ${bet.homeTeam} x ${bet.awayTeam}: IA sem leitura segura`,
+          );
+          continue;
+        }
 
         const quality = this.qualityAllowed(bet);
         if (!quality.ok) {
