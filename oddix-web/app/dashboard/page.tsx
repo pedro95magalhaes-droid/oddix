@@ -1679,6 +1679,341 @@ export default function Dashboard() {
         }
 
 
+
+        /* ODDIX V26 CONVERSION + OFFICIAL TICKET */
+        .oddix-v26-conversion {
+          width: min(1480px, calc(100% - 36px));
+          margin: 0 auto 22px;
+          display: grid;
+          grid-template-columns: 360px minmax(0, 1fr) 320px;
+          gap: 18px;
+          align-items: stretch;
+        }
+
+        .oddix-v26-ticket,
+        .oddix-v26-proof,
+        .oddix-v26-ranking,
+        .oddix-v26-heatmap {
+          min-width: 0;
+          border-radius: 28px;
+          border: 1px solid rgba(255,255,255,.12);
+          background: linear-gradient(180deg, rgba(17,12,31,.98), rgba(7,7,13,.98));
+          box-shadow: 0 22px 60px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.08);
+          overflow: hidden;
+        }
+
+        .oddix-v26-ticket {
+          padding: 22px;
+          border-color: rgba(250,204,21,.28);
+        }
+
+        .oddix-v26-ticket-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 14px;
+        }
+
+        .oddix-v26-ticket-head span,
+        .oddix-v26-section-title span,
+        .oddix-v26-vip-box span {
+          color: #facc15;
+          font-size: 11px;
+          line-height: 1;
+          letter-spacing: 1px;
+          font-weight: 1000;
+          text-transform: uppercase;
+        }
+
+        .oddix-v26-ticket-head b {
+          padding: 7px 9px;
+          border-radius: 999px;
+          color: #22c55e;
+          background: rgba(34,197,94,.10);
+          border: 1px solid rgba(34,197,94,.22);
+          font-size: 10px;
+        }
+
+        .oddix-v26-return {
+          padding: 20px;
+          border-radius: 24px;
+          background: linear-gradient(135deg, rgba(250,204,21,.18), rgba(249,115,22,.10));
+          border: 1px solid rgba(250,204,21,.28);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.10);
+        }
+
+        .oddix-v26-return small,
+        .oddix-v26-return span,
+        .oddix-v26-ticket-grid span,
+        .oddix-v26-picks small,
+        .oddix-v26-ranking-list small,
+        .oddix-v26-heatmap-bars small {
+          color: rgba(255,255,255,.58);
+          font-size: 11px;
+          font-weight: 850;
+        }
+
+        .oddix-v26-return strong {
+          display: block;
+          margin: 6px 0 4px;
+          color: #facc15;
+          font-size: clamp(48px, 4vw, 72px);
+          line-height: .88;
+          font-weight: 1000;
+          letter-spacing: -2px;
+        }
+
+        .oddix-v26-ticket-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+          margin: 14px 0;
+        }
+
+        .oddix-v26-ticket-grid div,
+        .oddix-v26-metric {
+          padding: 13px;
+          border-radius: 18px;
+          background: rgba(255,255,255,.06);
+          border: 1px solid rgba(255,255,255,.10);
+        }
+
+        .oddix-v26-ticket-grid strong {
+          display: block;
+          margin-top: 5px;
+          color: #fff;
+          font-size: 19px;
+          font-weight: 1000;
+        }
+
+        .oddix-v26-picks {
+          display: grid;
+          gap: 10px;
+        }
+
+        .oddix-v26-picks > div {
+          display: grid;
+          grid-template-columns: 28px minmax(0,1fr) auto;
+          gap: 10px;
+          align-items: center;
+          padding: 12px;
+          border-radius: 16px;
+          background: rgba(255,255,255,.055);
+          border: 1px solid rgba(255,255,255,.10);
+        }
+
+        .oddix-v26-picks i {
+          width: 28px;
+          height: 28px;
+          display: grid;
+          place-items: center;
+          border-radius: 999px;
+          color: #22c55e;
+          background: rgba(34,197,94,.13);
+          font-style: normal;
+          font-weight: 1000;
+        }
+
+        .oddix-v26-picks b,
+        .oddix-v26-ranking-list b {
+          display: block;
+          min-width: 0;
+          color: #fff;
+          font-size: 12px;
+          overflow: hidden;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+        }
+
+        .oddix-v26-picks strong {
+          color: #facc15;
+          font-size: 16px;
+        }
+
+        .oddix-v26-ticket button,
+        .oddix-v26-vip-box button {
+          width: 100%;
+          margin-top: 14px;
+          border: 0;
+          border-radius: 16px;
+          padding: 13px 16px;
+          cursor: pointer;
+          color: #111827;
+          background: linear-gradient(135deg,#facc15,#fb923c);
+          font-weight: 1000;
+          box-shadow: 0 14px 34px rgba(250,204,21,.20);
+        }
+
+        .oddix-v26-center {
+          display: grid;
+          gap: 18px;
+          min-width: 0;
+        }
+
+        .oddix-v26-proof,
+        .oddix-v26-ranking,
+        .oddix-v26-heatmap {
+          padding: 20px;
+        }
+
+        .oddix-v26-section-title h2 {
+          margin: 7px 0 14px;
+          color: #fff;
+          font-size: clamp(22px, 2vw, 32px);
+          line-height: 1;
+          letter-spacing: -1px;
+          font-weight: 1000;
+        }
+
+        .oddix-v26-section-title.compact h2 {
+          font-size: 24px;
+        }
+
+        .oddix-v26-proof-grid {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .oddix-v26-metric strong {
+          display: block;
+          font-size: 30px;
+          line-height: .95;
+          font-weight: 1000;
+        }
+
+        .oddix-v26-metric span {
+          display: block;
+          margin-top: 8px;
+          color: rgba(255,255,255,.66);
+          font-size: 11px;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: .6px;
+        }
+
+        .oddix-v26-ranking-list {
+          display: grid;
+          gap: 10px;
+        }
+
+        .oddix-v26-ranking-list > div {
+          display: grid;
+          grid-template-columns: 30px minmax(0,1fr) 52px;
+          gap: 10px;
+          align-items: center;
+          position: relative;
+          padding: 12px;
+          border-radius: 16px;
+          background: rgba(255,255,255,.055);
+          border: 1px solid rgba(255,255,255,.10);
+          overflow: hidden;
+        }
+
+        .oddix-v26-ranking-list em {
+          width: 30px;
+          height: 30px;
+          display: grid;
+          place-items: center;
+          border-radius: 999px;
+          color: #111827;
+          background: #facc15;
+          font-style: normal;
+          font-weight: 1000;
+        }
+
+        .oddix-v26-ranking-list strong {
+          color: #facc15;
+          font-size: 17px;
+          font-weight: 1000;
+          text-align: right;
+        }
+
+        .oddix-v26-ranking-list i {
+          position: absolute;
+          left: 12px;
+          right: 12px;
+          bottom: 6px;
+          height: 3px;
+          border-radius: 99px;
+          background: rgba(255,255,255,.08);
+          overflow: hidden;
+        }
+
+        .oddix-v26-ranking-list u {
+          display: block;
+          height: 100%;
+          border-radius: inherit;
+          background: linear-gradient(90deg,#22c55e,#facc15);
+        }
+
+        .oddix-v26-heatmap-bars {
+          display: grid;
+          gap: 13px;
+        }
+
+        .oddix-v26-heatmap-bars > div > div {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          color: rgba(255,255,255,.78);
+          font-size: 12px;
+          font-weight: 950;
+        }
+
+        .oddix-v26-heatmap-bars i {
+          display: block;
+          height: 11px;
+          margin: 7px 0 5px;
+          border-radius: 999px;
+          overflow: hidden;
+          background: rgba(255,255,255,.08);
+        }
+
+        .oddix-v26-heatmap-bars u {
+          display: block;
+          height: 100%;
+          border-radius: inherit;
+          box-shadow: 0 0 18px rgba(250,204,21,.18);
+        }
+
+        .oddix-v26-vip-box {
+          margin-top: 18px;
+          padding: 16px;
+          border-radius: 20px;
+          background: linear-gradient(135deg, rgba(124,58,237,.22), rgba(250,204,21,.10));
+          border: 1px solid rgba(250,204,21,.18);
+        }
+
+        .oddix-v26-vip-box p {
+          margin: 9px 0 0;
+          color: rgba(255,255,255,.70);
+          font-size: 13px;
+          line-height: 1.35;
+          font-weight: 750;
+        }
+
+        @media (max-width: 1280px) {
+          .oddix-v26-conversion {
+            grid-template-columns: 1fr;
+          }
+          .oddix-v26-proof-grid {
+            grid-template-columns: repeat(5, minmax(120px, 1fr));
+            overflow-x: auto;
+          }
+        }
+
+        @media (max-width: 680px) {
+          .oddix-v26-conversion {
+            width: calc(100% - 24px);
+          }
+          .oddix-v26-ticket-grid,
+          .oddix-v26-proof-grid {
+            grid-template-columns: 1fr 1fr;
+          }
+        }
+
         /* ODDIX V20 REAL PLAYER PROPS + TOP PICK FIX */
         .oddix-player-props-home-grid {
           display: grid !important;
@@ -4348,6 +4683,20 @@ export default function Dashboard() {
         />
       </div>
 
+
+      <V26ConversionLayer
+        picks={premiumBoost.length ? premiumBoost : displayedSmartTips.slice(0, 3)}
+        topTips={top5Tips}
+        combinedOdd={boostOdd ? boostOdd.toFixed(2) : boost.combinedOdd}
+        confidence={boostConfidence || boost.confidence || 0}
+        won={stats?.wonBets || wonBetsList.length || 0}
+        lost={stats?.lostBets || 0}
+        roi={stats?.roi || 0}
+        totalAnalyses={stats?.totalBets || savedBets.length || games.length}
+        onOpenBoost={() => setActiveTab("boost")}
+        onVip={() => (window.location.href = "/dashboard/vip")}
+      />
+
       <TopPickHero
         tip={topPick}
         game={topPickGame}
@@ -6799,6 +7148,151 @@ function VipMetric({ title, value, color, subtitle }: { title: string; value: an
     </div>
   );
 }
+
+
+function V26ConversionLayer({
+  picks,
+  topTips,
+  combinedOdd,
+  confidence,
+  won,
+  lost,
+  roi,
+  totalAnalyses,
+  onOpenBoost,
+  onVip,
+}: {
+  picks: any[];
+  topTips: any[];
+  combinedOdd: any;
+  confidence: number;
+  won: number;
+  lost: number;
+  roi: number;
+  totalAnalyses: number;
+  onOpenBoost: () => void;
+  onVip: () => void;
+}) {
+  const stake = 100;
+  const odd = safeNumber(combinedOdd, 0);
+  const potentialReturn = odd ? Math.round(odd * stake) : 0;
+  const total = safeNumber(won, 0) + safeNumber(lost, 0);
+  const winRate = total ? Math.round((safeNumber(won, 0) / total) * 100) : safeNumber(roi, 0);
+  const safePicks = Array.isArray(picks) && picks.length ? picks.slice(0, 3) : [];
+  const safeTips = Array.isArray(topTips) && topTips.length ? topTips.slice(0, 5) : [];
+  const heatmap = [
+    { label: "Elite", range: "90%+", value: safeTips.filter((tip) => safeNumber(tip?.confidence, 0) >= 90).length, tone: "#22c55e" },
+    { label: "Premium", range: "80–89%", value: safeTips.filter((tip) => safeNumber(tip?.confidence, 0) >= 80 && safeNumber(tip?.confidence, 0) < 90).length, tone: "#facc15" },
+    { label: "Forte", range: "70–79%", value: safeTips.filter((tip) => safeNumber(tip?.confidence, 0) >= 70 && safeNumber(tip?.confidence, 0) < 80).length, tone: "#a855f7" },
+  ];
+
+  return (
+    <section id="oddix-v26" className="oddix-v26-conversion oddix-anchor-target">
+      <div className="oddix-v26-ticket">
+        <div className="oddix-v26-ticket-head">
+          <span>🎟 BILHETE OFICIAL ODDIX</span>
+          <b>V26</b>
+        </div>
+
+        <div className="oddix-v26-return">
+          <small>Retorno potencial</small>
+          <strong>R${potentialReturn || "---"}</strong>
+          <span>Stake simulada: R${stake}</span>
+        </div>
+
+        <div className="oddix-v26-ticket-grid">
+          <div><span>Odd total</span><strong>{odd ? odd.toFixed(2) : "0.00"}</strong></div>
+          <div><span>Confiança</span><strong>{safeNumber(confidence, 0)}%</strong></div>
+          <div><span>Risco</span><strong>{safeNumber(confidence, 0) >= 85 ? "Baixo" : "Controlado"}</strong></div>
+        </div>
+
+        <div className="oddix-v26-picks">
+          {(safePicks.length ? safePicks : [{ game: "Oddix Boost", tip: "Aguardando entradas", odd: "-" }]).map((pick: any, index: number) => (
+            <div key={`${pick?.fixtureId || pick?.game || index}-v26-ticket`}>
+              <i>✓</i>
+              <span><b>{pick?.game || "Entrada Oddix"}</b><small>{pick?.tip || pick?.market || "Mercado protegido"}</small></span>
+              <strong>{pick?.odd || "-"}</strong>
+            </div>
+          ))}
+        </div>
+
+        <button type="button" onClick={onOpenBoost}>Abrir Oddix Boost</button>
+      </div>
+
+      <div className="oddix-v26-center">
+        <div className="oddix-v26-proof">
+          <div className="oddix-v26-section-title">
+            <span>🔥 RESULTADOS REAIS</span>
+            <h2>Prova social para vender o VIP</h2>
+          </div>
+          <div className="oddix-v26-proof-grid">
+            <V26Metric value={won || 0} label="Greens" tone="#22c55e" />
+            <V26Metric value={lost || 0} label="Reds" tone="#ef4444" />
+            <V26Metric value={`${winRate || 0}%`} label="Win rate" tone="#facc15" />
+            <V26Metric value={`${roi || 0}%`} label="ROI" tone="#a855f7" />
+            <V26Metric value={totalAnalyses || 0} label="Análises" tone="#38bdf8" />
+          </div>
+        </div>
+
+        <div className="oddix-v26-ranking">
+          <div className="oddix-v26-section-title compact">
+            <span>🏆 RANKING IA</span>
+            <h2>Top 5 entradas</h2>
+          </div>
+          <div className="oddix-v26-ranking-list">
+            {(safeTips.length ? safeTips : [{ game: "Aguardando jogos", tip: "Sem entrada", confidence: 0 }]).map((tip: any, index: number) => {
+              const conf = Math.min(100, safeNumber(tip?.confidence, 0));
+              return (
+                <div key={`${tip?.fixtureId || tip?.game || index}-v26-ranking`}>
+                  <em>{index + 1}</em>
+                  <span><b>{tip?.game || "Entrada Oddix"}</b><small>{tip?.tip || tip?.market || "Mercado IA"}</small></span>
+                  <strong>{conf}%</strong>
+                  <i><u style={{ width: `${conf}%` }} /></i>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="oddix-v26-heatmap">
+        <div className="oddix-v26-section-title compact">
+          <span>📊 HEATMAP</span>
+          <h2>Confiança IA</h2>
+        </div>
+
+        <div className="oddix-v26-heatmap-bars">
+          {heatmap.map((item) => {
+            const pct = Math.min(100, Math.max(12, item.value * 28));
+            return (
+              <div key={item.label}>
+                <div><span>{item.label}</span><b>{item.range}</b></div>
+                <i><u style={{ width: `${pct}%`, background: item.tone }} /></i>
+                <small>{item.value} entrada(s)</small>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="oddix-v26-vip-box">
+          <span>👑 FREE x VIP</span>
+          <p>O VIP recebe Top Picks, Boost, Player Props reais e alertas no WhatsApp.</p>
+          <button type="button" onClick={onVip}>Ver página VIP</button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function V26Metric({ value, label, tone }: { value: any; label: string; tone: string }) {
+  return (
+    <div className="oddix-v26-metric">
+      <strong style={{ color: tone }}>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
 
 const styles: Record<string, CSSProperties> = {
 
