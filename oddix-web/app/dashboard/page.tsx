@@ -4378,369 +4378,366 @@ export default function Dashboard() {
         }
 
 
-
-        /* ODDIX V26.1 COMPACT VIEW - reduz zoom visual e enquadra o dashboard */
+        /* ODDIX V26.2 - FRAME FIT + SIDEBAR TEXT FIX
+           Reduz altura real do Hero/Bilhete, elimina espaço vazio abaixo,
+           corrige sidebar com textos grandes/quebrados e evita cortes laterais. */
         .oddix-dashboard {
-          font-size: 13.5px !important;
+          --oddix-side-fixed-w: 190px !important;
+          padding-left: 206px !important;
           overflow-x: hidden !important;
         }
 
-        .oddix-top-header {
-          min-height: 60px !important;
-          padding: 0 18px !important;
-        }
-
-        .oddix-brand {
-          width: 142px !important;
-          height: 52px !important;
-          border-radius: 16px !important;
-        }
-
-        .oddix-brand img {
-          height: 44px !important;
-          max-width: 124px !important;
-        }
-
-        .oddix-header-actions button,
-        .oddix-sports-rail button,
-        .oddix-tabs button {
-          min-height: 32px !important;
-          padding: 0 11px !important;
-          font-size: 11px !important;
-          border-radius: 999px !important;
-        }
-
-        .oddix-sports-rail {
-          top: 60px !important;
-          min-height: 44px !important;
-          padding: 6px 18px !important;
-        }
-
-        .oddix-hero-grid,
-        .oddix-top-widgets,
-        .oddix-v26-conversion,
-        .oddix-featured-strip,
-        .oddix-tabs-wrapper,
-        .oddix-layout,
-        .oddix-footer,
-        .oddix-top-pick-hero,
-        .oddix-vip-results,
-        .oddix-marketing-banner,
-        .oddix-vip-marketing-strip,
-        .oddix-premium-ticket,
-        .oddix-player-props-home-section {
-          width: min(1500px, calc(100% - 28px)) !important;
-          margin-left: auto !important;
-          margin-right: auto !important;
-        }
-
-        .oddix-hero-grid {
-          grid-template-columns: minmax(0, 1fr) 260px !important;
-          gap: 14px !important;
-          margin-top: 14px !important;
-          margin-bottom: 14px !important;
-        }
-
-        .oddix-hero-main {
-          min-height: 430px !important;
-          height: 430px !important;
-          grid-template-columns: minmax(320px, .9fr) minmax(390px, 1.05fr) !important;
-          padding: 26px 28px 42px !important;
-          border-radius: 24px !important;
-        }
-
-        .oddix-hero-text h1,
-        .oddix-hero-text h1[style] {
-          font-size: clamp(34px, 4.6vw, 68px) !important;
-          line-height: .9 !important;
-          letter-spacing: -2.8px !important;
-          margin: 8px 0 12px !important;
-        }
-
-        .oddix-hero-text p,
-        .oddix-hero-text p[style] {
-          font-size: 14px !important;
-          line-height: 1.36 !important;
-          max-width: 440px !important;
-        }
-
-        .oddix-hero-player {
-          height: 410px !important;
-          right: 0 !important;
-          bottom: -6px !important;
-          transform: scale(1.02) !important;
-        }
-
-        .oddix-vip-panel {
-          min-height: 430px !important;
-          padding: 22px 18px !important;
-          border-radius: 24px !important;
-        }
-
-        .oddix-vip-panel strong {
-          font-size: 42px !important;
-        }
-
-        .oddix-top-pick-hero {
-          min-height: 118px !important;
-          grid-template-columns: 105px minmax(260px,.92fr) minmax(250px,1fr) 330px !important;
-          gap: 12px !important;
-          padding: 14px !important;
-          border-radius: 20px !important;
-        }
-
-        .oddix-v26-conversion {
-          display: grid !important;
-          grid-template-columns: 1.05fr 1fr .85fr !important;
-          gap: 14px !important;
-          margin-bottom: 14px !important;
-        }
-
-        .oddix-v26-ticket,
-        .oddix-v26-proof,
-        .oddix-v26-ranking,
-        .oddix-v26-heatmap,
-        .oddix-v26-vip-box {
-          padding: 16px !important;
-          border-radius: 20px !important;
-        }
-
-        .oddix-v26-section-title h2,
-        .oddix-v26-section-title.compact h2 {
-          font-size: 18px !important;
-          line-height: 1.05 !important;
-        }
-
-        .oddix-v26-return strong {
-          font-size: 48px !important;
-          line-height: .9 !important;
-        }
-
-        .oddix-v26-ticket-grid,
-        .oddix-v26-proof-grid {
+        .oddix-side-menu {
+          width: var(--oddix-side-fixed-w) !important;
+          left: 10px !important;
+          top: 88px !important;
+          bottom: 14px !important;
+          padding: 12px 10px !important;
           gap: 8px !important;
+          border-radius: 20px !important;
         }
 
-        .oddix-v26-metric {
-          padding: 12px !important;
+        .oddix-side-menu-title {
+          font-size: 8.5px !important;
+          letter-spacing: .7px !important;
+          padding: 0 4px 2px !important;
+        }
+
+        .oddix-side-menu-group {
+          gap: 6px !important;
+        }
+
+        .oddix-side-menu button,
+        .oddix-side-menu a {
+          min-height: 34px !important;
+          height: 34px !important;
+          padding: 0 8px !important;
+          gap: 7px !important;
+          border-radius: 11px !important;
+          font-size: 9.5px !important;
+          line-height: 1 !important;
+          letter-spacing: -.1px !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+
+        .oddix-side-menu button span:last-child,
+        .oddix-side-menu a span:last-child {
+          display: block !important;
+          min-width: 0 !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          white-space: nowrap !important;
+        }
+
+        .oddix-side-menu button span:first-child,
+        .oddix-side-menu a span:first-child {
+          width: 20px !important;
+          height: 20px !important;
+          min-width: 20px !important;
+          border-radius: 7px !important;
+          font-size: 11px !important;
+        }
+
+        .oddix-side-box {
+          padding: 9px !important;
           border-radius: 14px !important;
         }
 
-        .oddix-v26-metric strong {
-          font-size: 24px !important;
+        .oddix-side-box h4 {
+          font-size: 10px !important;
+          margin-bottom: 6px !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
         }
 
-        #oddix-games.oddix-layout,
-        .oddix-layout {
-          grid-template-columns: 210px minmax(0, 1fr) !important;
-          gap: 14px !important;
-          margin-top: 14px !important;
-        }
-
-        .oddix-sidebar {
-          top: 118px !important;
-          gap: 10px !important;
-          max-height: calc(100vh - 128px) !important;
-          overflow-y: auto !important;
-          scrollbar-width: thin !important;
-        }
-
-        .oddix-sidebar > div,
-        .oddix-sidebar [style*="padding"] {
-          border-radius: 18px !important;
-        }
-
-        .oddix-sidebar h3 {
-          font-size: 13px !important;
-          margin: 0 0 8px !important;
-        }
-
-        .oddix-sidebar p,
-        .oddix-sidebar span,
-        .oddix-sidebar label {
-          font-size: 11px !important;
-        }
-
-        .oddix-main-content {
-          min-width: 0 !important;
-          overflow: visible !important;
-        }
-
-        .oddix-games-grid,
-        .oddix-featured-strip {
-          grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)) !important;
-          gap: 12px !important;
-          padding: 6px !important;
-        }
-
-        .oddix-game-card-v25 {
-          min-height: 292px !important;
-          padding: 13px !important;
-          border-radius: 18px !important;
-        }
-
-        .oddix-card-v25-top {
-          margin-bottom: 8px !important;
-        }
-
-        .oddix-card-v25-badge,
-        .oddix-card-v25-badge-live,
-        .oddix-card-v25-premium {
-          padding: 6px 8px !important;
-          font-size: 8.5px !important;
-        }
-
-        .oddix-card-v25-league {
-          margin-bottom: 10px !important;
+        .oddix-side-box p {
           font-size: 9.5px !important;
+          line-height: 1.18 !important;
+          margin-bottom: 7px !important;
         }
 
-        .oddix-card-v25-match {
-          grid-template-columns: minmax(0,1fr) 58px minmax(0,1fr) !important;
-          gap: 7px !important;
+        .oddix-side-search {
+          gap: 6px !important;
+        }
+
+        .oddix-side-search input,
+        .oddix-side-search select {
+          height: 30px !important;
+          font-size: 9.5px !important;
+          border-radius: 9px !important;
+          padding: 0 8px !important;
+        }
+
+        .oddix-side-stat-row {
+          padding: 5px 0 !important;
+          font-size: 9.5px !important;
+          line-height: 1.1 !important;
+        }
+
+        .oddix-side-cta {
+          height: 32px !important;
+          min-height: 32px !important;
+          font-size: 10px !important;
+          border-radius: 10px !important;
+        }
+
+        .oddix-hero-grid {
+          grid-template-columns: minmax(0, 1fr) clamp(240px, 20vw, 292px) !important;
+          gap: 14px !important;
+          margin: 14px 18px 12px !important;
+          align-items: start !important;
+        }
+
+        .oddix-hero-main {
+          min-height: 340px !important;
+          height: 340px !important;
+          max-height: 340px !important;
+          grid-template-columns: minmax(390px, .66fr) minmax(260px, .34fr) !important;
+          padding: 20px 22px 0 !important;
+          align-items: center !important;
+          overflow: hidden !important;
+          border-radius: 24px !important;
+        }
+
+        .oddix-hero-text {
+          align-self: center !important;
+          max-width: 560px !important;
+          padding-bottom: 8px !important;
+        }
+
+        .oddix-hero-text h1 {
+          max-width: 560px !important;
+          font-size: clamp(30px, 3.05vw, 46px) !important;
+          line-height: .98 !important;
+          letter-spacing: -1.2px !important;
+          margin: 8px 0 8px !important;
+        }
+
+        .oddix-hero-text p {
+          max-width: 500px !important;
+          font-size: 12px !important;
+          line-height: 1.25 !important;
+          margin-bottom: 10px !important;
+        }
+
+        .oddix-hero-text > div[style*="margin-top: 22px"] {
+          max-width: 430px !important;
+          margin-top: 10px !important;
           padding: 10px !important;
           border-radius: 15px !important;
         }
 
-        .oddix-card-v25-team img {
-          width: 42px !important;
-          height: 42px !important;
-          padding: 5px !important;
+        .oddix-hero-text > div[style*="margin-top: 22px"] strong {
+          font-size: clamp(16px, 1.5vw, 22px) !important;
+          line-height: 1 !important;
         }
 
-        .oddix-card-v25-team strong {
-          font-size: 11px !important;
-          line-height: 1.05 !important;
+        .oddix-hero-text > div[style*="margin-top: 22px"] > div[style*="repeat(4"] {
+          gap: 6px !important;
         }
 
-        .oddix-card-v25-score {
-          min-height: 58px !important;
-          border-radius: 14px !important;
+        .oddix-hero-text > div[style*="margin-top: 22px"] > div[style*="repeat(4"] > div {
+          padding: 7px 5px !important;
+          min-height: 44px !important;
         }
 
-        .oddix-card-v25-score span {
-          font-size: 17px !important;
-        }
-
-        .oddix-card-v25-pick {
-          margin-top: 10px !important;
-          padding: 10px !important;
-          border-radius: 14px !important;
-        }
-
-        .oddix-card-v25-pick strong {
-          font-size: 14px !important;
-          line-height: 1.08 !important;
-        }
-
-        .oddix-card-v25-confidence,
-        .oddix-card-v25-metrics,
-        .oddix-card-v25-actions {
+        .oddix-hero-stats {
+          grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+          gap: 6px !important;
           margin-top: 10px !important;
         }
 
-        .oddix-card-v25-metrics {
-          gap: 8px !important;
+        .oddix-hero-stats .oddix-info-metric {
+          min-height: 42px !important;
+          padding: 6px 4px !important;
+          border-radius: 10px !important;
         }
 
-        .oddix-card-v25-metrics strong {
+        .oddix-hero-stats .oddix-info-metric strong {
           font-size: 15px !important;
         }
 
-        .oddix-card-v25-actions button {
-          min-height: 34px !important;
-          padding: 0 10px !important;
-          font-size: 11px !important;
+        .oddix-hero-stats .oddix-info-metric span {
+          font-size: 7px !important;
+          line-height: 1 !important;
+        }
+
+        .oddix-hero-player-box {
+          min-height: 330px !important;
+          height: 330px !important;
+          max-height: 330px !important;
+          align-self: end !important;
+        }
+
+        .oddix-hero-player {
+          height: 310px !important;
+          max-height: 310px !important;
+          right: 0 !important;
+          bottom: 0 !important;
+          object-fit: contain !important;
+          object-position: center bottom !important;
+        }
+
+        .oddix-vip-panel.oddix-boost-ticket,
+        .oddix-boost-ticket-v21 {
+          min-height: 340px !important;
+          height: 340px !important;
+          max-height: 340px !important;
+          padding: 18px 14px !important;
+          border-radius: 24px !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-boost-ticket-v22-return {
+          margin-top: 10px !important;
+          padding: 12px 10px !important;
+          border-radius: 15px !important;
+        }
+
+        .oddix-boost-ticket-v22-return strong {
+          font-size: clamp(34px, 3vw, 46px) !important;
+          letter-spacing: -1.5px !important;
+        }
+
+        .oddix-boost-mini-grid {
+          gap: 8px !important;
+          margin-top: 10px !important;
+        }
+
+        .oddix-boost-mini-metric {
+          min-height: 64px !important;
+          padding: 9px 7px !important;
           border-radius: 12px !important;
         }
 
-        .oddix-player-props-home-section {
-          padding: 16px !important;
-          border-radius: 22px !important;
-          margin-bottom: 14px !important;
+        .oddix-boost-mini-metric span {
+          font-size: 7.5px !important;
+          letter-spacing: .35px !important;
         }
 
-        .oddix-player-props-home-grid {
+        .oddix-boost-mini-metric strong {
+          font-size: clamp(25px, 2.25vw, 34px) !important;
+          letter-spacing: -1.2px !important;
+        }
+
+        .oddix-vip-panel.oddix-boost-ticket [style*="gap: 10px"],
+        .oddix-boost-ticket-v21 [style*="gap: 10px"] {
+          gap: 7px !important;
+        }
+
+        .oddix-vip-panel.oddix-boost-ticket [style*="padding: 12px"],
+        .oddix-boost-ticket-v21 [style*="padding: 12px"] {
+          padding: 8px !important;
+        }
+
+        .oddix-vip-results {
+          margin-top: 0 !important;
+          margin-bottom: 14px !important;
+          padding: 14px !important;
+        }
+
+        .oddix-vip-results h2,
+        .oddix-vip-results strong {
+          font-size: clamp(18px, 1.5vw, 24px) !important;
+          line-height: 1.05 !important;
+        }
+
+        .oddix-featured-strip,
+        .oddix-games-grid {
           gap: 12px !important;
         }
 
-        .oddix-player-prop-card-v17 {
-          min-height: 270px !important;
+        .oddix-game-card-v25 {
+          min-height: 300px !important;
+          padding: 14px !important;
+          border-radius: 20px !important;
         }
 
-        .oddix-footer {
-          padding: 18px !important;
-          border-radius: 22px !important;
+        #oddix-games.oddix-layout {
+          margin-top: 12px !important;
+          margin-left: 18px !important;
+          margin-right: 18px !important;
         }
 
-        @media (max-width: 1180px) {
-          .oddix-hero-grid,
-          .oddix-v26-conversion,
-          #oddix-games.oddix-layout,
-          .oddix-layout {
-            grid-template-columns: 1fr !important;
+        @media (max-width: 1360px) {
+          .oddix-dashboard {
+            --oddix-side-fixed-w: 178px !important;
+            padding-left: 194px !important;
           }
 
-          .oddix-hero-main {
-            height: auto !important;
-            min-height: 360px !important;
-            grid-template-columns: 1fr !important;
+          .oddix-side-menu {
+            width: var(--oddix-side-fixed-w) !important;
+          }
+
+          .oddix-side-menu button,
+          .oddix-side-menu a {
+            font-size: 9px !important;
+            gap: 6px !important;
+          }
+
+          .oddix-side-menu button span:first-child,
+          .oddix-side-menu a span:first-child {
+            width: 19px !important;
+            height: 19px !important;
+            min-width: 19px !important;
+          }
+
+          .oddix-hero-grid {
+            grid-template-columns: minmax(0, 1fr) 260px !important;
+          }
+
+          .oddix-hero-main,
+          .oddix-vip-panel.oddix-boost-ticket,
+          .oddix-boost-ticket-v21 {
+            min-height: 320px !important;
+            height: 320px !important;
+            max-height: 320px !important;
+          }
+
+          .oddix-hero-text h1 {
+            font-size: clamp(28px, 3vw, 42px) !important;
           }
 
           .oddix-hero-player-box {
-            height: 250px !important;
+            min-height: 310px !important;
+            height: 310px !important;
+            max-height: 310px !important;
           }
 
           .oddix-hero-player {
-            height: 280px !important;
-            position: relative !important;
-            transform: none !important;
-          }
-
-          .oddix-sidebar {
-            position: relative !important;
-            top: auto !important;
-            max-height: none !important;
-            display: grid !important;
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            height: 292px !important;
+            max-height: 292px !important;
           }
         }
 
-        @media (max-width: 760px) {
-          .oddix-hero-grid,
-          .oddix-top-widgets,
-          .oddix-v26-conversion,
-          .oddix-featured-strip,
-          .oddix-tabs-wrapper,
-          .oddix-layout,
-          .oddix-footer,
-          .oddix-top-pick-hero,
-          .oddix-vip-results,
-          .oddix-marketing-banner,
-          .oddix-vip-marketing-strip,
-          .oddix-premium-ticket,
-          .oddix-player-props-home-section {
-            width: calc(100% - 20px) !important;
+        @media (max-width: 1180px) {
+          .oddix-dashboard {
+            padding-left: 0 !important;
           }
 
-          .oddix-sidebar {
+          .oddix-hero-grid {
             grid-template-columns: 1fr !important;
           }
 
-          .oddix-hero-main {
-            padding: 22px 16px 0 !important;
-            text-align: center !important;
+          .oddix-hero-main,
+          .oddix-vip-panel.oddix-boost-ticket,
+          .oddix-boost-ticket-v21 {
+            height: auto !important;
+            max-height: none !important;
+            min-height: auto !important;
           }
 
-          .oddix-hero-text h1,
-          .oddix-hero-text h1[style] {
-            font-size: 28px !important;
-            letter-spacing: -1px !important;
+          .oddix-hero-player-box {
+            min-height: 240px !important;
+            height: 240px !important;
           }
 
-          .oddix-games-grid,
-          .oddix-featured-strip {
-            grid-template-columns: 1fr !important;
+          .oddix-hero-player {
+            height: 260px !important;
+            max-height: 260px !important;
           }
         }
 
