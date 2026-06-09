@@ -5159,6 +5159,198 @@ export default function Dashboard() {
           }
         }
 
+
+
+        /* ODDIX V26.4 DEVICE FIT + TOP PICK ALIGNMENT FIX */
+        .oddix-dashboard {
+          overflow-x: hidden !important;
+        }
+
+        .oddix-dashboard * {
+          box-sizing: border-box !important;
+        }
+
+        .oddix-shell,
+        .oddix-content,
+        .oddix-main,
+        .oddix-dashboard-body {
+          min-width: 0 !important;
+          max-width: 100% !important;
+        }
+
+        .oddix-layout {
+          grid-template-columns: clamp(148px, 12vw, 205px) minmax(0, 1fr) !important;
+          gap: clamp(12px, 1.3vw, 18px) !important;
+          align-items: start !important;
+        }
+
+        .oddix-sidebar {
+          width: 100% !important;
+          min-width: 0 !important;
+          max-width: clamp(148px, 12vw, 205px) !important;
+          padding: clamp(10px, .85vw, 14px) !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-sidebar button,
+        .oddix-sidebar a,
+        .oddix-sidebar input,
+        .oddix-sidebar select,
+        .oddix-sidebar span,
+        .oddix-sidebar strong,
+        .oddix-sidebar small,
+        .oddix-sidebar p {
+          max-width: 100% !important;
+          min-width: 0 !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          white-space: nowrap !important;
+          font-size: clamp(8px, .62vw, 11px) !important;
+          line-height: 1.15 !important;
+        }
+
+        .oddix-sidebar input,
+        .oddix-sidebar select {
+          height: clamp(28px, 2.2vw, 36px) !important;
+          padding: 0 clamp(8px, .8vw, 12px) !important;
+        }
+
+        .oddix-sidebar button {
+          min-height: clamp(28px, 2.2vw, 36px) !important;
+          padding: 0 clamp(8px, .8vw, 12px) !important;
+        }
+
+        .oddix-top-pick-hero {
+          width: 100% !important;
+          max-width: 100% !important;
+          min-height: unset !important;
+          height: auto !important;
+          margin: clamp(10px, 1.1vw, 16px) 0 !important;
+          padding: clamp(12px, 1.2vw, 18px) !important;
+          display: grid !important;
+          grid-template-columns: minmax(120px, .55fr) minmax(230px, .9fr) minmax(260px, 1.35fr) minmax(320px, 1.1fr) !important;
+          gap: clamp(10px, 1vw, 16px) !important;
+          align-items: center !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-top-pick-hero > * {
+          min-width: 0 !important;
+          max-width: 100% !important;
+        }
+
+        .oddix-top-pick-hero strong,
+        .oddix-top-pick-hero span,
+        .oddix-top-pick-hero small {
+          min-width: 0 !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+
+        .oddix-top-pick-hero > div:first-of-type {
+          display: grid !important;
+          grid-template-columns: 38px minmax(0, 1fr) !important;
+          gap: 10px !important;
+          align-items: center !important;
+          color: #facc15 !important;
+        }
+
+        .oddix-top-pick-hero > div:first-of-type > div {
+          width: 38px !important;
+          height: 38px !important;
+          border-radius: 12px !important;
+          font-size: 20px !important;
+        }
+
+        .oddix-top-pick-hero > div:first-of-type strong {
+          display: block !important;
+          white-space: normal !important;
+          font-size: clamp(13px, .95vw, 17px) !important;
+          line-height: 1.05 !important;
+          letter-spacing: .2px !important;
+        }
+
+        .oddix-top-pick-hero img {
+          max-width: 100% !important;
+          object-fit: contain !important;
+        }
+
+        .oddix-top-pick-hero [style*="grid-template-columns: 86px"] {
+          grid-template-columns: clamp(44px, 4.6vw, 64px) minmax(0, 1fr) clamp(44px, 4.6vw, 64px) !important;
+          gap: clamp(8px, .8vw, 12px) !important;
+        }
+
+        .oddix-top-pick-hero [style*="width: 82px"] {
+          width: clamp(44px, 4.6vw, 64px) !important;
+          height: clamp(44px, 4.6vw, 64px) !important;
+          border-radius: 14px !important;
+          padding: 6px !important;
+        }
+
+        .oddix-top-pick-hero [style*="grid-template-columns: 1fr 1fr 1fr 178px"] {
+          grid-template-columns: repeat(3, minmax(72px, 1fr)) minmax(130px, .95fr) !important;
+          gap: 8px !important;
+        }
+
+        .oddix-top-pick-hero [style*="grid-template-columns: 1fr 1fr 1fr 178px"] > div,
+        .oddix-top-pick-hero [style*="grid-template-columns: 1fr 1fr 1fr 178px"] > button {
+          min-width: 0 !important;
+          padding: clamp(9px, .85vw, 12px) !important;
+        }
+
+        .oddix-top-pick-hero button {
+          white-space: normal !important;
+          font-size: clamp(9px, .7vw, 11px) !important;
+          line-height: 1.05 !important;
+        }
+
+        .oddix-top-pick-hero [style*="padding: 18px 20px"] {
+          padding: clamp(12px, 1vw, 16px) !important;
+        }
+
+        @media (max-width: 1380px) {
+          .oddix-top-pick-hero {
+            grid-template-columns: minmax(110px, .55fr) minmax(210px, .95fr) minmax(250px, 1.25fr) minmax(270px, 1fr) !important;
+          }
+        }
+
+        @media (max-width: 1180px) {
+          .oddix-layout {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-sidebar {
+            max-width: 100% !important;
+            position: relative !important;
+            top: auto !important;
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 10px !important;
+          }
+
+          .oddix-top-pick-hero {
+            grid-template-columns: 1fr 1fr !important;
+          }
+
+          .oddix-top-pick-hero > div:first-of-type {
+            grid-column: 1 / -1 !important;
+          }
+        }
+
+        @media (max-width: 760px) {
+          .oddix-sidebar {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-top-pick-hero {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-top-pick-hero [style*="grid-template-columns: 1fr 1fr 1fr 178px"] {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
@@ -6804,7 +6996,7 @@ function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
 
       <div style={styles.topPickStarBlock}>
         <div style={styles.topPickStarIcon}>⭐</div>
-        <strong>TOP<br />PICK DO DIA</strong>
+        <strong>TOP PICK DO DIA</strong>
       </div>
 
       <div style={styles.topPickMatchBlockPremium}>
@@ -7782,7 +7974,7 @@ function VipResultsSection({ won, lost, roi, recentBets, onUpgrade }: { won: num
                 placeItems: "center",
                 background: "linear-gradient(135deg, #facc15, #f97316)",
                 color: "#111827",
-                fontSize: 28,
+                fontSize: 20,
                 boxShadow: "0 16px 40px rgba(250,204,21,.28)",
               }}
             >
@@ -8148,7 +8340,7 @@ const styles: Record<string, CSSProperties> = {
   },
   playerPropsHomeTitle: {
     margin: "6px 0 4px",
-    fontSize: 28,
+    fontSize: 20,
     lineHeight: 1,
     fontWeight: 950,
   },
@@ -8915,8 +9107,8 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
   },
   matchTeamBigLogo: {
-    width: 58,
-    height: 58,
+    width: 38,
+    height: 38,
     objectFit: "contain",
     background: "rgba(255,255,255,.14)",
     borderRadius: 18,
@@ -9841,7 +10033,7 @@ const styles: Record<string, CSSProperties> = {
   },
   analysisTitle: {
     margin: "8px 0 4px",
-    fontSize: 28,
+    fontSize: 20,
   },
   muted: {
     color: "#6b7280",
@@ -9878,8 +10070,8 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
   },
   teamLogo: {
-    width: 58,
-    height: 58,
+    width: 38,
+    height: 38,
     objectFit: "contain",
   },
   bigScore: {
@@ -10279,7 +10471,7 @@ const styles: Record<string, CSSProperties> = {
   },
   hotEntriesTitle: {
     margin: "8px 0 6px",
-    fontSize: 28,
+    fontSize: 20,
     lineHeight: 1.05,
     fontWeight: 1000,
   },
@@ -10648,11 +10840,11 @@ Object.assign(styles, {
   },
 
   topPickHeroPremium: {
-    minHeight: 156,
-    margin: "0 26px 22px",
-    padding: "22px 24px",
+    minHeight: 126,
+    margin: "12px 0 16px",
+    padding: "16px 18px",
     display: "grid",
-    gridTemplateColumns: "150px minmax(340px,.95fr) minmax(310px,1fr) 430px",
+    gridTemplateColumns: "minmax(120px,.55fr) minmax(230px,.9fr) minmax(260px,1.35fr) minmax(320px,1.1fr)",
     alignItems: "center",
     gap: 18,
     borderRadius: 24,
@@ -10669,37 +10861,37 @@ Object.assign(styles, {
     alignItems: "center",
     gap: 14,
     color: "#F7C948",
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: 1000,
     lineHeight: 1.05,
   },
 
   topPickStarIcon: {
-    width: 58,
-    height: 58,
+    width: 38,
+    height: 38,
     borderRadius: 18,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     background: "rgba(247,201,72,.12)",
     border: "1px solid rgba(247,201,72,.28)",
-    fontSize: 28,
+    fontSize: 20,
   },
 
   topPickMatchBlockPremium: {
     display: "grid",
-    gridTemplateColumns: "86px minmax(0,1fr) 86px",
+    gridTemplateColumns: "58px minmax(0,1fr) 58px",
     alignItems: "center",
     gap: 16,
     minWidth: 0,
   },
 
   topPickLogoPremium: {
-    width: 82,
-    height: 82,
+    width: 56,
+    height: 56,
     objectFit: "contain",
-    borderRadius: 22,
-    padding: 10,
+    borderRadius: 14,
+    padding: 6,
     background: "rgba(255,255,255,.08)",
     border: "1px solid rgba(255,255,255,.14)",
     filter: "drop-shadow(0 0 14px rgba(255,255,255,.16))",
@@ -10717,7 +10909,7 @@ Object.assign(styles, {
 
   topPickCenterPremium: {
     borderRadius: 18,
-    padding: "18px 20px",
+    padding: "14px 16px",
     background: "linear-gradient(135deg,rgba(255,255,255,.09),rgba(255,255,255,.035))",
     border: "1px solid rgba(247,201,72,.24)",
     display: "flex",
@@ -10727,7 +10919,7 @@ Object.assign(styles, {
 
   topPickRightPremium: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr 178px",
+    gridTemplateColumns: "repeat(3,minmax(72px,1fr)) minmax(130px,.95fr)",
     gap: 10,
     alignItems: "stretch",
   },
@@ -10768,7 +10960,7 @@ Object.assign(styles, {
   topPickButtonPremium: {
     border: 0,
     borderRadius: 18,
-    padding: "14px 18px",
+    padding: "11px 12px",
     background: "linear-gradient(135deg,#F7C948,#fff7ad,#fb923c)",
     color: "#07070D",
     fontWeight: 1000,
