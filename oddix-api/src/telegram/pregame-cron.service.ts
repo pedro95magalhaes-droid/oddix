@@ -241,15 +241,29 @@ export class PregameCronService {
 
   private stageFor(minutes: number): PregameStage | null {
     const earlyMin = Number(process.env.ODDIX_PREGAME_EARLY_MIN || 120);
-    const earlyMax = Number(process.env.ODDIX_PREGAME_EARLY_MAX || 240);
-    const mainMin = Number(process.env.ODDIX_PREGAME_MAIN_MIN || 45);
-    const mainMax = Number(process.env.ODDIX_PREGAME_MAIN_MAX || 120);
-    const finalMin = Number(process.env.ODDIX_PREGAME_FINAL_MIN || 10);
-    const finalMax = Number(process.env.ODDIX_PREGAME_FINAL_MAX || 45);
+    const earlyMax = Number(process.env.ODDIX_PREGAME_EARLY_MAX || 360);
+    const mainMin = Number(process.env.ODDIX_PREGAME_MAIN_MIN || 30);
+    const mainMax = Number(process.env.ODDIX_PREGAME_MAIN_MAX || 180);
+    const finalMin = Number(process.env.ODDIX_PREGAME_FINAL_MIN || 1);
+    const finalMax = Number(process.env.ODDIX_PREGAME_FINAL_MAX || 60);
+    const anyMin = Number(process.env.ODDIX_PREGAME_ANY_MIN || 1);
+    const anyMax = Number(process.env.ODDIX_PREGAME_ANY_MAX || 1440);
+    const allowAnyWindow =
+      String(process.env.ODDIX_PREGAME_ALLOW_ANY_WINDOW || "true").toLowerCase() ===
+      "true";
 
-    if (minutes >= earlyMin && minutes <= earlyMax) return "early";
-    if (minutes >= mainMin && minutes <= mainMax) return "main";
+    if (!Number.isFinite(minutes) || minutes <= 0) return null;
+
     if (minutes >= finalMin && minutes <= finalMax) return "final";
+    if (minutes >= mainMin && minutes <= mainMax) return "main";
+    if (minutes >= earlyMin && minutes <= earlyMax) return "early";
+
+    // Fallback para não deixar o cron zerado quando os jogos ficam fora das
+    // três janelas exatas. Mantém o controle por ENV e evita o problema:
+    // fixtures > pregame > elegíveis=0 por causa de janela apertada.
+    if (allowAnyWindow && minutes >= anyMin && minutes <= anyMax) {
+      return minutes <= mainMax ? "main" : "early";
+    }
 
     return null;
   }
@@ -294,6 +308,53 @@ export class PregameCronService {
     if (score <= -100) return false;
 
     return !this.priorityOnly();
+  }
+
+  private explainCandidateBlock(game: any) {
+    const minutes = this.minutesToStart(game);
+    const stage = this.stageFor(minutes);
+    const leagueScore = this.leagueScore(game);
+    const priorityOk = this.isPriorityGame(game);
+    const league = game?.league?.name || "Liga";
+    const home = game?.teams?.home?.name || "Casa";
+    const away = game?.teams?.away?.name || "Fora";
+
+    if (!stage) {
+      return {
+        ok: false,
+        reason: `fora da janela: ${minutes}min`,
+        minutes,
+        stage,
+        leagueScore,
+        priorityOk,
+        label: `${home} x ${away} (${league})`,
+      };
+    }
+
+    if (!priorityOk) {
+      return {
+        ok: false,
+        reason:
+          leagueScore <= -100
+            ? `liga bloqueada/filtro: score=${leagueScore}`
+            : `priorityOnly ativo: score=${leagueScore}`,
+        minutes,
+        stage,
+        leagueScore,
+        priorityOk,
+        label: `${home} x ${away} (${league})`,
+      };
+    }
+
+    return {
+      ok: true,
+      reason: "elegível",
+      minutes,
+      stage,
+      leagueScore,
+      priorityOk,
+      label: `${home} x ${away} (${league})`,
+    };
   }
 
   private cleanTip(tip: any) {
@@ -600,12 +661,19 @@ export class PregameCronService {
       );
 
       this.logger.log(
-        `📅 Pré-jogo scan ${date}: fixtures=${fixtures?.length || 0} | pregame=${allPregame.length} | elegíveis=${candidatesBeforeLimit.length} | maxPerRun=${this.maxPerRun()}`,
+        `📅 Pré-jogo scan ${date}: fixtures=${fixtures?.length || 0} | pregame=${allPregame.length} | elegíveis=${candidatesBeforeLimit.length} | maxPerRun=${this.maxPerRun()} | priorityOnly=${this.priorityOnly()} | anyWindow=${process.env.ODDIX_PREGAME_ALLOW_ANY_WINDOW || "true"}`,
       );
 
       if (!candidates.length) {
+        allPregame.slice(0, 8).forEach((game: any) => {
+          const debug = this.explainCandidateBlock(game);
+          this.logger.log(
+            `🔎 Pré-jogo debug: ${debug.label} | minutos=${debug.minutes} | stage=${debug.stage || "none"} | leagueScore=${debug.leagueScore} | priorityOk=${debug.priorityOk} | motivo=${debug.reason}`,
+          );
+        });
+
         this.logger.log(
-          "⏭️ Pré-jogo: nenhum jogo elegível na janela atual. Verifique janelas ODDIX_PREGAME_*_MIN/MAX, PRIORITY_ONLY e filtros de liga.",
+          "⏭️ Pré-jogo: nenhum jogo elegível. Agora o log acima mostra se foi janela, PRIORITY_ONLY ou filtro de liga.",
         );
         return;
       }
