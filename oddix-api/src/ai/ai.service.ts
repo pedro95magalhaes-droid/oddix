@@ -84,7 +84,7 @@ export class AiService {
     };
 
     const minimumProfessionalScore = Number(
-      process.env.ODDIX_PROFESSIONAL_MIN_SCORE || 75,
+      process.env.ODDIX_PROFESSIONAL_MIN_SCORE || 70,
     );
 
     if (
@@ -381,7 +381,8 @@ export class AiService {
         )
         .filter(
           (market: any) =>
-            market.oddixEngine?.send || Number(market.confidence || 0) >= 80,
+            market.oddixEngine?.send ||
+            Number(market.confidence || 0) >= Number(context.minSendConfidence || 76),
         ),
       {
         isLive: context.isLive,
@@ -727,8 +728,9 @@ export class AiService {
     const attackScore = this.clamp(((homeGoalsFor + awayGoalsFor) / 3.7) * 18 + (over25Rate >= 60 ? 2 : 0), 6, 20);
     const defenseScore = this.clamp((2.8 - Math.min(2.8, (homeGoalsAgainst + awayGoalsAgainst) / 2)) * 6.4 + 6 + (bttsRate <= 45 && bttsRate > 0 ? 2 : 0), 6, 20);
     const formScore = this.clamp((homeForm + awayForm) / 2 + Math.min(4, formEdge / 2), 6, 20);
-    const homeAwayScore = this.clamp(10 + (homeForm - awayForm) * 0.25 + (leagueQuality >= 80 ? 3 : 0), 5, 15);
-    const momentScore = this.clamp((leagueQuality / 100) * 12 + (context.realStatsAvailable ? 3 : 0), 4, 15);
+    const leagueBoost = leagueQuality >= 90 ? 10 : leagueQuality >= 80 ? 6 : leagueQuality >= 70 ? 3 : 0;
+    const homeAwayScore = this.clamp(10 + (homeForm - awayForm) * 0.25 + Math.min(5, leagueBoost * 0.5), 5, 15);
+    const momentScore = this.clamp((leagueQuality / 100) * 12 + (context.realStatsAvailable ? 3 : 0) + Math.min(5, leagueBoost * 0.5), 4, 18);
 
     const h2hScore = hasH2h
       ? this.clamp(7 + (h2hTotalMatches >= 5 ? 3 : 0) + (h2hOver25Rate >= 60 ? 3 : 0) + (h2hBttsRate >= 55 ? 2 : 0), 5, 15)
@@ -750,18 +752,18 @@ export class AiService {
     const hasRealOdds =
       realOddsOptions.some((option: any) => Number(option?.odd || option?.ímpar || option?.rate?.decimal || 0) > 1) ||
       game?.preMatchStats?.odds?.available === true;
-    const oddValueScore = hasRealOdds ? 10 : leagueQuality >= 82 ? 7 : 4;
+    const oddValueScore = hasRealOdds ? 10 : leagueQuality >= 90 ? 9 : leagueQuality >= 80 ? 7 : leagueQuality >= 70 ? 6 : 4;
 
-    const rawScore = formScore + attackScore + defenseScore + homeAwayScore + momentScore + h2hScore + marketDataScore + oddValueScore;
+    const rawScore = formScore + attackScore + defenseScore + homeAwayScore + momentScore + h2hScore + marketDataScore + oddValueScore + leagueBoost;
 
     const missingDataPenalty =
-      (!hasHomeForm || !hasAwayForm ? 8 : 0) +
-      (!hasGoalsFor ? 7 : 0) +
-      (!hasGoalsAgainst ? 5 : 0) +
-      (!hasH2h ? 8 : 0) +
-      (!hasRealOdds ? 5 : 0) +
-      (!hasBtts ? 3 : 0) +
-      (!hasOver25 ? 3 : 0);
+      (!hasHomeForm || !hasAwayForm ? 4 : 0) +
+      (!hasGoalsFor ? 3 : 0) +
+      (!hasGoalsAgainst ? 2 : 0) +
+      (!hasH2h ? 4 : 0) +
+      (!hasRealOdds ? 2 : 0) +
+      (!hasBtts ? 2 : 0) +
+      (!hasOver25 ? 2 : 0);
 
     const livePenalty = context.isLive && context.realStatsAvailable !== true ? 20 : 0;
     const preMatchSoftPenalty = !context.isLive && game?.preMatchStats?.available === true ? 0 : 2;
@@ -786,8 +788,8 @@ export class AiService {
     const shotTrend = this.clamp(50 + attackScore * 1.5 + (context.realStatsAvailable ? 8 : 0), 44, 94);
 
     const noBetReasons: string[] = [];
-    if (score < 80) noBetReasons.push(`Score profissional abaixo do corte mínimo (${score}/100).`);
-    if (missingDataPenalty >= 20) noBetReasons.push("Pré-jogo com dados incompletos: forma, médias, H2H ou odds insuficientes.");
+    if (score < Number(process.env.ODDIX_PROFESSIONAL_MIN_SCORE || 70)) noBetReasons.push(`Score profissional abaixo do corte mínimo (${score}/100).`);
+    if (missingDataPenalty >= 16) noBetReasons.push("Pré-jogo com dados incompletos, porém com leitura conservadora possível.");
     if (context.isLive && context.realStatsAvailable !== true) noBetReasons.push("Live sem estatísticas reais para leitura profissional.");
     if (context.isFinished) noBetReasons.push("Jogo finalizado.");
 
@@ -795,13 +797,14 @@ export class AiService {
       score >= 95 ? "TOP_PICK" :
       score >= 90 ? "VIP_PREMIUM" :
       score >= 85 ? "VIP" :
-      score >= 80 ? "BOM" :
+      score >= 75 ? "BOM" :
+      score >= 70 ? "CONSERVADOR" :
       "NO_BET";
 
     return {
       score,
       level,
-      minConfidence: score >= 90 ? 84 : score >= 85 ? 80 : score >= 80 ? 76 : 999,
+      minConfidence: score >= 90 ? 84 : score >= 85 ? 80 : score >= 75 ? 76 : score >= 70 ? 72 : 999,
       leagueQuality,
       formScore,
       attackScore,
@@ -829,7 +832,7 @@ export class AiService {
       shotTrend,
       reasons: [
         `Score profissional ${score}/100 (${level}).`,
-        `Forma ${formScore}/20, ataque ${attackScore}/20, defesa ${defenseScore}/20, casa/fora ${homeAwayScore}/15, momento ${momentScore}/15, H2H ${h2hScore}/15, dados ${marketDataScore}/15, valor odd ${oddValueScore}/10.`,
+        `Forma ${formScore}/20, ataque ${attackScore}/20, defesa ${defenseScore}/20, casa/fora ${homeAwayScore}/15, momento ${momentScore}/18, H2H ${h2hScore}/15, dados ${marketDataScore}/15, valor odd ${oddValueScore}/10, bônus liga ${leagueBoost}.`,
         `BTTS ${bttsRate || 0}%, Over 2.5 ${over25Rate || 0}%, H2H ${h2hTotalMatches || 0} jogos, penalidade dados faltando ${missingDataPenalty}.`,
         favorite === "equilibrado" ? "Confronto sem favorito claro." : `${favorite} aparece com vantagem técnica no modelo.`,
       ],
@@ -853,7 +856,7 @@ export class AiService {
     seed: number,
   ) {
     const profile = context.professionalProfile;
-    if (!profile || profile.score < 80 || context.isFinished) return [];
+    if (!profile || profile.score < 70 || context.isFinished) return [];
 
     const favorite = profile.favorite === "equilibrado" ? homeTeam : profile.favorite;
     const other = favorite === homeTeam ? awayTeam : homeTeam;
@@ -890,7 +893,7 @@ export class AiService {
       });
     };
 
-    if (profile.favorite !== "equilibrado" && profile.score >= 82) {
+    if (profile.favorite !== "equilibrado" && profile.score >= 74) {
       push({
         key: "dupla_chance",
         category: "Protegido",
@@ -910,7 +913,7 @@ export class AiService {
         confidenceModifier: 0,
       });
 
-      if (profile.score >= 85) {
+      if (profile.score >= 82) {
         push({
           key: "empate_anula",
           category: "Protegido",
@@ -923,7 +926,7 @@ export class AiService {
       }
     }
 
-    if (profile.goalTrend >= 74 && profile.totalGoalProjection >= 2.55) {
+    if (profile.goalTrend >= 68 && profile.totalGoalProjection >= 2.25) {
       push({
         key: "total_gols",
         category: "Gols",
@@ -934,7 +937,7 @@ export class AiService {
         risk: "Baixo",
       });
 
-      if (profile.bttsIndex >= 70) {
+      if (profile.bttsIndex >= 66) {
         push({
           key: "ambas_marcam",
           category: "Gols",
@@ -947,7 +950,7 @@ export class AiService {
       }
     }
 
-    if (profile.underIndex >= 72 || profile.totalGoalProjection <= 2.15) {
+    if (profile.underIndex >= 68 || profile.totalGoalProjection <= 2.25) {
       push({
         key: "total_gols",
         category: "Protegido",
@@ -969,6 +972,18 @@ export class AiService {
           risk: "Baixo",
         });
       }
+    }
+
+    if (profile.score >= 70 && candidates.length === 0) {
+      push({
+        key: "total_gols",
+        category: "Conservador",
+        market: "Total de Gols",
+        tip: profile.totalGoalProjection >= 2.2 ? "Over 1.5 gols" : "Under 4.5 gols",
+        baseOdd: profile.totalGoalProjection >= 2.2 ? 1.48 : 1.32,
+        confidenceModifier: 2,
+        risk: "Baixo",
+      });
     }
 
     if (context.realStatsAvailable === true) {
