@@ -38,6 +38,20 @@ export default function OddixVipPage() {
 
   return (
     <main style={styles.page}>
+
+      <style jsx global>{`
+        * { box-sizing: border-box; }
+        @media (max-width: 980px) {
+          main section { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 720px) {
+          main { padding: 10px !important; }
+          h1 { font-size: 30px !important; letter-spacing: -1px !important; }
+          section { max-width: 100% !important; }
+          button { width: 100%; }
+        }
+      `}</style>
+
       <section style={styles.hero}>
         <div style={styles.heroContent}>
           <span style={styles.kicker}>ODDIX VIP • IA V3</span>
@@ -136,23 +150,23 @@ function FragmentRow({ feature, free, vip }: { feature: string; free: string; vi
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
-    padding: 24,
+    padding: 18,
     color: "#fff",
     background:
       "radial-gradient(circle at 20% 0%, rgba(124,58,237,.34), transparent 35%), radial-gradient(circle at 85% 10%, rgba(250,204,21,.12), transparent 30%), linear-gradient(180deg,#07070D,#110522 55%,#07070D)",
     fontFamily: "Inter, Arial, sans-serif",
   },
   hero: {
-    maxWidth: 1240,
+    maxWidth: 1440,
     margin: "0 auto 22px",
     display: "grid",
-    gridTemplateColumns: "minmax(0,1fr) 360px",
-    gap: 20,
+    gridTemplateColumns: "minmax(0,1fr) 320px",
+    gap: 14,
     alignItems: "stretch",
   },
   heroContent: {
-    borderRadius: 30,
-    padding: 36,
+    borderRadius: 22,
+    padding: 18,
     background: "linear-gradient(135deg, rgba(17,12,31,.96), rgba(36,14,74,.88))",
     border: "1px solid rgba(250,204,21,.24)",
     boxShadow: "0 24px 70px rgba(0,0,0,.38)",
@@ -171,15 +185,15 @@ const styles: Record<string, React.CSSProperties> = {
   title: {
     margin: "20px 0 14px",
     maxWidth: 760,
-    fontSize: "clamp(38px, 6vw, 78px)",
+    fontSize: "clamp(28px, 4.2vw, 56px)",
     lineHeight: .92,
-    letterSpacing: -2.8,
+    letterSpacing: -1.8,
     fontWeight: 1000,
   },
   subtitle: {
     maxWidth: 720,
     color: "rgba(255,255,255,.76)",
-    fontSize: 17,
+    fontSize: 14,
     lineHeight: 1.5,
   },
   actions: {
@@ -189,8 +203,8 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 28,
   },
   vipButton: {
-    height: 48,
-    padding: "0 22px",
+    height: 40,
+    padding: "0 16px",
     border: 0,
     borderRadius: 16,
     color: "#111827",
@@ -199,8 +213,8 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
   proButton: {
-    height: 48,
-    padding: "0 22px",
+    height: 40,
+    padding: "0 16px",
     border: "1px solid rgba(168,85,247,.40)",
     borderRadius: 16,
     color: "#fff",
@@ -209,8 +223,8 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
   freeButton: {
-    height: 48,
-    padding: "0 22px",
+    height: 40,
+    padding: "0 16px",
     border: "1px solid rgba(255,255,255,.16)",
     borderRadius: 16,
     color: "#fff",
@@ -219,21 +233,21 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
   ticket: {
-    borderRadius: 30,
-    padding: 26,
+    borderRadius: 22,
+    padding: 18,
     background: "linear-gradient(180deg, rgba(13,7,24,.98), rgba(7,7,13,.98))",
     border: "1px solid rgba(250,204,21,.26)",
     boxShadow: "0 24px 70px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.10)",
   },
   ticketKicker: { color: "rgba(255,255,255,.68)", fontSize: 11, fontWeight: 1000, letterSpacing: 1.1 },
-  ticketReturn: { display: "block", marginTop: 14, color: "#facc15", fontSize: 72, lineHeight: .9, fontWeight: 1000 },
+  ticketReturn: { display: "block", marginTop: 14, color: "#facc15", fontSize: 54, lineHeight: .9, fontWeight: 1000 },
   ticketSmall: { color: "rgba(255,255,255,.56)", fontWeight: 900 },
   ticketGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, margin: "22px 0" },
   ticketLine: { padding: 12, borderRadius: 14, background: "rgba(255,255,255,.06)", marginTop: 8, color: "rgba(255,255,255,.86)", fontWeight: 900 },
   ticketButton: { width: "100%", marginTop: 16, border: 0, borderRadius: 16, padding: "14px 16px", color: "#111827", background: "linear-gradient(135deg,#facc15,#fb923c)", fontWeight: 1000, cursor: "pointer" },
-  metricsGrid: { maxWidth: 1240, margin: "0 auto 22px", display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 14 },
-  metricCard: { padding: 22, borderRadius: 22, background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)" },
-  comparisonBox: { maxWidth: 1240, margin: "0 auto 22px", padding: 24, borderRadius: 28, background: "linear-gradient(135deg, rgba(17,12,31,.96), rgba(36,14,74,.72))", border: "1px solid rgba(250,204,21,.18)" },
+  metricsGrid: { maxWidth: 1440, margin: "0 auto 22px", display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 14 },
+  metricCard: { padding: 16, borderRadius: 22, background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)" },
+  comparisonBox: { maxWidth: 1440, margin: "0 auto 22px", padding: 18, borderRadius: 22, background: "linear-gradient(135deg, rgba(17,12,31,.96), rgba(36,14,74,.72))", border: "1px solid rgba(250,204,21,.18)" },
   sectionHead: { marginBottom: 16 },
   comparisonGrid: { display: "grid", gridTemplateColumns: "1fr 1fr 1.25fr", gap: 8 },
   comparisonHeader: { padding: 14, borderRadius: 16, color: "rgba(255,255,255,.70)", background: "rgba(255,255,255,.06)", fontWeight: 1000 },
@@ -241,9 +255,9 @@ const styles: Record<string, React.CSSProperties> = {
   comparisonCellFeature: { padding: 14, borderRadius: 16, background: "rgba(255,255,255,.05)", color: "#fff", fontWeight: 950 },
   comparisonCell: { padding: 14, borderRadius: 16, background: "rgba(255,255,255,.04)", color: "rgba(255,255,255,.65)", fontWeight: 850 },
   comparisonCellVip: { padding: 14, borderRadius: 16, background: "rgba(250,204,21,.09)", border: "1px solid rgba(250,204,21,.16)", color: "#fff", fontWeight: 950 },
-  benefitsGrid: { maxWidth: 1240, margin: "0 auto 22px", display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 14 },
-  benefitCard: { padding: 22, borderRadius: 22, background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)" },
-  testimonialsGrid: { maxWidth: 1240, margin: "0 auto 22px", display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 14 },
-  testimonialCard: { padding: 22, borderRadius: 22, background: "rgba(34,197,94,.07)", border: "1px solid rgba(34,197,94,.16)" },
-  ctaBox: { maxWidth: 1240, margin: "0 auto", padding: 28, borderRadius: 28, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, background: "linear-gradient(135deg, rgba(250,204,21,.14), rgba(124,58,237,.18))", border: "1px solid rgba(250,204,21,.24)" },
+  benefitsGrid: { maxWidth: 1440, margin: "0 auto 22px", display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 14 },
+  benefitCard: { padding: 16, borderRadius: 22, background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)" },
+  testimonialsGrid: { maxWidth: 1440, margin: "0 auto 22px", display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 14 },
+  testimonialCard: { padding: 16, borderRadius: 22, background: "rgba(34,197,94,.07)", border: "1px solid rgba(34,197,94,.16)" },
+  ctaBox: { maxWidth: 1440, margin: "0 auto", padding: 20, borderRadius: 22, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, background: "linear-gradient(135deg, rgba(250,204,21,.14), rgba(124,58,237,.18))", border: "1px solid rgba(250,204,21,.24)" },
 };
