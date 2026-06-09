@@ -3472,6 +3472,66 @@ export class FootballService {
   }
 
 
+
+  private shouldUseSoccerFootballInfoStatsForFixture(cached: any) {
+    const provider = String(cached?.provider || cached?.provedor || "").toLowerCase();
+
+    // SoccerFootballInfo usa IDs próprios. Quando o jogo vem da FlashScore/AllScores,
+    // chamar SoccerFootballInfo com fixtureId de outro provider gera 400 e derruba a leitura.
+    if (provider.includes("soccer-football-info")) return true;
+
+    return String(process.env.ODDIX_STATISTICS_USE_SOCCER_INFO_ANY_ID || "false").toLowerCase() === "true";
+  }
+
+  private buildLiveContextStatisticsFromCachedFixture(fixtureId: string, cachedRaw: any, errors: string[] = []) {
+    const cached = this.standardizeFixture(cachedRaw);
+    const statusShort = String(cached?.fixture?.status?.short || "").toUpperCase();
+    const isLive = this.isLiveStatus(statusShort, cached?.fixture?.status?.long || "");
+    const isFinished = this.isFinishedStatus(statusShort, cached?.fixture?.status?.long || "");
+    const quality = Number(cached?.oddix?.qualityScore || 0);
+
+    // Fallback controlado: só usamos para jogos live/premium. Não inventa escanteios/chutes.
+    // Serve para permitir mercados de gols/BTTS/dupla chance quando as estatísticas completas falham.
+    if (!cached || !isLive || isFinished || quality < Number(process.env.ODDIX_LIVE_CONTEXT_MIN_QUALITY || 80)) {
+      return null;
+    }
+
+    const homeName = cached?.teams?.home?.name || "Casa";
+    const awayName = cached?.teams?.away?.name || "Fora";
+    const homeLogo = cached?.teams?.home?.logo || "";
+    const awayLogo = cached?.teams?.away?.logo || "";
+    const homeGoals = Number(cached?.goals?.home ?? cached?.score?.fulltime?.home ?? 0);
+    const awayGoals = Number(cached?.goals?.away ?? cached?.score?.fulltime?.away ?? 0);
+    const elapsed = Number(cached?.fixture?.status?.elapsed || 0);
+
+    return {
+      available: true,
+      simulated: false,
+      fixtureId,
+      source: "fixture-live-context",
+      message:
+        "Fallback seguro: contexto real do placar ao vivo/cache usado porque estatísticas detalhadas falharam. Mercados de escanteios/chutes/player props continuam bloqueados sem stats reais.",
+      fallbackOnly: true,
+      errors,
+      teams: [
+        {
+          team: { id: cached?.teams?.home?.id || 0, name: homeName, logo: homeLogo },
+          statistics: [
+            { type: "Goals", value: homeGoals },
+            { type: "Live Minute", value: elapsed },
+          ],
+        },
+        {
+          team: { id: cached?.teams?.away?.id || 0, name: awayName, logo: awayLogo },
+          statistics: [
+            { type: "Goals", value: awayGoals },
+            { type: "Live Minute", value: elapsed },
+          ],
+        },
+      ],
+    };
+  }
+
   private emptyRealStatistics(fixtureId: string, reason: string) {
     return {
       available: false,
@@ -3497,71 +3557,53 @@ export class FootballService {
 
   async getStatistics(fixtureId: string) {
     const errors: string[] = [];
+    const cachedRaw: any = await this.getFixtureFromCacheById(fixtureId);
+    const cached = cachedRaw ? this.standardizeFixture(cachedRaw) : null;
+    const provider = String(cached?.provider || "").toLowerCase();
 
     /**
-     * Ordem oficial das estatísticas do Oddix:
-     * 1) FlashScore — principal
-     * 2) SportScore6 — fallback
-     * 3) SportScore — fallback legado
-     * 4) API-Football — último fallback, somente quando habilitado
+     * Ordem oficial V27.1:
+     * 1) FlashScore quando o fixture é FlashScore
+     * 2) SportScore6 quando o fixture é SportScore6
+     * 3) SportScore legado
+     * 4) SoccerFootballInfo somente quando o ID pertence a ele
+     * 5) API-Football último fallback, quando habilitado
+     * 6) fallback seguro com placar ao vivo/cache para mercados de gols
      *
-     * IMPORTANTE:
-     * Nunca retornamos estatística simulada para o Dashboard.
-     * Se nenhuma fonte real responder, devolvemos available=false e simulated=false.
+     * Motivo: IDs da FlashScore/AllScores enviados para SoccerFootballInfo retornam 400.
+     * Isso deixava a IA sem leitura e gerava NO_BET mesmo em jogos premium da Série B.
      */
-    const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
 
-    if (flashScore.ok && this.isRealStatisticsPayload(flashScore.data)) {
-      return {
-        ...flashScore.data,
-        available: true,
-        simulated: false,
-        source: "flashscore",
-        message:
-          flashScore.data?.message || "Estatísticas reais da FlashScore.",
-      };
+    if (provider.includes("flashscore")) {
+      const flashScore = await this.getStatisticsFromFlashScore(fixtureId);
+
+      if (flashScore.ok && this.isRealStatisticsPayload(flashScore.data)) {
+        return {
+          ...flashScore.data,
+          available: true,
+          simulated: false,
+          source: "flashscore",
+          message: flashScore.data?.message || "Estatísticas reais da FlashScore.",
+        };
+      }
+
+      if (flashScore.error) errors.push(`FlashScore: ${flashScore.error}`);
     }
 
-    if (flashScore.error) {
-      errors.push(`FlashScore: ${flashScore.error}`);
-    }
+    if (provider.includes("sportscore6")) {
+      const sportScore6 = await this.getStatisticsFromSportScore6(fixtureId);
 
-    const soccerFootballInfo = await this.getStatisticsFromSoccerFootballInfo(fixtureId);
+      if (sportScore6.ok && this.isRealStatisticsPayload(sportScore6.data)) {
+        return {
+          ...sportScore6.data,
+          available: true,
+          simulated: false,
+          source: sportScore6.data?.source || "sportscore6",
+          message: sportScore6.data?.message || "Estatísticas reais da SportScore6.",
+        };
+      }
 
-    if (
-      soccerFootballInfo.ok &&
-      this.isRealStatisticsPayload(soccerFootballInfo.data)
-    ) {
-      return {
-        ...soccerFootballInfo.data,
-        available: true,
-        simulated: false,
-        source: soccerFootballInfo.data?.source || "soccer-football-info",
-        message:
-          soccerFootballInfo.data?.message ||
-          "Estatísticas reais da Soccer Football Info.",
-      };
-    }
-
-    if (soccerFootballInfo.error) {
-      errors.push(`Soccer Football Info: ${soccerFootballInfo.error}`);
-    }
-
-    const sportScore6 = await this.getStatisticsFromSportScore6(fixtureId);
-
-    if (sportScore6.ok && this.isRealStatisticsPayload(sportScore6.data)) {
-      return {
-        ...sportScore6.data,
-        available: true,
-        simulated: false,
-        source: sportScore6.data?.source || "sportscore6",
-        message:
-          sportScore6.data?.message || "Estatísticas reais da SportScore6.",
-      };
-    }
-
-    if (sportScore6.error) {
-      errors.push(`SportScore6: ${sportScore6.error}`);
+      if (sportScore6.error) errors.push(`SportScore6: ${sportScore6.error}`);
     }
 
     const sportScore = await this.getStatisticsFromSportScore(fixtureId);
@@ -3572,13 +3614,28 @@ export class FootballService {
         available: true,
         simulated: false,
         source: sportScore.data?.source || "sportscore",
-        message:
-          sportScore.data?.message || "Estatísticas reais da SportScore.",
+        message: sportScore.data?.message || "Estatísticas reais da SportScore.",
       };
     }
 
-    if (sportScore.error) {
-      errors.push(`SportScore: ${sportScore.error}`);
+    if (sportScore.error) errors.push(`SportScore: ${sportScore.error}`);
+
+    if (this.shouldUseSoccerFootballInfoStatsForFixture(cached)) {
+      const soccerFootballInfo = await this.getStatisticsFromSoccerFootballInfo(fixtureId);
+
+      if (soccerFootballInfo.ok && this.isRealStatisticsPayload(soccerFootballInfo.data)) {
+        return {
+          ...soccerFootballInfo.data,
+          available: true,
+          simulated: false,
+          source: soccerFootballInfo.data?.source || "soccer-football-info",
+          message: soccerFootballInfo.data?.message || "Estatísticas reais da Soccer Football Info.",
+        };
+      }
+
+      if (soccerFootballInfo.error) errors.push(`Soccer Football Info: ${soccerFootballInfo.error}`);
+    } else if (cached) {
+      errors.push(`Soccer Football Info pulada: provider=${provider || "unknown"} usa ID incompatível`);
     }
 
     if (this.shouldUseApiFootballFallback()) {
@@ -3590,21 +3647,24 @@ export class FootballService {
           available: true,
           simulated: false,
           source: "api-football",
-          message:
-            apiFootball.data?.message || "Estatísticas reais da API-Football.",
+          message: apiFootball.data?.message || "Estatísticas reais da API-Football.",
         };
       }
 
-      if (apiFootball.error) {
-        errors.push(`API-Football: ${apiFootball.error}`);
-      }
+      if (apiFootball.error) errors.push(`API-Football: ${apiFootball.error}`);
     }
+
+    const liveContextFallback = this.buildLiveContextStatisticsFromCachedFixture(
+      fixtureId,
+      cached,
+      errors,
+    );
+
+    if (liveContextFallback) return liveContextFallback;
 
     return this.emptyRealStatistics(
       fixtureId,
-      errors.length
-        ? errors.join(" | ")
-        : "Nenhuma fonte retornou dados oficiais.",
+      errors.length ? errors.join(" | ") : "Nenhuma fonte retornou dados oficiais.",
     );
   }
 
