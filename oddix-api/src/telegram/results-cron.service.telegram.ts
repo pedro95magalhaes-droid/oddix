@@ -1132,6 +1132,10 @@ export class ResultsCronService {
                 teams: [],
               };
 
+        this.logger.log(
+          `📊 Stats LIVE fixtureId=${fixtureId} | available=${stats?.available === true} | simulated=${stats?.simulated === true} | source=${stats?.source || "none"} | msg=${stats?.message || "sem mensagem"}`,
+        );
+
         const enrichedGame = { ...game, statistics: stats };
         const rawBet = await this.aiService.generateBet(enrichedGame);
         const bet = this.applyLiveFallbackValues(rawBet);
@@ -1145,7 +1149,7 @@ export class ResultsCronService {
 
         if (this.isNoBetOutput(rawBet)) {
           this.logger.log(
-            `⏭️ Palpite NO_BET mantido fixtureId=${fixtureId}: IA sem leitura segura`,
+            `⏭️ Palpite NO_BET mantido fixtureId=${fixtureId}: score=${rawBet?.engineScore ?? "?"} | stats=${rawBet?.sources?.realStatsAvailable === true} | motivos=${(rawBet?.engineReasons || []).join(" | ") || "IA sem leitura segura"}`,
           );
           continue;
         }

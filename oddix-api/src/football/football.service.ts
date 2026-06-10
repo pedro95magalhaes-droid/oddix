@@ -1836,7 +1836,7 @@ export class FootballService {
   }
 
   private preMatchEnrichLimit() {
-    return Math.max(0, Number(process.env.ODDIX_PREMATCH_ENRICH_LIMIT || 8));
+    return Math.max(0, Number(process.env.ODDIX_PREMATCH_ENRICH_LIMIT || 40));
   }
 
   private shouldEnrichFixtureWithPreMatchStats(item: any) {
@@ -3484,52 +3484,15 @@ export class FootballService {
   }
 
   private buildLiveContextStatisticsFromCachedFixture(fixtureId: string, cachedRaw: any, errors: string[] = []) {
-    const cached = this.standardizeFixture(cachedRaw);
-    const statusShort = String(cached?.fixture?.status?.short || "").toUpperCase();
-    const isLive = this.isLiveStatus(statusShort, cached?.fixture?.status?.long || "");
-    const isFinished = this.isFinishedStatus(statusShort, cached?.fixture?.status?.long || "");
-    const quality = Number(cached?.oddix?.qualityScore || 0);
-
-    // Fallback controlado: só usamos para jogos live/premium. Não inventa escanteios/chutes.
-    // Serve para permitir mercados de gols/BTTS/dupla chance quando as estatísticas completas falham.
-    if (!cached || !isLive || isFinished || quality < Number(process.env.ODDIX_LIVE_CONTEXT_MIN_QUALITY || 80)) {
-      return null;
-    }
-
-    const homeName = cached?.teams?.home?.name || "Casa";
-    const awayName = cached?.teams?.away?.name || "Fora";
-    const homeLogo = cached?.teams?.home?.logo || "";
-    const awayLogo = cached?.teams?.away?.logo || "";
-    const homeGoals = Number(cached?.goals?.home ?? cached?.score?.fulltime?.home ?? 0);
-    const awayGoals = Number(cached?.goals?.away ?? cached?.score?.fulltime?.away ?? 0);
-    const elapsed = Number(cached?.fixture?.status?.elapsed || 0);
-
-    return {
-      available: true,
-      simulated: false,
-      fixtureId,
-      source: "fixture-live-context",
-      message:
-        "Fallback seguro: contexto real do placar ao vivo/cache usado porque estatísticas detalhadas falharam. Mercados de escanteios/chutes/player props continuam bloqueados sem stats reais.",
-      fallbackOnly: true,
-      errors,
-      teams: [
-        {
-          team: { id: cached?.teams?.home?.id || 0, name: homeName, logo: homeLogo },
-          statistics: [
-            { type: "Goals", value: homeGoals },
-            { type: "Live Minute", value: elapsed },
-          ],
-        },
-        {
-          team: { id: cached?.teams?.away?.id || 0, name: awayName, logo: awayLogo },
-          statistics: [
-            { type: "Goals", value: awayGoals },
-            { type: "Live Minute", value: elapsed },
-          ],
-        },
-      ],
-    };
+    /**
+     * V28 PROFISSIONAL:
+     * Esta função existia como fallback de placar/minuto, mas o usuário decidiu:
+     * "sem estatística real = sem palpite".
+     *
+     * Portanto, ela NÃO pode mais retornar available=true com apenas placar/minuto.
+     * Placar ao vivo ajuda no dashboard, mas não é estatística profissional para entrada.
+     */
+    return null;
   }
 
   private emptyRealStatistics(fixtureId: string, reason: string) {
@@ -3568,7 +3531,7 @@ export class FootballService {
      * 3) SportScore legado
      * 4) SoccerFootballInfo somente quando o ID pertence a ele
      * 5) API-Football último fallback, quando habilitado
-     * 6) fallback seguro com placar ao vivo/cache para mercados de gols
+     * 6) se nenhuma fonte real retornar estatísticas, retorna available=false
      *
      * Motivo: IDs da FlashScore/AllScores enviados para SoccerFootballInfo retornam 400.
      * Isso deixava a IA sem leitura e gerava NO_BET mesmo em jogos premium da Série B.
@@ -3654,14 +3617,8 @@ export class FootballService {
       if (apiFootball.error) errors.push(`API-Football: ${apiFootball.error}`);
     }
 
-    const liveContextFallback = this.buildLiveContextStatisticsFromCachedFixture(
-      fixtureId,
-      cached,
-      errors,
-    );
-
-    if (liveContextFallback) return liveContextFallback;
-
+    // V28: sem estatística real não existe fallback por placar/minuto.
+    // Isso mantém o padrão profissional: sem stats reais = NO_BET/sem envio.
     return this.emptyRealStatistics(
       fixtureId,
       errors.length ? errors.join(" | ") : "Nenhuma fonte retornou dados oficiais.",
