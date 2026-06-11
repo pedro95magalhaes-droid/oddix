@@ -1340,7 +1340,7 @@ export default function Dashboard() {
     : 0;
 
   return (
-    <main className="oddix-dashboard" style={styles.page}>
+    <main className="oddix-dashboard oddix-v30-dashboard" style={styles.page}>
       <style jsx global>{`
 
         /* ODDIX V22 SPORTSBOOK PREMIUM OVERRIDES */
@@ -5351,6 +5351,370 @@ export default function Dashboard() {
           }
         }
 
+        /* ODDIX V30 PREMIUM SPORTSBOOK FINAL
+           Camada final de conversão: hero mais forte, ticket real, top pick dominante,
+           greens agressivos e player props reais em destaque. Não altera a lógica da IA. */
+        .oddix-v30-dashboard {
+          background:
+            radial-gradient(circle at 10% -10%, rgba(250,204,21,.13), transparent 30%),
+            radial-gradient(circle at 95% 8%, rgba(168,85,247,.17), transparent 34%),
+            linear-gradient(180deg, #05030b 0%, #070511 46%, #030207 100%) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-top-header {
+          border-bottom: 1px solid rgba(250,204,21,.13) !important;
+          backdrop-filter: blur(18px) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-grid {
+          grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 360px) !important;
+          gap: clamp(14px, 1.4vw, 22px) !important;
+          margin-top: 16px !important;
+          align-items: stretch !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-main {
+          position: relative !important;
+          height: clamp(430px, 35vw, 560px) !important;
+          min-height: clamp(430px, 35vw, 560px) !important;
+          max-height: clamp(430px, 35vw, 560px) !important;
+          grid-template-columns: minmax(380px,.62fr) minmax(280px,.38fr) !important;
+          padding: clamp(26px, 2.6vw, 42px) clamp(24px, 2.7vw, 46px) 0 !important;
+          border-radius: 34px !important;
+          background:
+            radial-gradient(circle at 74% 24%, rgba(250,204,21,.22), transparent 28%),
+            radial-gradient(circle at 28% 2%, rgba(124,58,237,.28), transparent 35%),
+            linear-gradient(135deg, rgba(13,8,32,.99), rgba(35,15,77,.98) 52%, rgba(6,5,14,.99)) !important;
+          border: 1px solid rgba(250,204,21,.25) !important;
+          box-shadow: 0 30px 90px rgba(0,0,0,.45), 0 0 50px rgba(250,204,21,.10), inset 0 1px 0 rgba(255,255,255,.12) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-main::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background:
+            linear-gradient(90deg, rgba(255,255,255,.055) 1px, transparent 1px),
+            linear-gradient(180deg, rgba(255,255,255,.035) 1px, transparent 1px);
+          background-size: 42px 42px;
+          mask-image: linear-gradient(90deg, rgba(0,0,0,.65), transparent 82%);
+        }
+
+        .oddix-v30-dashboard .oddix-hero-text {
+          position: relative !important;
+          z-index: 3 !important;
+          max-width: 650px !important;
+          align-self: center !important;
+          padding-bottom: 22px !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-text > span:first-child,
+        .oddix-v30-dashboard .oddix-top-pick-hero span:first-child {
+          color: #facc15 !important;
+          text-shadow: 0 0 18px rgba(250,204,21,.22) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-text h1 {
+          max-width: 620px !important;
+          font-size: clamp(54px, 6.3vw, 104px) !important;
+          line-height: .84 !important;
+          letter-spacing: -4px !important;
+          margin: 12px 0 16px !important;
+          text-transform: uppercase !important;
+          text-shadow: 0 0 34px rgba(168,85,247,.35) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-text p {
+          max-width: 560px !important;
+          color: rgba(255,255,255,.78) !important;
+          font-size: clamp(13px, 1vw, 16px) !important;
+          line-height: 1.45 !important;
+          font-weight: 750 !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-text > div[style*="margin-top: 22px"] {
+          max-width: 590px !important;
+          margin-top: 18px !important;
+          padding: 18px !important;
+          border-radius: 24px !important;
+          background:
+            linear-gradient(135deg, rgba(250,204,21,.20), rgba(124,58,237,.14)) !important;
+          border: 1px solid rgba(250,204,21,.45) !important;
+          box-shadow: 0 20px 54px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.15) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-text > div[style*="margin-top: 22px"] strong {
+          font-size: clamp(24px, 2.35vw, 40px) !important;
+          letter-spacing: -1.4px !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-text > div[style*="margin-top: 22px"] > div[style*="repeat(4"] {
+          grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+          gap: 9px !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-text button {
+          min-height: 48px !important;
+          height: 48px !important;
+          border-radius: 16px !important;
+          font-size: 12px !important;
+          letter-spacing: .25px !important;
+          box-shadow: 0 16px 34px rgba(250,204,21,.16) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-stats {
+          display: grid !important;
+          grid-template-columns: repeat(6, minmax(0,1fr)) !important;
+          max-width: 620px !important;
+          gap: 9px !important;
+          margin-top: 16px !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-stats .oddix-info-metric {
+          min-height: 62px !important;
+          padding: 10px 8px !important;
+          border-color: rgba(250,204,21,.18) !important;
+          background: rgba(255,255,255,.065) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-player-box {
+          z-index: 2 !important;
+          min-height: 100% !important;
+          height: 100% !important;
+          max-height: none !important;
+          overflow: visible !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-player {
+          height: min(110%, 610px) !important;
+          max-height: 610px !important;
+          width: 112% !important;
+          right: -8% !important;
+          bottom: 0 !important;
+          filter: drop-shadow(0 28px 40px rgba(0,0,0,.55)) drop-shadow(0 0 28px rgba(250,204,21,.14)) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-bottom-features {
+          z-index: 4 !important;
+          left: clamp(24px, 2.7vw, 46px) !important;
+          right: clamp(24px, 2.7vw, 46px) !important;
+          bottom: 18px !important;
+          display: grid !important;
+          grid-template-columns: repeat(4,minmax(0,1fr)) !important;
+          gap: 8px !important;
+        }
+
+        .oddix-v30-dashboard .oddix-hero-bottom-features span {
+          border-radius: 999px !important;
+          border: 1px solid rgba(250,204,21,.22) !important;
+          background: rgba(0,0,0,.28) !important;
+          color: rgba(255,255,255,.84) !important;
+          font-size: 10px !important;
+          font-weight: 1000 !important;
+          text-align: center !important;
+          padding: 10px 8px !important;
+          overflow: hidden !important;
+          white-space: nowrap !important;
+          text-overflow: ellipsis !important;
+        }
+
+        .oddix-v30-dashboard .oddix-vip-panel.oddix-boost-ticket,
+        .oddix-v30-dashboard .oddix-boost-ticket-v21 {
+          height: clamp(430px, 35vw, 560px) !important;
+          min-height: clamp(430px, 35vw, 560px) !important;
+          max-height: clamp(430px, 35vw, 560px) !important;
+          border-radius: 34px !important;
+          background:
+            linear-gradient(180deg, rgba(18,18,24,.98), rgba(7,7,10,.99)) padding-box,
+            linear-gradient(180deg, rgba(250,204,21,.58), rgba(124,58,237,.26)) border-box !important;
+          border: 1px solid transparent !important;
+          box-shadow: 0 30px 80px rgba(0,0,0,.42), 0 0 40px rgba(250,204,21,.10), inset 0 1px 0 rgba(255,255,255,.12) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-boost-ticket-v22-return {
+          padding: 20px 18px !important;
+          margin-top: 16px !important;
+          border-radius: 24px !important;
+        }
+
+        .oddix-v30-dashboard .oddix-boost-ticket-v22-return strong {
+          font-size: clamp(48px, 4vw, 72px) !important;
+          line-height: .86 !important;
+          color: #facc15 !important;
+          letter-spacing: -3px !important;
+        }
+
+        .oddix-v30-dashboard .oddix-boost-mini-grid {
+          margin-top: 14px !important;
+          gap: 10px !important;
+        }
+
+        .oddix-v30-dashboard .oddix-boost-mini-metric {
+          min-height: 76px !important;
+          border-radius: 18px !important;
+          border-color: rgba(250,204,21,.24) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-boost-mini-metric strong {
+          font-size: clamp(32px, 2.5vw, 48px) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-top-pick-hero {
+          width: min(1480px, calc(100% - 36px)) !important;
+          margin: 0 auto 22px !important;
+          padding: 22px !important;
+          min-height: 178px !important;
+          grid-template-columns: minmax(150px,.55fr) minmax(330px,1.18fr) minmax(330px,1.25fr) minmax(330px,1fr) !important;
+          border-radius: 32px !important;
+          background:
+            radial-gradient(circle at 8% 0%, rgba(250,204,21,.21), transparent 30%),
+            radial-gradient(circle at 88% 30%, rgba(34,197,94,.14), transparent 28%),
+            linear-gradient(135deg, rgba(12,8,28,.99), rgba(34,16,74,.98), rgba(6,5,12,.99)) !important;
+          border: 1px solid rgba(250,204,21,.34) !important;
+          box-shadow: 0 30px 80px rgba(0,0,0,.36), 0 0 48px rgba(250,204,21,.10), inset 0 1px 0 rgba(255,255,255,.12) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-top-pick-hero [style*="width: 82px"] {
+          width: 76px !important;
+          height: 76px !important;
+          padding: 9px !important;
+          border-radius: 20px !important;
+          background: rgba(0,0,0,.30) !important;
+          border: 1px solid rgba(250,204,21,.24) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-top-pick-hero [style*="grid-template-columns: 86px"] {
+          grid-template-columns: 76px minmax(0,1fr) 76px !important;
+          gap: 14px !important;
+        }
+
+        .oddix-v30-dashboard .oddix-top-pick-hero [style*="grid-template-columns: 1fr 1fr 1fr 178px"] {
+          grid-template-columns: repeat(3,minmax(82px,1fr)) minmax(160px,.95fr) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-vip-results,
+        .oddix-v30-dashboard .oddix-vip-marketing-strip,
+        .oddix-v30-dashboard .oddix-player-props-home-section,
+        .oddix-v30-dashboard .oddix-premium-ticket,
+        .oddix-v30-dashboard .oddix-hot-entries,
+        .oddix-v30-dashboard .oddix-hot-markets {
+          border-radius: 32px !important;
+          border: 1px solid rgba(250,204,21,.18) !important;
+          box-shadow: 0 24px 70px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.10) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-player-props-home-section {
+          background:
+            radial-gradient(circle at 82% 0%, rgba(250,204,21,.16), transparent 28%),
+            radial-gradient(circle at 12% 40%, rgba(34,197,94,.11), transparent 26%),
+            linear-gradient(135deg,rgba(10,6,26,.99),rgba(52,20,108,.97) 58%,rgba(7,6,17,.99)) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-player-prop-card-v17 {
+          min-height: 310px !important;
+          border-radius: 28px !important;
+          border-color: rgba(250,204,21,.22) !important;
+          box-shadow: 0 20px 44px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.15) !important;
+          transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease !important;
+        }
+
+        .oddix-v30-dashboard .oddix-player-prop-card-v17:hover {
+          transform: translateY(-5px) !important;
+          border-color: rgba(250,204,21,.50) !important;
+          box-shadow: 0 28px 70px rgba(0,0,0,.38), 0 0 36px rgba(250,204,21,.12), inset 0 1px 0 rgba(255,255,255,.18) !important;
+        }
+
+        .oddix-v30-dashboard .oddix-game-card-v25 {
+          min-height: 340px !important;
+          border-radius: 26px !important;
+        }
+
+        .oddix-v30-dashboard .oddix-card-v25-team img {
+          width: 64px !important;
+          height: 64px !important;
+        }
+
+        .oddix-v30-dashboard .oddix-card-v25-pick strong {
+          font-size: 20px !important;
+        }
+
+        .oddix-v30-dashboard .oddix-card-v25-actions button:last-child,
+        .oddix-v30-dashboard .oddix-top-pick-hero button,
+        .oddix-v30-dashboard .oddix-vip-panel.oddix-boost-ticket button {
+          background: linear-gradient(135deg, #facc15, #fb923c) !important;
+          color: #111827 !important;
+          box-shadow: 0 15px 34px rgba(250,204,21,.22) !important;
+        }
+
+        @media (max-width: 1180px) {
+          .oddix-v30-dashboard .oddix-hero-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-v30-dashboard .oddix-hero-main {
+            height: auto !important;
+            min-height: 520px !important;
+            max-height: none !important;
+            grid-template-columns: 1fr minmax(220px,32%) !important;
+          }
+
+          .oddix-v30-dashboard .oddix-vip-panel.oddix-boost-ticket,
+          .oddix-v30-dashboard .oddix-boost-ticket-v21 {
+            height: auto !important;
+            min-height: 360px !important;
+            max-height: none !important;
+          }
+
+          .oddix-v30-dashboard .oddix-top-pick-hero {
+            grid-template-columns: 1fr 1fr !important;
+          }
+        }
+
+        @media (max-width: 760px) {
+          .oddix-v30-dashboard .oddix-hero-main {
+            grid-template-columns: 1fr !important;
+            min-height: auto !important;
+            padding: 28px 18px 22px !important;
+          }
+
+          .oddix-v30-dashboard .oddix-hero-text {
+            text-align: left !important;
+          }
+
+          .oddix-v30-dashboard .oddix-hero-text h1 {
+            font-size: clamp(40px, 14vw, 58px) !important;
+            letter-spacing: -2px !important;
+          }
+
+          .oddix-v30-dashboard .oddix-hero-text > div[style*="margin-top: 22px"] > div[style*="repeat(4"],
+          .oddix-v30-dashboard .oddix-hero-stats,
+          .oddix-v30-dashboard .oddix-hero-bottom-features {
+            grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+          }
+
+          .oddix-v30-dashboard .oddix-hero-player-box {
+            display: none !important;
+          }
+
+          .oddix-v30-dashboard .oddix-top-pick-hero {
+            grid-template-columns: 1fr !important;
+            width: calc(100% - 24px) !important;
+            padding: 16px !important;
+          }
+
+          .oddix-v30-dashboard .oddix-top-pick-hero [style*="grid-template-columns: 86px"],
+          .oddix-v30-dashboard .oddix-top-pick-hero [style*="grid-template-columns: 1fr 1fr 1fr 178px"] {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-v30-dashboard .oddix-player-props-home-grid,
+          .oddix-v30-dashboard .oddix-top-widgets-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
@@ -5524,10 +5888,10 @@ export default function Dashboard() {
       <section id="oddix-hero" className="oddix-hero-grid oddix-hero-v21 oddix-anchor-target" style={styles.heroGrid}>
         <div className="oddix-hero-main oddix-hero-main-v21" style={styles.heroMain}>
           <div className="oddix-hero-text" style={styles.heroTextBlock}>
-            <span style={styles.sectionKicker}>ODDIX AI V3 • DASHBOARD PREMIUM</span>
-            <h1>TOP PICK<br />DO DIA</h1>
+            <span style={styles.sectionKicker}>ODDIX V30 • IA TIPSTER PROFISSIONAL</span>
+            <h1>ODDIX IA<br />PRO</h1>
             <p>
-              {topPick ? `${topPick.game || "Entrada premium Oddix"} • ${topPick.tip || "Mercado protegido"} • Odd ${topPick.odd || "1.70"} com ${safeNumber(topPick.confidence, 0)}% de confiança.` : "A Oddix filtra jogos, odds, mercados e sinais ao vivo para mostrar somente entradas com leitura forte e risco controlado."}
+              {topPick ? `${topPick.game || "Entrada premium Oddix"} • ${topPick.tip || "Mercado protegido"} • Odd ${topPick.odd || "1.70"} com ${safeNumber(topPick.confidence, 0)}% de confiança.` : "Dashboard premium com Top Pick, Bilhete Boost, Player Props reais e leitura de jogos em tempo real para transformar dados em entradas mais seguras."}
             </p>
 
             {topPick && (
@@ -5564,8 +5928,8 @@ export default function Dashboard() {
             )}
 
             <div style={styles.heroCtaRow}>
-              <button style={styles.heroPrimaryCta} onClick={() => topPickGame ? openMatchDetail(topPickGame) : setActiveTab("highlights")}>🔥 ABRIR ANÁLISE PREMIUM</button>
-              <button style={styles.heroSecondaryCta} onClick={() => (window.location.href = "/plans")}>💎 VIRAR VIP</button>
+              <button style={styles.heroPrimaryCta} onClick={() => topPickGame ? openMatchDetail(topPickGame) : setActiveTab("highlights")}>🔥 VER TOP PICK</button>
+              <button style={styles.heroSecondaryCta} onClick={() => (window.location.href = "/plans")}>💎 ENTRAR NO VIP</button>
             </div>
 
             <div className="oddix-hero-stats" style={styles.heroStats}>
@@ -5584,9 +5948,9 @@ export default function Dashboard() {
           </div>
 
           <div className="oddix-hero-bottom-features" style={styles.heroBottomFeatures}>
-            <span>🏆 TOP PICK IA V3</span>
+            <span>🏆 TOP PICK PROFISSIONAL</span>
             <span>⚡ FLASHSCORE + LEITURA AO VIVO</span>
-            <span>📊 SCORE PROFISSIONAL</span>
+            <span>📊 STATS REAIS SEM FAKE</span>
             <span>💎 CONVERSÃO VIP</span>
           </div>
         </div>
