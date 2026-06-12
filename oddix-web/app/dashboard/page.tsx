@@ -350,8 +350,8 @@ function smartLocalTip(game: any) {
 
   let market = "Oddix Boost";
   let tip = "Over 1.5 gols";
-  let confidence = Math.min(91, Math.max(68, quality));
-  let risk = quality >= 85 ? "Baixo" : quality >= 75 ? "Médio/Baixo" : "Médio";
+  let confidence = Math.min(94, Math.max(70, Math.round(quality * 0.78 + safeNumber(odd, 1.55) * 7)));
+  let risk = quality >= 88 ? "Baixo" : quality >= 78 ? "Médio/Baixo" : "Médio";
 
   if (live) {
     if (elapsed < 15) {
@@ -424,7 +424,7 @@ function smartLocalTip(game: any) {
     odd: Number(odd).toFixed(2),
     confidence,
     risk,
-    source: "Oddix Boost V2 Local",
+    source: "FlashScore + SoccerFootballInfo + Oddix",
     qualityScore: quality,
   };
 }
@@ -1278,15 +1278,15 @@ export default function Dashboard() {
 
   function buildBoost() {
     const picks = [...displayedSmartTips]
-      .filter((tip) => safeNumber(tip.confidence, 0) >= 75)
-      .filter((tip) => safeNumber(tip.odd, 0) >= 1.35)
-      .filter((tip) => safeNumber(tip.odd, 0) <= 2.05)
+      .filter((tip) => safeNumber(tip.confidence, 0) >= 72)
+      .filter((tip) => safeNumber(tip.odd, 0) >= 1.25)
+      .filter((tip) => safeNumber(tip.odd, 0) <= 2.10)
       .sort((a, b) => {
-        const scoreA = safeNumber(a.confidence, 0) + safeNumber(a.qualityScore, 0) * 0.35 - Math.abs(safeNumber(a.odd, 1.7) - 1.7) * 8;
-        const scoreB = safeNumber(b.confidence, 0) + safeNumber(b.qualityScore, 0) * 0.35 - Math.abs(safeNumber(b.odd, 1.7) - 1.7) * 8;
+        const scoreA = safeNumber(a.qualityScore, 0) * 0.55 + safeNumber(a.confidence, 0) * 0.45 - Math.abs(safeNumber(a.odd, 1.65) - 1.65) * 7;
+        const scoreB = safeNumber(b.qualityScore, 0) * 0.55 + safeNumber(b.confidence, 0) * 0.45 - Math.abs(safeNumber(b.odd, 1.65) - 1.65) * 7;
         return scoreB - scoreA;
       })
-      .slice(0, 3);
+      .slice(0, 4);
 
     const combinedOdd = picks.reduce((acc, item) => acc * safeNumber(item.odd, 1.35), 1);
     const confidence = picks.length
@@ -1301,20 +1301,20 @@ export default function Dashboard() {
   const top5Tips = [...displayedSmartTips]
     .filter((tip) => safeNumber(tip.confidence, 0) >= 65)
     .sort((a, b) => {
-      const confidenceDiff = safeNumber(b.confidence, 0) - safeNumber(a.confidence, 0);
-      if (confidenceDiff !== 0) return confidenceDiff;
-      return safeNumber(b.qualityScore, 0) - safeNumber(a.qualityScore, 0);
+      const scoreA = safeNumber(a.qualityScore, 0) * 0.6 + safeNumber(a.confidence, 0) * 0.4;
+      const scoreB = safeNumber(b.qualityScore, 0) * 0.6 + safeNumber(b.confidence, 0) * 0.4;
+      return scoreB - scoreA;
     })
     .slice(0, 5);
 
   const topPick = useMemo(() => {
     return [...displayedSmartTips]
-      .filter((tip) => safeNumber(tip.confidence, 0) >= 78)
-      .filter((tip) => safeNumber(tip.odd, 0) >= 1.45)
-      .filter((tip) => safeNumber(tip.odd, 0) <= 2.05)
+      .filter((tip) => safeNumber(tip.qualityScore, 0) >= 80 || safeNumber(tip.confidence, 0) >= 78)
+      .filter((tip) => safeNumber(tip.odd, 0) >= 1.25)
+      .filter((tip) => safeNumber(tip.odd, 0) <= 2.15)
       .sort((a, b) => {
-        const scoreA = safeNumber(a.confidence, 0) + safeNumber(a.qualityScore, 0) * 0.45 - Math.abs(safeNumber(a.odd, 1.75) - 1.75) * 10;
-        const scoreB = safeNumber(b.confidence, 0) + safeNumber(b.qualityScore, 0) * 0.45 - Math.abs(safeNumber(b.odd, 1.75) - 1.75) * 10;
+        const scoreA = safeNumber(a.qualityScore, 0) * 0.62 + safeNumber(a.confidence, 0) * 0.38 - Math.abs(safeNumber(a.odd, 1.65) - 1.65) * 8;
+        const scoreB = safeNumber(b.qualityScore, 0) * 0.62 + safeNumber(b.confidence, 0) * 0.38 - Math.abs(safeNumber(b.odd, 1.65) - 1.65) * 8;
         return scoreB - scoreA;
       })[0] || displayedSmartTips[0] || localTips[0] || null;
   }, [displayedSmartTips, localTips]);
@@ -1328,8 +1328,8 @@ export default function Dashboard() {
     .filter((tip) => safeNumber(tip.odd, 0) >= 1.25)
     .filter((tip) => safeNumber(tip.odd, 0) <= 2.05)
     .sort((a, b) => {
-      const scoreA = safeNumber(a.confidence, 0) + safeNumber(a.qualityScore, 0) * 0.35 - safeNumber(a.odd, 0) * 2;
-      const scoreB = safeNumber(b.confidence, 0) + safeNumber(b.qualityScore, 0) * 0.35 - safeNumber(b.odd, 0) * 2;
+      const scoreA = safeNumber(a.qualityScore, 0) * 0.55 + safeNumber(a.confidence, 0) * 0.45 - Math.abs(safeNumber(a.odd, 1.65) - 1.65) * 5;
+      const scoreB = safeNumber(b.qualityScore, 0) * 0.55 + safeNumber(b.confidence, 0) * 0.45 - Math.abs(safeNumber(b.odd, 1.65) - 1.65) * 5;
       return scoreB - scoreA;
     })
     .slice(0, 3);

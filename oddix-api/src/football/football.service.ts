@@ -1559,15 +1559,56 @@ export class FootballService {
     const score = item?.score || item?.placar || {};
     const status = fixture?.status || {};
     const odds = item?.odds || item?.chances || {};
-    const options = Array.isArray(odds?.options)
+
+    const preMatchOdds = item?.preMatchStats?.odds || item?.prematchStats?.odds || {};
+
+    const directOdds = [
+      { name: "1", odd: odds?.["1"] ?? odds?.home ?? odds?.casa ?? odds?.mandante ?? preMatchOdds?.home },
+      { name: "X", odd: odds?.X ?? odds?.x ?? odds?.draw ?? odds?.empate ?? preMatchOdds?.draw },
+      { name: "2", odd: odds?.["2"] ?? odds?.away ?? odds?.fora ?? odds?.visitante ?? preMatchOdds?.away },
+    ].filter((option: any) => Number(option.odd) > 1);
+
+    const listedOdds = Array.isArray(odds?.options)
       ? odds.options
       : Array.isArray(odds?.opções)
         ? odds.opções
-        : [
-            { name: "1", odd: odds?.["1"] ?? odds?.home ?? odds?.casa },
-            { name: "X", odd: odds?.X ?? odds?.draw ?? odds?.empate },
-            { name: "2", odd: odds?.["2"] ?? odds?.away ?? odds?.fora },
-          ].filter((option: any) => Number(option.odd) > 0);
+        : Array.isArray(odds?.outcomes)
+          ? odds.outcomes
+          : Array.isArray(odds?.markets)
+            ? odds.markets
+            : [];
+
+    const options = listedOdds.length ? listedOdds : directOdds;
+
+    const normalizeOutcomeName = (value: any) => {
+      const raw = String(value || "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "");
+
+      if (["1", "home", "casa", "mandante", "homewin", "vitoriacasa"].includes(raw)) return "1";
+      if (["x", "draw", "empate", "tie"].includes(raw)) return "X";
+      if (["2", "away", "fora", "visitante", "awaywin", "vitoriafora"].includes(raw)) return "2";
+      return String(value || "").trim();
+    };
+
+    const normalizedOddsOptions = options
+      .map((option: any) => ({
+        name: normalizeOutcomeName(option?.name || option?.nome || option?.selection || option?.selectionName || option?.label || option?.outcome || option?.title || ""),
+        odd: Number(
+          String(option?.odd ?? option?.odds ?? option?.ímpar ?? option?.impar ?? option?.value ?? option?.price ?? option?.decimal ?? option?.rate?.decimal ?? option?.rate ?? 0)
+            .replace(",", ".")
+            .replace(/[^0-9.\-]/g, ""),
+        ),
+      }))
+      .filter(
+        (option: any) =>
+          ["1", "X", "2"].includes(option.name) && Number.isFinite(option.odd) && option.odd > 1,
+      )
+      .filter((option: any, index: number, arr: any[]) => arr.findIndex((x) => x.name === option.name) === index)
+      .sort((a: any, b: any) => ({ "1": 1, X: 2, "2": 3 } as any)[a.name] - ({ "1": 1, X: 2, "2": 3 } as any)[b.name]);
 
     const homeGoals = Number(
       goals?.home ??
@@ -1652,21 +1693,13 @@ export class FootballService {
           away: Number.isFinite(awayGoals) ? awayGoals : 0,
         },
       },
-      odds: odds
+      odds: normalizedOddsOptions.length
         ? {
             source: odds?.source || odds?.fonte || "flashscore",
             bookmaker:
               odds?.bookmaker || odds?.["casa de apostas"] || "FlashScore",
             market: odds?.market || odds?.mercado || "1X2",
-            options: options
-              .map((option: any) => ({
-                name: option?.name || option?.nome || "",
-                odd: Number(option?.odd ?? option?.ímpar ?? option?.impar ?? 0),
-              }))
-              .filter(
-                (option: any) =>
-                  option.name && Number.isFinite(option.odd) && option.odd > 0,
-              ),
+            options: normalizedOddsOptions,
           }
         : undefined,
       __oddixCachedAt: item?.__oddixCachedAt,
@@ -1975,22 +2008,37 @@ export class FootballService {
   }
 
   private summarizeFlashScoreOdds(oddsData: any) {
-    const objects = this.collectObjectsDeep(oddsData, 6);
     const odds: any = { home: null, draw: null, away: null };
 
+    const assignDirect = (node: any) => {
+      if (!node || typeof node !== "object") return;
+      odds.home = odds.home || this.normalizeNumber(node?.["1"] ?? node?.home ?? node?.casa ?? node?.mandante, null);
+      odds.draw = odds.draw || this.normalizeNumber(node?.X ?? node?.x ?? node?.draw ?? node?.empate, null);
+      odds.away = odds.away || this.normalizeNumber(node?.["2"] ?? node?.away ?? node?.fora ?? node?.visitante, null);
+    };
+
+    assignDirect(oddsData);
+    assignDirect(oddsData?.odds);
+    assignDirect(oddsData?.data);
+    assignDirect(oddsData?.response);
+
+    const objects = this.collectObjectsDeep(oddsData, 7);
+
     for (const row of objects) {
+      assignDirect(row);
+
       const name = this.normalizeTextLoose(
-        this.readAny(row, ["name", "label", "title", "outcome", "selection", "marketName"], ""),
+        this.readAny(row, ["name", "label", "title", "outcome", "selection", "selectionName", "marketName"], ""),
       );
       const odd = this.normalizeNumber(
-        this.readAny(row, ["odd", "value", "price", "decimal", "rate.decimal", "odds"], null),
+        this.readAny(row, ["odd", "odds", "value", "price", "decimal", "rate.decimal", "rate", "current.decimal"], null),
         null,
       );
       if (!odd || odd <= 1) continue;
 
-      if (!odds.home && ["1", "home", "casa", "mandante"].includes(name)) odds.home = odd;
-      if (!odds.draw && ["x", "draw", "empate"].includes(name)) odds.draw = odd;
-      if (!odds.away && ["2", "away", "fora", "visitante"].includes(name)) odds.away = odd;
+      if (!odds.home && ["1", "home", "casa", "mandante", "homewin"].includes(name)) odds.home = odd;
+      if (!odds.draw && ["x", "draw", "empate", "tie"].includes(name)) odds.draw = odd;
+      if (!odds.away && ["2", "away", "fora", "visitante", "awaywin"].includes(name)) odds.away = odd;
     }
 
     return {
@@ -2061,10 +2109,31 @@ export class FootballService {
         oddsResponse,
       );
 
-      return {
+      const hasCurrentOdds = Array.isArray(cleanItem?.odds?.options) && cleanItem.odds.options.length > 0;
+      const preMatchOddsOptions = [
+        { name: "1", odd: preMatchStats?.odds?.home },
+        { name: "X", odd: preMatchStats?.odds?.draw },
+        { name: "2", odd: preMatchStats?.odds?.away },
+      ]
+        .map((option: any) => ({ name: option.name, odd: Number(option.odd) }))
+        .filter((option: any) => ["1", "X", "2"].includes(option.name) && Number.isFinite(option.odd) && option.odd > 1);
+
+      const enriched = {
         ...cleanItem,
+        odds: hasCurrentOdds
+          ? cleanItem.odds
+          : preMatchOddsOptions.length
+            ? {
+                source: "flashscore-odds-endpoint",
+                bookmaker: "FlashScore",
+                market: "1X2",
+                options: preMatchOddsOptions,
+              }
+            : undefined,
         preMatchStats,
       };
+
+      return this.standardizeFixture(enriched);
     } catch {
       return cleanItem;
     }

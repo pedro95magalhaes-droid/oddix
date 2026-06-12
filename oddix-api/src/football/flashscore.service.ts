@@ -326,6 +326,125 @@ export class FlashScoreService {
     return Number.isFinite(n) && n >= 0 && n < 100 ? n : null;
   }
 
+
+  private normalizeOddValue(value: any): number | null {
+    if (value === null || value === undefined || value === '') return null;
+
+    if (typeof value === 'number') {
+      return Number.isFinite(value) && value > 1 ? Number(value.toFixed(2)) : null;
+    }
+
+    if (typeof value === 'object') {
+      const candidate =
+        value?.odd ??
+        value?.odds ??
+        value?.value ??
+        value?.price ??
+        value?.decimal ??
+        value?.rate?.decimal ??
+        value?.current?.decimal ??
+        value?.current ??
+        value?.rate ??
+        null;
+
+      return this.normalizeOddValue(candidate);
+    }
+
+    const raw = String(value)
+      .replace(',', '.')
+      .replace(/[^0-9.\-]/g, '');
+
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 1 ? Number(parsed.toFixed(2)) : null;
+  }
+
+  private normalizeOutcomeName(value: any): string {
+    const raw = String(value || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+
+    if (['1', 'home', 'casa', 'mandante', 'homewin', 'vitoriacasa', 'time1'].includes(raw)) return '1';
+    if (['x', 'draw', 'empate', 'tie'].includes(raw)) return 'X';
+    if (['2', 'away', 'fora', 'visitante', 'awaywin', 'vitoriafora', 'time2'].includes(raw)) return '2';
+
+    return '';
+  }
+
+  private pushOddOption(target: any[], name: '1' | 'X' | '2', oddValue: any) {
+    const odd = this.normalizeOddValue(oddValue);
+    if (!odd) return;
+    if (target.some((item) => item.name === name)) return;
+    target.push({ name, odd });
+  }
+
+  private extract1x2Options(input: any): Array<{ name: '1' | 'X' | '2'; odd: number }> {
+    const options: Array<{ name: '1' | 'X' | '2'; odd: number }> = [];
+
+    const visit = (node: any, depth = 0) => {
+      if (!node || depth > 6 || options.length >= 3) return;
+
+      if (Array.isArray(node)) {
+        for (const item of node) visit(item, depth + 1);
+        return;
+      }
+
+      if (typeof node !== 'object') return;
+
+      this.pushOddOption(options, '1', node?.['1'] ?? node?.home ?? node?.casa ?? node?.mandante);
+      this.pushOddOption(options, 'X', node?.X ?? node?.x ?? node?.draw ?? node?.empate);
+      this.pushOddOption(options, '2', node?.['2'] ?? node?.away ?? node?.fora ?? node?.visitante);
+
+      const candidateName = this.normalizeOutcomeName(
+        node?.name ??
+          node?.nome ??
+          node?.label ??
+          node?.title ??
+          node?.outcome ??
+          node?.selection ??
+          node?.selectionName ??
+          node?.marketName,
+      );
+
+      if (candidateName) {
+        this.pushOddOption(
+          options,
+          candidateName as '1' | 'X' | '2',
+          node?.odd ?? node?.odds ?? node?.value ?? node?.price ?? node?.decimal ?? node?.rate,
+        );
+      }
+
+      const priorityKeys = [
+        'options',
+        'opções',
+        'outcomes',
+        'selections',
+        'values',
+        'markets',
+        'market',
+        'odds',
+        'bookmakers',
+        'data',
+        'response',
+        'result',
+        'payload',
+      ];
+
+      for (const key of priorityKeys) visit(node?.[key], depth + 1);
+
+      if (options.length < 3) {
+        for (const value of Object.values(node)) visit(value, depth + 1);
+      }
+    };
+
+    visit(input);
+
+    const order: Record<string, number> = { '1': 1, X: 2, '2': 3 };
+    return options.sort((a, b) => order[a.name] - order[b.name]);
+  }
+
   mapMatch(match: any) {
     const rawId = this.read(match, ['match_id', 'id', 'matchId', 'eventId', 'flashscoreId'], '');
     const fixtureId = this.stableNumericId(rawId);
@@ -347,23 +466,8 @@ export class FlashScoreService {
 
     const date = dateRaw || (timestamp > 0 ? new Date(timestamp * 1000).toISOString() : new Date().toISOString());
 
-    const odds = this.read(match, ['odds'], null);
-
-    // DEBUG TEMPORÁRIO ODDIX: verificar formato real das odds retornadas pela FlashScore.
-    // Depois que ajustarmos o parser de odds, pode remover este bloco.
-    console.log(
-      'FLASHSCORE ODDS RAW:',
-      JSON.stringify(
-        {
-          matchId: rawId || fixtureId,
-          home: home?.name || '',
-          away: away?.name || '',
-          odds,
-        },
-        null,
-        2,
-      ),
-    );
+    const oddsRaw = this.read(match, ['odds', 'market.odds', 'markets', 'bookmakers', 'prematchOdds', 'matchOdds'], null);
+    const oddsOptions = this.extract1x2Options(oddsRaw);
 
     return {
       provider: 'flashscore',
@@ -384,16 +488,12 @@ export class FlashScoreService {
       teams: { home, away },
       goals: { home: homeScore, away: awayScore },
       score: { fulltime: { home: homeScore, away: awayScore } },
-      odds: odds
+      odds: oddsOptions.length
         ? {
             source: 'flashscore',
             bookmaker: 'FlashScore',
             market: '1X2',
-            options: [
-              { name: '1', odd: Number(odds?.['1'] || 0) || null },
-              { name: 'X', odd: Number(odds?.X || 0) || null },
-              { name: '2', odd: Number(odds?.['2'] || 0) || null },
-            ].filter((item) => item.odd),
+            options: oddsOptions,
           }
         : null,
       flashScoreRaw: match,
