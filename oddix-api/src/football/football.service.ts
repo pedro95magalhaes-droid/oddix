@@ -1559,18 +1559,15 @@ export class FootballService {
     const score = item?.score || item?.placar || {};
     const status = fixture?.status || {};
     const odds = item?.odds || item?.chances || {};
-
-    const directOdds = [
-      { name: "1", odd: odds?.["1"] ?? odds?.home ?? odds?.casa },
-      { name: "X", odd: odds?.X ?? odds?.x ?? odds?.draw ?? odds?.empate },
-      { name: "2", odd: odds?.["2"] ?? odds?.away ?? odds?.fora },
-    ].filter((option: any) => Number(option.odd) > 0);
-
     const options = Array.isArray(odds?.options)
       ? odds.options
       : Array.isArray(odds?.opções)
         ? odds.opções
-        : directOdds;
+        : [
+            { name: "1", odd: odds?.["1"] ?? odds?.home ?? odds?.casa },
+            { name: "X", odd: odds?.X ?? odds?.draw ?? odds?.empate },
+            { name: "2", odd: odds?.["2"] ?? odds?.away ?? odds?.fora },
+          ].filter((option: any) => Number(option.odd) > 0);
 
     const homeGoals = Number(
       goals?.home ??
