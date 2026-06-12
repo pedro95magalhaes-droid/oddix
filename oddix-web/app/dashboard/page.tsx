@@ -1343,6 +1343,350 @@ export default function Dashboard() {
     <main className="oddix-dashboard oddix-v30-dashboard" style={styles.page}>
       <style jsx global>{`
 
+        /* ODDIX V32 RESPONSIVE ADMIN SHELL - anti-break + dynamic zoom */
+        :root {
+          --oddix-container: min(1280px, calc(100vw - clamp(18px, 4vw, 52px)));
+          --oddix-gap: clamp(12px, 1.15vw, 18px);
+          --oddix-radius: clamp(18px, 1.6vw, 28px);
+          --oddix-pad: clamp(14px, 1.2vw, 20px);
+        }
+
+        *, *::before, *::after {
+          box-sizing: border-box;
+        }
+
+        html,
+        body {
+          width: 100%;
+          max-width: 100%;
+          overflow-x: hidden !important;
+          background: #07070d;
+        }
+
+        body {
+          touch-action: pan-y;
+        }
+
+        img,
+        video,
+        canvas,
+        svg {
+          max-width: 100%;
+        }
+
+        button,
+        input,
+        select,
+        textarea,
+        a,
+        div,
+        section,
+        article,
+        aside,
+        header,
+        main {
+          min-width: 0;
+        }
+
+        .oddix-dashboard {
+          width: 100% !important;
+          max-width: 100vw !important;
+          overflow-x: hidden !important;
+          font-size: clamp(13px, .82vw, 15px);
+        }
+
+        .oddix-dashboard h1 {
+          font-size: clamp(34px, 4.2vw, 58px) !important;
+          line-height: .96 !important;
+          letter-spacing: -1.4px !important;
+        }
+
+        .oddix-dashboard h2 {
+          font-size: clamp(22px, 2.35vw, 36px) !important;
+          line-height: 1.02 !important;
+        }
+
+        .oddix-dashboard h3 {
+          font-size: clamp(16px, 1.35vw, 21px) !important;
+        }
+
+        .oddix-dashboard p,
+        .oddix-dashboard span,
+        .oddix-dashboard small,
+        .oddix-dashboard strong,
+        .oddix-dashboard b,
+        .oddix-dashboard button,
+        .oddix-dashboard input,
+        .oddix-dashboard select {
+          overflow-wrap: anywhere;
+        }
+
+        .oddix-dashboard > section,
+        .oddix-dashboard > div:not([class*="modal"]),
+        .oddix-top-widgets,
+        .oddix-featured-strip,
+        .oddix-tabs-wrapper,
+        .oddix-layout,
+        .oddix-v26-conversion,
+        .oddix-v23-trust,
+        .oddix-vip-results,
+        .oddix-marketing-strip,
+        .oddix-hot-entries,
+        .oddix-premium-ticket,
+        .oddix-playerprops-home,
+        .oddix-v32-container {
+          width: var(--oddix-container) !important;
+          max-width: var(--oddix-container) !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+        }
+
+        .oddix-v26-conversion,
+        .oddix-top-widgets-grid,
+        .oddix-vip-marketing-cards,
+        .oddix-v23-grid,
+        .oddix-hot-grid,
+        .oddix-premium-ticket-grid,
+        .oddix-playerprops-grid,
+        .oddix-games-grid {
+          gap: var(--oddix-gap) !important;
+        }
+
+        .oddix-v26-conversion {
+          grid-template-columns: minmax(260px, 330px) minmax(0, 1fr) minmax(240px, 300px) !important;
+          align-items: start !important;
+        }
+
+        .oddix-top-widgets-grid {
+          grid-template-columns: minmax(0, 1fr) minmax(300px, .72fr) !important;
+        }
+
+        .oddix-layout {
+          display: grid !important;
+          grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) !important;
+          align-items: start !important;
+          gap: var(--oddix-gap) !important;
+        }
+
+        .oddix-sidebar {
+          position: sticky !important;
+          top: 92px !important;
+          max-height: calc(100dvh - 110px) !important;
+          overflow-y: auto !important;
+          overscroll-behavior: contain;
+          scrollbar-width: thin;
+        }
+
+        .oddix-main-content,
+        .oddix-sidebar,
+        .oddix-game-card-v25,
+        .oddix-v26-ticket,
+        .oddix-v26-proof,
+        .oddix-v26-ranking,
+        .oddix-v26-heatmap,
+        .oddix-card,
+        .oddix-panel {
+          border-radius: var(--oddix-radius) !important;
+        }
+
+        .oddix-main-content {
+          overflow: hidden !important;
+        }
+
+        .oddix-games-grid {
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)) !important;
+          padding: clamp(6px, 1vw, 10px) !important;
+        }
+
+        .oddix-game-card-v25 {
+          min-height: auto !important;
+          padding: clamp(14px, 1.12vw, 18px) !important;
+        }
+
+        .oddix-card-v25-match {
+          grid-template-columns: minmax(0, 1fr) clamp(64px, 6.5vw, 86px) minmax(0, 1fr) !important;
+          padding: clamp(10px, 1vw, 14px) !important;
+        }
+
+        .oddix-card-v25-team img {
+          width: clamp(42px, 4.2vw, 52px) !important;
+          height: clamp(42px, 4.2vw, 52px) !important;
+        }
+
+        .oddix-card-v25-score span {
+          font-size: clamp(18px, 2vw, 22px) !important;
+        }
+
+        .oddix-tabs-wrapper {
+          position: sticky !important;
+          top: 72px !important;
+          z-index: 30 !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-tabs {
+          min-width: 0 !important;
+          width: 100% !important;
+          display: flex !important;
+          overflow-x: auto !important;
+          overscroll-behavior-inline: contain;
+          scrollbar-width: none;
+          scroll-snap-type: x proximity;
+        }
+
+        .oddix-tabs::-webkit-scrollbar {
+          display: none;
+        }
+
+        .oddix-tabs button {
+          flex: 0 0 auto !important;
+          white-space: nowrap !important;
+          scroll-snap-align: start;
+        }
+
+        .oddix-featured-strip {
+          display: grid !important;
+          grid-auto-flow: column !important;
+          grid-auto-columns: minmax(260px, 330px) !important;
+          overflow-x: auto !important;
+          overflow-y: hidden !important;
+          scroll-snap-type: x proximity;
+          padding-bottom: 10px !important;
+        }
+
+        .oddix-featured-strip > * {
+          scroll-snap-align: start;
+        }
+
+        @media (min-width: 1440px) {
+          :root {
+            --oddix-container: 1280px;
+          }
+
+          .oddix-v26-ticket,
+          .oddix-v26-proof,
+          .oddix-v26-ranking,
+          .oddix-v26-heatmap,
+          .oddix-game-card-v25,
+          .oddix-main-content,
+          .oddix-sidebar > * {
+            zoom: .92;
+          }
+        }
+
+        @media (max-width: 1260px) {
+          :root {
+            --oddix-container: min(1180px, calc(100vw - 28px));
+          }
+
+          .oddix-v26-conversion {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+
+          .oddix-v26-conversion > :last-child {
+            grid-column: 1 / -1;
+          }
+
+          .oddix-top-widgets-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 1024px) {
+          :root {
+            --oddix-container: calc(100vw - 22px);
+            --oddix-gap: 12px;
+          }
+
+          .oddix-layout {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-sidebar {
+            position: relative !important;
+            top: auto !important;
+            max-height: none !important;
+            display: grid !important;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)) !important;
+            padding-right: 0 !important;
+          }
+
+          .oddix-v26-conversion,
+          .oddix-vip-marketing-cards {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 760px) {
+          :root {
+            --oddix-container: calc(100vw - 14px);
+            --oddix-radius: 18px;
+            --oddix-pad: 12px;
+          }
+
+          .oddix-dashboard {
+            font-size: 13px;
+          }
+
+          .oddix-dashboard h1 {
+            font-size: clamp(30px, 10vw, 42px) !important;
+          }
+
+          .oddix-dashboard h2 {
+            font-size: clamp(20px, 7vw, 28px) !important;
+          }
+
+          .oddix-dashboard > section,
+          .oddix-dashboard > div:not([class*="modal"]),
+          .oddix-top-widgets,
+          .oddix-featured-strip,
+          .oddix-tabs-wrapper,
+          .oddix-layout {
+            margin-top: 0 !important;
+            margin-bottom: 14px !important;
+          }
+
+          .oddix-main-content,
+          .oddix-sidebar > *,
+          .oddix-v26-ticket,
+          .oddix-v26-proof,
+          .oddix-v26-ranking,
+          .oddix-v26-heatmap {
+            padding: 14px !important;
+          }
+
+          .oddix-card-v25-match,
+          .oddix-card-v25-actions,
+          .oddix-card-v25-metrics {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-card-v25-score {
+            min-height: 54px !important;
+            grid-row: 2;
+          }
+
+          .oddix-featured-strip {
+            grid-auto-columns: minmax(240px, 84vw) !important;
+          }
+        }
+
+        @media (max-width: 420px) {
+          :root {
+            --oddix-container: calc(100vw - 10px);
+          }
+
+          .oddix-dashboard h1 {
+            letter-spacing: -1px !important;
+          }
+
+          .oddix-tabs button {
+            padding: 11px 12px !important;
+            font-size: 12px !important;
+          }
+        }
+
+
         /* ODDIX V22 SPORTSBOOK PREMIUM OVERRIDES */
 
         /* ODDIX V25 PREMIUM GAME CARDS */
@@ -11522,5 +11866,62 @@ Object.assign(styles, {
     alignItems: "end",
     height: 34,
     opacity: .9,
+  },
+});
+
+
+/* ODDIX V32 final inline-style overrides: compact admin layout + anti-break */
+Object.assign(styles, {
+  page: {
+    ...(styles.page || {}),
+    width: "100%",
+    maxWidth: "100vw",
+    overflowX: "hidden",
+  },
+  tabsWrapper: {
+    ...(styles.tabsWrapper || {}),
+    width: "min(1280px, calc(100vw - 28px))",
+    margin: "0 auto 14px",
+    overflow: "hidden",
+  },
+  tabs: {
+    ...(styles.tabs || {}),
+    minWidth: 0,
+    width: "100%",
+    overflowX: "auto",
+  },
+  layout: {
+    ...(styles.layout || {}),
+    width: "min(1280px, calc(100vw - 28px))",
+    margin: "0 auto 24px",
+    display: "grid",
+    gridTemplateColumns: "minmax(220px, 260px) minmax(0, 1fr)",
+    gap: 16,
+    alignItems: "start",
+  },
+  sidebar: {
+    ...(styles.sidebar || {}),
+    minWidth: 0,
+    overflowX: "hidden",
+  },
+  mainContent: {
+    ...(styles.mainContent || {}),
+    minWidth: 0,
+    width: "100%",
+    maxWidth: "100%",
+    overflow: "hidden",
+    padding: 16,
+  },
+  gamesGrid: {
+    ...(styles.gamesGrid || {}),
+    width: "100%",
+    minWidth: 0,
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+    gap: 14,
+    padding: "8px 4px 18px",
+  },
+  topWidgetsGrid: {
+    ...(styles.topWidgetsGrid || {}),
+    gridTemplateColumns: "minmax(0, 1fr)",
   },
 });
