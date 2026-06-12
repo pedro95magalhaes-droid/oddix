@@ -349,6 +349,22 @@ export class FlashScoreService {
 
     const odds = this.read(match, ['odds'], null);
 
+    // DEBUG TEMPORÁRIO ODDIX: verificar formato real das odds retornadas pela FlashScore.
+    // Depois que ajustarmos o parser de odds, pode remover este bloco.
+    console.log(
+      'FLASHSCORE ODDS RAW:',
+      JSON.stringify(
+        {
+          matchId: rawId || fixtureId,
+          home: home?.name || '',
+          away: away?.name || '',
+          odds,
+        },
+        null,
+        2,
+      ),
+    );
+
     return {
       provider: 'flashscore',
       fixture: {
