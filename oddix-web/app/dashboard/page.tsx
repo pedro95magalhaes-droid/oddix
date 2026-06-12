@@ -358,7 +358,8 @@ function smartLocalTip(game: any) {
   const score = getScore(game);
   const totalGoals = safeNumber(score.home, 0) + safeNumber(score.away, 0);
   const elapsed = safeNumber(game?.fixture?.status?.elapsed, 0);
-  const odd = bestOddFromGame(game) || (quality >= 85 ? 1.62 : quality >= 75 ? 1.55 : 1.45);
+  const realOdd = getBestSafeOdd(game);
+  const odd = realOdd || 0;
   const homeTeam = game?.teams?.home?.name || "Casa";
   const awayTeam = game?.teams?.away?.name || "Fora";
   const seed = seededHash(`${game?.fixture?.id || ""}-${homeTeam}-${awayTeam}-${game?.league?.name || ""}`);
@@ -366,8 +367,27 @@ function smartLocalTip(game: any) {
 
   let market = "Oddix Boost";
   let tip = "Over 1.5 gols";
-  let confidence = Math.min(94, Math.max(70, Math.round(quality * 0.78 + safeNumber(odd, 1.55) * 7)));
+  let confidence = realOdd ? Math.min(94, Math.max(70, Math.round(quality * 0.78 + safeNumber(odd, 1.55) * 7))) : 0;
   let risk = quality >= 88 ? "Baixo" : quality >= 78 ? "Médio/Baixo" : "Médio";
+
+  if (!realOdd) {
+    return {
+      fixtureId: game?.fixture?.id,
+      game: `${homeTeam} x ${awayTeam}`,
+      homeTeam,
+      awayTeam,
+      league: game?.league?.name,
+      market: "NO_BET",
+      tip: "Aguardando odds reais da FlashScore",
+      odd: "0.00",
+      confidence: 0,
+      risk: "Bloqueado",
+      source: "Real odds only",
+      qualityScore: quality,
+      hasRealOdds: false,
+      noBetReason: "Sem odds reais disponíveis",
+    };
+  }
 
   if (live) {
     if (elapsed < 15) {
@@ -455,8 +475,9 @@ function dedupeSmartTips(tips: any[]) {
     const marketKey = marketAlreadyUsedKey(tip);
     const confidence = safeNumber(tip?.confidence, 0);
     const quality = safeNumber(tip?.qualityScore, 0);
+    const odd = safeNumber(tip?.odd, 0);
 
-    if (!gameKey || confidence < 65 || quality < DASHBOARD_MIN_SCORE) continue;
+    if (!gameKey || confidence < 65 || quality < DASHBOARD_MIN_SCORE || odd < 1.2) continue;
     if (usedGames.has(gameKey)) continue;
 
     const currentMarketCount = usedMarkets.get(marketKey) || 0;
@@ -616,8 +637,8 @@ function mergeGames(groups: any[][]) {
       return;
     }
 
-    const currentScore = safeNumber(current?.oddix?.qualityScore, 0) + (current?.odds ? 20 : 0);
-    const incomingScore = safeNumber(game?.oddix?.qualityScore, 0) + (game?.odds ? 20 : 0);
+    const currentScore = safeNumber(current?.oddix?.qualityScore, 0) + (hasRealOdds(current) ? 25 : 0);
+    const incomingScore = safeNumber(game?.oddix?.qualityScore, 0) + (hasRealOdds(game) ? 25 : 0);
     if (incomingScore >= currentScore) map.set(key, game);
   });
 
@@ -868,7 +889,7 @@ export default function Dashboard() {
         const game = getGameByTip(tip, games);
         const realOdd = game ? getBestSafeOdd(game) : null;
 
-        if (!game || !realOdd) return null;
+        if (!game || !realOdd || safeNumber(tip?.qualityScore, 0) < DASHBOARD_MIN_SCORE) return null;
 
         return {
           ...tip,
@@ -1155,14 +1176,38 @@ export default function Dashboard() {
 
       const ai = aiResponse.status === "fulfilled" ? aiResponse.value?.data : null;
       const statsData = statsResponse.status === "fulfilled" ? statsResponse.value?.data : null;
-      const fallbackAi = smartTip || smartLocalTip(game);
+      const realOdd = getBestSafeOdd(game);
+      if (!realOdd) {
+        setSelectedStats(statsData);
+        setSelectedAnalysis({
+          game,
+          ai: {
+            tip: "SEM ENTRADA",
+            odd: "0.00",
+            confidence: 0,
+            risk: "Bloqueado",
+            analysis: "Oddix bloqueou a entrada porque este jogo ainda não possui odds reais disponíveis. Regra ativa: sem odds reais = NO_BET.",
+            markets: [],
+            multiples: null,
+            status: "NO_BET",
+          },
+          smartTip: null,
+          saved: false,
+          savedBetId: null,
+          blocked: true,
+        });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+
+      const fallbackAi = smartTip || { ...smartLocalTip(game), odd: Number(realOdd).toFixed(2), hasRealOdds: true };
 
       setSelectedStats(statsData);
       setSelectedAnalysis({
         game,
         ai: {
           tip: ai?.tip || fallbackAi.tip,
-          odd: ai?.odd || fallbackAi.odd,
+          odd: Number(realOdd).toFixed(2),
           confidence: ai?.confidence || fallbackAi.confidence,
           risk: ai?.risk || fallbackAi.risk,
           analysis:
@@ -1202,6 +1247,12 @@ export default function Dashboard() {
       const game = selectedAnalysis.game;
       const ai = selectedAnalysis.ai;
       const score = getScore(game);
+      const realOdd = getBestSafeOdd(game);
+
+      if (selectedAnalysis?.blocked || ai?.status === "NO_BET" || !realOdd) {
+        alert("Entrada bloqueada: sem odds reais disponíveis. Regra Oddix: sem odds reais = NO_BET.");
+        return;
+      }
 
       if (selectedAnalysis.saved || isSavedGame(game)) {
         alert("Esse jogo já foi salvo.");
@@ -1213,7 +1264,7 @@ export default function Dashboard() {
         awayTeam: game.teams?.away?.name || "",
         league: game.league?.name || "",
         tip: ai.tip || "",
-        odd: Number(ai.odd || 0),
+        odd: Number(realOdd || ai.odd || 0),
         confidence: Number(ai.confidence || 0),
         status: "open",
         homeLogo: game.teams?.home?.logo || "",
@@ -6409,6 +6460,214 @@ export default function Dashboard() {
           }
         }
 
+
+        /* ODDIX V34 FINAL CLEAN ADMIN - 100% anti-break and less clutter */
+        :root {
+          --oddix-container-final: min(1180px, calc(100vw - clamp(10px, 3vw, 36px)));
+          --oddix-sidebar-final: clamp(210px, 18vw, 252px);
+          --oddix-card-pad-final: clamp(12px, 1.1vw, 18px);
+          --oddix-font-scale: clamp(.88, .72vw, 1);
+        }
+
+        .oddix-dashboard {
+          isolation: isolate;
+          contain-x: paint;
+        }
+
+        .oddix-dashboard * {
+          max-width: 100%;
+        }
+
+        .oddix-dashboard [style*="1480px"],
+        .oddix-dashboard [style*="calc(100% - 36px)"],
+        .oddix-dashboard [style*="430px"] {
+          max-width: var(--oddix-container-final) !important;
+        }
+
+        .oddix-hero-grid,
+        .oddix-tabs-wrapper,
+        .oddix-layout,
+        .oddix-v32-container,
+        .oddix-top-widgets,
+        .oddix-featured-strip,
+        .oddix-vip-results,
+        .oddix-hot-entries,
+        .oddix-playerprops-home,
+        .oddix-premium-ticket,
+        .oddix-marketing-strip,
+        .oddix-v23-trust,
+        .oddix-v26-conversion {
+          width: var(--oddix-container-final) !important;
+          max-width: var(--oddix-container-final) !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+        }
+
+        .oddix-layout {
+          grid-template-columns: var(--oddix-sidebar-final) minmax(0, 1fr) !important;
+          gap: clamp(10px, 1.2vw, 16px) !important;
+        }
+
+        .oddix-hero-grid {
+          grid-template-columns: minmax(0, 1fr) !important;
+          gap: clamp(12px, 1.4vw, 18px) !important;
+        }
+
+        .oddix-hero-main,
+        .oddix-vip-panel,
+        .oddix-main-content,
+        .oddix-sidebar,
+        .oddix-card,
+        .oddix-panel,
+        .oddix-game-card-v25 {
+          min-width: 0 !important;
+          overflow: hidden !important;
+        }
+
+        .oddix-top-widgets,
+        .oddix-v26-conversion,
+        #oddix-trust,
+        #oddix-markets,
+        #oddix-playerprops,
+        .oddix-marketing-strip,
+        .oddix-hot-entries,
+        .oddix-featured-strip {
+          display: none !important;
+        }
+
+        .oddix-games-grid,
+        .oddix-vip-marketing-cards,
+        .oddix-v23-grid,
+        .oddix-hot-grid,
+        .oddix-playerprops-grid,
+        .oddix-premium-ticket-grid,
+        .oddix-top-widgets-grid {
+          display: grid !important;
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)) !important;
+        }
+
+        .oddix-card-v25-match,
+        .oddix-card-v25-metrics,
+        .oddix-card-v25-actions,
+        .oddix-boost-mini-grid,
+        .oddix-v26-ticket-grid {
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 92px), 1fr)) !important;
+        }
+
+        .oddix-dashboard h1 {
+          font-size: clamp(28px, 4.2vw, 52px) !important;
+        }
+
+        .oddix-dashboard h2 {
+          font-size: clamp(20px, 2.2vw, 32px) !important;
+        }
+
+        .oddix-dashboard h3 {
+          font-size: clamp(15px, 1.4vw, 20px) !important;
+        }
+
+        .oddix-dashboard p,
+        .oddix-dashboard span,
+        .oddix-dashboard small,
+        .oddix-dashboard strong,
+        .oddix-dashboard b,
+        .oddix-dashboard button,
+        .oddix-dashboard input,
+        .oddix-dashboard select {
+          line-height: 1.25;
+          overflow-wrap: anywhere !important;
+        }
+
+        .oddix-card-v25-team strong,
+        .oddix-card-v25-pick strong,
+        .oddix-card-v25-metrics strong,
+        .oddix-v26-picks b,
+        .oddix-side-menu button span,
+        .oddix-tabs button {
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+
+        .oddix-real-only-empty {
+          padding: 14px;
+          border-radius: 16px;
+          color: rgba(255,255,255,.74);
+          background: rgba(255,255,255,.06);
+          border: 1px dashed rgba(250,204,21,.28);
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        @media (min-width: 1360px) {
+          .oddix-dashboard {
+            font-size: 14px !important;
+          }
+          .oddix-hero-main,
+          .oddix-vip-panel,
+          .oddix-main-content,
+          .oddix-sidebar > * {
+            transform: scale(.96);
+            transform-origin: top center;
+          }
+        }
+
+        @media (max-width: 1080px) {
+          .oddix-layout {
+            grid-template-columns: 1fr !important;
+          }
+          .oddix-sidebar {
+            display: none !important;
+          }
+          .oddix-side-menu {
+            display: block !important;
+          }
+          .oddix-mobile-menu-button {
+            display: inline-grid !important;
+          }
+        }
+
+        @media (max-width: 760px) {
+          :root {
+            --oddix-container-final: calc(100vw - 10px);
+          }
+          .oddix-dashboard {
+            font-size: 13px !important;
+          }
+          .oddix-hero-main,
+          .oddix-vip-panel,
+          .oddix-main-content,
+          .oddix-tabs-wrapper {
+            border-radius: 18px !important;
+          }
+          .oddix-main-content,
+          .oddix-vip-panel,
+          .oddix-hero-main {
+            padding: 12px !important;
+          }
+          .oddix-card-v25-match,
+          .oddix-card-v25-metrics,
+          .oddix-card-v25-actions {
+            grid-template-columns: 1fr !important;
+          }
+          .oddix-hero-player-box {
+            display: none !important;
+          }
+        }
+
+        @media (max-width: 420px) {
+          :root {
+            --oddix-container-final: calc(100vw - 8px);
+          }
+          .oddix-dashboard h1 {
+            font-size: clamp(25px, 9vw, 34px) !important;
+          }
+          .oddix-card-v25-team img {
+            width: 38px !important;
+            height: 38px !important;
+          }
+        }
+
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
@@ -6450,7 +6709,7 @@ export default function Dashboard() {
           <div className="oddix-side-stat-row"><span>Jogos</span><strong>{games.length}</strong></div>
           <div className="oddix-side-stat-row"><span>Ao vivo</span><strong>{liveGames.length}</strong></div>
           <div className="oddix-side-stat-row"><span>Pré-jogo</span><strong>{futureGames.length}</strong></div>
-          <div className="oddix-side-stat-row"><span>Tips IA</span><strong>{displayedSmartTips.length}</strong></div>
+          <div className="oddix-side-stat-row"><span>Tips IA</span><strong>{realOddsSmartTips.length}</strong></div>
         </div>
 
         <div className="oddix-side-box">
@@ -6637,7 +6896,7 @@ export default function Dashboard() {
             )}
 
             <div style={styles.heroCtaRow}>
-              <button style={styles.heroPrimaryCta} onClick={() => topPickGame ? openMatchDetail(topPickGame) : setActiveTab("highlights")}>🔥 VER TOP PICK</button>
+              <button style={styles.heroPrimaryCta} onClick={() => topPick && topPickGame ? openMatchDetail(topPickGame) : setActiveTab("smart")}>🔥 VER TOP PICK</button>
               <button style={styles.heroSecondaryCta} onClick={() => (window.location.href = "/plans")}>💎 ENTRAR NO VIP</button>
             </div>
 
@@ -6647,7 +6906,7 @@ export default function Dashboard() {
               <InfoMetric label="ROI" value={`${stats?.roi || 0}%`} />
               <InfoMetric label="Análises" value={stats?.totalBets || savedBets.length || games.length} />
               <InfoMetric label="Ao vivo" value={liveGames.length} />
-              <InfoMetric label="Tips IA" value={displayedSmartTips.length} />
+              <InfoMetric label="Tips IA" value={realOddsSmartTips.length} />
             </div>
           </div>
 
@@ -6806,7 +7065,7 @@ export default function Dashboard() {
         greens={stats?.wonBets || wonBetsList.length}
         roi={stats?.roi || 0}
         liveGames={liveGames.length}
-        tips={displayedSmartTips.length}
+        tips={realOddsSmartTips.length}
         onVip={() => (window.location.href = "/plans")}
       />
 
@@ -6937,7 +7196,7 @@ export default function Dashboard() {
 
         <section className="oddix-main-content" style={styles.mainContent}>
           {activeTab === "smart" && (
-            <SmartTipsSection tips={displayedSmartTips} games={games} liveTick={liveTick} onAnalyze={openMatchDetail} />
+            <SmartTipsSection tips={realOddsSmartTips} games={games} liveTick={liveTick} onAnalyze={openMatchDetail} />
           )}
 
           {activeTab === "boost" && (
@@ -12236,7 +12495,7 @@ Object.assign(styles, {
 });
 
 
-/* ODDIX V32 final inline-style overrides: compact admin layout + anti-break */
+/* ODDIX V34 final inline-style overrides: compact admin layout + anti-break */
 Object.assign(styles, {
   page: {
     ...(styles.page || {}),
@@ -12289,5 +12548,47 @@ Object.assign(styles, {
   topWidgetsGrid: {
     ...(styles.topWidgetsGrid || {}),
     gridTemplateColumns: "minmax(0, 1fr)",
+  },
+});
+
+
+/* ODDIX V34 hard inline-style overrides */
+Object.assign(styles, {
+  layout: {
+    ...(styles.layout || {}),
+    width: "min(1180px, calc(100vw - 24px))",
+    maxWidth: "min(1180px, calc(100vw - 24px))",
+    margin: "0 auto 22px",
+    gridTemplateColumns: "minmax(210px, 252px) minmax(0, 1fr)",
+    gap: 14,
+    alignItems: "start",
+  },
+  heroGrid: {
+    ...(styles.heroGrid || {}),
+    width: "min(1180px, calc(100vw - 24px))",
+    maxWidth: "min(1180px, calc(100vw - 24px))",
+    margin: "0 auto 18px",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gap: 14,
+  },
+  mainContent: {
+    ...(styles.mainContent || {}),
+    minWidth: 0,
+    width: "100%",
+    maxWidth: "100%",
+    overflow: "hidden",
+    padding: 14,
+  },
+  gamesGrid: {
+    ...(styles.gamesGrid || {}),
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
+    gap: 12,
+    width: "100%",
+    minWidth: 0,
+  },
+  featuredStrip: {
+    ...(styles.featuredStrip || {}),
+    display: "none",
   },
 });
