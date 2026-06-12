@@ -295,6 +295,22 @@ function getOddsOptions(game: any) {
   return Array.isArray(options) ? options : [];
 }
 
+function hasRealOdds(game: any) {
+  return getOddsOptions(game).some((item: any) => {
+    const odd = Number(item?.odd ?? item?.ímpar ?? item?.value ?? item?.price);
+    return Number.isFinite(odd) && odd >= 1.2;
+  });
+}
+
+function getBestSafeOdd(game: any) {
+  const valid = getOddsOptions(game)
+    .map((item: any) => Number(item?.odd ?? item?.ímpar ?? item?.value ?? item?.price))
+    .filter((odd: number) => Number.isFinite(odd) && odd >= 1.2 && odd <= 2.5)
+    .sort((a: number, b: number) => Math.abs(a - 1.65) - Math.abs(b - 1.65));
+
+  return valid[0] || null;
+}
+
 function bestOddFromGame(game: any) {
   const options = getOddsOptions(game);
   const valid = options
@@ -803,6 +819,7 @@ export default function Dashboard() {
   const [freeLockOpen, setFreeLockOpen] = useState(false);
   const [realPlayerProps, setRealPlayerProps] = useState<any[]>([]);
   const [playerPropsLoading, setPlayerPropsLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const isPaidPlan = ["PRO", "VIP", "Pro", "Vip", "pro", "vip"].includes(String(plan));
   const today = dateKey(new Date());
@@ -844,6 +861,30 @@ export default function Dashboard() {
   const displayedSmartTips = useMemo(() => {
     return dedupeSmartTips(smartTips.length ? smartTips : localTips).slice(0, 12);
   }, [smartTips, localTips]);
+
+  const realOddsSmartTips = useMemo(() => {
+    return displayedSmartTips
+      .map((tip: any) => {
+        const game = getGameByTip(tip, games);
+        const realOdd = game ? getBestSafeOdd(game) : null;
+
+        if (!game || !realOdd) return null;
+
+        return {
+          ...tip,
+          odd: Number(realOdd).toFixed(2),
+          source: "FlashScore Odds + Soccer Football Info + Oddix",
+          hasRealOdds: true,
+        };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => {
+        const scoreA = safeNumber(a?.qualityScore, 0) * 0.62 + safeNumber(a?.confidence, 0) * 0.38;
+        const scoreB = safeNumber(b?.qualityScore, 0) * 0.62 + safeNumber(b?.confidence, 0) * 0.38;
+        return scoreB - scoreA;
+      })
+      .slice(0, 12);
+  }, [displayedSmartTips, games]);
 
   const playerPropsTips = useMemo(() => {
     // Mantido apenas para compatibilidade com versões antigas.
@@ -1212,6 +1253,8 @@ export default function Dashboard() {
   }
 
   function openSportsButton(action: string) {
+    setSidebarOpen(false);
+
     if (action === "dashboard") {
       setActiveTab("highlights");
       setLeagueFilter("all");
@@ -1277,7 +1320,7 @@ export default function Dashboard() {
   }
 
   function buildBoost() {
-    const picks = [...displayedSmartTips]
+    const picks = [...realOddsSmartTips]
       .filter((tip) => safeNumber(tip.confidence, 0) >= 72)
       .filter((tip) => safeNumber(tip.odd, 0) >= 1.25)
       .filter((tip) => safeNumber(tip.odd, 0) <= 2.10)
@@ -1298,7 +1341,7 @@ export default function Dashboard() {
 
   const boost = buildBoost();
 
-  const top5Tips = [...displayedSmartTips]
+  const top5Tips = [...realOddsSmartTips]
     .filter((tip) => safeNumber(tip.confidence, 0) >= 65)
     .sort((a, b) => {
       const scoreA = safeNumber(a.qualityScore, 0) * 0.6 + safeNumber(a.confidence, 0) * 0.4;
@@ -1308,22 +1351,22 @@ export default function Dashboard() {
     .slice(0, 5);
 
   const topPick = useMemo(() => {
-    return [...displayedSmartTips]
-      .filter((tip) => safeNumber(tip.qualityScore, 0) >= 80 || safeNumber(tip.confidence, 0) >= 78)
+    return [...realOddsSmartTips]
+      .filter((tip) => safeNumber(tip.qualityScore, 0) >= 85 || safeNumber(tip.confidence, 0) >= 80)
       .filter((tip) => safeNumber(tip.odd, 0) >= 1.25)
       .filter((tip) => safeNumber(tip.odd, 0) <= 2.15)
       .sort((a, b) => {
         const scoreA = safeNumber(a.qualityScore, 0) * 0.62 + safeNumber(a.confidence, 0) * 0.38 - Math.abs(safeNumber(a.odd, 1.65) - 1.65) * 8;
         const scoreB = safeNumber(b.qualityScore, 0) * 0.62 + safeNumber(b.confidence, 0) * 0.38 - Math.abs(safeNumber(b.odd, 1.65) - 1.65) * 8;
         return scoreB - scoreA;
-      })[0] || displayedSmartTips[0] || localTips[0] || null;
-  }, [displayedSmartTips, localTips]);
+      })[0] || null;
+  }, [realOddsSmartTips]);
 
   const topPickGame = useMemo(() => {
     return topPick ? getGameByTip(topPick, games) || topGames[0] : topGames[0];
   }, [topPick, games, topGames]);
 
-  const premiumBoost = [...displayedSmartTips]
+  const premiumBoost = [...realOddsSmartTips]
     .filter((tip) => safeNumber(tip.confidence, 0) >= 75)
     .filter((tip) => safeNumber(tip.odd, 0) >= 1.25)
     .filter((tip) => safeNumber(tip.odd, 0) <= 2.05)
@@ -6059,6 +6102,313 @@ export default function Dashboard() {
         }
 
 
+
+
+        /* ODDIX V33 ADMIN RESPONSIVE FIXES - compact dashboard, real picks, no break */
+        :root {
+          --oddix-admin-sidebar: clamp(178px, 15vw, 228px);
+          --oddix-admin-max: 1180px;
+          --oddix-admin-scale: clamp(.86, calc(100vw / 1540), 1);
+        }
+
+        .oddix-dashboard {
+          --oddix-container: min(var(--oddix-admin-max), calc(100vw - clamp(16px, 3vw, 40px))) !important;
+          font-size: clamp(12px, .78vw, 14px) !important;
+        }
+
+        .oddix-dashboard * {
+          min-width: 0 !important;
+        }
+
+        .oddix-dashboard section,
+        .oddix-dashboard article,
+        .oddix-dashboard aside,
+        .oddix-dashboard nav,
+        .oddix-dashboard header,
+        .oddix-dashboard div {
+          contain: layout style;
+        }
+
+        .oddix-top-header,
+        .oddix-sports-rail,
+        .oddix-hero-grid,
+        .oddix-top-widgets,
+        .oddix-v26-conversion,
+        .oddix-v23-trust,
+        .oddix-vip-results,
+        .oddix-marketing-strip,
+        .oddix-hot-entries,
+        .oddix-premium-ticket,
+        .oddix-playerprops-home,
+        #oddix-games,
+        #oddix-results,
+        #oddix-trust,
+        #oddix-markets,
+        #oddix-playerprops {
+          width: min(var(--oddix-admin-max), calc(100vw - var(--oddix-admin-sidebar) - clamp(28px, 4vw, 64px))) !important;
+          max-width: min(var(--oddix-admin-max), calc(100vw - var(--oddix-admin-sidebar) - clamp(28px, 4vw, 64px))) !important;
+          margin-left: calc(var(--oddix-admin-sidebar) + clamp(14px, 2vw, 26px)) !important;
+          margin-right: auto !important;
+        }
+
+        .oddix-side-menu {
+          width: var(--oddix-admin-sidebar) !important;
+          max-width: var(--oddix-admin-sidebar) !important;
+          transform: translateZ(0) scale(var(--oddix-admin-scale));
+          transform-origin: top left;
+        }
+
+        .oddix-top-header {
+          top: 0 !important;
+          min-height: 64px !important;
+          padding: clamp(8px, 1vw, 12px) clamp(10px, 1.2vw, 16px) !important;
+          backdrop-filter: blur(18px) !important;
+        }
+
+        .oddix-brand img {
+          max-height: clamp(38px, 3.4vw, 54px) !important;
+          width: auto !important;
+        }
+
+        .oddix-header-actions {
+          gap: 8px !important;
+          flex-wrap: nowrap !important;
+          overflow-x: auto !important;
+          scrollbar-width: none !important;
+        }
+
+        .oddix-header-actions::-webkit-scrollbar {
+          display: none;
+        }
+
+        .oddix-header-actions button {
+          height: clamp(34px, 2.8vw, 42px) !important;
+          padding: 0 clamp(10px, 1vw, 14px) !important;
+          white-space: nowrap !important;
+        }
+
+        .oddix-mobile-menu-button,
+        .oddix-mobile-backdrop {
+          display: none;
+        }
+
+        .oddix-hero-grid {
+          grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr) !important;
+          gap: clamp(12px, 1.4vw, 20px) !important;
+          min-height: auto !important;
+        }
+
+        .oddix-hero-main,
+        .oddix-vip-panel,
+        .oddix-boost-ticket {
+          padding: clamp(16px, 1.5vw, 24px) !important;
+          min-height: auto !important;
+        }
+
+        .oddix-hero-main h1 {
+          font-size: clamp(30px, 3.3vw, 48px) !important;
+        }
+
+        .oddix-hero-player-box {
+          max-height: clamp(210px, 24vw, 340px) !important;
+        }
+
+        .oddix-hero-player {
+          max-height: clamp(220px, 24vw, 360px) !important;
+          object-fit: contain !important;
+        }
+
+        .oddix-boost-ticket-v22-return strong,
+        .oddix-v26-return strong {
+          font-size: clamp(34px, 3vw, 52px) !important;
+        }
+
+        .oddix-v26-conversion {
+          grid-template-columns: minmax(250px, .75fr) minmax(0, 1fr) !important;
+        }
+
+        .oddix-v26-conversion > :last-child {
+          grid-column: 1 / -1 !important;
+        }
+
+        .oddix-top-widgets-grid,
+        .oddix-vip-marketing-cards,
+        .oddix-v23-grid,
+        .oddix-hot-grid,
+        .oddix-premium-ticket-grid,
+        .oddix-playerprops-grid {
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)) !important;
+        }
+
+        .oddix-games-grid {
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)) !important;
+        }
+
+        .oddix-game-card-v25 {
+          min-height: 0 !important;
+          max-width: 100% !important;
+        }
+
+        .oddix-card-v25-pick strong,
+        .oddix-card-v25-team strong,
+        .oddix-v26-picks b,
+        .oddix-v26-ranking-list b {
+          white-space: normal !important;
+          display: -webkit-box !important;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+        }
+
+        .oddix-real-only-empty {
+          border: 1px dashed rgba(250,204,21,.28);
+          background: rgba(250,204,21,.06);
+          color: rgba(255,255,255,.72);
+          border-radius: 18px;
+          padding: 14px;
+          font-weight: 850;
+        }
+
+        @media (min-width: 1560px) {
+          :root { --oddix-admin-max: 1160px; }
+          .oddix-dashboard { font-size: 13px !important; }
+        }
+
+        @media (max-width: 1180px) {
+          :root { --oddix-admin-sidebar: 74px; --oddix-admin-max: 1040px; }
+
+          .oddix-side-menu-title,
+          .oddix-side-menu-group button span:last-child,
+          .oddix-side-box {
+            display: none !important;
+          }
+
+          .oddix-side-menu-group button {
+            justify-content: center !important;
+            padding: 12px !important;
+          }
+
+          .oddix-side-menu-group button span:first-child {
+            font-size: 20px !important;
+          }
+        }
+
+        @media (max-width: 860px) {
+          :root { --oddix-admin-sidebar: 0px; --oddix-admin-max: 100vw; }
+
+          .oddix-top-header,
+          .oddix-sports-rail,
+          .oddix-hero-grid,
+          .oddix-top-widgets,
+          .oddix-v26-conversion,
+          .oddix-v23-trust,
+          .oddix-vip-results,
+          .oddix-marketing-strip,
+          .oddix-hot-entries,
+          .oddix-premium-ticket,
+          .oddix-playerprops-home,
+          #oddix-games,
+          #oddix-results,
+          #oddix-trust,
+          #oddix-markets,
+          #oddix-playerprops {
+            width: calc(100vw - 14px) !important;
+            max-width: calc(100vw - 14px) !important;
+            margin-left: 7px !important;
+            margin-right: 7px !important;
+          }
+
+          .oddix-mobile-menu-button {
+            display: grid !important;
+            place-items: center !important;
+            width: 42px !important;
+            height: 42px !important;
+            border: 1px solid rgba(255,255,255,.14) !important;
+            border-radius: 14px !important;
+            background: rgba(255,255,255,.08) !important;
+            color: #fff !important;
+            font-size: 20px !important;
+            cursor: pointer !important;
+          }
+
+          .oddix-mobile-backdrop.open {
+            display: block !important;
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 89 !important;
+            background: rgba(0,0,0,.54) !important;
+            backdrop-filter: blur(4px) !important;
+          }
+
+          .oddix-side-menu {
+            position: fixed !important;
+            z-index: 90 !important;
+            inset: 10px auto 10px 10px !important;
+            width: min(306px, calc(100vw - 30px)) !important;
+            max-width: min(306px, calc(100vw - 30px)) !important;
+            transform: translateX(calc(-100% - 22px)) !important;
+            transition: transform .22s ease !important;
+            max-height: calc(100dvh - 20px) !important;
+            overflow-y: auto !important;
+          }
+
+          .oddix-side-menu.open {
+            transform: translateX(0) !important;
+          }
+
+          .oddix-side-menu-title,
+          .oddix-side-menu-group button span:last-child,
+          .oddix-side-box {
+            display: block !important;
+          }
+
+          .oddix-side-menu-group button {
+            justify-content: flex-start !important;
+          }
+
+          .oddix-sports-rail {
+            display: none !important;
+          }
+
+          .oddix-hero-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-hero-player-box {
+            display: none !important;
+          }
+
+          .oddix-v26-conversion {
+            grid-template-columns: 1fr !important;
+          }
+
+          .oddix-top-header {
+            gap: 8px !important;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .oddix-top-header {
+            align-items: center !important;
+          }
+
+          .oddix-brand img {
+            max-width: 142px !important;
+          }
+
+          .oddix-header-actions button:nth-child(2),
+          .oddix-header-actions button:nth-child(3) {
+            display: none !important;
+          }
+
+          .oddix-card-v25-match,
+          .oddix-card-v25-actions,
+          .oddix-card-v25-metrics,
+          .oddix-boost-mini-grid,
+          .oddix-v26-ticket-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
@@ -6066,7 +6416,13 @@ export default function Dashboard() {
         onUpgrade={() => (window.location.href = "/plans")}
       />
 
-      <nav className="oddix-side-menu" aria-label="Sidebar do dashboard Oddix">
+      <div
+        className={`oddix-mobile-backdrop ${sidebarOpen ? "open" : ""}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
+
+      <nav className={`oddix-side-menu ${sidebarOpen ? "open" : ""}`} aria-label="Sidebar do dashboard Oddix">
         <div className="oddix-side-menu-title">Dashboard</div>
 
         <div className="oddix-side-menu-group">
@@ -6110,6 +6466,15 @@ export default function Dashboard() {
         </div>
       </nav>
       <header className="oddix-top-header" style={styles.topHeader}>
+        <button
+          type="button"
+          className="oddix-mobile-menu-button"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Abrir menu"
+        >
+          ☰
+        </button>
+
         <div className="oddix-brand" style={styles.brand} onClick={() => (window.location.href = "/dashboard")}>
           <img
             src="/logo-oddix-horizontal.png"
@@ -6329,7 +6694,7 @@ export default function Dashboard() {
           </div>
 
           <div style={{ display: "grid", gap: 10, margin: "16px 0" }}>
-            {(boost.picks.length ? boost.picks : displayedSmartTips.slice(0, 3)).slice(0, 3).map((pick: any, index: number) => (
+            {(boost.picks.length ? boost.picks : []).slice(0, 3).map((pick: any, index: number) => (
               <div key={`${pick.fixtureId || pick.game || index}-boost-ticket`} style={{
                 display: "grid",
                 gridTemplateColumns: "28px 1fr auto",
@@ -6349,6 +6714,9 @@ export default function Dashboard() {
                 <b style={{ color: "#facc15", fontSize: 17 }}>{pick.odd || "1.70"}</b>
               </div>
             ))}
+            {!boost.picks.length && (
+              <div className="oddix-real-only-empty">Aguardando odds reais da FlashScore para montar um bilhete seguro.</div>
+            )}
           </div>
           <div style={styles.confidenceBar}><div style={{ ...styles.confidenceFill, width: `${Math.min(100, boost.confidence || boostConfidence || 0)}%` }} /></div>
           <button style={styles.vipFullButton} onClick={() => setActiveTab("boost")}>Abrir bilhete VIP</button>
@@ -6367,7 +6735,7 @@ export default function Dashboard() {
 
 
       <V26ConversionLayer
-        picks={premiumBoost.length ? premiumBoost : displayedSmartTips.slice(0, 3)}
+        picks={premiumBoost}
         topTips={top5Tips}
         combinedOdd={boostOdd ? boostOdd.toFixed(2) : boost.combinedOdd}
         confidence={boostConfidence || boost.confidence || 0}
@@ -6389,7 +6757,7 @@ export default function Dashboard() {
 
       <div id="oddix-trust" className="oddix-anchor-target">
         <V23TrustLayer
-          tips={displayedSmartTips}
+          tips={realOddsSmartTips}
           games={games}
           recentBets={recentResultBets}
           stats={stats}
@@ -6400,7 +6768,7 @@ export default function Dashboard() {
 
       <div id="oddix-markets" className="oddix-anchor-target">
         <HotMarketsSection
-          tips={displayedSmartTips}
+          tips={realOddsSmartTips}
           games={games}
           onOpen={(tip: any) => {
             const game = getGameByTip(tip, games);
@@ -6424,7 +6792,7 @@ export default function Dashboard() {
       </div>
 
       <PremiumTicketPreview
-        tips={displayedSmartTips}
+        tips={realOddsSmartTips}
         games={games}
         isPaidPlan={isPaidPlan}
         onOpen={(tip: any) => {
@@ -6451,7 +6819,7 @@ export default function Dashboard() {
       />
 
       <HotEntriesSection
-        tips={displayedSmartTips}
+        tips={realOddsSmartTips}
         games={games}
         liveTick={liveTick}
         isPaidPlan={isPaidPlan}
@@ -6991,9 +7359,7 @@ function buildMarketGroups(game: any) {
         odd: item.odd || item.ímpar || "-",
       }))
     : [
-        { label: home, odd: "2.05" },
-        { label: "Empate", odd: "3.20" },
-        { label: away, odd: "3.40" },
+        { label: "Aguardando odds reais", odd: "NO_BET" },
       ];
 
   return [
@@ -7687,8 +8053,8 @@ function V23TrustLayer({ tips, games, recentBets, stats, onOpenSmart, onOpenGree
 }
 
 function TopPickHero({ tip, game, liveTick = 0, onAnalyze }: any) {
-  const finalGame = game || (tip ? null : null);
-  const finalTip = tip || (finalGame ? smartLocalTip(finalGame) : null);
+  const finalGame = game || null;
+  const finalTip = tip || null;
   const score = finalGame ? getScore(finalGame) : { home: "-", away: "-" };
 
   if (!finalGame || !finalTip) return null;
