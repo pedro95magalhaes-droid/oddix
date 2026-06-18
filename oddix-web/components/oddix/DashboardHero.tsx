@@ -5,7 +5,6 @@ import type { CSSProperties } from "react";
 const ODDIX_PLAYER_IMAGE = "/images/oddix-player.png";
 
 export default function DashboardHero({
-  plan = "Free",
   liveGames = 0,
   topTips = 0,
   roi = 0,
@@ -20,17 +19,17 @@ export default function DashboardHero({
   onExplore: () => void;
 }) {
   return (
-    <section style={styles.hero} className="oddix-v35-hero oddix-v35-2-hero">
-      <div style={styles.content}>
-        <div style={styles.brandBlock}>
-          <span style={styles.logoMark}>ODDIX AI</span>
-          <span style={styles.platform}>Sports Intelligence Platform</span>
-        </div>
+    <section style={styles.hero} className="oddix-v36-hero">
+      <div style={styles.goldWash} />
+      <div style={styles.gridLines} />
 
-        <h1 style={styles.title}>Análises esportivas com Inteligência Artificial.</h1>
-        <p style={styles.text}>
-          Plataforma premium com odds reais, estatísticas avançadas, Top Picks, Player Props e filtros inteligentes para decisões mais seguras.
-        </p>
+      <div style={styles.content}>
+        <strong style={styles.wordmark}>ODDIX <b>AI</b></strong>
+        <span style={styles.platform}>SPORTS INTELLIGENCE PLATFORM</span>
+
+        <h1 style={styles.title}>
+          Análises esportivas com <span>Inteligência Artificial.</span>
+        </h1>
 
         <div style={styles.badges}>
           <span>✓ Odds Reais</span>
@@ -42,32 +41,37 @@ export default function DashboardHero({
         </div>
 
         <div style={styles.actions}>
-          <button style={styles.primary} onClick={onExplore}>Ver análises</button>
-          <button style={styles.secondary} onClick={onUpgrade}>Desbloquear Plataforma VIP</button>
+          <button style={styles.primary} onClick={onExplore}>Ver análises <b>→</b></button>
+          <button style={styles.secondary} onClick={onUpgrade}>♕ Desbloquear Plataforma VIP</button>
         </div>
       </div>
 
-      <div style={styles.visual}>
-        <div style={styles.metrics}>
-          <Metric icon="📡" label="Jogos Ao Vivo" value={liveGames} />
-          <Metric icon="🔥" label="Top Picks" value={topTips} />
-          <Metric icon="📈" label="Assertividade" value={`${roi || 0}%`} />
-          <Metric icon="🎯" label="Player Props" value="Premium" />
-        </div>
+      <div style={styles.playerArea}>
+        <img style={styles.player} src={ODDIX_PLAYER_IMAGE} alt="Oddix AI" />
+      </div>
 
-        <img style={styles.player} src={ODDIX_PLAYER_IMAGE} alt="Oddix AI Player" />
-        <div style={styles.planPill}>Plano {plan}</div>
+      <div style={styles.metrics}>
+        <Metric icon="📡" label="Jogos Ao Vivo" value={liveGames} helper="AGORA" />
+        <Metric icon="🔥" label="Top Picks" value={topTips} helper="HOJE" />
+        <Metric icon="📈" label="Assertividade" value={`${roi || 0}%`} helper="ÚLTIMOS 30 DIAS" green />
+        <Metric icon="🎯" label="Player Props" value="Premium" helper="EXCLUSIVO" purple />
+      </div>
+
+      <div style={styles.trustBar}>
+        <span>🛡️ Dados 100% Reais</span>
+        <span>♟️ IA Proprietária Oddix</span>
+        <span>⚡ Atualização em Tempo Real</span>
       </div>
     </section>
   );
 }
 
-function Metric({ icon, label, value }: { icon: string; label: string; value: string | number }) {
+function Metric({ icon, label, value, helper, green, purple }: { icon: string; label: string; value: string | number; helper: string; green?: boolean; purple?: boolean }) {
   return (
     <div style={styles.metric}>
-      <span style={styles.metricIcon}>{icon}</span>
-      <small>{label}</small>
-      <strong>{value}</strong>
+      <div style={styles.metricTop}><span>{icon}</span><b>{label}</b></div>
+      <strong style={{ ...styles.metricValue, color: green ? "#22c55e" : purple ? "#c084fc" : "#f8fafc" }}>{value}</strong>
+      <small style={styles.metricHelper}>{helper}</small>
     </div>
   );
 }
@@ -76,46 +80,71 @@ const styles: Record<string, CSSProperties> = {
   hero: {
     position: "relative",
     overflow: "hidden",
+    minHeight: 344,
     display: "grid",
-    gridTemplateColumns: "minmax(0,1.05fr) minmax(300px,.95fr)",
-    gap: 22,
+    gridTemplateColumns: "minmax(0,1.05fr) minmax(360px,.85fr) 292px",
     alignItems: "center",
-    minHeight: 460,
-    borderRadius: 34,
-    padding: "38px clamp(20px,3vw,46px)",
+    gap: 18,
+    borderRadius: 18,
+    padding: "30px 26px 48px 34px",
     color: "#fff",
     background:
-      "radial-gradient(circle at 76% 15%,rgba(250,204,21,.30),transparent 28%),radial-gradient(circle at 12% 4%,rgba(124,58,237,.40),transparent 35%),linear-gradient(135deg,#07070d,#111827 48%,#3b0764)",
-    border: "1px solid rgba(255,255,255,.13)",
-    boxShadow: "0 30px 90px rgba(0,0,0,.44)",
+      "linear-gradient(90deg,#050505 0%,#090909 42%,rgba(94,53,5,.68) 72%,#080808 100%),radial-gradient(circle at 80% 10%,rgba(250,204,21,.34),transparent 30%)",
+    border: "1px solid rgba(250,204,21,.38)",
+    boxShadow: "0 26px 70px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06)",
   },
-  content: { position: "relative", zIndex: 2 },
-  brandBlock: { display: "grid", gap: 6, alignItems: "start" },
-  logoMark: {
-    display: "inline-flex",
+  goldWash: {
+    position: "absolute",
+    inset: 0,
+    background: "radial-gradient(circle at 73% 33%,rgba(250,204,21,.22),transparent 35%),linear-gradient(180deg,transparent 77%,rgba(250,204,21,.06))",
+    pointerEvents: "none",
+  },
+  gridLines: {
+    position: "absolute",
+    inset: 0,
+    opacity: .42,
+    background: "repeating-linear-gradient(112deg,rgba(250,204,21,.055) 0 1px,transparent 1px 82px),repeating-linear-gradient(0deg,rgba(250,204,21,.035) 0 1px,transparent 1px 70px)",
+    pointerEvents: "none",
+  },
+  content: { position: "relative", zIndex: 3, alignSelf: "center" },
+  wordmark: {
+    display: "block",
     width: "fit-content",
-    color: "#facc15",
-    background: "rgba(250,204,21,.13)",
-    border: "1px solid rgba(250,204,21,.28)",
-    borderRadius: 18,
-    padding: "10px 14px",
-    fontSize: "clamp(22px,2.2vw,34px)",
-    lineHeight: 1,
+    fontSize: "clamp(54px,5.4vw,82px)",
+    lineHeight: .82,
     fontWeight: 1000,
-    letterSpacing: -0.7,
-    boxShadow: "0 12px 34px rgba(250,204,21,.14)",
+    fontStyle: "italic",
+    letterSpacing: -4,
+    color: "#fff",
+    textShadow: "0 10px 30px rgba(0,0,0,.65)",
   },
-  platform: { color: "#dbeafe", fontSize: 13, fontWeight: 1000, letterSpacing: 1.2, textTransform: "uppercase" },
-  title: { margin: "20px 0 12px", fontSize: "clamp(38px,5vw,70px)", lineHeight: .92, letterSpacing: -2 },
-  text: { maxWidth: 690, color: "#dbeafe", fontSize: "clamp(15px,1.2vw,18px)", lineHeight: 1.6 },
-  badges: { display: "flex", flexWrap: "wrap", gap: 10, marginTop: 18 },
-  actions: { display: "flex", flexWrap: "wrap", gap: 12, marginTop: 24 },
-  primary: { background: "#facc15", color: "#111827", border: 0, borderRadius: 16, padding: "14px 20px", fontWeight: 1000, cursor: "pointer" },
-  secondary: { background: "rgba(255,255,255,.10)", color: "#fff", border: "1px solid rgba(255,255,255,.18)", borderRadius: 16, padding: "14px 20px", fontWeight: 1000, cursor: "pointer" },
-  visual: { position: "relative", zIndex: 2, minHeight: 380 },
-  metrics: { position: "absolute", top: 0, right: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, zIndex: 3, width: "min(310px,100%)" },
-  metric: { background: "rgba(255,255,255,.105)", border: "1px solid rgba(255,255,255,.15)", backdropFilter: "blur(10px)", borderRadius: 18, padding: 12, minHeight: 86, display: "grid", gap: 4 },
-  metricIcon: { fontSize: 18 },
-  player: { position: "absolute", right: "3%", bottom: -44, width: "min(440px,96%)", maxHeight: 460, objectFit: "contain", filter: "drop-shadow(0 28px 45px rgba(0,0,0,.55))" },
-  planPill: { position: "absolute", left: 0, bottom: 18, background: "rgba(34,197,94,.16)", color: "#bbf7d0", border: "1px solid rgba(34,197,94,.30)", borderRadius: 999, padding: "10px 14px", fontWeight: 1000 },
+  platform: {
+    display: "block",
+    marginTop: 14,
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: 1000,
+    letterSpacing: 5.2,
+  },
+  title: {
+    margin: "20px 0 14px",
+    maxWidth: 640,
+    fontSize: "clamp(28px,2.65vw,43px)",
+    lineHeight: 1.04,
+    letterSpacing: -1.1,
+    fontWeight: 1000,
+  },
+  badges: { display: "flex", flexWrap: "wrap", gap: 7, maxWidth: 670 },
+  actions: { display: "flex", gap: 14, flexWrap: "wrap", marginTop: 22 },
+  primary: { minWidth: 150, border: 0, borderRadius: 10, padding: "14px 24px", background: "linear-gradient(180deg,#fde047,#eab308)", color: "#09090b", fontWeight: 1000, cursor: "pointer", boxShadow: "0 18px 38px rgba(250,204,21,.22)" },
+  secondary: { minWidth: 245, border: "1px solid rgba(250,204,21,.45)", borderRadius: 10, padding: "14px 24px", background: "rgba(0,0,0,.32)", color: "#fff", fontWeight: 1000, cursor: "pointer" },
+  playerArea: { position: "relative", zIndex: 2, alignSelf: "stretch", minHeight: 300 },
+  player: { position: "absolute", left: "-6%", right: 0, bottom: -54, width: "min(430px,112%)", height: "calc(100% + 58px)", objectFit: "contain", objectPosition: "center bottom", filter: "drop-shadow(0 28px 45px rgba(0,0,0,.78)) saturate(1.12) contrast(1.05)" },
+  metrics: { position: "relative", zIndex: 4, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, alignSelf: "center" },
+  metric: { minHeight: 104, borderRadius: 13, padding: 14, display: "grid", alignContent: "center", gap: 6, background: "rgba(0,0,0,.55)", border: "1px solid rgba(250,204,21,.45)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.08)", backdropFilter: "blur(10px)" },
+  metricTop: { display: "flex", alignItems: "center", gap: 8, fontSize: 13 },
+  metricValue: { fontSize: 34, lineHeight: 1, letterSpacing: -.9 },
+  metricHelper: { color: "#d4d4d8", fontSize: 11, fontWeight: 900 },
+  metricIcon: {},
+  trustBar: { position: "absolute", zIndex: 5, left: 34, right: 0, bottom: 0, height: 34, display: "flex", alignItems: "center", gap: 34, padding: "0 18px", background: "rgba(0,0,0,.55)", borderTop: "1px solid rgba(250,204,21,.12)", color: "#84cc16", fontSize: 12, fontWeight: 900 },
 };

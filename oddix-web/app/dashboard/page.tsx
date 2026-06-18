@@ -1714,6 +1714,12 @@ export default function Dashboard() {
           }
         }
 
+        @media (max-width: 1180px) {
+          .oddix-v35-4-results-player {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
         @media (max-width: 1024px) {
           :root {
             --oddix-container: calc(100vw - 22px);
@@ -1833,6 +1839,28 @@ export default function Dashboard() {
             border-radius: 22px !important;
           }
         }
+        /* ODDIX V35.3 cleanup: keep the new SaaS first-fold as the main presentation */
+        .oddix-hero-v21 {
+          display: none !important;
+        }
+
+        .oddix-v35-3-hero,
+        .oddix-v35-top-pick-premium,
+        .oddix-v35-3-results,
+        .oddix-v35-playerprop {
+          scroll-margin-top: 110px;
+        }
+
+        @media (max-width: 860px) {
+          .oddix-v35-3-hero,
+          .oddix-v35-top-pick-premium,
+          .oddix-v35-3-results,
+          .oddix-v35-playerprop {
+            margin-left: auto !important;
+            margin-right: auto !important;
+          }
+        }
+
 
         /* ODDIX V22 SPORTSBOOK PREMIUM OVERRIDES */
 
@@ -6721,6 +6749,58 @@ export default function Dashboard() {
           }
         }
 
+
+        /* ODDIX V36 EXACT DASHBOARD REBUILD - black/gold SaaS layout */
+        @media (min-width: 1025px) {
+          :root { --oddix-sidebar-w: 264px; --oddix-main-left: 284px; --oddix-main-right: 22px; --oddix-container: calc(100vw - var(--oddix-main-left) - var(--oddix-main-right)) !important; }
+          .oddix-dashboard { background:#030303 !important; color:#fff !important; min-height:100dvh !important; }
+          .oddix-dashboard::before { content:""; position:fixed; inset:0; pointer-events:none; background: radial-gradient(circle at 58% 0%,rgba(250,204,21,.08),transparent 28%), radial-gradient(circle at 0% 0%,rgba(124,58,237,.08),transparent 26%); z-index:0; }
+          .oddix-side-menu { display:block !important; position:fixed !important; z-index:80 !important; left:0 !important; top:0 !important; bottom:0 !important; width:var(--oddix-sidebar-w) !important; padding:18px 16px !important; overflow-y:auto !important; background:linear-gradient(180deg,#030303,#050505 62%,#080509) !important; border-right:1px solid rgba(255,255,255,.10) !important; box-shadow:20px 0 55px rgba(0,0,0,.42) !important; }
+          .oddix-v36-sidebar-logo { display:flex; align-items:center; gap:12px; min-height:48px; margin:0 0 22px 4px; }
+          .oddix-v36-sidebar-logo img { width:172px !important; height:auto !important; object-fit:contain !important; filter:drop-shadow(0 10px 22px rgba(0,0,0,.45)); }
+          .oddix-side-menu-group { display:grid !important; gap:8px !important; }
+          .oddix-side-menu-group button { height:40px !important; display:grid !important; grid-template-columns:28px 1fr !important; align-items:center !important; gap:10px !important; padding:0 14px !important; border-radius:10px !important; border:1px solid transparent !important; background:transparent !important; color:#f8fafc !important; font-weight:900 !important; text-align:left !important; cursor:pointer !important; }
+          .oddix-side-menu-group button:first-child { color:#facc15 !important; background:linear-gradient(90deg,rgba(250,204,21,.22),rgba(250,204,21,.04)) !important; border-color:rgba(250,204,21,.55) !important; box-shadow:inset 0 1px 0 rgba(255,255,255,.06) !important; }
+          .oddix-side-menu-group button span:first-child { color:#facc15 !important; font-size:18px !important; text-align:center !important; }
+          .oddix-side-box { margin-top:14px !important; padding:14px !important; border-radius:12px !important; background:linear-gradient(145deg,#060606,#0b0b0f) !important; border:1px solid rgba(255,255,255,.11) !important; color:#d4d4d8 !important; }
+          .oddix-side-box h4 { margin:0 0 10px !important; color:#facc15 !important; font-size:13px !important; letter-spacing:.3px !important; font-weight:1000 !important; }
+          .oddix-side-search input, .oddix-side-search select { width:100% !important; height:36px !important; border-radius:9px !important; border:1px solid rgba(255,255,255,.12) !important; background:#050507 !important; color:#fff !important; padding:0 11px !important; margin-bottom:8px !important; }
+          .oddix-side-cta { width:100% !important; border:0 !important; border-radius:9px !important; padding:11px 12px !important; color:#fff !important; font-weight:1000 !important; background:linear-gradient(180deg,#22c55e,#16a34a) !important; cursor:pointer !important; }
+          .oddix-side-cta.partner { color:#111827 !important; background:linear-gradient(180deg,#fde047,#f59e0b) !important; }
+          .oddix-side-stat-row { display:flex !important; align-items:center !important; justify-content:space-between !important; gap:10px !important; font-size:13px !important; padding:4px 0 !important; }
+          .oddix-side-stat-row strong { color:#facc15 !important; }
+          .oddix-top-header { position:fixed !important; z-index:70 !important; left:var(--oddix-main-left) !important; right:var(--oddix-main-right) !important; top:10px !important; height:38px !important; display:flex !important; justify-content:flex-end !important; align-items:center !important; background:transparent !important; border:0 !important; box-shadow:none !important; padding:0 !important; }
+          .oddix-top-header .oddix-brand { display:none !important; }
+          .oddix-header-actions { gap:9px !important; }
+          .oddix-header-actions button { height:34px !important; border-radius:999px !important; font-size:12px !important; font-weight:1000 !important; }
+          .oddix-header-actions button:nth-child(2) { display:none !important; }
+          .oddix-sports-rail { position:relative !important; z-index:5 !important; margin-top:56px !important; margin-left:var(--oddix-main-left) !important; margin-right:var(--oddix-main-right) !important; width:calc(100vw - var(--oddix-main-left) - var(--oddix-main-right)) !important; max-width:none !important; height:48px !important; display:flex !important; align-items:center !important; gap:9px !important; padding:5px !important; border-radius:999px !important; background:rgba(8,8,9,.88) !important; border:1px solid rgba(255,255,255,.12) !important; box-shadow:0 18px 48px rgba(0,0,0,.34) !important; overflow-x:auto !important; }
+          .oddix-sports-rail button { height:38px !important; padding:0 17px !important; border-radius:999px !important; border:1px solid transparent !important; background:transparent !important; color:#f8fafc !important; font-weight:1000 !important; font-size:13px !important; white-space:nowrap !important; }
+          .oddix-sports-rail button:first-child { background:linear-gradient(180deg,#fde047,#d97706) !important; color:#070707 !important; box-shadow:0 10px 26px rgba(250,204,21,.22) !important; }
+          .oddix-v35-container, .oddix-v35-container[style], .oddix-layout, .oddix-layout[style], .oddix-tabs-wrapper, .oddix-tabs-wrapper[style], .oddix-v26-conversion { margin-left:var(--oddix-main-left) !important; margin-right:var(--oddix-main-right) !important; width:calc(100vw - var(--oddix-main-left) - var(--oddix-main-right)) !important; max-width:none !important; }
+          .oddix-v35-container { margin-top:12px !important; margin-bottom:14px !important; }
+          .oddix-v35-4-results-player { grid-template-columns:minmax(0,1.75fr) minmax(360px,.82fr) !important; gap:14px !important; }
+          .oddix-layout { grid-template-columns:1fr !important; }
+          #oddix-games > aside.oddix-sidebar { display:none !important; }
+          #oddix-games > .oddix-main-content { width:100% !important; max-width:100% !important; }
+          .oddix-vip-results, .oddix-v23-trust, .oddix-marketing-strip, .oddix-hot-entries, .oddix-premium-ticket, .oddix-playerprops-home { margin-left:var(--oddix-main-left) !important; margin-right:var(--oddix-main-right) !important; width:calc(100vw - var(--oddix-main-left) - var(--oddix-main-right)) !important; max-width:none !important; }
+          .oddix-mobile-menu-button, .oddix-mobile-backdrop { display:none !important; }
+        }
+        @media (max-width: 1240px) and (min-width:1025px) {
+          .oddix-v36-hero { grid-template-columns:minmax(0,1fr) 300px !important; }
+          .oddix-v36-hero > div:nth-of-type(4) { grid-column:1 / -1 !important; grid-template-columns:repeat(4,minmax(0,1fr)) !important; }
+          .oddix-v36-top-pick > div:nth-child(2) { grid-template-columns:1fr !important; }
+          .oddix-v36-results > div:nth-child(2) { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+          .oddix-v35-4-results-player { grid-template-columns:1fr !important; }
+        }
+        @media (max-width: 1024px) {
+          .oddix-v36-sidebar-logo { display:none; }
+          .oddix-v36-hero, .oddix-v36-top-pick > div:nth-child(2), .oddix-v36-results > div:nth-child(2) { grid-template-columns:1fr !important; }
+          .oddix-v36-hero { padding:22px 16px 48px !important; }
+          .oddix-v36-hero > div:nth-of-type(4) { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+          .oddix-v36-playerprop > div:nth-child(2) { grid-template-columns:1fr !important; }
+        }
+
       `}</style>
       <FreeLockModal
         open={freeLockOpen}
@@ -6735,16 +6815,20 @@ export default function Dashboard() {
       />
 
       <nav className={`oddix-side-menu ${sidebarOpen ? "open" : ""}`} aria-label="Sidebar do dashboard Oddix">
-        <div className="oddix-side-menu-title">Dashboard</div>
+        <div className="oddix-v36-sidebar-logo">
+          <img src="/logo-oddix-horizontal.png" alt="ODDIX TIPSTER IA" />
+        </div>
 
         <div className="oddix-side-menu-group">
-          <button type="button" onClick={() => openSportsButton("dashboard")}><span>🏠</span><span>Destaques</span></button>
-          <button type="button" onClick={() => openSportsButton("live")}><span>🔴</span><span>Ao Vivo</span></button>
-          <button type="button" onClick={() => openSportsButton("smart")}><span>🤖</span><span>Top Picks</span></button>
-          <button type="button" onClick={() => openSportsButton("boost")}><span>🔥</span><span>Oddix Boost</span></button>
-          <button type="button" onClick={() => openSportsButton("playerprops")}><span>👤</span><span>Player Props</span></button>
-          <button type="button" onClick={() => openSportsButton("greens")}><span>✅</span><span>Resultados</span></button>
-          <button type="button" onClick={() => document.getElementById("oddix-games")?.scrollIntoView({ behavior: "smooth", block: "start" })}><span>⚽</span><span>Jogos</span></button>
+          <button type="button" onClick={() => openSportsButton("dashboard")}><span>⌂</span><span>Dashboard</span></button>
+          <button type="button" onClick={() => openSportsButton("live")}><span>⌁</span><span>Ao Vivo</span></button>
+          <button type="button" onClick={() => openSportsButton("smart")}><span>🔥</span><span>Top Picks</span></button>
+          
+          <button type="button" onClick={() => openSportsButton("playerprops")}><span>♙</span><span>Player Props</span></button>
+          <button type="button" onClick={() => openSportsButton("greens")}><span>▥</span><span>Resultados</span></button>
+          <button type="button" onClick={() => (window.location.href = "/favorites")}><span>☆</span><span>Favoritos</span></button>
+          <button type="button" onClick={() => (window.location.href = "/plans")}><span>♕</span><span>VIP</span></button>
+          <button type="button" onClick={openSupport}><span>☊</span><span>Suporte</span></button>
         </div>
 
         <div className="oddix-side-box oddix-side-search">
@@ -6758,7 +6842,7 @@ export default function Dashboard() {
         </div>
 
         <div className="oddix-side-box">
-          <h4>📊 Estatísticas</h4>
+          <h4>ESTATÍSTICAS RÁPIDAS</h4>
           <div className="oddix-side-stat-row"><span>Jogos</span><strong>{games.length}</strong></div>
           <div className="oddix-side-stat-row"><span>Ao vivo</span><strong>{liveGames.length}</strong></div>
           <div className="oddix-side-stat-row"><span>Pré-jogo</span><strong>{futureGames.length}</strong></div>
@@ -6766,13 +6850,13 @@ export default function Dashboard() {
         </div>
 
         <div className="oddix-side-box">
-          <h4>💬 Suporte</h4>
+          <h4>🎧 SUPORTE</h4>
           <p>Atendimento para dúvidas de acesso, planos e pagamento.</p>
           <button type="button" className="oddix-side-cta" onClick={openSupport}>Abrir suporte</button>
         </div>
 
         <div className="oddix-side-box">
-          <h4>💰 Parceiro</h4>
+          <h4>PARCEIRO OFICIAL</h4>
           <p>EstrelaBet oficial da Oddix.</p>
           <button type="button" className="oddix-side-cta partner" onClick={() => window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer")}>Apostar agora</button>
         </div>
@@ -6807,15 +6891,15 @@ export default function Dashboard() {
 
       <section className="oddix-sports-rail" style={styles.sportsRail}>
         {[
-          { label: "⚽ Futebol", action: "dashboard" },
-          { label: "🔴 Ao Vivo", action: "live" },
-          { label: "🤖 Top Picks", action: "smart" },
-          { label: "🔥 Oddix Boost", action: "boost" },
-          { label: "⚽ Player Props", action: "playerprops" },
-          { label: "📊 Resultados", action: "greens" },
-          { label: "💰 Odds", action: "odds" },
-          { label: "🏆 Brasileirão", action: "brasil" },
-          { label: "🌎 Sul-Americanos", action: "sulamericanos" },
+          { label: "▦ DASHBOARD", action: "dashboard" },
+          { label: "⌁ AO VIVO", action: "live" },
+          { label: "🔥 TOP PICKS", action: "smart" },
+          
+          { label: "♙ PLAYER Props", action: "playerprops" },
+          { label: "▥ RESULTADOS", action: "greens" },
+          { label: "🎯 ODDS", action: "odds" },
+          { label: "🏆 BRASILEIRÃO", action: "brasil" },
+          { label: "🌐 SUL-AMERICANOS", action: "sulamericanos" },
           ...(role === "ADMIN" ? [{ label: "⚙️ Admin", action: "admin" }] : []),
         ].map((item) => (
           <button
@@ -6858,7 +6942,7 @@ export default function Dashboard() {
         />
       </section>
 
-      <section className="oddix-v35-container" style={{ margin: "0 auto 20px", width: "var(--oddix-container, min(1280px, calc(100vw - 52px)))", maxWidth: "var(--oddix-container, min(1280px, calc(100vw - 52px)))" }}>
+      <section className="oddix-v35-container oddix-v35-4-results-player" style={{ margin: "0 auto 20px", width: "var(--oddix-container, min(1280px, calc(100vw - 52px)))", maxWidth: "var(--oddix-container, min(1280px, calc(100vw - 52px)))", display: "grid", gridTemplateColumns: "minmax(0,1.9fr) minmax(330px,.9fr)", gap: 14, alignItems: "stretch" }}>
         <ResultsStats
           totalBets={stats?.totalBets || savedBets.length || 0}
           wonBets={stats?.wonBets || 0}
@@ -6866,9 +6950,7 @@ export default function Dashboard() {
           roi={stats?.roi || 0}
           recent={recentResultBets}
         />
-      </section>
 
-      <section className="oddix-v35-container" style={{ margin: "0 auto 20px", width: "var(--oddix-container, min(1280px, calc(100vw - 52px)))", maxWidth: "var(--oddix-container, min(1280px, calc(100vw - 52px)))" }}>
         <PlayerPropFeatured
           prop={homePlayerProps[0]}
           loading={playerPropsLoading}
@@ -6952,19 +7034,6 @@ export default function Dashboard() {
           </div>
         </section>
       )}
-
-      <section className="oddix-v35-container" style={{ margin: "0 auto 20px", width: "var(--oddix-container, min(1280px, calc(100vw - 52px)))", maxWidth: "var(--oddix-container, min(1280px, calc(100vw - 52px)))" }}>
-        <PlayerPropFeatured
-          prop={homePlayerProps[0]}
-          loading={playerPropsLoading}
-          isPaidPlan={isPaidPlan}
-          onUpgrade={() => (window.location.href = "/plans")}
-          onOpen={(prop: any) => {
-            const game = getGameByTip(prop, games);
-            if (game) openMatchDetail(game);
-          }}
-        />
-      </section>
 
       <section id="oddix-hero" className="oddix-hero-grid oddix-hero-v21 oddix-anchor-target" style={styles.heroGrid}>
         <div className="oddix-hero-main oddix-hero-main-v21" style={styles.heroMain}>

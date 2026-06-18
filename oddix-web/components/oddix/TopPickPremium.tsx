@@ -26,59 +26,54 @@ export default function TopPickPremium({
 }) {
   const confidence = Number(pick?.confidence || 0);
   const quality = Number(pick?.qualityScore || game?.oddix?.qualityScore || 0);
+  const odd = pick?.odd || "-";
+  const tip = String(pick?.tip || "Entrada premium protegida");
+  const main = tip.replace(/mercado inteligente/i, "").trim();
 
   if (!pick && !game) {
     return (
-      <section style={styles.emptyCard} className="oddix-v35-top-pick-premium">
+      <section style={styles.card} className="oddix-v36-top-pick">
         <span style={styles.kicker}>⭐ TOP PICK DO DIA</span>
-        <h2 style={styles.emptyTitle}>Aguardando entrada premium</h2>
-        <p style={styles.emptyText}>A Oddix só destaca jogo com odds reais, qualidade alta e mercado seguro.</p>
+        <div style={styles.empty}>Aguardando entrada premium com odds reais.</div>
       </section>
     );
   }
 
   return (
-    <section style={styles.card} className="oddix-v35-top-pick-premium">
-      <div style={styles.glow} />
+    <section style={styles.card} className="oddix-v36-top-pick">
+      <div style={styles.header}>
+        <span style={styles.kicker}>⭐ TOP PICK DO DIA</span>
+        <span style={styles.score}>🏆 Score: {quality || 0}/100</span>
+      </div>
 
-      <div style={styles.left}>
-        <div style={styles.headerLine}>
-          <span style={styles.kicker}>⭐ TOP PICK DO DIA</span>
-          <span style={styles.league}>{pick?.league || game?.league?.name || "Oddix Premium"}</span>
-        </div>
-
-        <div style={styles.matchBox}>
+      <div style={styles.body}>
+        <div style={styles.match}>
           <Team logo={teamLogo(game, "home")} name={pick?.homeTeam || teamName(game, "home")} />
-          <div style={styles.vs}>VS</div>
+          <div style={styles.center}>
+            <strong>{pick?.league || game?.league?.name || "Oddix Premium"}</strong>
+            <small>{game?.fixture?.date ? new Date(game.fixture.date).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "Mercado real"}</small>
+            <b>VS</b>
+          </div>
           <Team logo={teamLogo(game, "away")} name={pick?.awayTeam || teamName(game, "away")} />
         </div>
 
-        <div style={styles.marketBox}>
-          <span>Mercado inteligente</span>
-          <strong>{pick?.tip || "Entrada premium protegida"}</strong>
-          <small>{pick?.market || "Oddix AI"} • {pick?.risk || "Risco controlado"}</small>
-        </div>
-      </div>
-
-      <div style={styles.right}>
-        <div style={styles.scorePill}>Score {quality || 0}/100</div>
-
-        <div style={styles.oddBox}>
-          <span>Odd</span>
-          <strong>{pick?.odd || "-"}</strong>
-        </div>
-
-        <div style={styles.confidenceBox}>
-          <span>Confiança</span>
-          <strong>{confidence || 0}%</strong>
-          <div style={styles.bar}>
-            <div style={{ ...styles.fill, width: `${Math.min(100, Math.max(8, confidence || 0))}%` }} />
+        <div style={styles.metrics}>
+          <div style={styles.metricBlock}>
+            <span>Mercado</span>
+            <strong style={styles.market}>{main}</strong>
+            <small>{pick?.market || "Oddix AI"}</small>
           </div>
+          <div style={styles.metricBlock}>
+            <span>Odd</span>
+            <strong style={styles.odd}>{odd}</strong>
+          </div>
+          <div style={styles.metricBlock}>
+            <span>Confiança</span>
+            <strong style={styles.confidence}>{confidence || 0}%</strong>
+            <small>{confidence >= 88 ? "Muito alta" : confidence >= 78 ? "Alta" : "Controlada"}</small>
+          </div>
+          <button style={styles.button} onClick={isPaidPlan ? onOpen : onUpgrade}>VER ANÁLISE COMPLETA <b>→</b></button>
         </div>
-
-        <button style={styles.button} onClick={isPaidPlan ? onOpen : onUpgrade}>
-          {isPaidPlan ? "Ver análise" : "Desbloquear análise"}
-        </button>
       </div>
     </section>
   );
@@ -87,7 +82,7 @@ export default function TopPickPremium({
 function Team({ logo, name }: { logo: string; name: string }) {
   return (
     <div style={styles.team}>
-      <img style={styles.logo} src={logo} alt={name} />
+      <img src={logo} alt={name} style={styles.logo} />
       <strong>{name}</strong>
     </div>
   );
@@ -98,40 +93,27 @@ const styles: Record<string, CSSProperties> = {
     position: "relative",
     overflow: "hidden",
     display: "grid",
-    gridTemplateColumns: "minmax(0,1fr) minmax(260px,340px)",
-    gap: 18,
-    alignItems: "stretch",
-    background: "radial-gradient(circle at 20% 0%,rgba(250,204,21,.30),transparent 34%),linear-gradient(135deg,#09090b,#171717 52%,#713f12)",
+    gap: 12,
     color: "#fff",
-    borderRadius: 32,
-    padding: "clamp(18px,2vw,28px)",
-    border: "1px solid rgba(250,204,21,.34)",
-    boxShadow: "0 26px 80px rgba(0,0,0,.42),0 0 42px rgba(250,204,21,.12)",
+    borderRadius: 17,
+    padding: "16px 18px 18px",
+    background: "linear-gradient(90deg,#070707,#11100a 50%,rgba(101,56,5,.82)),radial-gradient(circle at 18% 0%,rgba(250,204,21,.34),transparent 30%)",
+    border: "1px solid rgba(250,204,21,.86)",
+    boxShadow: "0 0 34px rgba(250,204,21,.38),0 26px 70px rgba(0,0,0,.52),inset 0 1px 0 rgba(255,255,255,.08)",
   },
-  emptyCard: {
-    background: "linear-gradient(135deg,#111827,#1f2937)",
-    color: "#fff",
-    borderRadius: 30,
-    padding: 24,
-    border: "1px dashed rgba(250,204,21,.30)",
-  },
-  glow: { position: "absolute", inset: "-120px -90px auto auto", width: 260, height: 260, borderRadius: 999, background: "rgba(250,204,21,.20)", filter: "blur(26px)" },
-  left: { position: "relative", zIndex: 2, minWidth: 0 },
-  right: { position: "relative", zIndex: 2, display: "grid", alignContent: "center", gap: 12, minWidth: 0 },
-  headerLine: { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 16 },
-  kicker: { color: "#facc15", fontSize: 12, fontWeight: 1000, letterSpacing: 1.1, textTransform: "uppercase" },
-  league: { color: "rgba(255,255,255,.70)", fontSize: 12, fontWeight: 900, textAlign: "right" },
-  matchBox: { display: "grid", gridTemplateColumns: "minmax(0,1fr) 64px minmax(0,1fr)", gap: 12, alignItems: "center", marginBottom: 16 },
-  team: { display: "grid", justifyItems: "center", gap: 9, textAlign: "center", minWidth: 0 },
-  logo: { width: 74, height: 74, borderRadius: 22, objectFit: "contain", background: "rgba(255,255,255,.10)", border: "1px solid rgba(255,255,255,.16)", padding: 8 },
-  vs: { height: 52, borderRadius: 18, display: "grid", placeItems: "center", color: "#111827", background: "#facc15", fontWeight: 1000, boxShadow: "0 12px 30px rgba(250,204,21,.18)" },
-  marketBox: { borderRadius: 22, padding: 18, background: "rgba(255,255,255,.09)", border: "1px solid rgba(255,255,255,.14)" },
-  scorePill: { justifySelf: "end", width: "fit-content", borderRadius: 999, padding: "8px 12px", color: "#fde68a", background: "rgba(250,204,21,.12)", border: "1px solid rgba(250,204,21,.22)", fontSize: 12, fontWeight: 1000 },
-  oddBox: { borderRadius: 24, padding: 18, background: "#facc15", color: "#111827", textAlign: "center" },
-  confidenceBox: { borderRadius: 24, padding: 18, background: "rgba(255,255,255,.10)", border: "1px solid rgba(255,255,255,.14)" },
-  bar: { marginTop: 10, height: 10, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,.14)" },
-  fill: { height: "100%", borderRadius: 999, background: "linear-gradient(90deg,#22c55e,#facc15)" },
-  button: { width: "100%", border: 0, borderRadius: 18, padding: "15px 18px", background: "#22c55e", color: "#052e16", fontWeight: 1000, cursor: "pointer" },
-  emptyTitle: { margin: "8px 0", fontSize: 28 },
-  emptyText: { color: "#d1d5db" },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 },
+  kicker: { color: "#facc15", fontSize: 16, fontWeight: 1000, letterSpacing: 1.2, textTransform: "uppercase" },
+  score: { color: "#fde68a", background: "rgba(250,204,21,.10)", border: "1px solid rgba(250,204,21,.5)", borderRadius: 999, padding: "8px 14px", fontSize: 13, fontWeight: 1000 },
+  body: { display: "grid", gridTemplateColumns: "minmax(0,1.05fr) minmax(575px,1.25fr)", gap: 24, alignItems: "center" },
+  match: { display: "grid", gridTemplateColumns: "1fr 125px 1fr", alignItems: "center", gap: 12 },
+  team: { display: "grid", justifyItems: "center", gap: 8, textAlign: "center", textTransform: "uppercase", fontWeight: 1000, minWidth: 0 },
+  logo: { width: 118, height: 118, objectFit: "contain", borderRadius: 18, filter: "drop-shadow(0 14px 18px rgba(0,0,0,.6))" },
+  center: { display: "grid", justifyItems: "center", textAlign: "center", gap: 4, textTransform: "uppercase" },
+  metrics: { display: "grid", gridTemplateColumns: "1.15fr .68fr .82fr 1.08fr", alignItems: "stretch", minHeight: 120, borderRadius: 14, overflow: "hidden", background: "rgba(0,0,0,.22)", border: "1px solid rgba(250,204,21,.18)" },
+  metricBlock: { display: "grid", alignContent: "center", justifyItems: "center", gap: 5, padding: "16px 12px", borderRight: "1px solid rgba(250,204,21,.18)", textAlign: "center" },
+  market: { color: "#facc15", fontSize: "clamp(23px,2vw,34px)", lineHeight: 1, textTransform: "uppercase" },
+  odd: { color: "#facc15", fontSize: "clamp(40px,4vw,64px)", lineHeight: .86 },
+  confidence: { color: "#22c55e", fontSize: "clamp(38px,3.6vw,61px)", lineHeight: .88 },
+  button: { margin: 14, border: 0, borderRadius: 8, background: "linear-gradient(180deg,#fde047,#eab308)", color: "#09090b", fontSize: 15, fontWeight: 1000, cursor: "pointer", boxShadow: "0 16px 34px rgba(250,204,21,.2)" },
+  empty: { padding: 20, color: "#cbd5e1" },
 };
