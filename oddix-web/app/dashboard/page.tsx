@@ -748,8 +748,9 @@ export default function Dashboard() {
             <div className="oddix-v37-results-grid">
               <ResultCard value={stats.wonBets} label="GREENS" tone="green" />
               <ResultCard value={stats.lostBets} label="REDS" tone="red" />
-              <ResultCard value={`${stats.accuracy}%`} label="ASSERTIVIDADE" tone="green" bars />
               <ResultCard value={`${stats.roi}%`} label="ROI" tone="green" />
+              <ResultCard value={`${stats.accuracy}%`} label="ASSERTIVIDADE" tone="green" bars />
+              <ResultCard value={Math.max(0, stats.wonBets - stats.lostBets)} label="TIPS VENCEDORAS" tone="gold" />
             </div>
             <small>* Números atualizados automaticamente com base nas análises salvas da IA Oddix.</small>
           </div>
@@ -883,6 +884,29 @@ export default function Dashboard() {
           {loading && <div className="oddix-v37-empty">Carregando jogos da plataforma...</div>}
           {!loading && !filteredGames.length && <div className="oddix-v37-empty">Nenhum jogo encontrado para este filtro.</div>}
         </section>
+
+        <footer className="oddix-v39-footer">
+          <div>
+            <strong>ODDIX <span>AI</span></strong>
+            <p>Sports Intelligence Platform com análises IA, odds reais, Player Props e histórico de performance.</p>
+          </div>
+
+          <nav>
+            <button onClick={() => sidebarNavigate("dashboard")}>Dashboard</button>
+            <button onClick={() => sidebarNavigate("top")}>Top Picks</button>
+            <button onClick={() => sidebarNavigate("playerprops")}>Player Props</button>
+            <button onClick={() => sidebarNavigate("results")}>Resultados</button>
+            <button onClick={openPlans}>VIP</button>
+            <button onClick={openSupport}>Suporte</button>
+          </nav>
+
+          <div>
+            <span>Parceiro</span>
+            <button onClick={openEstrelaBet}>EstrelaBet</button>
+            <small>Jogue com responsabilidade. Conteúdo para maiores de 18 anos.</small>
+          </div>
+        </footer>
+
       </section>
 
       {selectedAnalysis && (
@@ -1013,7 +1037,7 @@ const globalCss = `
 
   .oddix-v37-logo strong {
     display: block;
-    font-size: 50px;
+    font-size: 54px;
     font-weight: 1000;
     font-style: italic;
     letter-spacing: -1px;
@@ -1126,7 +1150,7 @@ const globalCss = `
 
   .oddix-v37-partner strong {
     display: block;
-    font-size: 50px;
+    font-size: 54px;
     margin: 12px 0;
   }
 
@@ -1212,7 +1236,7 @@ const globalCss = `
   .oddix-v37-hero {
     position: relative;
     overflow: hidden;
-    min-height: 470px;
+    min-height: 540px;
     border-radius: 28px;
     border: 1px solid rgba(250,204,21,.35);
     background:
@@ -1220,9 +1244,9 @@ const globalCss = `
       radial-gradient(circle at 80% 12%, rgba(250,204,21,.32), transparent 34%);
     box-shadow: 0 24px 80px rgba(0,0,0,.58), inset 0 1px 0 rgba(250,204,21,.14);
     margin-bottom: 18px;
-    padding: 42px 42px 58px;
+    padding: 48px 46px 64px;
     display: grid;
-    grid-template-columns: minmax(390px, .95fr) minmax(360px, .82fr) minmax(286px, .48fr);
+    grid-template-columns: minmax(420px, .95fr) minmax(390px, .86fr) minmax(300px, .48fr);
     gap: 24px;
     align-items: center;
   }
@@ -1246,7 +1270,7 @@ const globalCss = `
 
   .oddix-v37-brand-text strong {
     display: block;
-    font-size: clamp(68px, 6.7vw, 104px);
+    font-size: clamp(74px, 7.4vw, 118px);
     line-height: .78;
     font-weight: 1000;
     font-style: italic;
@@ -1333,8 +1357,8 @@ const globalCss = `
   }
 
   .oddix-v37-hero-player img {
-    width: min(560px, 108%);
-    max-height: 430px;
+    width: min(650px, 116%);
+    max-height: 520px;
     object-fit: contain;
     object-position: bottom center;
     filter: drop-shadow(0 24px 40px rgba(0,0,0,.8));
@@ -1347,7 +1371,7 @@ const globalCss = `
   }
 
   .oddix-v37-metric {
-    min-height: 134px;
+    min-height: 148px;
     border: 1px solid rgba(250,204,21,.42);
     background: rgba(0,0,0,.38);
     border-radius: 16px;
@@ -1364,7 +1388,7 @@ const globalCss = `
     display: block;
     margin-top: 10px;
     color: #fff;
-    font-size: 50px;
+    font-size: 54px;
     font-weight: 1000;
   }
 
@@ -1453,7 +1477,7 @@ const globalCss = `
 
   .oddix-v37-ticket {
     display: grid;
-    grid-template-columns: minmax(180px, .86fr) 160px minmax(180px, .86fr) minmax(560px, 1.7fr);
+    grid-template-columns: minmax(190px, .82fr) 164px minmax(190px, .82fr) minmax(620px, 1.86fr);
     gap: 18px;
     align-items: center;
   }
@@ -1463,8 +1487,8 @@ const globalCss = `
   }
 
   .oddix-v37-team img {
-    width: 128px;
-    height: 128px;
+    width: 140px;
+    height: 140px;
     object-fit: contain;
     filter: drop-shadow(0 12px 18px rgba(0,0,0,.6));
   }
@@ -1536,7 +1560,7 @@ const globalCss = `
   .oddix-v37-ticket-panel strong {
     margin-top: 8px;
     color: #facc15;
-    font-size: 50px;
+    font-size: 54px;
     line-height: .95;
     font-weight: 1000;
     text-transform: uppercase;
@@ -1544,7 +1568,7 @@ const globalCss = `
 
   .oddix-v37-ticket-panel strong.green {
     color: #22c55e;
-    font-size: 50px;
+    font-size: 54px;
   }
 
   .oddix-v37-ticket-panel small {
@@ -1580,12 +1604,12 @@ const globalCss = `
 
   .oddix-v37-results-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 14px;
   }
 
   .oddix-v37-result-card {
-    min-height: 170px;
+    min-height: 156px;
     border: 1px solid rgba(255,255,255,.13);
     background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.018));
     border-radius: 14px;
@@ -1653,14 +1677,14 @@ const globalCss = `
 
   .oddix-v37-prop-body {
     display: grid;
-    grid-template-columns: 170px minmax(0, 1fr);
+    grid-template-columns: 190px minmax(0, 1fr);
     gap: 16px;
     align-items: end;
   }
 
   .oddix-v37-prop-body img {
-    width: 170px;
-    height: 210px;
+    width: 190px;
+    height: 250px;
     object-fit: contain;
     object-position: bottom center;
     filter: drop-shadow(0 18px 25px rgba(0,0,0,.6));
@@ -1938,6 +1962,149 @@ const globalCss = `
     background: rgba(255,255,255,.03);
   }
 
+
+  /* V39 refinement: bilhete sem texto quebrado, footer e acabamento */
+  .oddix-v37-ticket-panel {
+    grid-template-columns: minmax(220px, 1.24fr) minmax(124px, .62fr) minmax(164px, .78fr) minmax(210px, .98fr);
+  }
+
+  .oddix-v37-ticket-panel > div {
+    min-width: 0;
+  }
+
+  .oddix-v37-ticket-panel strong {
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    hyphens: none !important;
+    white-space: normal !important;
+    display: block !important;
+    -webkit-line-clamp: unset !important;
+    -webkit-box-orient: initial !important;
+    overflow: visible !important;
+  }
+
+  .oddix-v37-ticket-panel > div:first-child strong {
+    font-size: clamp(24px, 2vw, 34px);
+    line-height: 1.08;
+    max-width: 100%;
+  }
+
+  .oddix-v37-ticket-panel button {
+    min-width: 190px;
+    padding: 20px 18px;
+    font-size: 14px;
+    line-height: 1.2;
+  }
+
+  .oddix-v37-team img {
+    aspect-ratio: 1 / 1;
+    object-fit: contain !important;
+    object-position: center center;
+    flex-shrink: 0;
+    image-rendering: auto;
+  }
+
+  .oddix-v37-results-grid {
+    align-items: stretch;
+  }
+
+  .oddix-v37-result-card.gold strong,
+  .oddix-v37-result-card.gold span {
+    color: #facc15;
+  }
+
+  .oddix-v37-result-card.gold .oddix-v37-sparkline {
+    background:
+      linear-gradient(135deg, transparent 0 18%, #facc15 19% 21%, transparent 22% 34%, #facc15 35% 37%, transparent 38% 52%, #facc15 53% 55%, transparent 56% 70%, #facc15 71% 73%, transparent 74%);
+  }
+
+  .oddix-v37-player-prop {
+    min-height: 100%;
+  }
+
+  .oddix-v37-prop-body {
+    align-items: center;
+  }
+
+  .oddix-v37-prop-body img {
+    object-fit: contain !important;
+    object-position: bottom center !important;
+    max-height: 260px;
+  }
+
+  .oddix-v37-prop-metrics b {
+    font-size: 22px;
+    font-weight: 1000;
+  }
+
+  .oddix-v39-footer {
+    margin-top: 18px;
+    border: 1px solid rgba(250,204,21,.18);
+    background:
+      radial-gradient(circle at 20% 0%, rgba(250,204,21,.13), transparent 36%),
+      linear-gradient(135deg, rgba(5,5,5,.96), rgba(16,12,3,.96));
+    border-radius: 22px;
+    padding: 22px;
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) minmax(300px, 1.2fr) minmax(220px, .8fr);
+    gap: 18px;
+    align-items: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,.34);
+  }
+
+  .oddix-v39-footer strong {
+    display: block;
+    font-size: 34px;
+    font-weight: 1000;
+    font-style: italic;
+    letter-spacing: -1px;
+  }
+
+  .oddix-v39-footer strong span {
+    color: #facc15;
+  }
+
+  .oddix-v39-footer p,
+  .oddix-v39-footer small {
+    color: rgba(255,255,255,.68);
+    line-height: 1.45;
+    font-weight: 750;
+  }
+
+  .oddix-v39-footer nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .oddix-v39-footer button {
+    border: 1px solid rgba(250,204,21,.26);
+    background: rgba(0,0,0,.28);
+    color: #fff;
+    border-radius: 999px;
+    padding: 10px 13px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  .oddix-v39-footer div:last-child {
+    display: grid;
+    gap: 8px;
+  }
+
+  .oddix-v39-footer div:last-child span {
+    color: #facc15;
+    font-weight: 1000;
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+
+  .oddix-v39-footer div:last-child button {
+    background: linear-gradient(135deg, #facc15, #f59e0b);
+    color: #050505;
+  }
+
+
   .oddix-v37-modal {
     position: fixed;
     inset: 0;
@@ -2136,7 +2303,7 @@ const globalCss = `
 
     .oddix-v37-ticket-panel {
       grid-column: 1 / -1;
-      grid-template-columns: 1.1fr .7fr .9fr 1.1fr;
+      grid-template-columns: minmax(190px, 1.2fr) minmax(120px, .72fr) minmax(150px, .92fr) minmax(180px, 1.05fr);
     }
 
     .oddix-v37-bottom-grid {
@@ -2173,9 +2340,16 @@ const globalCss = `
       grid-template-columns: 1fr;
     }
 
-    .oddix-v37-hero-metrics,
+    .oddix-v37-hero-metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .oddix-v37-results-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .oddix-v39-footer {
+      grid-template-columns: 1fr;
     }
 
     .oddix-v37-ticket {
@@ -2217,13 +2391,14 @@ const globalCss = `
     }
 
     .oddix-v37-hero h1 {
-      font-size: 50px;
+      font-size: 54px;
     }
 
     .oddix-v37-hero-metrics,
     .oddix-v37-results-grid,
     .oddix-v37-nav,
-    .oddix-v37-prop-body {
+    .oddix-v37-prop-body,
+    .oddix-v39-footer {
       grid-template-columns: 1fr;
     }
 
