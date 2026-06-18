@@ -15,7 +15,7 @@ export default function Top5Tips({
     <section style={styles.card}>
       <div style={styles.header}>
         <div>
-          <span style={styles.kicker}>🔥 TOP 5 ENTRADAS IA</span>
+          <span style={styles.kicker}>🔥 TOP PICKS ODDIX AI</span>
           <h2 style={styles.title}>Ranking de maior confiança</h2>
         </div>
 
@@ -46,7 +46,7 @@ export default function Top5Tips({
         </div>
       ) : (
         <div style={styles.empty}>
-          Aguardando jogos com qualidade suficiente para montar o Top 5.
+          Aguardando jogos com qualidade suficiente para montar os Top Picks.
         </div>
       )}
     </section>
@@ -73,7 +73,7 @@ const styles: Record<string, CSSProperties> = {
   kicker: {
     color: "#facc15",
     fontSize: 12,
-    fontWeight: 900,
+    fontWeight: 1000,
     letterSpacing: 1,
   },
   title: {
@@ -87,7 +87,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 999,
     padding: "8px 10px",
     fontSize: 12,
-    fontWeight: 900,
+    fontWeight: 1000,
     whiteSpace: "nowrap",
   },
   list: {
@@ -130,7 +130,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontWeight: 900,
+    fontWeight: 1000,
   },
   info: {
     display: "flex",

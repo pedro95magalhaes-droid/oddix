@@ -19,23 +19,25 @@ export default function FreeLockModal({
         <button style={styles.close} onClick={onClose}>×</button>
 
         <span style={styles.lock}>🔒</span>
-        <h2>Análise disponível no PRO/VIP</h2>
+        <h2 style={styles.title}>Análise completa disponível no PRO/VIP</h2>
 
-        <p>
-          No Free você acompanha jogos, odds e ranking. Para ver análise completa,
-          mercados inteligentes, Player Props e Oddix Boost, escolha um plano.
+        <p style={styles.text}>
+          No Free você acompanha jogos, odds e ranking. Para liberar IA completa,
+          Player Props, Oddix Boost e estatísticas avançadas, escolha um plano.
         </p>
 
         <div style={styles.features}>
           <span>🤖 Análise IA completa</span>
-          <span>🎯 Player Props quando houver mercado real</span>
-          <span>💎 Oddix Boost filtrado</span>
-          <span>📲 VIP com grupo, mentoria e banca</span>
+          <span>🎯 Player Props Premium</span>
+          <span>💎 Oddix Boost otimizado</span>
+          <span>📊 Estatísticas avançadas</span>
+          <span>🔥 Top Picks Premium</span>
+          <span>📈 Histórico de performance</span>
         </div>
 
         <div style={styles.actions}>
           <button style={styles.secondary} onClick={onClose}>Continuar no Free</button>
-          <button style={styles.primary} onClick={onUpgrade}>Ver planos</button>
+          <button style={styles.primary} onClick={onUpgrade}>Desbloquear plataforma</button>
         </div>
       </div>
     </div>
@@ -47,7 +49,7 @@ const styles: Record<string, CSSProperties> = {
     position: "fixed",
     inset: 0,
     zIndex: 999,
-    background: "rgba(0,0,0,.72)",
+    background: "rgba(0,0,0,.76)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -55,8 +57,8 @@ const styles: Record<string, CSSProperties> = {
   },
   modal: {
     width: "100%",
-    maxWidth: 520,
-    background: "linear-gradient(145deg,#111827,#4c1d95)",
+    maxWidth: 560,
+    background: "linear-gradient(145deg,#111827,#312e81,#581c87)",
     color: "#fff",
     borderRadius: 30,
     padding: 28,
@@ -78,19 +80,29 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
   lock: {
-    width: 54,
-    height: 54,
+    width: 58,
+    height: 58,
     borderRadius: 18,
     background: "rgba(250,204,21,.18)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 26,
+    fontSize: 28,
+  },
+  title: {
+    margin: "16px 0 10px",
+    fontSize: 28,
+    lineHeight: 1.05,
+  },
+  text: {
+    color: "#ddd6fe",
+    lineHeight: 1.55,
   },
   features: {
     display: "grid",
+    gridTemplateColumns: "1fr 1fr",
     gap: 10,
-    margin: "18px 0",
+    margin: "20px 0",
   },
   actions: {
     display: "grid",
@@ -112,7 +124,7 @@ const styles: Record<string, CSSProperties> = {
     border: 0,
     borderRadius: 15,
     padding: 13,
-    fontWeight: 900,
+    fontWeight: 1000,
     cursor: "pointer",
   },
 };

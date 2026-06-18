@@ -23,8 +23,8 @@ export default function OddixBoostPremium({
     <section style={styles.card}>
       <div style={styles.header}>
         <div>
-          <span style={styles.kicker}>💎 ODDIX BOOST DO DIA</span>
-          <h2 style={styles.title}>Múltipla filtrada por IA</h2>
+          <span style={styles.kicker}>💎 ODDIX BOOST</span>
+          <h2 style={styles.title}>Combinação otimizada pela IA</h2>
         </div>
 
         <div style={styles.oddBox}>
@@ -56,13 +56,13 @@ export default function OddixBoostPremium({
         </div>
       ) : (
         <div style={styles.empty}>
-          Aguardando 3 entradas com confiança alta e odd protegida.
+          Aguardando entradas com confiança alta e odd protegida.
         </div>
       )}
 
       {!isPaidPlan && (
         <button style={styles.lockButton} onClick={onUpgrade}>
-          🔒 Assinar para usar Boost completo
+          🔒 Desbloquear Boost completo
         </button>
       )}
     </section>
@@ -87,7 +87,7 @@ const styles: Record<string, CSSProperties> = {
   },
   kicker: {
     color: "#7c3aed",
-    fontWeight: 900,
+    fontWeight: 1000,
     fontSize: 12,
     letterSpacing: 1,
   },
@@ -154,7 +154,7 @@ const styles: Record<string, CSSProperties> = {
     border: 0,
     borderRadius: 15,
     padding: 13,
-    fontWeight: 900,
+    fontWeight: 1000,
     cursor: "pointer",
   },
 };

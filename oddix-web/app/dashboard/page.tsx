@@ -7,8 +7,12 @@ import Top5Tips from "../../components/oddix/Top5Tips";
 import VipConversionBanner from "../../components/oddix/VipConversionBanner";
 import OddixBoostPremium from "../../components/oddix/OddixBoostPremium";
 import FreeLockModal from "../../components/oddix/FreeLockModal";
+import DashboardHero from "../../components/oddix/DashboardHero";
+import ResultsStats from "../../components/oddix/ResultsStats";
+import PlayerPropFeatured from "../../components/oddix/PlayerPropFeatured";
+import PlatformSidebar from "../../components/oddix/Sidebar";
 
-const FREE_GROUP_LINK = "https://chat.whatsapp.com/JQuwv77T1b8J6KMlXCEeRb";
+const SUPPORT_WHATSAPP_LINK = process.env.NEXT_PUBLIC_ODDIX_SUPPORT_WHATSAPP || "";
 const ESTRELABET_LINK = process.env.NEXT_PUBLIC_ESTRELABET_LINK || "https://apretailer.com.br/click/6a2102c82bfa8143b57b86d8/182492/359080/subaccount";
 const LEGAL_SEAL_DARK = "/selos/estrelabet-responsabilidade-dark.png";
 const LEGAL_SEAL_SMALL = "/selos/estrelabet-responsabilidade-small.png";
@@ -1301,6 +1305,29 @@ export default function Dashboard() {
   function openEstrelaBet(event?: any) {
     event?.stopPropagation?.();
     window.open(ESTRELABET_LINK, "_blank", "noopener,noreferrer");
+  }
+
+  function openSupport() {
+    setSidebarOpen(false);
+    if (SUPPORT_WHATSAPP_LINK) {
+      window.open(SUPPORT_WHATSAPP_LINK, "_blank", "noopener,noreferrer");
+      return;
+    }
+    window.location.href = "/support";
+  }
+
+  function handlePlatformNavigate(key: string) {
+    if (key === "dashboard") return openSportsButton("dashboard");
+    if (key === "top-picks") return openSportsButton("smart");
+    if (key === "player-props") return openSportsButton("playerprops");
+    if (key === "boost") return openSportsButton("boost");
+    if (key === "live") return openSportsButton("live");
+    if (key === "results") return openSportsButton("greens");
+    if (key === "favorites") { window.location.href = "/favorites"; return; }
+    if (key === "vip") { window.location.href = "/plans"; return; }
+    if (key === "support") return openSupport();
+    if (key === "settings") { window.location.href = "/dashboard"; return; }
+    return openSportsButton("dashboard");
   }
 
   function openSportsButton(action: string) {
@@ -6687,10 +6714,10 @@ export default function Dashboard() {
         <div className="oddix-side-menu-group">
           <button type="button" onClick={() => openSportsButton("dashboard")}><span>🏠</span><span>Destaques</span></button>
           <button type="button" onClick={() => openSportsButton("live")}><span>🔴</span><span>Ao Vivo</span></button>
-          <button type="button" onClick={() => openSportsButton("smart")}><span>🤖</span><span>IA Premium</span></button>
-          <button type="button" onClick={() => openSportsButton("boost")}><span>🔥</span><span>Combinadas</span></button>
+          <button type="button" onClick={() => openSportsButton("smart")}><span>🤖</span><span>Top Picks</span></button>
+          <button type="button" onClick={() => openSportsButton("boost")}><span>🔥</span><span>Oddix Boost</span></button>
           <button type="button" onClick={() => openSportsButton("playerprops")}><span>👤</span><span>Player Props</span></button>
-          <button type="button" onClick={() => openSportsButton("greens")}><span>✅</span><span>Greens</span></button>
+          <button type="button" onClick={() => openSportsButton("greens")}><span>✅</span><span>Resultados</span></button>
           <button type="button" onClick={() => document.getElementById("oddix-games")?.scrollIntoView({ behavior: "smooth", block: "start" })}><span>⚽</span><span>Jogos</span></button>
         </div>
 
@@ -6713,9 +6740,9 @@ export default function Dashboard() {
         </div>
 
         <div className="oddix-side-box">
-          <h4>🎁 Grupo FREE</h4>
-          <p>Receba amostras e chamadas para o VIP.</p>
-          <button type="button" className="oddix-side-cta" onClick={() => window.open(FREE_GROUP_LINK, "_blank")}>Entrar no grupo</button>
+          <h4>💬 Suporte</h4>
+          <p>Atendimento para dúvidas de acesso, planos e pagamento.</p>
+          <button type="button" className="oddix-side-cta" onClick={openSupport}>Abrir suporte</button>
         </div>
 
         <div className="oddix-side-box">
@@ -6756,10 +6783,10 @@ export default function Dashboard() {
         {[
           { label: "⚽ Futebol", action: "dashboard" },
           { label: "🔴 Ao Vivo", action: "live" },
-          { label: "🤖 IA Premium", action: "smart" },
-          { label: "🔥 Combinadas", action: "boost" },
+          { label: "🤖 Top Picks", action: "smart" },
+          { label: "🔥 Oddix Boost", action: "boost" },
           { label: "⚽ Player Props", action: "playerprops" },
-          { label: "📈 Greens", action: "greens" },
+          { label: "📊 Resultados", action: "greens" },
           { label: "💰 Odds", action: "odds" },
           { label: "🏆 Brasileirão", action: "brasil" },
           { label: "🌎 Sul-Americanos", action: "sulamericanos" },
@@ -6780,6 +6807,17 @@ export default function Dashboard() {
             {item.label}
           </button>
         ))}
+      </section>
+
+      <section className="oddix-v35-container" style={{ margin: "18px auto", width: "var(--oddix-container, min(1280px, calc(100vw - 52px)))", maxWidth: "var(--oddix-container, min(1280px, calc(100vw - 52px)))" }}>
+        <DashboardHero
+          plan={plan}
+          liveGames={liveGames.length}
+          topTips={top5Tips.length}
+          roi={stats?.roi || 0}
+          onExplore={() => document.getElementById("oddix-games")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          onUpgrade={() => (window.location.href = "/plans")}
+        />
       </section>
 
       <VipConversionBanner
@@ -6853,6 +6891,19 @@ export default function Dashboard() {
         </section>
       )}
 
+      <section className="oddix-v35-container" style={{ margin: "0 auto 20px", width: "var(--oddix-container, min(1280px, calc(100vw - 52px)))", maxWidth: "var(--oddix-container, min(1280px, calc(100vw - 52px)))" }}>
+        <PlayerPropFeatured
+          prop={homePlayerProps[0]}
+          loading={playerPropsLoading}
+          isPaidPlan={isPaidPlan}
+          onUpgrade={() => (window.location.href = "/plans")}
+          onOpen={(prop: any) => {
+            const game = getGameByTip(prop, games);
+            if (game) openMatchDetail(game);
+          }}
+        />
+      </section>
+
       <section id="oddix-hero" className="oddix-hero-grid oddix-hero-v21 oddix-anchor-target" style={styles.heroGrid}>
         <div className="oddix-hero-main oddix-hero-main-v21" style={styles.heroMain}>
           <div className="oddix-hero-text" style={styles.heroTextBlock}>
@@ -6901,7 +6952,7 @@ export default function Dashboard() {
             </div>
 
             <div className="oddix-hero-stats" style={styles.heroStats}>
-              <InfoMetric label="Greens" value={stats?.wonBets || wonBetsList.length || 0} />
+              <InfoMetric label="Resultados" value={stats?.wonBets || wonBetsList.length || 0} />
               <InfoMetric label="Reds" value={stats?.lostBets || 0} />
               <InfoMetric label="ROI" value={`${stats?.roi || 0}%`} />
               <InfoMetric label="Análises" value={stats?.totalBets || savedBets.length || games.length} />
@@ -6982,13 +7033,23 @@ export default function Dashboard() {
         </div>
       </section>
 
+      <section className="oddix-v35-container" style={{ margin: "0 auto 20px", width: "var(--oddix-container, min(1280px, calc(100vw - 52px)))", maxWidth: "var(--oddix-container, min(1280px, calc(100vw - 52px)))" }}>
+        <ResultsStats
+          totalBets={stats?.totalBets || savedBets.length || 0}
+          wonBets={stats?.wonBets || 0}
+          lostBets={stats?.lostBets || 0}
+          roi={stats?.roi || 0}
+          recent={recentResultBets}
+        />
+      </section>
+
       <div id="oddix-results" className="oddix-anchor-target">
         <V21ResultsRibbon
           recentBets={recentResultBets}
           won={stats?.wonBets || 0}
           lost={stats?.lostBets || 0}
           roi={stats?.roi || 0}
-          onOpenGreens={() => setActiveTab("greens")}
+          onOpenResultados={() => setActiveTab("greens")}
         />
       </div>
 
@@ -7021,7 +7082,7 @@ export default function Dashboard() {
           recentBets={recentResultBets}
           stats={stats}
           onOpenSmart={() => setActiveTab("smart")}
-          onOpenGreens={() => setActiveTab("greens")}
+          onOpenResultados={() => setActiveTab("greens")}
         />
       </div>
 
@@ -7144,10 +7205,10 @@ export default function Dashboard() {
             { key: "highlights", label: "Destaques" },
             { key: "live", label: "Ao vivo" },
             { key: "pregame", label: "Começa em breve" },
-            { key: "smart", label: "IA Premium" },
-            { key: "boost", label: "Combinadas" },
+            { key: "smart", label: "Top Picks" },
+            { key: "boost", label: "Oddix Boost" },
             { key: "playerprops", label: "Player Props" },
-            { key: "greens", label: "Greens" },
+            { key: "greens", label: "Resultados" },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -7162,6 +7223,14 @@ export default function Dashboard() {
 
       <section id="oddix-games" className="oddix-layout oddix-anchor-target" style={styles.layout}>
         <aside className="oddix-sidebar" style={styles.sidebar}>
+          <PlatformSidebar
+            active={activeTab === "live" ? "live" : activeTab === "boost" ? "boost" : activeTab === "playerprops" ? "player-props" : activeTab === "greens" ? "results" : activeTab === "smart" ? "top-picks" : "dashboard"}
+            plan={plan}
+            onNavigate={(key: any) => handlePlatformNavigate(key)}
+            onUpgrade={() => (window.location.href = "/plans")}
+            onSupport={openSupport}
+          />
+
           <div style={styles.searchCard}>
             <strong>Filtros</strong>
             <input style={styles.searchInput} placeholder="Buscar time ou liga" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -7180,9 +7249,9 @@ export default function Dashboard() {
           </div>
 
           <div style={styles.sideCardPurple}>
-            <h3>Grupo FREE</h3>
-            <p>Receba amostras e chamadas para o VIP.</p>
-            <button style={styles.freeButton} onClick={() => window.open(FREE_GROUP_LINK, "_blank")}>Entrar no grupo</button>
+            <h3>Suporte Oddix</h3>
+            <p>WhatsApp fica apenas para atendimento, dúvidas de plano e suporte ao usuário.</p>
+            <button style={styles.freeButton} onClick={openSupport}>Abrir suporte</button>
           </div>
 
           <div style={styles.partnerSideCard}>
@@ -7215,7 +7284,7 @@ export default function Dashboard() {
           )}
 
           {activeTab === "greens" && (
-            <GreensSection wonBets={wonBetsList} onBetNow={openEstrelaBet} />
+            <ResultadosSection wonBets={wonBetsList} onBetNow={openEstrelaBet} />
           )}
 
           {activeTab !== "smart" && activeTab !== "boost" && activeTab !== "playerprops" && activeTab !== "greens" && (
@@ -7283,7 +7352,7 @@ export default function Dashboard() {
   );
 }
 
-function V21ResultsRibbon({ recentBets, won, lost, roi, onOpenGreens }: { recentBets: any[]; won: number; lost: number; roi: number; onOpenGreens: () => void }) {
+function V21ResultsRibbon({ recentBets, won, lost, roi, onOpenResultados }: { recentBets: any[]; won: number; lost: number; roi: number; onOpenResultados: () => void }) {
   const results = Array.isArray(recentBets) ? recentBets.slice(0, 5) : [];
   const total = won + lost;
   const winRate = total ? Math.round((won / total) * 100) : roi || 0;
@@ -7333,13 +7402,13 @@ function V21ResultsRibbon({ recentBets, won, lost, roi, onOpenGreens }: { recent
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 88px)", gap: 10 }}>
-          <InfoMetric label="Greens" value={won || 0} />
+          <InfoMetric label="Resultados" value={won || 0} />
           <InfoMetric label="Reds" value={lost || 0} />
           <InfoMetric label="WinRate" value={`${winRate}%`} />
         </div>
       </div>
 
-      <button onClick={onOpenGreens} style={{
+      <button onClick={onOpenResultados} style={{
         marginTop: 16,
         width: "100%",
         height: 44,
@@ -7363,10 +7432,10 @@ function getTabTitle(tab: TabKey) {
     highlights: "Destaques IA",
     live: "Jogos ao vivo",
     pregame: "Começa em breve",
-    smart: "IA Premium",
-    boost: "Combinadas Oddix",
+    smart: "Top Picks",
+    boost: "Oddix Boost Oddix",
     playerprops: "Player Props IA",
-    greens: "Finalizados / Greens",
+    greens: "Finalizados / Resultados",
   };
   return map[tab];
 }
@@ -7889,7 +7958,7 @@ function VipMarketingStrip({ greens, roi, liveGames, tips, onVip }: any) {
         <div>
           <span style={styles.vipMarketingBadge}>📊 DESEMPENHO ODDIX</span>
           <h2 style={styles.vipMarketingTitle}>Resultados da semana monitorados pela IA.</h2>
-          <p style={styles.vipMarketingText}>Greens, assertividade, ROI e entradas premium para mostrar valor real do VIP.</p>
+          <p style={styles.vipMarketingText}>Resultados, assertividade, ROI e entradas premium para mostrar valor real do VIP.</p>
         </div>
         <button style={styles.vipMarketingButton} onClick={onVip}>Assinar VIP agora</button>
       </div>
@@ -8129,7 +8198,7 @@ function HotMarketsSection({ tips, games, onOpen }: any) {
 }
 
 
-function V23TrustLayer({ tips, games, recentBets, stats, onOpenSmart, onOpenGreens }: any) {
+function V23TrustLayer({ tips, games, recentBets, stats, onOpenSmart, onOpenResultados }: any) {
   const safeTips = Array.isArray(tips) ? tips : [];
   const safeGames = Array.isArray(games) ? games : [];
   const safeRecent = Array.isArray(recentBets) ? recentBets : [];
@@ -8229,7 +8298,7 @@ function V23TrustLayer({ tips, games, recentBets, stats, onOpenSmart, onOpenGree
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10, marginBottom: 16 }}>
             <InfoMetric label="WinRate" value={`${winRate}%`} />
-            <InfoMetric label="Greens" value={won} />
+            <InfoMetric label="Resultados" value={won} />
             <InfoMetric label="Reds" value={lost} />
           </div>
 
@@ -8258,7 +8327,7 @@ function V23TrustLayer({ tips, games, recentBets, stats, onOpenSmart, onOpenGree
             })}
           </div>
 
-          <button onClick={onOpenGreens} style={{
+          <button onClick={onOpenResultados} style={{
             marginTop: 16, width: "100%", height: 46, border: 0, borderRadius: 16, cursor: "pointer",
             background: "rgba(34,197,94,.14)", color: "#22c55e", fontWeight: 1000,
           }}>Abrir histórico completo ›</button>
@@ -8622,7 +8691,7 @@ function PremiumTicketPreview({ tips, games, isPaidPlan, onOpen, onUpgrade }: an
   );
 }
 
-function GreensSection({ wonBets, onBetNow }: { wonBets: any[]; onBetNow: () => void }) {
+function ResultadosSection({ wonBets, onBetNow }: { wonBets: any[]; onBetNow: () => void }) {
   const wins = wonBets || [];
   const totalProfit = wins.reduce((acc, bet: any) => acc + Math.max(0, safeNumber(bet?.odd, 1) - 1), 0);
 
@@ -8635,7 +8704,7 @@ function GreensSection({ wonBets, onBetNow }: { wonBets: any[]; onBetNow: () => 
           <p>Quando o cron marcar a aposta como won, ela aparece aqui automaticamente.</p>
         </div>
         <div style={styles.greensStatsBox}>
-          <span>Total Greens</span>
+          <span>Total Resultados</span>
           <strong>{wins.length}</strong>
           <small>Lucro estimado +{totalProfit.toFixed(2)}u</small>
         </div>
@@ -8927,8 +8996,8 @@ function SmartTipsSection({ tips, games, liveTick = 0, onAnalyze }: any) {
     <section>
       <div className="oddix-section-header" style={styles.sectionHeader}>
         <div>
-          <h2>IA Premium com Odds</h2>
-          <p>Ao clicar em IA Premium, veja primeiro os jogos ao vivo com estatísticas rápidas e depois as entradas ranqueadas.</p>
+          <h2>Top Picks com Odds</h2>
+          <p>Ao clicar em Top Picks, veja primeiro os jogos ao vivo com estatísticas rápidas e depois as entradas ranqueadas.</p>
         </div>
       </div>
 
@@ -9533,7 +9602,7 @@ function V26ConversionLayer({
             <h2>Prova social para vender o VIP</h2>
           </div>
           <div className="oddix-v26-proof-grid">
-            <V26Metric value={won || 0} label="Greens" tone="#22c55e" />
+            <V26Metric value={won || 0} label="Resultados" tone="#22c55e" />
             <V26Metric value={lost || 0} label="Reds" tone="#ef4444" />
             <V26Metric value={`${winRate || 0}%`} label="Win rate" tone="#facc15" />
             <V26Metric value={`${roi || 0}%`} label="ROI" tone="#a855f7" />
@@ -9583,7 +9652,7 @@ function V26ConversionLayer({
 
         <div className="oddix-v26-vip-box">
           <span>👑 FREE x VIP</span>
-          <p>O VIP recebe Top Picks, Boost, Player Props reais e alertas no WhatsApp.</p>
+          <p>O VIP desbloqueia Top Picks, Oddix Boost, Player Props reais e análises completas dentro da plataforma.</p>
           <button type="button" onClick={onVip}>Ver página VIP</button>
         </div>
       </div>

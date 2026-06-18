@@ -21,12 +21,12 @@ export default function VipConversionBanner({
         <div>
           <span style={styles.kicker}>💎 ACESSO LIBERADO</span>
           <strong>Você está no plano {plan}</strong>
-          <p>Use as análises, mercados inteligentes e o Oddix Boost para filtrar melhores entradas.</p>
+          <p>Use análises completas, Player Props, estatísticas premium e Oddix Boost.</p>
         </div>
 
         <div style={styles.stats}>
           <span>{liveGames} ao vivo</span>
-          <span>{topTips} entradas IA</span>
+          <span>{topTips} Top Picks</span>
         </div>
       </section>
     );
@@ -35,11 +35,11 @@ export default function VipConversionBanner({
   return (
     <section style={styles.banner}>
       <div>
-        <span style={styles.kicker}>🔒 CONVERSÃO PRO/VIP</span>
-        <h2>Free acompanha os jogos. PRO e VIP liberam análise completa.</h2>
+        <span style={styles.kicker}>🔒 PLATAFORMA PRO/VIP</span>
+        <h2>Free acompanha os jogos. PRO e VIP liberam a inteligência completa.</h2>
         <p>
-          Veja odds, jogos e ranking. Para acessar IA Premium, Player Props,
-          Oddix Boost e análise detalhada, assine PRO ou VIP.
+          Acesse IA Premium, Player Props, Oddix Boost, estatísticas avançadas,
+          Top Picks e histórico de performance dentro da plataforma.
         </p>
       </div>
 
@@ -48,11 +48,13 @@ export default function VipConversionBanner({
           <span>🤖 IA Premium</span>
           <span>🎯 Player Props</span>
           <span>💎 Oddix Boost</span>
-          <span>📲 Grupo VIP + mentoria</span>
+          <span>📊 Estatísticas Premium</span>
+          <span>🔥 Top Picks</span>
+          <span>📈 Performance</span>
         </div>
 
         <button style={styles.button} onClick={onUpgrade}>
-          Liberar análise
+          Desbloquear Plataforma VIP
         </button>
       </div>
     </section>
@@ -87,7 +89,7 @@ const styles: Record<string, CSSProperties> = {
   },
   kicker: {
     color: "#facc15",
-    fontWeight: 900,
+    fontWeight: 1000,
     fontSize: 12,
     letterSpacing: 1,
   },
@@ -107,7 +109,7 @@ const styles: Record<string, CSSProperties> = {
     border: 0,
     borderRadius: 16,
     padding: "14px 18px",
-    fontWeight: 900,
+    fontWeight: 1000,
     cursor: "pointer",
   },
   stats: {
