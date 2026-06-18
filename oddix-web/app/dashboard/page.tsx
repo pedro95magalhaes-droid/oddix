@@ -969,7 +969,7 @@ const globalCss = `
       #020202;
     color: #fff;
     display: grid;
-    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-columns: 292px minmax(0, 1fr);
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 
@@ -981,7 +981,7 @@ const globalCss = `
     background:
       linear-gradient(180deg, rgba(6,6,7,.98), rgba(0,0,0,.98));
     border-right: 1px solid rgba(250,204,21,.18);
-    padding: 22px 18px;
+    padding: 24px 20px;
     box-shadow: 20px 0 60px rgba(0,0,0,.45);
     z-index: 20;
   }
@@ -1005,15 +1005,15 @@ const globalCss = `
   }
 
   .oddix-v37-logo img {
-    width: 60px;
-    height: 60px;
+    width: 86px;
+    height: 86px;
     object-fit: contain;
     filter: drop-shadow(0 0 18px rgba(250,204,21,.34));
   }
 
   .oddix-v37-logo strong {
     display: block;
-    font-size: 28px;
+    font-size: 50px;
     font-weight: 1000;
     font-style: italic;
     letter-spacing: -1px;
@@ -1126,7 +1126,7 @@ const globalCss = `
 
   .oddix-v37-partner strong {
     display: block;
-    font-size: 28px;
+    font-size: 50px;
     margin: 12px 0;
   }
 
@@ -1136,7 +1136,7 @@ const globalCss = `
 
   .oddix-v37-content {
     min-width: 0;
-    padding: 24px 32px 50px;
+    padding: 28px 34px 56px;
   }
 
   .oddix-v37-header {
@@ -1212,7 +1212,7 @@ const globalCss = `
   .oddix-v37-hero {
     position: relative;
     overflow: hidden;
-    min-height: 380px;
+    min-height: 470px;
     border-radius: 28px;
     border: 1px solid rgba(250,204,21,.35);
     background:
@@ -1220,10 +1220,10 @@ const globalCss = `
       radial-gradient(circle at 80% 12%, rgba(250,204,21,.32), transparent 34%);
     box-shadow: 0 24px 80px rgba(0,0,0,.58), inset 0 1px 0 rgba(250,204,21,.14);
     margin-bottom: 18px;
-    padding: 34px 34px 48px;
+    padding: 42px 42px 58px;
     display: grid;
-    grid-template-columns: minmax(360px, .92fr) minmax(280px, .75fr) minmax(250px, .45fr);
-    gap: 20px;
+    grid-template-columns: minmax(390px, .95fr) minmax(360px, .82fr) minmax(286px, .48fr);
+    gap: 24px;
     align-items: center;
   }
 
@@ -1246,7 +1246,7 @@ const globalCss = `
 
   .oddix-v37-brand-text strong {
     display: block;
-    font-size: clamp(58px, 6vw, 86px);
+    font-size: clamp(68px, 6.7vw, 104px);
     line-height: .78;
     font-weight: 1000;
     font-style: italic;
@@ -1268,7 +1268,7 @@ const globalCss = `
 
   .oddix-v37-hero h1 {
     margin: 22px 0 14px;
-    font-size: clamp(34px, 3.4vw, 52px);
+    font-size: clamp(38px, 3.8vw, 60px);
     line-height: .98;
     letter-spacing: -2px;
   }
@@ -1333,8 +1333,8 @@ const globalCss = `
   }
 
   .oddix-v37-hero-player img {
-    width: min(420px, 100%);
-    max-height: 330px;
+    width: min(560px, 108%);
+    max-height: 430px;
     object-fit: contain;
     object-position: bottom center;
     filter: drop-shadow(0 24px 40px rgba(0,0,0,.8));
@@ -1347,11 +1347,11 @@ const globalCss = `
   }
 
   .oddix-v37-metric {
-    min-height: 112px;
+    min-height: 134px;
     border: 1px solid rgba(250,204,21,.42);
     background: rgba(0,0,0,.38);
     border-radius: 16px;
-    padding: 16px;
+    padding: 18px;
   }
 
   .oddix-v37-metric span {
@@ -1364,7 +1364,7 @@ const globalCss = `
     display: block;
     margin-top: 10px;
     color: #fff;
-    font-size: 34px;
+    font-size: 50px;
     font-weight: 1000;
   }
 
@@ -1374,7 +1374,7 @@ const globalCss = `
 
   .oddix-v37-metric.purple strong {
     color: #a855f7;
-    font-size: 26px;
+    font-size: 30px;
   }
 
   .oddix-v37-metric small {
@@ -1418,7 +1418,7 @@ const globalCss = `
       radial-gradient(circle at 20% 0%, rgba(250,204,21,.22), transparent 36%),
       linear-gradient(90deg, rgba(6,6,5,.98), rgba(34,20,4,.98));
     margin-bottom: 18px;
-    padding: 18px 22px 20px;
+    padding: 22px 26px 24px;
     box-shadow: 0 0 28px rgba(250,204,21,.18), 0 20px 70px rgba(0,0,0,.52);
   }
 
@@ -1453,7 +1453,7 @@ const globalCss = `
 
   .oddix-v37-ticket {
     display: grid;
-    grid-template-columns: minmax(140px, .8fr) 150px minmax(140px, .8fr) minmax(520px, 1.6fr);
+    grid-template-columns: minmax(180px, .86fr) 160px minmax(180px, .86fr) minmax(560px, 1.7fr);
     gap: 18px;
     align-items: center;
   }
@@ -1463,8 +1463,8 @@ const globalCss = `
   }
 
   .oddix-v37-team img {
-    width: 94px;
-    height: 94px;
+    width: 128px;
+    height: 128px;
     object-fit: contain;
     filter: drop-shadow(0 12px 18px rgba(0,0,0,.6));
   }
@@ -1496,8 +1496,8 @@ const globalCss = `
   }
 
   .oddix-v37-match-center em {
-    width: 56px;
-    height: 56px;
+    width: 64px;
+    height: 64px;
     border-radius: 999px;
     margin: auto;
     background: #facc15;
@@ -1519,7 +1519,7 @@ const globalCss = `
   }
 
   .oddix-v37-ticket-panel > div {
-    min-height: 118px;
+    min-height: 142px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -1536,7 +1536,7 @@ const globalCss = `
   .oddix-v37-ticket-panel strong {
     margin-top: 8px;
     color: #facc15;
-    font-size: 28px;
+    font-size: 50px;
     line-height: .95;
     font-weight: 1000;
     text-transform: uppercase;
@@ -1544,7 +1544,7 @@ const globalCss = `
 
   .oddix-v37-ticket-panel strong.green {
     color: #22c55e;
-    font-size: 42px;
+    font-size: 50px;
   }
 
   .oddix-v37-ticket-panel small {
@@ -1565,7 +1565,7 @@ const globalCss = `
 
   .oddix-v37-main-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(340px, .72fr);
+    grid-template-columns: minmax(0, 1.45fr) minmax(390px, .78fr);
     gap: 18px;
     margin-bottom: 18px;
   }
@@ -1585,16 +1585,16 @@ const globalCss = `
   }
 
   .oddix-v37-result-card {
-    min-height: 150px;
+    min-height: 170px;
     border: 1px solid rgba(255,255,255,.13);
     background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.018));
     border-radius: 14px;
-    padding: 16px;
+    padding: 18px;
   }
 
   .oddix-v37-result-card strong {
     display: block;
-    font-size: 36px;
+    font-size: 44px;
     color: #22c55e;
     line-height: 1;
     font-weight: 1000;
@@ -1653,14 +1653,14 @@ const globalCss = `
 
   .oddix-v37-prop-body {
     display: grid;
-    grid-template-columns: 150px minmax(0, 1fr);
+    grid-template-columns: 170px minmax(0, 1fr);
     gap: 16px;
     align-items: end;
   }
 
   .oddix-v37-prop-body img {
-    width: 150px;
-    height: 180px;
+    width: 170px;
+    height: 210px;
     object-fit: contain;
     object-position: bottom center;
     filter: drop-shadow(0 18px 25px rgba(0,0,0,.6));
@@ -1668,7 +1668,7 @@ const globalCss = `
 
   .oddix-v37-prop-body h3 {
     margin: 0;
-    font-size: 22px;
+    font-size: 26px;
     text-transform: uppercase;
   }
 
@@ -1850,7 +1850,7 @@ const globalCss = `
     border: 1px solid rgba(255,255,255,.11);
     background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.018));
     border-radius: 18px;
-    padding: 16px;
+    padding: 18px;
     cursor: pointer;
     transition: .2s ease;
   }
@@ -2006,6 +2006,111 @@ const globalCss = `
     cursor: pointer;
   }
 
+
+  /* V38: anti-corte premium dos quadrados/cards */
+  .oddix-v37-metric,
+  .oddix-v37-result-card,
+  .oddix-v37-ticket-panel,
+  .oddix-v37-ticket-panel > div,
+  .oddix-v37-player-prop,
+  .oddix-v37-list-card,
+  .oddix-v37-vip-card,
+  .oddix-v37-game-card,
+  .oddix-v37-search,
+  .oddix-v37-side-card,
+  .oddix-v37-support,
+  .oddix-v37-partner {
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .oddix-v37-metric span,
+  .oddix-v37-metric strong,
+  .oddix-v37-metric small,
+  .oddix-v37-result-card span,
+  .oddix-v37-result-card strong,
+  .oddix-v37-result-card small,
+  .oddix-v37-ticket-panel span,
+  .oddix-v37-ticket-panel strong,
+  .oddix-v37-ticket-panel small,
+  .oddix-v37-prop-body h3,
+  .oddix-v37-prop-body p,
+  .oddix-v37-prop-body strong,
+  .oddix-v37-tip-row strong,
+  .oddix-v37-boost-row strong,
+  .oddix-v37-game-card strong {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .oddix-v37-metric {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .oddix-v37-metric strong {
+    line-height: 1;
+    word-break: keep-all;
+  }
+
+  .oddix-v37-metric span {
+    line-height: 1.25;
+  }
+
+  .oddix-v37-metric small {
+    margin-top: 6px;
+    line-height: 1.2;
+  }
+
+  .oddix-v37-ticket-panel strong {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .oddix-v37-ticket-panel button {
+    min-height: 142px;
+    white-space: normal;
+    line-height: 1.16;
+  }
+
+  .oddix-v37-result-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .oddix-v37-result-card strong {
+    white-space: nowrap;
+  }
+
+  .oddix-v37-prop-body strong {
+    line-height: 1.28;
+    min-height: 52px;
+  }
+
+  .oddix-v37-prop-metrics span {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .oddix-v37-prop-metrics b {
+    float: none;
+    display: block;
+    margin-top: 5px;
+    font-size: 18px;
+  }
+
+  .oddix-v37-game-teams strong {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+
   @media (max-width: 1280px) {
     .oddix-v37-page {
       grid-template-columns: 220px minmax(0, 1fr);
@@ -2016,12 +2121,13 @@ const globalCss = `
     }
 
     .oddix-v37-hero {
-      grid-template-columns: 1fr minmax(240px, .6fr);
+      grid-template-columns: minmax(0, 1fr) minmax(300px, .68fr);
+      min-height: auto;
     }
 
     .oddix-v37-hero-metrics {
       grid-column: 1 / -1;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
     }
 
     .oddix-v37-ticket {
@@ -2030,6 +2136,7 @@ const globalCss = `
 
     .oddix-v37-ticket-panel {
       grid-column: 1 / -1;
+      grid-template-columns: 1.1fr .7fr .9fr 1.1fr;
     }
 
     .oddix-v37-bottom-grid {
@@ -2079,6 +2186,11 @@ const globalCss = `
       grid-template-columns: 1fr;
     }
 
+    .oddix-v37-ticket-panel button,
+    .oddix-v37-ticket-panel > div {
+      min-height: 96px;
+    }
+
     .oddix-v37-ticket-panel > div {
       border-right: 0;
       border-bottom: 1px solid rgba(250,204,21,.18);
@@ -2105,7 +2217,7 @@ const globalCss = `
     }
 
     .oddix-v37-hero h1 {
-      font-size: 34px;
+      font-size: 50px;
     }
 
     .oddix-v37-hero-metrics,
