@@ -580,7 +580,7 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="oddix-v37-page">
+    <main className="oddix-v37-page oddix-v39-autofit">
       <style jsx global>{globalCss}</style>
 
       <aside className="oddix-v37-sidebar">
@@ -2104,6 +2104,308 @@ const globalCss = `
     color: #050505;
   }
 
+
+
+  /* V39.1 AUTO-FIT RESPONSIVO: evita quebra em notebook, meia tela e zoom */
+  :root {
+    --oddix-sidebar-w: clamp(214px, 18vw, 292px);
+    --oddix-content-pad: clamp(12px, 2vw, 34px);
+    --oddix-card-radius: clamp(16px, 1.6vw, 28px);
+    --oddix-fit-font: clamp(11px, .78vw, 14px);
+  }
+
+  html,
+  body,
+  .oddix-v39-autofit {
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+
+  .oddix-v39-autofit {
+    grid-template-columns: var(--oddix-sidebar-w) minmax(0, 1fr) !important;
+    font-size: var(--oddix-fit-font);
+  }
+
+  .oddix-v39-autofit .oddix-v37-sidebar {
+    width: var(--oddix-sidebar-w);
+    padding: clamp(12px, 1.35vw, 20px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-content {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: calc(100vw - var(--oddix-sidebar-w)) !important;
+    padding: var(--oddix-content-pad) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-header,
+  .oddix-v39-autofit .oddix-v37-hero,
+  .oddix-v39-autofit .oddix-v37-top-pick,
+  .oddix-v39-autofit .oddix-v37-main-grid,
+  .oddix-v39-autofit .oddix-v37-bottom-grid,
+  .oddix-v39-autofit .oddix-v37-games,
+  .oddix-v39-autofit .oddix-v39-footer {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    flex: 1 1 auto;
+  }
+
+  .oddix-v39-autofit .oddix-v37-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .oddix-v39-autofit .oddix-v37-tabs button {
+    padding: clamp(9px, .9vw, 13px) clamp(10px, 1.1vw, 17px) !important;
+    font-size: clamp(10px, .72vw, 12px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-user-actions {
+    flex: 0 0 auto;
+  }
+
+  .oddix-v39-autofit .oddix-v37-user-actions span,
+  .oddix-v39-autofit .oddix-v37-user-actions button {
+    padding: clamp(9px, .85vw, 12px) clamp(10px, 1vw, 16px) !important;
+    font-size: clamp(10px, .72vw, 12px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-hero {
+    min-height: clamp(430px, 39vw, 540px) !important;
+    padding: clamp(24px, 3vw, 48px) clamp(22px, 2.8vw, 46px) clamp(54px, 4.5vw, 64px) !important;
+    grid-template-columns: minmax(340px, .95fr) minmax(260px, .72fr) minmax(220px, .45fr) !important;
+    gap: clamp(12px, 1.5vw, 24px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-brand-text strong {
+    font-size: clamp(56px, 6.2vw, 108px) !important;
+    letter-spacing: clamp(-4px, -.28vw, -1px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-brand-text small {
+    font-size: clamp(10px, .95vw, 15px) !important;
+    letter-spacing: clamp(2.5px, .4vw, 5px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-hero h1 {
+    font-size: clamp(32px, 3.3vw, 56px) !important;
+    max-width: 640px;
+  }
+
+  .oddix-v39-autofit .oddix-v37-hero p {
+    font-size: clamp(12px, .9vw, 15px);
+    max-width: 590px;
+  }
+
+  .oddix-v39-autofit .oddix-v37-badges {
+    gap: 7px !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-badges span {
+    padding: clamp(6px, .6vw, 8px) clamp(8px, .75vw, 12px) !important;
+    font-size: clamp(10px, .72vw, 12px) !important;
+    white-space: nowrap;
+  }
+
+  .oddix-v39-autofit .oddix-v37-hero-player img {
+    width: min(100%, clamp(330px, 36vw, 620px)) !important;
+    max-height: clamp(300px, 34vw, 500px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-hero-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: clamp(8px, .9vw, 12px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-metric {
+    min-height: clamp(104px, 9.5vw, 142px) !important;
+    padding: clamp(12px, 1.1vw, 18px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-metric strong {
+    font-size: clamp(28px, 2.7vw, 46px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-metric.purple strong {
+    font-size: clamp(20px, 1.85vw, 30px) !important;
+    line-height: 1.05;
+  }
+
+  .oddix-v39-autofit .oddix-v37-ticket {
+    grid-template-columns: minmax(138px, .7fr) clamp(74px, 8vw, 164px) minmax(138px, .7fr) minmax(420px, 1.65fr) !important;
+    gap: clamp(10px, 1.1vw, 18px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-team img {
+    width: clamp(82px, 8.5vw, 140px) !important;
+    height: clamp(82px, 8.5vw, 140px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-team strong {
+    font-size: clamp(12px, 1vw, 16px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-ticket-panel {
+    grid-template-columns: minmax(150px, 1.12fr) minmax(86px, .55fr) minmax(112px, .72fr) minmax(150px, .9fr) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-ticket-panel > div,
+  .oddix-v39-autofit .oddix-v37-ticket-panel button {
+    min-height: clamp(104px, 9vw, 142px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-ticket-panel > div:first-child strong {
+    font-size: clamp(22px, 2.1vw, 34px) !important;
+    line-height: 1.05 !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-ticket-panel strong.green {
+    font-size: clamp(34px, 3.6vw, 54px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-ticket-panel button {
+    font-size: clamp(11px, .9vw, 14px) !important;
+    min-width: 0 !important;
+    white-space: normal;
+  }
+
+  .oddix-v39-autofit .oddix-v37-main-grid {
+    grid-template-columns: minmax(0, 1.4fr) minmax(320px, .72fr) !important;
+    gap: clamp(12px, 1.35vw, 18px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-results-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: clamp(8px, .9vw, 14px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-result-card {
+    min-height: clamp(126px, 10vw, 156px) !important;
+    padding: clamp(12px, 1vw, 16px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-result-card strong {
+    font-size: clamp(30px, 3vw, 44px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-player-prop {
+    min-width: 0;
+  }
+
+  .oddix-v39-autofit .oddix-v37-prop-body {
+    grid-template-columns: clamp(130px, 13vw, 190px) minmax(0, 1fr) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-prop-body img {
+    width: clamp(130px, 13vw, 190px) !important;
+    height: clamp(178px, 17vw, 250px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-bottom-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(260px, .72fr) !important;
+    gap: clamp(12px, 1.35vw, 18px) !important;
+  }
+
+  @media (max-width: 1380px) {
+    :root {
+      --oddix-sidebar-w: 232px;
+      --oddix-content-pad: 18px;
+    }
+
+    .oddix-v39-autofit .oddix-v37-logo strong {
+      font-size: 28px !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-logo img {
+      width: 68px !important;
+      height: 68px !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-hero {
+      grid-template-columns: minmax(0, 1fr) minmax(240px, .58fr) !important;
+      min-height: 430px !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-hero-metrics {
+      grid-column: 1 / -1;
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-ticket {
+      grid-template-columns: minmax(130px, .8fr) 120px minmax(130px, .8fr) !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-ticket-panel {
+      grid-column: 1 / -1;
+      grid-template-columns: minmax(190px, 1.2fr) minmax(110px, .65fr) minmax(140px, .8fr) minmax(190px, 1fr) !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-results-grid {
+      grid-template-columns: repeat(5, minmax(118px, 1fr)) !important;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: thin;
+    }
+  }
+
+  @media (max-width: 1120px) {
+    :root {
+      --oddix-sidebar-w: 1fr;
+      --oddix-content-pad: 14px;
+    }
+
+    .oddix-v39-autofit {
+      grid-template-columns: 1fr !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-content {
+      max-width: 100vw !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-sidebar {
+      position: relative !important;
+      width: 100% !important;
+      height: auto !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-hero,
+    .oddix-v39-autofit .oddix-v37-main-grid,
+    .oddix-v39-autofit .oddix-v37-bottom-grid {
+      grid-template-columns: 1fr !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-ticket {
+      grid-template-columns: 1fr !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-ticket-panel {
+      grid-template-columns: 1fr 1fr !important;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .oddix-v39-autofit .oddix-v37-hero {
+      padding: 22px 16px 58px !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-hero-metrics,
+    .oddix-v39-autofit .oddix-v37-ticket-panel,
+    .oddix-v39-autofit .oddix-v37-prop-body,
+    .oddix-v39-autofit .oddix-v37-results-grid {
+      grid-template-columns: 1fr !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-results-grid {
+      overflow-x: visible;
+    }
+  }
 
   .oddix-v37-modal {
     position: fixed;
