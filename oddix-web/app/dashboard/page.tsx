@@ -11,6 +11,7 @@ import DashboardHero from "../../components/oddix/DashboardHero";
 import ResultsStats from "../../components/oddix/ResultsStats";
 import PlayerPropFeatured from "../../components/oddix/PlayerPropFeatured";
 import PlatformSidebar from "../../components/oddix/Sidebar";
+import TopPickPremium from "../../components/oddix/TopPickPremium";
 
 const SUPPORT_WHATSAPP_LINK = process.env.NEXT_PUBLIC_ODDIX_SUPPORT_WHATSAPP || "";
 const ESTRELABET_LINK = process.env.NEXT_PUBLIC_ESTRELABET_LINK || "https://apretailer.com.br/click/6a2102c82bfa8143b57b86d8/182492/359080/subaccount";
@@ -1807,6 +1808,31 @@ export default function Dashboard() {
           }
         }
 
+
+
+        /* ODDIX V35.2 PREMIUM STACK */
+        .oddix-v35-2-hero span,
+        .oddix-v35-top-pick-premium span,
+        .oddix-v35-playerprop span {
+          overflow-wrap: normal;
+        }
+
+        @media (max-width: 920px) {
+          .oddix-v35-2-hero,
+          .oddix-v35-top-pick-premium,
+          .oddix-v35-playerprop {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 620px) {
+          .oddix-v35-2-hero,
+          .oddix-v35-top-pick-premium,
+          .oddix-v35-playerprop,
+          .oddix-v35-results {
+            border-radius: 22px !important;
+          }
+        }
 
         /* ODDIX V22 SPORTSBOOK PREMIUM OVERRIDES */
 
@@ -6820,6 +6846,42 @@ export default function Dashboard() {
         />
       </section>
 
+      <section className="oddix-v35-container" style={{ margin: "0 auto 20px", width: "var(--oddix-container, min(1280px, calc(100vw - 52px)))", maxWidth: "var(--oddix-container, min(1280px, calc(100vw - 52px)))" }}>
+        <TopPickPremium
+          pick={topPick}
+          game={topPickGame}
+          isPaidPlan={isPaidPlan}
+          onUpgrade={() => (window.location.href = "/plans")}
+          onOpen={() => {
+            if (topPickGame) analyzeGame(topPickGame, topPick);
+          }}
+        />
+      </section>
+
+      <section className="oddix-v35-container" style={{ margin: "0 auto 20px", width: "var(--oddix-container, min(1280px, calc(100vw - 52px)))", maxWidth: "var(--oddix-container, min(1280px, calc(100vw - 52px)))" }}>
+        <ResultsStats
+          totalBets={stats?.totalBets || savedBets.length || 0}
+          wonBets={stats?.wonBets || 0}
+          lostBets={stats?.lostBets || 0}
+          roi={stats?.roi || 0}
+          recent={recentResultBets}
+        />
+      </section>
+
+      <section className="oddix-v35-container" style={{ margin: "0 auto 20px", width: "var(--oddix-container, min(1280px, calc(100vw - 52px)))", maxWidth: "var(--oddix-container, min(1280px, calc(100vw - 52px)))" }}>
+        <PlayerPropFeatured
+          prop={homePlayerProps[0]}
+          loading={playerPropsLoading}
+          isPaidPlan={isPaidPlan}
+          onUpgrade={() => (window.location.href = "/plans")}
+          onOpen={(prop: any) => {
+            const game = getGameByTip(prop, games);
+            if (game) openMatchDetail(game);
+          }}
+        />
+      </section>
+
+
       <VipConversionBanner
         plan={plan}
         liveGames={liveGames.length}
@@ -7033,15 +7095,6 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <section className="oddix-v35-container" style={{ margin: "0 auto 20px", width: "var(--oddix-container, min(1280px, calc(100vw - 52px)))", maxWidth: "var(--oddix-container, min(1280px, calc(100vw - 52px)))" }}>
-        <ResultsStats
-          totalBets={stats?.totalBets || savedBets.length || 0}
-          wonBets={stats?.wonBets || 0}
-          lostBets={stats?.lostBets || 0}
-          roi={stats?.roi || 0}
-          recent={recentResultBets}
-        />
-      </section>
 
       <div id="oddix-results" className="oddix-anchor-target">
         <V21ResultsRibbon

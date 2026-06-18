@@ -163,8 +163,10 @@ const styles: Record<string, CSSProperties> = {
   photo: {
     width: "100%",
     height: "100%",
-    objectFit: "cover",
+    objectFit: "contain",
     display: "block",
+    transform: "scale(.88)",
+    transformOrigin: "center bottom",
   },
   noPhoto: {
     height: "100%",
