@@ -392,16 +392,65 @@ export default function VirtualPage() {
     };
   }, [patterns, topPicks]);
 
+
+  const patternRanking = [
+    { label: "Under 3.5", value: computedPatterns?.under35 || 0, medal: "🥇" },
+    { label: "Over 0.5", value: computedPatterns?.over05 || 0, medal: "🥈" },
+    { label: "Over 1.5", value: computedPatterns?.over15 || 0, medal: "🥉" },
+    { label: "BTTS", value: computedPatterns?.btts || 0, medal: "4º" },
+    { label: "Casa vence", value: computedPatterns?.homeWins || 0, medal: "5º" },
+  ].sort((a, b) => b.value - a.value);
+
+  function getBestMarketForMatch(match: any) {
+    const under35 = safeNumber(getOdd(match.odds, "odd_under_3.5", "odd_under_3,5"), 0);
+    const over15 = safeNumber(getOdd(match.odds, "odd_over_1.5", "odd_over_1,5"), 0);
+    const btts = safeNumber(getOdd(match.odds, "odd_ambas_sim"), 0);
+
+    if ((computedPatterns?.under35 || 0) >= 75 && under35 > 0) {
+      return {
+        label: "Under 3.5 gols",
+        odd: under35,
+        score: computedPatterns?.under35 || 0,
+      };
+    }
+
+    if ((computedPatterns?.over15 || 0) >= 60 && over15 > 0) {
+      return {
+        label: "Over 1.5 gols",
+        odd: over15,
+        score: computedPatterns?.over15 || 0,
+      };
+    }
+
+    if ((computedPatterns?.btts || 0) >= 50 && btts > 0) {
+      return {
+        label: "BTTS - Sim",
+        odd: btts,
+        score: computedPatterns?.btts || 0,
+      };
+    }
+
+    return {
+      label: "Mercado em análise",
+      odd: "-",
+      score: 0,
+    };
+  }
+
   return (
     <main style={styles.page}>
       <section style={styles.hero}>
         <div>
           <span style={styles.kicker}>⚡ ODDIX VIRTUAL AI</span>
-          <h1 style={styles.title}>Inteligência para Futebol Virtual Bet365</h1>
+          <h1 style={styles.title}>Inteligência para Futebol Virtual Oddix</h1>
           <p style={styles.text}>
-            Análise de padrões, odds e histórico recente. Virtual usa RNG:
-            a Oddix mostra tendência estatística, não promessa de resultado.
+            Análise estatística avançada, padrões recorrentes, odds inteligentes
+            e Top Picks gerados pela IA Oddix Virtual.
           </p>
+
+          <div style={styles.heroBadge}>
+            🔥 +{computedPatterns?.sampleSize || 300} partidas analisadas • {computedPatterns?.under35 || 0}% Under 3.5 • {computedPatterns?.over15 || 0}% Over 1.5
+          </div>
 
           <div style={styles.actions}>
             <select
@@ -434,10 +483,14 @@ export default function VirtualPage() {
 
       <section style={styles.grid}>
         <div style={styles.topPick}>
-          <span style={styles.kicker}>🔥 TOP PICK VIRTUAL</span>
+          <span style={styles.kicker}>🔥 TOP PICK DO MOMENTO</span>
 
           {bestPick?.topPick ? (
             <>
+              <div style={styles.scoreBadge}>
+                SCORE {bestPick.topPick.score || 0}/100 • CONFIANÇA {bestPick.topPick.confidence || 0}%
+              </div>
+
               <h2 style={styles.matchTitle}>
                 {bestPick.homeTeam} x {bestPick.awayTeam}
               </h2>
@@ -480,13 +533,50 @@ export default function VirtualPage() {
         </div>
 
         <div style={styles.patterns}>
-          <span style={styles.kicker}>📊 PADRÕES RECENTES</span>
-          <Pattern label="Over 0.5" value={computedPatterns?.over05} />
-          <Pattern label="Over 1.5" value={computedPatterns?.over15} />
+          <span style={styles.kicker}>🏆 RANKING DE PADRÕES</span>
+
+          {patternRanking.map((item) => (
+            <div key={item.label} style={styles.rankingRow}>
+              <span>{item.medal}</span>
+              <strong>{item.label}</strong>
+              <b>{item.value}%</b>
+            </div>
+          ))}
+
+          <div style={styles.patternDivider} />
+
           <Pattern label="Over 2.5" value={computedPatterns?.over25} />
-          <Pattern label="Under 3.5" value={computedPatterns?.under35} />
-          <Pattern label="Ambas Marcam" value={computedPatterns?.btts} />
-          <Pattern label="Casa vence" value={computedPatterns?.homeWins} />
+          <Pattern label="Empates" value={computedPatterns?.draws} />
+        </div>
+      </section>
+
+      <section style={styles.boostSection}>
+        <div>
+          <span style={styles.kicker}>⚡ ODDIX VIRTUAL BOOST</span>
+          <h2 style={styles.boostTitle}>Combinação inteligente do momento</h2>
+          <p style={styles.text}>
+            Seleção automática baseada nos padrões mais fortes da amostra recente.
+          </p>
+        </div>
+
+        <div style={styles.boostGrid}>
+          <div style={styles.boostLeg}>
+            <span>01</span>
+            <strong>Under 3.5 gols</strong>
+            <small>{computedPatterns?.under35 || 0}% na amostra</small>
+          </div>
+
+          <div style={styles.boostLeg}>
+            <span>02</span>
+            <strong>Over 0.5 gols</strong>
+            <small>{computedPatterns?.over05 || 0}% na amostra</small>
+          </div>
+
+          <div style={styles.boostLeg}>
+            <span>03</span>
+            <strong>Over 1.5 gols</strong>
+            <small>{computedPatterns?.over15 || 0}% na amostra</small>
+          </div>
         </div>
       </section>
 
@@ -505,6 +595,18 @@ export default function VirtualPage() {
               </div>
 
               <h3>{match.timeA} x {match.timeB}</h3>
+
+              {(() => {
+                const bestMarket = getBestMarketForMatch(match);
+
+                return (
+                  <div style={styles.bestMarket}>
+                    <span>🔥 Melhor mercado</span>
+                    <strong>{bestMarket.label}</strong>
+                    <small>Odd {bestMarket.odd} • Score {bestMarket.score}%</small>
+                  </div>
+                );
+              })()}
 
               <div style={styles.oddsGrid}>
                 <Odd label="Casa" value={getOdd(match.odds, "odd_resultado_final_casa")} />
@@ -594,6 +696,18 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
     fontWeight: 700,
   },
+  heroBadge: {
+    display: "inline-flex",
+    padding: "10px 16px",
+    borderRadius: 999,
+    background: "rgba(250,204,21,.12)",
+    border: "1px solid rgba(250,204,21,.35)",
+    color: "#facc15",
+    fontWeight: 900,
+    marginTop: 12,
+    flexWrap: "wrap",
+    gap: 6,
+  },
   kicker: {
     color: "#facc15",
     fontWeight: 1000,
@@ -659,6 +773,18 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 22,
     background:
       "radial-gradient(circle at 20% 0%, rgba(250,204,21,.20), transparent 36%), rgba(5,5,5,.94)",
+    boxShadow: "0 24px 80px rgba(250,204,21,.10)",
+  },
+  scoreBadge: {
+    display: "inline-flex",
+    padding: "8px 14px",
+    borderRadius: 999,
+    background: "linear-gradient(135deg,#22c55e,#16a34a)",
+    color: "#fff",
+    fontWeight: 1000,
+    marginBottom: 12,
+    fontSize: 12,
+    letterSpacing: .4,
   },
   matchTitle: {
     fontSize: "clamp(28px, 4vw, 44px)",
@@ -704,6 +830,22 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 22,
     background: "rgba(5,5,5,.92)",
   },
+  rankingRow: {
+    display: "grid",
+    gridTemplateColumns: "42px minmax(0,1fr) 64px",
+    alignItems: "center",
+    gap: 10,
+    border: "1px solid rgba(250,204,21,.16)",
+    background: "rgba(250,204,21,.055)",
+    borderRadius: 14,
+    padding: "12px 14px",
+    marginTop: 10,
+  },
+  patternDivider: {
+    height: 1,
+    background: "rgba(255,255,255,.10)",
+    margin: "16px 0 4px",
+  },
   patternRow: {
     marginTop: 14,
   },
@@ -726,6 +868,45 @@ const styles: Record<string, React.CSSProperties> = {
   reason: {
     color: "#d9f99d",
     fontWeight: 800,
+  },
+  boostSection: {
+    maxWidth: 1280,
+    margin: "0 auto 18px",
+    border: "1px solid rgba(34,197,94,.26)",
+    borderRadius: 24,
+    padding: 22,
+    background:
+      "radial-gradient(circle at 20% 0%, rgba(34,197,94,.18), transparent 32%), rgba(5,5,5,.92)",
+    display: "grid",
+    gridTemplateColumns: "minmax(0, .9fr) minmax(360px, 1.1fr)",
+    gap: 18,
+    alignItems: "center",
+  },
+  boostTitle: {
+    margin: "8px 0 4px",
+    fontSize: "clamp(24px, 3vw, 40px)",
+    lineHeight: 1.05,
+  },
+  boostGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 10,
+  },
+  boostLeg: {
+    border: "1px solid rgba(34,197,94,.22)",
+    borderRadius: 16,
+    padding: 14,
+    background: "rgba(0,0,0,.28)",
+    minWidth: 0,
+  },
+  bestMarket: {
+    border: "1px solid rgba(250,204,21,.20)",
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 10,
+    background: "rgba(250,204,21,.06)",
+    display: "grid",
+    gap: 3,
   },
   cards: {
     maxWidth: 1280,
