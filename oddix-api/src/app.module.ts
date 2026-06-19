@@ -17,6 +17,9 @@ import { WhatsappWebModule } from './whatsapp-web/whatsapp-web.module';
 import { MarketingModule } from './marketing/marketing.module';
 import { PaymentsModule } from './payments/payments.module';
 
+/* ODDIX VIRTUAL */
+import { VirtualModule } from './virtual/virtual.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -39,6 +42,9 @@ import { PaymentsModule } from './payments/payments.module';
     WhatsappWebModule,
     MarketingModule,
     PaymentsModule,
+
+    /* ODDIX VIRTUAL */
+    VirtualModule,
   ],
 })
 export class AppModule {}
