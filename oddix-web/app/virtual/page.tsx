@@ -147,6 +147,40 @@ function unwrapArray(data: any, keys: string[]) {
   return [];
 }
 
+function pickPatternValue(raw: any, keys: string[], fallback = 0) {
+  if (!raw) return fallback;
+
+  const normalizedMap: Record<string, any> = {};
+
+  Object.entries(raw || {}).forEach(([key, value]) => {
+    const normalized = stripAccents(String(key))
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+
+    normalizedMap[normalized] = value;
+  });
+
+  for (const key of keys) {
+    const direct = raw[key];
+
+    if (direct !== undefined && direct !== null && direct !== "") {
+      return safeNumber(direct, fallback);
+    }
+
+    const normalized = stripAccents(String(key))
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+
+    const mapped = normalizedMap[normalized];
+
+    if (mapped !== undefined && mapped !== null && mapped !== "") {
+      return safeNumber(mapped, fallback);
+    }
+  }
+
+  return fallback;
+}
+
 function unwrapPatterns(data: any) {
   const raw =
     data?.patterns ||
@@ -154,21 +188,89 @@ function unwrapPatterns(data: any) {
     data?.padrões ||
     data?.stats ||
     data?.data?.patterns ||
+    data?.data?.padroes ||
+    data?.data?.padrões ||
     data?.data ||
     null;
 
   if (!raw || Array.isArray(raw)) return null;
 
   return {
-    sampleSize: safeNumber(raw.sampleSize ?? raw.sample_size ?? raw.amostra, 0),
-    over05: safeNumber(raw.over05 ?? raw.over0_5 ?? raw["over0.5"], 0),
-    over15: safeNumber(raw.over15 ?? raw.over1_5 ?? raw["over1.5"], 0),
-    over25: safeNumber(raw.over25 ?? raw.over2_5 ?? raw["over2.5"], 0),
-    under35: safeNumber(raw.under35 ?? raw.under3_5 ?? raw["under3.5"], 0),
-    btts: safeNumber(raw.btts ?? raw.ambasMarcam ?? raw.ambas_marcam, 0),
-    homeWins: safeNumber(raw.homeWins ?? raw.home_wins ?? raw.casaVence, 0),
-    awayWins: safeNumber(raw.awayWins ?? raw.away_wins ?? raw.foraVence, 0),
-    draws: safeNumber(raw.draws ?? raw.empates, 0),
+    sampleSize: pickPatternValue(raw, [
+      "sampleSize",
+      "sample_size",
+      "amostra",
+      "retornado",
+      "returned",
+    ]),
+    over05: pickPatternValue(raw, [
+      "over05",
+      "over0_5",
+      "over0.5",
+      "acima de 05",
+      "acima de 0.5",
+      "acima de 0,5",
+      "mais de 0.5",
+      "mais de 0,5",
+    ]),
+    over15: pickPatternValue(raw, [
+      "over15",
+      "over1_5",
+      "over1.5",
+      "acima de 15 anos",
+      "acima de 1.5",
+      "acima de 1,5",
+      "mais de 1.5",
+      "mais de 1,5",
+    ]),
+    over25: pickPatternValue(raw, [
+      "over25",
+      "over2_5",
+      "over2.5",
+      "acima de 25 anos",
+      "acima de 2.5",
+      "acima de 2,5",
+      "mais de 2.5",
+      "mais de 2,5",
+    ]),
+    under35: pickPatternValue(raw, [
+      "under35",
+      "under3_5",
+      "under3.5",
+      "menores de 35 anos",
+      "menos de 3.5",
+      "menos de 3,5",
+      "under 3.5",
+      "under 3,5",
+    ]),
+    btts: pickPatternValue(raw, [
+      "btts",
+      "ambasMarcam",
+      "ambas_marcam",
+      "ambas marcam",
+    ]),
+    homeWins: pickPatternValue(raw, [
+      "homeWins",
+      "home_wins",
+      "casaVence",
+      "casa vence",
+      "Vitórias em casa",
+      "vitorias em casa",
+    ]),
+    awayWins: pickPatternValue(raw, [
+      "awayWins",
+      "away_wins",
+      "foraVence",
+      "fora vence",
+      "VitóriasFora de Casa",
+      "vitorias fora de casa",
+      "vitórias fora de casa",
+    ]),
+    draws: pickPatternValue(raw, [
+      "draws",
+      "empates",
+      "empate",
+    ]),
   };
 }
 
@@ -191,6 +293,9 @@ export default function VirtualPage() {
         api.get(`/virtual/upcoming?league=${league}`),
       ]);
 
+      let normalizedTopPicks: any[] = [];
+      let normalizedUpcoming: any[] = [];
+
       if (topResponse.status === "fulfilled") {
         const rows = unwrapArray(topResponse.value?.data, [
           "topPicks",
@@ -200,7 +305,8 @@ export default function VirtualPage() {
           "matchs",
         ]);
 
-        setTopPicks(rows.map(normalizePick));
+        normalizedTopPicks = rows.map(normalizePick);
+        setTopPicks(normalizedTopPicks);
       } else {
         setTopPicks([]);
       }
@@ -216,13 +322,31 @@ export default function VirtualPage() {
           "matches",
           "matchs",
           "jogos",
+          "games",
           "data",
         ]);
 
-        setUpcoming(rows.map((match: any) => normalizeMatch(match, league)));
-      } else {
-        setUpcoming([]);
+        normalizedUpcoming = rows.map((match: any) => normalizeMatch(match, league));
       }
+
+      // Fallback: se /upcoming falhar ou vier vazio, usa os próprios jogos do /top-picks.
+      if (!normalizedUpcoming.length && normalizedTopPicks.length) {
+        normalizedUpcoming = normalizedTopPicks.map((pick) =>
+          normalizeMatch(
+            {
+              id: pick.id,
+              competition: pick.league,
+              timeA: pick.homeTeam,
+              timeB: pick.awayTeam,
+              horario: pick.timeLabel,
+              odds: pick.odds,
+            },
+            league,
+          ),
+        );
+      }
+
+      setUpcoming(normalizedUpcoming);
     } catch (err: any) {
       setError(err?.message || "Erro ao carregar Oddix Virtual.");
       setTopPicks([]);
@@ -323,19 +447,24 @@ export default function VirtualPage() {
 
               <div style={styles.pickBox}>
                 <div style={styles.pickItem}>
-                  <small>Mercado</small>
-                  <strong>{bestPick.topPick.selection}</strong>
-                  <span>{bestPick.topPick.market}</span>
+                  <small style={styles.miniLabel}>Mercado</small>
+                  <strong style={styles.pickStrong}>{bestPick.topPick.selection}</strong>
+                  <span style={styles.pickSub}>{bestPick.topPick.market}</span>
                 </div>
 
                 <div style={styles.pickItem}>
-                  <small>Odd</small>
-                  <strong>{bestPick.topPick.odd || "-"}</strong>
+                  <small style={styles.miniLabel}>Odd</small>
+                  <strong style={styles.pickStrong}>{bestPick.topPick.odd || "-"}</strong>
                 </div>
 
                 <div style={styles.pickItem}>
-                  <small>Score</small>
-                  <strong>{bestPick.topPick.score || 0}/100</strong>
+                  <small style={styles.miniLabel}>Score</small>
+                  <strong style={styles.pickStrong}>{bestPick.topPick.score || 0}/100</strong>
+                </div>
+
+                <div style={styles.pickItem}>
+                  <small style={styles.miniLabel}>Confiança</small>
+                  <strong style={styles.pickStrong}>{bestPick.topPick.confidence || 0}%</strong>
                 </div>
               </div>
 
@@ -537,7 +666,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   pickBox: {
     display: "grid",
-    gridTemplateColumns: "minmax(180px, 1.3fr) .7fr .7fr",
+    gridTemplateColumns: "minmax(180px, 1.35fr) .65fr .75fr .75fr",
     gap: 12,
     margin: "18px 0",
   },
@@ -547,6 +676,27 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 16,
     background: "rgba(0,0,0,.28)",
     minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  miniLabel: {
+    color: "rgba(255,255,255,.62)",
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: .5,
+  },
+  pickStrong: {
+    color: "#facc15",
+    fontSize: "clamp(20px, 2vw, 32px)",
+    lineHeight: 1.05,
+    fontWeight: 1000,
+    overflowWrap: "break-word",
+  },
+  pickSub: {
+    color: "rgba(255,255,255,.72)",
+    fontWeight: 800,
   },
   patterns: {
     border: "1px solid rgba(255,255,255,.12)",
