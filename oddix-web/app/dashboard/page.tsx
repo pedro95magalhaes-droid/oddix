@@ -10,7 +10,7 @@ const ESTRELABET_LINK =
 const SUPPORT_WHATSAPP_LINK = process.env.NEXT_PUBLIC_ODDIX_SUPPORT_WHATSAPP || "";
 const ODDIX_PLAYER_IMAGE = "/images/oddix-player.png";
 
-type TabKey = "dashboard" | "live" | "top" | "playerprops" | "results" | "favorites" | "vip";
+type TabKey = "dashboard" | "live" | "top" | "playerprops" | "results" | "favorites" | "vip" | "virtual";
 
 function dateKey(date: Date) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -271,6 +271,29 @@ function getPropTip(prop: any) {
   return prop?.tip || prop?.selection || prop?.market || "Mais de 0.5 chute no gol";
 }
 
+
+function normalizeVirtualTopPick(pick: any) {
+  const topPick = pick?.topPick || pick?.top_pick || pick?.principal || null;
+
+  if (!topPick) return null;
+
+  return {
+    id: String(pick?.id || `${pick?.homeTeam || pick?.timeA}-${pick?.awayTeam || pick?.timeB}`),
+    league: pick?.league || pick?.liga || pick?.competition || "Virtual",
+    homeTeam: pick?.homeTeam || pick?.timeA || pick?.casa || "Casa",
+    awayTeam: pick?.awayTeam || pick?.timeB || pick?.fora || "Fora",
+    timeLabel: pick?.timeLabel || pick?.horario || `${pick?.hora || ""}:${pick?.minuto || ""}`,
+    market: topPick.market || topPick.mercado || "Mercado Virtual",
+    selection: topPick.selection || topPick.selecao || topPick.escolha || "Entrada Virtual",
+    odd: safeNumber(topPick.odd, 0) || topPick.odd || "-",
+    score: safeNumber(topPick.score ?? topPick.pontuacao ?? topPick["pontuação"], 0),
+    confidence: safeNumber(topPick.confidence ?? topPick.confianca ?? topPick["confiança"], 0),
+    risk: topPick.risk || topPick.risco || "Baixo",
+    reason: topPick.reason || topPick.motivo || "Padrão estatístico detectado pela IA Virtual.",
+  };
+}
+
+
 export default function Dashboard() {
   const [games, setGames] = useState<any[]>([]);
   const [savedBets, setSavedBets] = useState<any[]>([]);
@@ -286,6 +309,8 @@ export default function Dashboard() {
   const [analyzingId, setAnalyzingId] = useState<any>(null);
   const [realPlayerProps, setRealPlayerProps] = useState<any[]>([]);
   const [playerPropsLoading, setPlayerPropsLoading] = useState(false);
+  const [virtualTopPick, setVirtualTopPick] = useState<any>(null);
+  const [virtualLoading, setVirtualLoading] = useState(false);
 
   const today = dateKey(new Date());
   const isPaidPlan = ["PRO", "VIP", "Pro", "Vip", "pro", "vip"].includes(String(plan));
@@ -464,6 +489,24 @@ export default function Dashboard() {
     }
   }
 
+
+  async function loadVirtualTopPick() {
+    try {
+      setVirtualLoading(true);
+      const response = await api.get("/virtual/top-picks?league=euro&historyLimit=300");
+      const rows = response.data?.topPicks || response.data?.top_picks || response.data?.picks || [];
+      const normalized = Array.isArray(rows)
+        ? rows.map(normalizeVirtualTopPick).filter(Boolean)
+        : [];
+
+      setVirtualTopPick(normalized[0] || null);
+    } catch {
+      setVirtualTopPick(null);
+    } finally {
+      setVirtualLoading(false);
+    }
+  }
+
   async function loadUser() {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -484,6 +527,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadUser();
+    loadVirtualTopPick();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -567,6 +611,10 @@ export default function Dashboard() {
   }
 
   function sidebarNavigate(tab: TabKey) {
+    if (tab === "virtual") {
+      window.location.href = "/virtual";
+      return;
+    }
     if (tab === "favorites") {
       window.location.href = "/favorites";
       return;
@@ -598,6 +646,7 @@ export default function Dashboard() {
           <button className={activeTab === "dashboard" ? "active" : ""} onClick={() => sidebarNavigate("dashboard")}>⌂ Dashboard</button>
           <button className={activeTab === "top" ? "active" : ""} onClick={() => sidebarNavigate("top")}>🔥 Top Picks</button>
           <button className={activeTab === "playerprops" ? "active" : ""} onClick={() => sidebarNavigate("playerprops")}>♙ Player Props</button>
+          <button className={activeTab === "virtual" ? "active" : ""} onClick={() => sidebarNavigate("virtual")}>⚡ Virtual</button>
           <button className={activeTab === "live" ? "active" : ""} onClick={() => sidebarNavigate("live")}>⌁ Ao Vivo</button>
           <button className={activeTab === "results" ? "active" : ""} onClick={() => sidebarNavigate("results")}>▥ Resultados</button>
           <button onClick={() => sidebarNavigate("favorites")}>☆ Favoritos</button>
@@ -623,6 +672,7 @@ export default function Dashboard() {
           <p><span>Ao Vivo</span><strong>{liveGames.length}</strong></p>
           <p><span>Pré-Jogo</span><strong>{futureGames.length}</strong></p>
           <p><span>Tips IA Hoje</span><strong>{smartTips.length}</strong></p>
+          <p><span>Virtual AI</span><strong>{virtualTopPick ? "ON" : "..."}</strong></p>
         </div>
 
         <div className="oddix-v37-support">
@@ -645,6 +695,7 @@ export default function Dashboard() {
             <button className={activeTab === "live" ? "active" : ""} onClick={() => sidebarNavigate("live")}>⌾ Ao Vivo</button>
             <button className={activeTab === "top" ? "active" : ""} onClick={() => sidebarNavigate("top")}>🔥 Top Picks</button>
             <button className={activeTab === "playerprops" ? "active" : ""} onClick={() => sidebarNavigate("playerprops")}>♙ Player Props</button>
+            <button className={activeTab === "virtual" ? "active" : ""} onClick={() => sidebarNavigate("virtual")}>⚡ Virtual</button>
             <button className={activeTab === "results" ? "active" : ""} onClick={() => sidebarNavigate("results")}>▥ Resultados</button>
             <button onClick={() => setActiveTab("top")}>🎯 Odds</button>
             <button onClick={() => { setActiveTab("dashboard"); setSearch("brasil"); }}>🏆 Brasileirão</button>
@@ -679,6 +730,7 @@ export default function Dashboard() {
 
             <div className="oddix-v37-hero-actions">
               <button onClick={() => setActiveTab("top")}>Ver análises →</button>
+              <button onClick={() => sidebarNavigate("virtual")}>⚡ Oddix Virtual</button>
               <button onClick={openPlans}>♛ Desbloquear Plataforma VIP</button>
             </div>
           </div>
@@ -739,6 +791,47 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="oddix-v37-empty">Aguardando jogo com odds e qualidade suficiente para montar o Top Pick.</div>
+          )}
+        </section>
+
+
+        <section className="oddix-v40-virtual-pick">
+          <div className="oddix-v37-section-title">
+            <h2>⚡ VIRTUAL PICK DO DIA</h2>
+            <span>{virtualTopPick ? `Score ${virtualTopPick.score}/100` : virtualLoading ? "Carregando..." : "Virtual AI"}</span>
+          </div>
+
+          {virtualTopPick ? (
+            <div className="oddix-v40-virtual-ticket">
+              <div>
+                <small>{virtualTopPick.league} • {virtualTopPick.timeLabel}</small>
+                <h3>{virtualTopPick.homeTeam} x {virtualTopPick.awayTeam}</h3>
+                <p>{virtualTopPick.reason}</p>
+              </div>
+
+              <div className="oddix-v40-virtual-market">
+                <span>MELHOR MERCADO</span>
+                <strong>{virtualTopPick.selection}</strong>
+                <small>{virtualTopPick.market}</small>
+              </div>
+
+              <div className="oddix-v40-virtual-numbers">
+                <div>
+                  <span>ODD</span>
+                  <strong>{virtualTopPick.odd}</strong>
+                </div>
+                <div>
+                  <span>CONFIANÇA</span>
+                  <strong>{virtualTopPick.confidence}%</strong>
+                </div>
+              </div>
+
+              <button onClick={() => sidebarNavigate("virtual")}>ABRIR ODDIX VIRTUAL →</button>
+            </div>
+          ) : (
+            <div className="oddix-v37-empty">
+              {virtualLoading ? "Buscando Top Pick Virtual..." : "Aguardando dados do Oddix Virtual."}
+            </div>
           )}
         </section>
 
@@ -895,6 +988,7 @@ export default function Dashboard() {
             <button onClick={() => sidebarNavigate("dashboard")}>Dashboard</button>
             <button onClick={() => sidebarNavigate("top")}>Top Picks</button>
             <button onClick={() => sidebarNavigate("playerprops")}>Player Props</button>
+            <button onClick={() => sidebarNavigate("virtual")}>Virtual AI</button>
             <button onClick={() => sidebarNavigate("results")}>Resultados</button>
             <button onClick={openPlans}>VIP</button>
             <button onClick={openSupport}>Suporte</button>
@@ -2613,6 +2707,386 @@ const globalCss = `
       bottom: 12px !important;
     }
   }
+
+
+  /* V40 PREMIUM RESPONSIVO + ODDIX VIRTUAL */
+  :root {
+    --oddix-v40-sidebar: clamp(218px, 15.5vw, 276px);
+    --oddix-v40-pad: clamp(14px, 1.7vw, 30px);
+    --oddix-v40-radius: clamp(16px, 1.4vw, 28px);
+  }
+
+  html,
+  body,
+  .oddix-v37-page {
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+
+  .oddix-v37-page,
+  .oddix-v39-autofit {
+    grid-template-columns: var(--oddix-v40-sidebar) minmax(0, 1fr) !important;
+  }
+
+  .oddix-v37-sidebar {
+    width: var(--oddix-v40-sidebar) !important;
+    max-width: var(--oddix-v40-sidebar) !important;
+    padding: clamp(14px, 1.35vw, 22px) !important;
+    overflow-x: hidden !important;
+  }
+
+  .oddix-v37-logo {
+    min-width: 0 !important;
+    gap: clamp(6px, .6vw, 10px) !important;
+  }
+
+  .oddix-v37-logo img {
+    width: clamp(58px, 5vw, 76px) !important;
+    height: clamp(58px, 5vw, 76px) !important;
+    flex: 0 0 auto !important;
+  }
+
+  .oddix-v37-logo div {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .oddix-v37-logo strong {
+    font-size: clamp(26px, 2.45vw, 44px) !important;
+    line-height: .9 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+  }
+
+  .oddix-v37-logo span {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .oddix-v37-content {
+    min-width: 0 !important;
+    max-width: calc(100vw - var(--oddix-v40-sidebar)) !important;
+    padding: var(--oddix-v40-pad) !important;
+  }
+
+  .oddix-v37-header,
+  .oddix-v37-hero,
+  .oddix-v37-top-pick,
+  .oddix-v37-main-grid,
+  .oddix-v37-bottom-grid,
+  .oddix-v37-games,
+  .oddix-v39-footer,
+  .oddix-v40-virtual-pick {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .oddix-v37-header {
+    align-items: flex-start !important;
+  }
+
+  .oddix-v37-tabs {
+    flex: 1 1 auto !important;
+    max-width: 100% !important;
+  }
+
+  .oddix-v37-user-actions {
+    flex: 0 0 auto !important;
+  }
+
+  .oddix-v37-hero {
+    min-height: clamp(390px, 34vw, 510px) !important;
+    padding: clamp(24px, 3vw, 42px) clamp(20px, 2.7vw, 40px) clamp(52px, 4.2vw, 62px) !important;
+    grid-template-columns: minmax(360px, 1.08fr) minmax(280px, .76fr) minmax(210px, .5fr) !important;
+    gap: clamp(12px, 1.4vw, 22px) !important;
+  }
+
+  .oddix-v37-brand-text strong {
+    font-size: clamp(52px, 5vw, 90px) !important;
+    letter-spacing: clamp(-3px, -.22vw, -1px) !important;
+  }
+
+  .oddix-v37-brand-text small {
+    font-size: clamp(10px, .88vw, 13px) !important;
+    letter-spacing: clamp(2px, .32vw, 4px) !important;
+  }
+
+  .oddix-v37-hero h1 {
+    font-size: clamp(30px, 3vw, 52px) !important;
+  }
+
+  .oddix-v37-hero-player img {
+    width: min(112%, clamp(320px, 34vw, 590px)) !important;
+    max-height: clamp(290px, 31vw, 480px) !important;
+  }
+
+  .oddix-v37-metric {
+    min-height: clamp(104px, 8vw, 138px) !important;
+    padding: clamp(12px, 1vw, 17px) !important;
+  }
+
+  .oddix-v37-metric strong {
+    font-size: clamp(28px, 3vw, 48px) !important;
+    white-space: nowrap !important;
+  }
+
+  .oddix-v37-metric.purple strong {
+    font-size: clamp(18px, 1.7vw, 28px) !important;
+  }
+
+  .oddix-v37-ticket {
+    grid-template-columns: minmax(120px, .78fr) clamp(82px, 8vw, 138px) minmax(120px, .78fr) minmax(360px, 1.55fr) !important;
+    gap: clamp(10px, 1.2vw, 18px) !important;
+  }
+
+  .oddix-v37-team img {
+    width: clamp(82px, 7vw, 128px) !important;
+    height: clamp(82px, 7vw, 128px) !important;
+  }
+
+  .oddix-v37-ticket-panel {
+    grid-template-columns: minmax(190px, 1.22fr) minmax(95px, .62fr) minmax(122px, .75fr) minmax(170px, 1fr) !important;
+  }
+
+  .oddix-v37-ticket-panel > div,
+  .oddix-v37-ticket-panel button {
+    min-height: clamp(104px, 8.5vw, 132px) !important;
+    min-width: 0 !important;
+  }
+
+  .oddix-v37-ticket-panel strong {
+    font-size: clamp(24px, 2.55vw, 46px) !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+  }
+
+  .oddix-v37-ticket-panel strong.green {
+    font-size: clamp(30px, 3vw, 50px) !important;
+  }
+
+  .oddix-v37-main-grid {
+    grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr) !important;
+  }
+
+  .oddix-v37-results-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+  }
+
+  .oddix-v37-result-card {
+    min-height: 142px !important;
+  }
+
+  .oddix-v37-bottom-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+  }
+
+  .oddix-v37-games-grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
+  }
+
+  .oddix-v37-tip-row {
+    grid-template-columns: 30px minmax(0, 1fr) minmax(70px, .5fr) 54px 52px !important;
+  }
+
+  .oddix-v40-virtual-pick {
+    border: 1px solid rgba(34,197,94,.36);
+    background:
+      radial-gradient(circle at 16% 0%, rgba(34,197,94,.20), transparent 34%),
+      linear-gradient(135deg, rgba(3,12,8,.97), rgba(4,4,4,.94));
+    border-radius: 22px;
+    box-shadow: 0 22px 60px rgba(0,0,0,.42);
+    margin-bottom: 18px;
+    padding: 20px 24px;
+  }
+
+  .oddix-v40-virtual-ticket {
+    display: grid;
+    grid-template-columns: minmax(260px, 1.1fr) minmax(230px, .95fr) minmax(190px, .72fr) minmax(170px, .62fr);
+    gap: 14px;
+    align-items: stretch;
+  }
+
+  .oddix-v40-virtual-ticket h3 {
+    margin: 6px 0 8px;
+    font-size: clamp(24px, 2.6vw, 40px);
+    line-height: 1.02;
+  }
+
+  .oddix-v40-virtual-ticket p,
+  .oddix-v40-virtual-ticket small {
+    color: rgba(255,255,255,.68);
+    font-weight: 750;
+    line-height: 1.42;
+  }
+
+  .oddix-v40-virtual-market,
+  .oddix-v40-virtual-numbers div {
+    border: 1px solid rgba(34,197,94,.22);
+    background: rgba(0,0,0,.30);
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .oddix-v40-virtual-market span,
+  .oddix-v40-virtual-numbers span {
+    color: #86efac;
+    font-size: 11px;
+    font-weight: 1000;
+    letter-spacing: .4px;
+  }
+
+  .oddix-v40-virtual-market strong {
+    color: #facc15;
+    font-size: clamp(24px, 2.4vw, 38px);
+    line-height: 1.05;
+    font-weight: 1000;
+    text-transform: uppercase;
+  }
+
+  .oddix-v40-virtual-numbers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .oddix-v40-virtual-numbers strong {
+    color: #22c55e;
+    font-size: clamp(26px, 2.4vw, 42px);
+    font-weight: 1000;
+  }
+
+  .oddix-v40-virtual-ticket button {
+    border: 0;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #fff;
+    font-weight: 1000;
+    cursor: pointer;
+    padding: 16px;
+  }
+
+  .oddix-v39-footer nav {
+    align-content: center;
+  }
+
+  @media (max-width: 1460px) {
+    .oddix-v37-hero {
+      grid-template-columns: minmax(0, 1.05fr) minmax(280px, .62fr) !important;
+    }
+
+    .oddix-v37-hero-metrics {
+      grid-column: 1 / -1;
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
+
+    .oddix-v37-ticket {
+      grid-template-columns: minmax(130px, .8fr) 120px minmax(130px, .8fr) !important;
+    }
+
+    .oddix-v37-ticket-panel {
+      grid-column: 1 / -1;
+    }
+
+    .oddix-v40-virtual-ticket {
+      grid-template-columns: minmax(260px, 1fr) minmax(230px, .9fr) minmax(210px, .8fr);
+    }
+
+    .oddix-v40-virtual-ticket button {
+      grid-column: 1 / -1;
+      min-height: 54px;
+    }
+  }
+
+  @media (max-width: 1180px) {
+    :root {
+      --oddix-v40-sidebar: 1fr;
+    }
+
+    .oddix-v37-page,
+    .oddix-v39-autofit {
+      grid-template-columns: 1fr !important;
+    }
+
+    .oddix-v37-sidebar {
+      position: relative !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      height: auto !important;
+      display: grid;
+      grid-template-columns: 1fr;
+    }
+
+    .oddix-v37-content {
+      max-width: 100vw !important;
+    }
+
+    .oddix-v37-hero,
+    .oddix-v37-main-grid {
+      grid-template-columns: 1fr !important;
+    }
+
+    .oddix-v37-hero-player {
+      display: none !important;
+    }
+
+    .oddix-v37-hero-metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    .oddix-v37-ticket,
+    .oddix-v40-virtual-ticket {
+      grid-template-columns: 1fr !important;
+    }
+
+    .oddix-v37-ticket-panel {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .oddix-v37-content {
+      padding: 12px !important;
+    }
+
+    .oddix-v37-header,
+    .oddix-v37-user-actions,
+    .oddix-v37-hero-actions {
+      flex-direction: column !important;
+      align-items: stretch !important;
+    }
+
+    .oddix-v37-user-actions button,
+    .oddix-v37-user-actions span {
+      width: 100%;
+      text-align: center;
+    }
+
+    .oddix-v37-hero {
+      padding: 22px 16px 58px !important;
+    }
+
+    .oddix-v37-hero-metrics,
+    .oddix-v37-ticket-panel,
+    .oddix-v37-results-grid,
+    .oddix-v40-virtual-numbers {
+      grid-template-columns: 1fr !important;
+    }
+
+    .oddix-v37-hero-footer {
+      left: 14px;
+      right: 14px;
+      overflow-x: auto;
+      gap: 14px;
+    }
+  }
+
 
   .oddix-v37-modal {
     position: fixed;
