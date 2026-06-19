@@ -273,26 +273,79 @@ function getPropTip(prop: any) {
 
 
 function normalizeVirtualTopPick(pick: any) {
-  const topPick = pick?.topPick || pick?.top_pick || pick?.principal || null;
+  const topPick =
+    pick?.topPick ||
+    pick?.top_pick ||
+    pick?.principal ||
+    (Array.isArray(pick?.escolhas) ? pick.escolhas[0] : null) ||
+    (Array.isArray(pick?.picks) ? pick.picks[0] : null);
 
   if (!topPick) return null;
 
+  const score = safeNumber(
+    topPick.score ??
+      topPick.pontuacao ??
+      topPick["pontuação"] ??
+      topPick.pontuacaoIA ??
+      topPick.scoreIA,
+    0,
+  );
+
+  const confidence = safeNumber(
+    topPick.confidence ??
+      topPick.confianca ??
+      topPick["confiança"] ??
+      topPick.confiancaIA ??
+      topPick.confidenceIA,
+    0,
+  );
+
   return {
-    id: String(pick?.id || `${pick?.homeTeam || pick?.timeA}-${pick?.awayTeam || pick?.timeB}`),
-    league: pick?.league || pick?.liga || pick?.competition || "Virtual",
-    homeTeam: pick?.homeTeam || pick?.timeA || pick?.casa || "Casa",
-    awayTeam: pick?.awayTeam || pick?.timeB || pick?.fora || "Fora",
-    timeLabel: pick?.timeLabel || pick?.horario || `${pick?.hora || ""}:${pick?.minuto || ""}`,
+    id: String(
+      pick?.id ||
+        `${pick?.homeTeam || pick?.timeA || pick?.casa}-${pick?.awayTeam || pick?.timeB || pick?.fora}`,
+    ),
+    league: pick?.league || pick?.liga || pick?.competition || pick?.competicao || "Virtual",
+    homeTeam: pick?.homeTeam || pick?.timeA || pick?.home || pick?.casa || "Casa",
+    awayTeam: pick?.awayTeam || pick?.timeB || pick?.away || pick?.fora || "Fora",
+    timeLabel:
+      pick?.timeLabel ||
+      pick?.horario ||
+      `${pick?.hora || ""}${pick?.minuto ? `:${pick.minuto}` : ""}` ||
+      "Agora",
     market: topPick.market || topPick.mercado || "Mercado Virtual",
-    selection: topPick.selection || topPick.selecao || topPick.escolha || "Entrada Virtual",
+    selection:
+      topPick.selection ||
+      topPick.selecao ||
+      topPick["seleção"] ||
+      topPick.escolha ||
+      "Entrada Virtual",
     odd: safeNumber(topPick.odd, 0) || topPick.odd || "-",
-    score: safeNumber(topPick.score ?? topPick.pontuacao ?? topPick["pontuação"], 0),
-    confidence: safeNumber(topPick.confidence ?? topPick.confianca ?? topPick["confiança"], 0),
+    score,
+    confidence,
     risk: topPick.risk || topPick.risco || "Baixo",
-    reason: topPick.reason || topPick.motivo || "Padrão estatístico detectado pela IA Virtual.",
+    reason:
+      topPick.reason ||
+      topPick.motivo ||
+      `Padrão estatístico detectado pela IA Virtual com score ${score}/100.`,
   };
 }
 
+function unwrapVirtualRows(data: any) {
+  if (!data) return [];
+
+  const direct =
+    data?.topPicks ||
+    data?.top_picks ||
+    data?.picks ||
+    data?.matches ||
+    data?.matchs ||
+    data?.data ||
+    data?.result ||
+    [];
+
+  return Array.isArray(direct) ? direct : [];
+}
 
 export default function Dashboard() {
   const [games, setGames] = useState<any[]>([]);
@@ -494,12 +547,16 @@ export default function Dashboard() {
     try {
       setVirtualLoading(true);
       const response = await api.get("/virtual/top-picks?league=euro&historyLimit=300");
-      const rows = response.data?.topPicks || response.data?.top_picks || response.data?.picks || [];
-      const normalized = Array.isArray(rows)
-        ? rows.map(normalizeVirtualTopPick).filter(Boolean)
-        : [];
+      const rows = unwrapVirtualRows(response.data);
+      const normalized = rows.map(normalizeVirtualTopPick).filter(Boolean);
 
-      setVirtualTopPick(normalized[0] || null);
+      const best = normalized.sort((a: any, b: any) => {
+        const scoreA = safeNumber(a?.score, 0) * 0.7 + safeNumber(a?.confidence, 0) * 0.3;
+        const scoreB = safeNumber(b?.score, 0) * 0.7 + safeNumber(b?.confidence, 0) * 0.3;
+        return scoreB - scoreA;
+      })[0];
+
+      setVirtualTopPick(best || null);
     } catch {
       setVirtualTopPick(null);
     } finally {
