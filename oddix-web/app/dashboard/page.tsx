@@ -347,6 +347,41 @@ function unwrapVirtualRows(data: any) {
   return Array.isArray(direct) ? direct : [];
 }
 
+
+function normalizeVirtualMatch(match: any) {
+  return {
+    id: String(
+      match?.id ||
+        `${match?.timeA || match?.homeTeam || match?.casa}-${match?.timeB || match?.awayTeam || match?.fora}-${match?.horario || match?.timeLabel || ""}`,
+    ),
+    league:
+      match?.league ||
+      match?.liga ||
+      match?.competition ||
+      match?.competicao ||
+      match?.["competição"] ||
+      "Virtual",
+    homeTeam:
+      match?.homeTeam ||
+      match?.timeA ||
+      match?.home ||
+      match?.casa ||
+      "Casa",
+    awayTeam:
+      match?.awayTeam ||
+      match?.timeB ||
+      match?.away ||
+      match?.fora ||
+      "Fora",
+    timeLabel:
+      match?.timeLabel ||
+      match?.horario ||
+      `${match?.hora || ""}${match?.minuto ? `:${match.minuto}` : ""}` ||
+      "Agora",
+    odds: match?.odds || {},
+  };
+}
+
 export default function Dashboard() {
   const [games, setGames] = useState<any[]>([]);
   const [savedBets, setSavedBets] = useState<any[]>([]);
@@ -363,6 +398,7 @@ export default function Dashboard() {
   const [realPlayerProps, setRealPlayerProps] = useState<any[]>([]);
   const [playerPropsLoading, setPlayerPropsLoading] = useState(false);
   const [virtualTopPick, setVirtualTopPick] = useState<any>(null);
+  const [virtualUpcoming, setVirtualUpcoming] = useState<any[]>([]);
   const [virtualLoading, setVirtualLoading] = useState(false);
 
   const today = dateKey(new Date());
@@ -546,23 +582,51 @@ export default function Dashboard() {
   async function loadVirtualTopPick() {
     try {
       setVirtualLoading(true);
-      const response = await api.get("/virtual/top-picks?league=euro&historyLimit=300");
-      const rows = unwrapVirtualRows(response.data);
-      const normalized = rows.map(normalizeVirtualTopPick).filter(Boolean);
 
-      const best = normalized.sort((a: any, b: any) => {
-        const scoreA = safeNumber(a?.score, 0) * 0.7 + safeNumber(a?.confidence, 0) * 0.3;
-        const scoreB = safeNumber(b?.score, 0) * 0.7 + safeNumber(b?.confidence, 0) * 0.3;
-        return scoreB - scoreA;
-      })[0];
+      const [topResponse, upcomingResponse] = await Promise.allSettled([
+        api.get("/virtual/top-picks?league=euro&historyLimit=300"),
+        api.get("/virtual/upcoming?league=euro"),
+      ]);
 
-      setVirtualTopPick(best || null);
+      if (topResponse.status === "fulfilled") {
+        const rows = unwrapVirtualRows(topResponse.value?.data);
+        const normalized = rows.map(normalizeVirtualTopPick).filter(Boolean);
+
+        const best = normalized.sort((a: any, b: any) => {
+          const scoreA = safeNumber(a?.score, 0) * 0.7 + safeNumber(a?.confidence, 0) * 0.3;
+          const scoreB = safeNumber(b?.score, 0) * 0.7 + safeNumber(b?.confidence, 0) * 0.3;
+          return scoreB - scoreA;
+        })[0];
+
+        setVirtualTopPick(best || null);
+      } else {
+        setVirtualTopPick(null);
+      }
+
+      if (upcomingResponse.status === "fulfilled") {
+        const upcomingRows =
+          upcomingResponse.value?.data?.matches ||
+          upcomingResponse.value?.data?.matchs ||
+          upcomingResponse.value?.data?.jogos ||
+          upcomingResponse.value?.data?.data ||
+          [];
+
+        setVirtualUpcoming(
+          Array.isArray(upcomingRows)
+            ? upcomingRows.map(normalizeVirtualMatch).slice(0, 6)
+            : [],
+        );
+      } else {
+        setVirtualUpcoming([]);
+      }
     } catch {
       setVirtualTopPick(null);
+      setVirtualUpcoming([]);
     } finally {
       setVirtualLoading(false);
     }
   }
+
 
   async function loadUser() {
     const token = localStorage.getItem("token");
@@ -861,13 +925,13 @@ export default function Dashboard() {
           {virtualTopPick ? (
             <div className="oddix-v40-virtual-ticket">
               <div>
-                <small>{virtualTopPick.league} • {virtualTopPick.timeLabel}</small>
+                <small>ODDIX VIRTUAL • {virtualTopPick.league} • {virtualTopPick.timeLabel}</small>
                 <h3>{virtualTopPick.homeTeam} x {virtualTopPick.awayTeam}</h3>
                 <p>{virtualTopPick.reason}</p>
               </div>
 
               <div className="oddix-v40-virtual-market">
-                <span>MELHOR MERCADO</span>
+                <span>MELHOR MERCADO VIRTUAL</span>
                 <strong>{virtualTopPick.selection}</strong>
                 <small>{virtualTopPick.market}</small>
               </div>
@@ -890,6 +954,27 @@ export default function Dashboard() {
               {virtualLoading ? "Buscando Top Pick Virtual..." : "Aguardando dados do Oddix Virtual."}
             </div>
           )}
+
+          <div className="oddix-v40-virtual-upcoming">
+            <div className="oddix-v40-virtual-upcoming-head">
+              <strong>Próximos jogos virtuais</strong>
+              <span>{virtualUpcoming.length} virtuais</span>
+            </div>
+
+            <div className="oddix-v40-virtual-mini-grid">
+              {virtualUpcoming.map((match) => (
+                <button key={match.id} onClick={() => sidebarNavigate("virtual")}>
+                  <small>{match.league} • {match.timeLabel}</small>
+                  <strong>{match.homeTeam} x {match.awayTeam}</strong>
+                  <span>Ver mercados virtuais →</span>
+                </button>
+              ))}
+            </div>
+
+            {!virtualLoading && !virtualUpcoming.length ? (
+              <p>Sem jogos virtuais retornados agora. Verifique `/virtual/upcoming?league=euro`.</p>
+            ) : null}
+          </div>
         </section>
 
         <section className="oddix-v37-main-grid">
@@ -3031,6 +3116,73 @@ const globalCss = `
 
   .oddix-v39-footer nav {
     align-content: center;
+  }
+
+
+  .oddix-v40-virtual-upcoming {
+    margin-top: 16px;
+    border-top: 1px solid rgba(255,255,255,.10);
+    padding-top: 16px;
+  }
+
+  .oddix-v40-virtual-upcoming-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .oddix-v40-virtual-upcoming-head strong {
+    color: #86efac;
+    font-weight: 1000;
+    text-transform: uppercase;
+    font-size: 13px;
+  }
+
+  .oddix-v40-virtual-upcoming-head span {
+    border: 1px solid rgba(34,197,94,.25);
+    background: rgba(34,197,94,.10);
+    color: #86efac;
+    border-radius: 999px;
+    padding: 7px 10px;
+    font-size: 12px;
+    font-weight: 1000;
+  }
+
+  .oddix-v40-virtual-mini-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 10px;
+  }
+
+  .oddix-v40-virtual-mini-grid button {
+    border: 1px solid rgba(34,197,94,.18);
+    background: rgba(255,255,255,.035);
+    color: #fff;
+    border-radius: 14px;
+    padding: 12px;
+    text-align: left;
+    cursor: pointer;
+    display: grid;
+    gap: 5px;
+  }
+
+  .oddix-v40-virtual-mini-grid small {
+    color: rgba(255,255,255,.58);
+    font-weight: 800;
+  }
+
+  .oddix-v40-virtual-mini-grid strong {
+    color: #fff;
+    font-weight: 1000;
+    line-height: 1.15;
+  }
+
+  .oddix-v40-virtual-mini-grid span {
+    color: #86efac;
+    font-size: 12px;
+    font-weight: 900;
   }
 
   @media (max-width: 1460px) {
