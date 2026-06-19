@@ -159,9 +159,9 @@ export default function VirtualPage() {
                 <Odd label="Casa" value={match.odds?.odd_resultado_final_casa} />
                 <Odd label="Empate" value={match.odds?.odd_resultado_final_empate} />
                 <Odd label="Fora" value={match.odds?.odd_resultado_final_fora} />
-                <Odd label="Over 1.5" value={match.odds?.odd_over_1.5} />
+                <Odd label="Over 1.5" value={match.odds?.["odd_over_1.5"]} />
                 <Odd label="BTTS" value={match.odds?.odd_ambas_sim} />
-                <Odd label="Under 3.5" value={match.odds?.odd_under_3.5} />
+                <Odd label="Under 3.5" value={match.odds?.["odd_under_3.5"]} />
               </div>
             </article>
           ))}
