@@ -4,12 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../../services/api";
 
 const LEAGUES = [
-  { key: "euro", name: "Euro Cup" },
-  { key: "copa", name: "Copa" },
-  { key: "super", name: "Super" },
-  { key: "primeiro", name: "Primeiro" },
-  { key: "expressar", name: "Expressar" },
+  { key: "euro", name: "Euro Cup Virtual" },
+  { key: "copa", name: "Copa Virtual" },
+  { key: "super", name: "Super Liga Virtual" },
+  { key: "primeiro", name: "Primeira Liga Virtual" },
+  { key: "expressar", name: "Express Virtual" },
 ];
+
+
+function getLeagueName(key: string) {
+  return LEAGUES.find((item) => item.key === key)?.name || `${key} Virtual`;
+}
+
 
 function safeNumber(value: any, fallback = 0) {
   const cleaned = String(value ?? "")
@@ -81,7 +87,7 @@ function normalizeMatch(match: any, fallbackLeague = "euro") {
       match?.["competição"] ||
       match?.league ||
       match?.liga ||
-      fallbackLeague,
+      getLeagueName(fallbackLeague),
     timeA:
       match?.timeA ||
       match?.homeTeam ||
@@ -393,6 +399,19 @@ export default function VirtualPage() {
   }, [patterns, topPicks]);
 
 
+
+  function getStrongestPattern() {
+    const ranking = [
+      { label: "Under 3.5 gols", value: safeNumber(computedPatterns?.under35, 0), market: "Total de Gols" },
+      { label: "Over 0.5 gols", value: safeNumber(computedPatterns?.over05, 0), market: "Total de Gols" },
+      { label: "Over 1.5 gols", value: safeNumber(computedPatterns?.over15, 0), market: "Total de Gols" },
+      { label: "BTTS - Sim", value: safeNumber(computedPatterns?.btts, 0), market: "Ambas Marcam" },
+      { label: "Casa ou Empate", value: safeNumber(computedPatterns?.homeWins, 0), market: "Dupla Chance" },
+    ].sort((a, b) => b.value - a.value);
+
+    return ranking[0] || { label: "Mercado Virtual", value: 0, market: "Oddix Virtual" };
+  }
+
   const patternRanking = [
     { label: "Under 3.5", value: computedPatterns?.under35 || 0, medal: "🥇" },
     { label: "Over 0.5", value: computedPatterns?.over05 || 0, medal: "🥈" },
@@ -402,38 +421,44 @@ export default function VirtualPage() {
   ].sort((a, b) => b.value - a.value);
 
   function getBestMarketForMatch(match: any) {
-    const under35 = safeNumber(getOdd(match.odds, "odd_under_3.5", "odd_under_3,5"), 0);
-    const over15 = safeNumber(getOdd(match.odds, "odd_over_1.5", "odd_over_1,5"), 0);
-    const btts = safeNumber(getOdd(match.odds, "odd_ambas_sim"), 0);
+    const strongest = getStrongestPattern();
 
-    if ((computedPatterns?.under35 || 0) >= 75 && under35 > 0) {
+    if (strongest.label.includes("Under 3.5")) {
       return {
         label: "Under 3.5 gols",
-        odd: under35,
-        score: computedPatterns?.under35 || 0,
+        odd: getOdd(match.odds, "odd_under_3.5", "odd_under_3,5", "odd_under_35"),
+        score: strongest.value,
       };
     }
 
-    if ((computedPatterns?.over15 || 0) >= 60 && over15 > 0) {
+    if (strongest.label.includes("Over 0.5")) {
+      return {
+        label: "Over 0.5 gols",
+        odd: getOdd(match.odds, "odd_over_0.5", "odd_over_0,5", "odd_over_05"),
+        score: strongest.value,
+      };
+    }
+
+    if (strongest.label.includes("Over 1.5")) {
       return {
         label: "Over 1.5 gols",
-        odd: over15,
-        score: computedPatterns?.over15 || 0,
+        odd: getOdd(match.odds, "odd_over_1.5", "odd_over_1,5", "odd_over_15"),
+        score: strongest.value,
       };
     }
 
-    if ((computedPatterns?.btts || 0) >= 50 && btts > 0) {
+    if (strongest.label.includes("BTTS")) {
       return {
         label: "BTTS - Sim",
-        odd: btts,
-        score: computedPatterns?.btts || 0,
+        odd: getOdd(match.odds, "odd_ambas_sim", "odd_resultado_ambos_times_marcam_sim"),
+        score: strongest.value,
       };
     }
 
     return {
-      label: "Mercado em análise",
+      label: strongest.label || "Mercado Virtual",
       odd: "-",
-      score: 0,
+      score: strongest.value || 0,
     };
   }
 
@@ -563,37 +588,38 @@ export default function VirtualPage() {
           <div style={styles.boostLeg}>
             <span>01</span>
             <strong>Under 3.5 gols</strong>
-            <small>{computedPatterns?.under35 || 0}% na amostra</small>
+            <small>{safeNumber(computedPatterns?.under35, 0)}% na amostra virtual</small>
           </div>
 
           <div style={styles.boostLeg}>
             <span>02</span>
             <strong>Over 0.5 gols</strong>
-            <small>{computedPatterns?.over05 || 0}% na amostra</small>
+            <small>{safeNumber(computedPatterns?.over05, 0)}% na amostra virtual</small>
           </div>
 
           <div style={styles.boostLeg}>
             <span>03</span>
             <strong>Over 1.5 gols</strong>
-            <small>{computedPatterns?.over15 || 0}% na amostra</small>
+            <small>{safeNumber(computedPatterns?.over15, 0)}% na amostra virtual</small>
           </div>
         </div>
       </section>
 
       <section style={styles.cards}>
         <div style={styles.cardHeader}>
-          <h2 style={styles.cardTitle}>Próximos Jogos</h2>
-          <span>{upcoming.length} partidas</span>
+          <h2 style={styles.cardTitle}>Próximos Jogos Virtuais</h2>
+          <span>{upcoming.length} partidas virtuais</span>
         </div>
 
         <div style={styles.matchGrid}>
           {upcoming.map((match) => (
             <article key={match.id} style={styles.matchCard}>
               <div style={styles.matchTop}>
-                <span>{match.competition || league}</span>
+                <span>🎮 {String(match.competition || getLeagueName(league)).includes("Virtual") ? match.competition || getLeagueName(league) : `${match.competition || getLeagueName(league)} Virtual`}</span>
                 <strong>{match.horario || "-"}</strong>
               </div>
 
+              <div style={styles.virtualBadge}>FUTEBOL VIRTUAL • RNG</div>
               <h3>{match.timeA} x {match.timeB}</h3>
 
               {(() => {
@@ -601,7 +627,7 @@ export default function VirtualPage() {
 
                 return (
                   <div style={styles.bestMarket}>
-                    <span>🔥 Melhor mercado</span>
+                    <span>🎮 Melhor mercado virtual</span>
                     <strong>{bestMarket.label}</strong>
                     <small>Odd {bestMarket.odd} • Score {bestMarket.score}%</small>
                   </div>
@@ -951,11 +977,26 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     marginTop: 12,
   },
+  virtualBadge: {
+    display: "inline-flex",
+    width: "fit-content",
+    marginTop: 10,
+    border: "1px solid rgba(34,197,94,.22)",
+    background: "rgba(34,197,94,.09)",
+    color: "#86efac",
+    borderRadius: 999,
+    padding: "6px 9px",
+    fontSize: 10,
+    fontWeight: 1000,
+    letterSpacing: .7,
+  },
   odd: {
     border: "1px solid rgba(250,204,21,.18)",
     borderRadius: 12,
     padding: 10,
     minWidth: 0,
+    display: "grid",
+    gap: 4,
   },
   empty: {
     marginTop: 16,
