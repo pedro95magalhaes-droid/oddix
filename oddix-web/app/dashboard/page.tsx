@@ -2407,6 +2407,213 @@ const globalCss = `
     }
   }
 
+
+  /* V39.2 FINAL FIXES: corrige logo cortada, Premium quebrado, Top Pick e botão instalar */
+  .oddix-v39-autofit .oddix-v37-logo,
+  .oddix-v39-autofit .oddix-v37-logo div {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-logo strong {
+    display: block !important;
+    max-width: 100% !important;
+    font-size: clamp(23px, 2vw, 32px) !important;
+    line-height: .92 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+    letter-spacing: -1px !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-logo span {
+    display: block !important;
+    max-width: 100% !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-hero {
+    grid-template-columns: minmax(420px, 1.05fr) minmax(330px, .72fr) minmax(230px, .42fr) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-hero-player {
+    justify-content: flex-end !important;
+    transform: translateX(4%) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-hero-player img {
+    width: min(112%, clamp(390px, 40vw, 680px)) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-metric strong,
+  .oddix-v39-autofit .oddix-v37-metric.purple strong {
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    hyphens: none !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-metric:not(.purple) strong {
+    white-space: nowrap !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-metric.purple strong {
+    font-size: clamp(17px, 1.55vw, 26px) !important;
+    line-height: 1.06 !important;
+    white-space: nowrap !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-ticket-panel {
+    grid-template-columns: minmax(260px, 1.38fr) minmax(112px, .58fr) minmax(142px, .7fr) minmax(190px, .92fr) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-ticket-panel > div:first-child {
+    padding-left: clamp(16px, 1.5vw, 26px) !important;
+    padding-right: clamp(16px, 1.5vw, 26px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-ticket-panel > div:first-child strong {
+    display: block !important;
+    font-size: clamp(21px, 1.7vw, 30px) !important;
+    line-height: 1.08 !important;
+    letter-spacing: -.5px !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    hyphens: none !important;
+    white-space: normal !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-ticket-panel > div:first-child small {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-ticket-panel > div:nth-child(2) strong {
+    white-space: nowrap !important;
+    font-size: clamp(32px, 3vw, 50px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-ticket-panel strong.green {
+    white-space: nowrap !important;
+    font-size: clamp(34px, 3.2vw, 52px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-ticket-panel button {
+    min-width: 0 !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    padding-left: clamp(14px, 1.2vw, 20px) !important;
+    padding-right: clamp(14px, 1.2vw, 20px) !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-team img {
+    aspect-ratio: 1 / 1 !important;
+    object-fit: contain !important;
+    object-position: center center !important;
+    image-rendering: auto !important;
+  }
+
+  .oddix-v39-autofit .oddix-v37-prop-body img {
+    object-fit: contain !important;
+    object-position: bottom center !important;
+  }
+
+  /* Botão de instalar app sempre no canto, nunca em cima do conteúdo */
+  .oddix-dashboard-install,
+  .oddix-install-button,
+  .install-app-button,
+  button[aria-label*="Instalar"],
+  button[title*="Instalar"] {
+    position: fixed !important;
+    right: 22px !important;
+    bottom: 22px !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    z-index: 80 !important;
+    max-width: min(260px, calc(100vw - 44px)) !important;
+    box-shadow: 0 18px 40px rgba(249,115,22,.35) !important;
+  }
+
+  @media (max-width: 1380px) {
+    .oddix-v39-autofit .oddix-v37-hero {
+      grid-template-columns: minmax(0, 1.05fr) minmax(300px, .62fr) !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-hero-player {
+      transform: translateX(0) !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-ticket-panel {
+      grid-template-columns: minmax(260px, 1.32fr) minmax(110px, .62fr) minmax(142px, .72fr) minmax(185px, .92fr) !important;
+    }
+  }
+
+  @media (max-width: 1240px) {
+    .oddix-v39-autofit .oddix-v37-ticket-panel {
+      grid-template-columns: minmax(230px, 1.22fr) minmax(100px, .62fr) minmax(130px, .72fr) minmax(165px, .9fr) !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-ticket-panel > div:first-child strong {
+      font-size: clamp(20px, 2vw, 27px) !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-metric.purple strong {
+      white-space: normal !important;
+    }
+  }
+
+  @media (max-width: 1120px) {
+    .oddix-v39-autofit .oddix-v37-logo strong {
+      font-size: 32px !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-ticket-panel {
+      grid-template-columns: 1fr 1fr !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-ticket-panel > div:first-child strong {
+      font-size: 30px !important;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .oddix-v39-autofit .oddix-v37-logo strong {
+      font-size: 28px !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-metric strong,
+    .oddix-v39-autofit .oddix-v37-metric.purple strong {
+      white-space: normal !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-ticket-panel {
+      grid-template-columns: 1fr !important;
+    }
+
+    .oddix-v39-autofit .oddix-v37-ticket-panel > div:first-child strong {
+      font-size: 28px !important;
+    }
+
+    .oddix-dashboard-install,
+    .oddix-install-button,
+    .install-app-button,
+    button[aria-label*="Instalar"],
+    button[title*="Instalar"] {
+      right: 12px !important;
+      bottom: 12px !important;
+    }
+  }
+
   .oddix-v37-modal {
     position: fixed;
     inset: 0;
