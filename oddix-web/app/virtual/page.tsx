@@ -61,8 +61,8 @@ const DEMO_HALL = {
 const DEMO_PICK = {
   id: "demo-pick-1",
   league: "Euro Cup Virtual",
-  homeTeam: "Virtual Madrid",
-  awayTeam: "Virtual Milan",
+  homeTeam: "Oddix 1",
+  awayTeam: "Virtual 2",
   timeLabel: "12:05",
   odds: {},
   topPick: {
@@ -80,8 +80,8 @@ const DEMO_UPCOMING = [
   {
     id: "demo-1",
     competition: "Euro Cup Virtual",
-    timeA: "Virtual Madrid",
-    timeB: "Virtual Milan",
+    timeA: "Oddix 1",
+    timeB: "Virtual 2",
     horario: "12:05",
     odds: {
       odd_resultado_final_casa: "2.05",
@@ -95,8 +95,8 @@ const DEMO_UPCOMING = [
   {
     id: "demo-2",
     competition: "Copa Virtual",
-    timeA: "Virtual Brasil",
-    timeB: "Virtual França",
+    timeA: "Oddix 2",
+    timeB: "Virtual 3",
     horario: "12:10",
     odds: {
       odd_resultado_final_casa: "1.95",
@@ -110,8 +110,8 @@ const DEMO_UPCOMING = [
   {
     id: "demo-3",
     competition: "Super Liga Virtual",
-    timeA: "Virtual City",
-    timeB: "Virtual Bayern",
+    timeA: "Oddix 3",
+    timeB: "Virtual 4",
     horario: "12:15",
     odds: {
       odd_resultado_final_casa: "2.10",
@@ -238,6 +238,8 @@ function normalizeMatch(match: any, fallbackLeague = "euro") {
       match?.horario ||
       match?.timeLabel ||
       match?.kickoff ||
+      match?.inicio ||
+      match?.["início"] ||
       `${match?.hora || ""}:${match?.minuto || ""}`,
     odds,
   };
@@ -245,7 +247,13 @@ function normalizeMatch(match: any, fallbackLeague = "euro") {
 
 function normalizePick(pick: any) {
   const directTopPick =
-    pick?.market || pick?.tip || pick?.selection || pick?.odd
+    pick?.market ||
+    pick?.mercado ||
+    pick?.tip ||
+    pick?.dica ||
+    pick?.selection ||
+    pick?.odd ||
+    pick?.["ímpar"]
       ? {
           market: pick?.market || pick?.mercado || "Mercado",
           selection:
@@ -253,11 +261,23 @@ function normalizePick(pick: any) {
             pick?.selecao ||
             pick?.escolha ||
             pick?.tip ||
+            pick?.dica ||
             "Entrada",
-          odd: pick?.odd,
-          score: pick?.score ?? pick?.confidence,
-          confidence: pick?.confidence,
-          reason: pick?.reason,
+          odd: safeNumber(pick?.odd ?? pick?.["ímpar"], 0),
+          score: safeNumber(
+            pick?.score ??
+              pick?.pontuacao ??
+              pick?.["pontuação"] ??
+              pick?.confidence ??
+              pick?.confianca ??
+              pick?.["confiança"],
+            0,
+          ),
+          confidence: safeNumber(
+            pick?.confidence ?? pick?.confianca ?? pick?.["confiança"] ?? pick?.score,
+            0,
+          ),
+          reason: pick?.reason || pick?.motivo,
         }
       : null;
 
@@ -279,10 +299,11 @@ function normalizePick(pick: any) {
           topPick.selecao ||
           topPick.escolha ||
           topPick.tip ||
+          topPick.dica ||
           "Entrada",
-        odd: safeNumber(topPick.odd, 0),
+        odd: safeNumber(topPick.odd ?? topPick["ímpar"], 0),
         score: safeNumber(
-          topPick.score ?? topPick.pontuacao ?? topPick["pontuação"] ?? topPick.confidence,
+          topPick.score ?? topPick.pontuacao ?? topPick["pontuação"] ?? topPick.confidence ?? topPick.confianca ?? topPick["confiança"],
           0,
         ),
         confidence: safeNumber(
@@ -296,6 +317,7 @@ function normalizePick(pick: any) {
           topPick.reason ||
           topPick.motivo ||
           pick?.reason ||
+          pick?.motivo ||
           "Padrão estatístico detectado pela IA Virtual.",
       }
     : null;
@@ -315,6 +337,8 @@ function normalizePick(pick: any) {
       pick?.timeLabel ||
       pick?.horario ||
       pick?.kickoff ||
+      pick?.inicio ||
+      pick?.["início"] ||
       `${pick?.hora || ""}:${pick?.minuto || ""}`,
     topPick: normalizedTopPick,
     odds: normalizeOdds(pick?.odds || {}),
@@ -440,6 +464,7 @@ export default function VirtualPage() {
           "topPicks",
           "top_picks",
           "picks",
+          "escolhas",
           "matches",
           "matchs",
         ]);
@@ -460,6 +485,7 @@ export default function VirtualPage() {
         const rows = unwrapArray(upcomingResponse.value?.data, [
           "matches",
           "matchs",
+          "partidas",
           "jogos",
           "games",
           "data",
