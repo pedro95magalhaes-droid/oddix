@@ -40,60 +40,70 @@ export class VirtualService {
   }
 
   getTopPicks(): { success: boolean; picks: VirtualPick[] } {
-    const picks: VirtualPick[] = [
-      {
-        id: 'vp-001',
-        league: 'Euro Cup Virtual',
-        homeTeam: 'Virtual Madrid',
-        awayTeam: 'Virtual Milan',
-        market: 'Over 2.5 Gols',
-        tip: 'Mais de 2.5 gols',
-        odd: 1.82,
-        confidence: 94,
-        badge: this.getBadge(94),
-        status: 'PENDING',
-        profit: 0,
-        roi: 0,
-        kickoff: new Date(Date.now() + 8 * 60 * 1000).toISOString(),
-        createdAt: new Date().toISOString(),
-        reason: 'Padrão ofensivo forte, alta média de gols e sequência positiva no modelo virtual.',
-      },
-      {
-        id: 'vp-002',
-        league: 'Copa Virtual',
-        homeTeam: 'Virtual Brasil',
-        awayTeam: 'Virtual França',
-        market: 'Ambas Marcam',
-        tip: 'BTTS Sim',
-        odd: 1.75,
-        confidence: 88,
-        badge: this.getBadge(88),
-        status: 'PENDING',
-        profit: 0,
-        roi: 0,
-        kickoff: new Date(Date.now() + 14 * 60 * 1000).toISOString(),
-        createdAt: new Date().toISOString(),
-        reason: 'As duas equipes apresentam padrão recorrente de gol marcado e sofrido.',
-      },
-      {
-        id: 'vp-003',
-        league: 'Super Liga Virtual',
-        homeTeam: 'Virtual City',
-        awayTeam: 'Virtual Bayern',
-        market: 'Dupla Chance',
-        tip: 'Casa ou Empate',
-        odd: 1.48,
-        confidence: 82,
-        badge: this.getBadge(82),
-        status: 'PENDING',
-        profit: 0,
-        roi: 0,
-        kickoff: new Date(Date.now() + 21 * 60 * 1000).toISOString(),
-        createdAt: new Date().toISOString(),
-        reason: 'Mandante com melhor consistência recente e baixa taxa de derrota no padrão analisado.',
-      },
-    ];
+  const upcoming = this.getUpcoming().matches;
 
+  const picks: VirtualPick[] = [
+    {
+      id: 'vp-001',
+      league: upcoming[0].league,
+      homeTeam: upcoming[0].homeTeam,
+      awayTeam: upcoming[0].awayTeam,
+      market: 'Over 2.5 Gols',
+      tip: 'Mais de 2.5 gols',
+      odd: 1.82,
+      confidence: 94,
+      badge: this.getBadge(94),
+      status: 'PENDING',
+      profit: 0,
+      roi: 0,
+      kickoff: upcoming[0].kickoff,
+      createdAt: new Date().toISOString(),
+      reason:
+        'Padrão ofensivo forte, alta média de gols e sequência positiva no modelo virtual.',
+    },
+    {
+      id: 'vp-002',
+      league: upcoming[1].league,
+      homeTeam: upcoming[1].homeTeam,
+      awayTeam: upcoming[1].awayTeam,
+      market: 'Ambas Marcam',
+      tip: 'BTTS Sim',
+      odd: 1.75,
+      confidence: 88,
+      badge: this.getBadge(88),
+      status: 'PENDING',
+      profit: 0,
+      roi: 0,
+      kickoff: upcoming[1].kickoff,
+      createdAt: new Date().toISOString(),
+      reason:
+        'As duas equipes apresentam padrão recorrente de gol marcado e sofrido.',
+    },
+    {
+      id: 'vp-003',
+      league: upcoming[2].league,
+      homeTeam: upcoming[2].homeTeam,
+      awayTeam: upcoming[2].awayTeam,
+      market: 'Dupla Chance',
+      tip: 'Casa ou Empate',
+      odd: 1.48,
+      confidence: 82,
+      badge: this.getBadge(82),
+      status: 'PENDING',
+      profit: 0,
+      roi: 0,
+      kickoff: upcoming[2].kickoff,
+      createdAt: new Date().toISOString(),
+      reason:
+        'Mandante com melhor consistência recente e baixa taxa de derrota no padrão analisado.',
+    },
+  ];
+
+  return {
+    success: true,
+    picks,
+  };
+}
     return {
       success: true,
       picks,
