@@ -688,7 +688,7 @@ export default function VirtualPage() {
 
         <div style={styles.heroStats}>
           <Metric label="Jogos próximos" value={displayUpcoming.length} />
-          <Metric label="Top Picks" value={topPicks.length || "Demo"} />
+          <Metric label="Top Picks" value={topPicks.length || 0} />
           <Metric label="ROI Hoje" value={`+${formatPercent(displayRoi?.today ?? displayStats?.roi, DEMO_ROI.today)}`} />
           <Metric label="Winrate" value={formatPercent(displayStats?.winRate ?? displayStats?.winrate, DEMO_STATS.winRate)} />
         </div>
@@ -911,7 +911,7 @@ export default function VirtualPage() {
 function Metric({ label, value }: any) {
   return (
     <div style={styles.metric}>
-      <strong>{value}</strong>
+      <strong style={styles.metricValue}>{value}</strong>
       <span>{label}</span>
     </div>
   );
@@ -920,8 +920,8 @@ function Metric({ label, value }: any) {
 function MiniStat({ icon, label, value }: any) {
   return (
     <div style={styles.miniStat}>
-      <span>{icon}</span>
-      <strong>{value}</strong>
+      <span style={styles.miniStatIcon}>{icon}</span>
+      <strong style={styles.miniStatValue}>{value}</strong>
       <small>{label}</small>
     </div>
   );
@@ -998,9 +998,9 @@ const styles: Record<string, CSSProperties> = {
   },
   title: {
     margin: "10px 0",
-    fontSize: "clamp(34px, 5vw, 62px)",
-    lineHeight: 1,
-    letterSpacing: -2,
+    fontSize: "clamp(44px, 6vw, 72px)",
+    lineHeight: 0.96,
+    letterSpacing: -2.5,
   },
   text: {
     color: "rgba(255,255,255,.72)",
@@ -1079,6 +1079,12 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     flexDirection: "column",
     justifyContent: "center",
+    gap: 4,
+  },
+  metricValue: {
+    fontSize: "clamp(22px, 2.5vw, 34px)",
+    lineHeight: 1,
+    fontWeight: 1000,
   },
   quickStats: {
     maxWidth: 1280,
@@ -1090,10 +1096,20 @@ const styles: Record<string, CSSProperties> = {
   miniStat: {
     border: "1px solid rgba(250,204,21,.22)",
     borderRadius: 18,
-    padding: 16,
-    background: "rgba(5,5,5,.92)",
+    padding: 18,
+    background: "linear-gradient(135deg, rgba(5,5,5,.96), rgba(22,22,22,.72))",
     display: "grid",
-    gap: 5,
+    gap: 6,
+    boxShadow: "0 18px 50px rgba(0,0,0,.24)",
+  },
+  miniStatIcon: {
+    fontSize: 18,
+    lineHeight: 1,
+  },
+  miniStatValue: {
+    fontSize: "clamp(26px, 3vw, 36px)",
+    lineHeight: 1,
+    fontWeight: 1000,
   },
   grid: {
     maxWidth: 1280,
@@ -1105,7 +1121,8 @@ const styles: Record<string, CSSProperties> = {
   topPick: {
     border: "1px solid rgba(250,204,21,.65)",
     borderRadius: 24,
-    padding: 22,
+    padding: "20px 20px 18px",
+    alignSelf: "start",
     background:
       "radial-gradient(circle at 20% 0%, rgba(250,204,21,.20), transparent 36%), rgba(5,5,5,.94)",
     boxShadow: "0 24px 80px rgba(250,204,21,.10)",
@@ -1113,7 +1130,7 @@ const styles: Record<string, CSSProperties> = {
   emptyTopPick: {
     display: "grid",
     gap: 12,
-    minHeight: 260,
+    minHeight: 180,
     alignContent: "center",
     textAlign: "center",
     color: "rgba(255,255,255,.75)",
@@ -1130,14 +1147,16 @@ const styles: Record<string, CSSProperties> = {
     letterSpacing: 0.4,
   },
   matchTitle: {
-    fontSize: "clamp(28px, 4vw, 44px)",
-    margin: "10px 0 4px",
+    fontSize: "clamp(30px, 4vw, 46px)",
+    margin: "8px 0 4px",
+    lineHeight: 1.05,
+    letterSpacing: -1.2,
   },
   pickBox: {
     display: "grid",
     gridTemplateColumns: "minmax(180px, 1.35fr) .65fr .75fr .75fr",
     gap: 12,
-    margin: "18px 0",
+    margin: "14px 0 12px",
   },
   pickItem: {
     border: "1px solid rgba(250,204,21,.22)",
@@ -1280,6 +1299,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 24,
     padding: 22,
     background: "rgba(5,5,5,.92)",
+    scrollMarginBottom: 110,
   },
   cardHeader: {
     display: "flex",
@@ -1292,15 +1312,15 @@ const styles: Record<string, CSSProperties> = {
   },
   matchGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
-    gap: 14,
+    gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))",
+    gap: 16,
     marginTop: 12,
   },
   matchCard: {
     border: "1px solid rgba(255,255,255,.10)",
-    borderRadius: 18,
-    padding: 16,
-    background: "rgba(255,255,255,.035)",
+    borderRadius: 20,
+    padding: 20,
+    background: "linear-gradient(135deg, rgba(255,255,255,.045), rgba(0,0,0,.28))",
     minWidth: 0,
   },
   matchTop: {
