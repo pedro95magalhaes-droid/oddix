@@ -23,6 +23,41 @@ const DEMO_PATTERNS = {
   draws: 24,
 };
 
+const DEMO_STATS = {
+  greens: 128,
+  reds: 32,
+  voids: 4,
+  pending: 6,
+  total: 170,
+  winRate: 80,
+  roi: 23.4,
+  profit: 56.3,
+  streak: 9,
+  bestStreak: 15,
+};
+
+const DEMO_ROI = {
+  today: 18.4,
+  sevenDays: 23.4,
+  thirtyDays: 31.7,
+};
+
+const DEMO_RESULTS = ["GREEN", "GREEN", "RED", "GREEN", "GREEN"];
+
+const DEMO_HALL = {
+  bestOdd: {
+    odd: 2.35,
+    league: "Euro Cup Virtual",
+  },
+  bestStreak: {
+    greens: 15,
+  },
+  topLeague: {
+    league: "Euro Cup Virtual",
+    roi: 28.2,
+  },
+};
+
 const DEMO_PICK = {
   id: "demo-pick-1",
   league: "Euro Cup Virtual",
@@ -97,6 +132,31 @@ function safeNumber(value: any, fallback = 0) {
   const cleaned = String(value ?? "").replace(",", ".").replace(/[^\d.-]/g, "");
   const parsed = Number(cleaned);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function formatPercent(value: any, fallback = 0) {
+  return `${safeNumber(value, fallback).toFixed(1).replace(".0", "")}%`;
+}
+
+function formatTimeLabel(value: any) {
+  if (!value) return "-";
+
+  const raw = String(value);
+
+  if (/^\d{1,2}:\d{2}$/.test(raw)) return raw;
+
+  const date = new Date(raw);
+
+  if (Number.isNaN(date.getTime())) {
+    return raw;
+  }
+
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function stripAccents(value: string) {
@@ -343,6 +403,10 @@ export default function VirtualPage() {
   const [topPicks, setTopPicks] = useState<any[]>([]);
   const [patterns, setPatterns] = useState<any>(null);
   const [upcoming, setUpcoming] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(DEMO_STATS);
+  const [roi, setRoi] = useState<any>(DEMO_ROI);
+  const [results, setResults] = useState<any[]>(DEMO_RESULTS);
+  const [hallOfFame, setHallOfFame] = useState<any>(DEMO_HALL);
   const [error, setError] = useState("");
 
   async function loadVirtual() {
@@ -350,12 +414,23 @@ export default function VirtualPage() {
       setLoading(true);
       setError("");
 
-      const [topResponse, patternResponse, upcomingResponse] =
-        await Promise.allSettled([
-          api.get(`/virtual/top-picks?league=${league}&historyLimit=300`),
-          api.get(`/virtual/patterns?league=${league}&limit=300`),
-          api.get(`/virtual/upcoming?league=${league}`),
-        ]);
+      const [
+        topResponse,
+        patternResponse,
+        upcomingResponse,
+        statsResponse,
+        roiResponse,
+        resultsResponse,
+        hallResponse,
+      ] = await Promise.allSettled([
+        api.get(`/virtual/top-picks?league=${league}&historyLimit=300`),
+        api.get(`/virtual/patterns?league=${league}&limit=300`),
+        api.get(`/virtual/upcoming?league=${league}`),
+        api.get(`/virtual/stats?league=${league}`),
+        api.get(`/virtual/roi?league=${league}`),
+        api.get(`/virtual/results?league=${league}`),
+        api.get(`/virtual/hall-of-fame?league=${league}`),
+      ]);
 
       let normalizedTopPicks: any[] = [];
       let normalizedUpcoming: any[] = [];
@@ -395,6 +470,35 @@ export default function VirtualPage() {
         );
       }
 
+      if (statsResponse.status === "fulfilled") {
+        const data = statsResponse.value?.data;
+        setStats(data?.stats || data?.data?.stats || data?.data || data || DEMO_STATS);
+      } else {
+        setStats(DEMO_STATS);
+      }
+
+      if (roiResponse.status === "fulfilled") {
+        const data = roiResponse.value?.data;
+        setRoi(data?.roi || data?.data?.roi || data?.data || data || DEMO_ROI);
+      } else {
+        setRoi(DEMO_ROI);
+      }
+
+      if (resultsResponse.status === "fulfilled") {
+        const data = resultsResponse.value?.data;
+        const rows = unwrapArray(data, ["results", "resultados", "history", "data"]);
+        setResults(rows.length ? rows : DEMO_RESULTS);
+      } else {
+        setResults(DEMO_RESULTS);
+      }
+
+      if (hallResponse.status === "fulfilled") {
+        const data = hallResponse.value?.data;
+        setHallOfFame(data?.hallOfFame || data?.hall_of_fame || data?.data?.hallOfFame || data?.data || data || DEMO_HALL);
+      } else {
+        setHallOfFame(DEMO_HALL);
+      }
+
       if (!normalizedUpcoming.length && normalizedTopPicks.length) {
         normalizedUpcoming = normalizedTopPicks.map((pick) =>
           normalizeMatch(
@@ -417,6 +521,10 @@ export default function VirtualPage() {
       setTopPicks([]);
       setUpcoming([]);
       setPatterns(null);
+      setStats(DEMO_STATS);
+      setRoi(DEMO_ROI);
+      setResults(DEMO_RESULTS);
+      setHallOfFame(DEMO_HALL);
     } finally {
       setLoading(false);
     }
@@ -434,6 +542,11 @@ export default function VirtualPage() {
 
   const displayUpcoming = upcoming.length > 0 ? upcoming : DEMO_UPCOMING;
   const bestPick = hasValidTopPick ? topPicks[0] : DEMO_PICK;
+
+  const displayStats = stats || DEMO_STATS;
+  const displayRoi = roi || DEMO_ROI;
+  const displayResults = results?.length ? results : DEMO_RESULTS;
+  const displayHall = hallOfFame || DEMO_HALL;
 
   const computedPatterns = useMemo(() => {
     if (patterns) return patterns;
@@ -576,16 +689,16 @@ export default function VirtualPage() {
         <div style={styles.heroStats}>
           <Metric label="Jogos próximos" value={displayUpcoming.length} />
           <Metric label="Top Picks" value={topPicks.length || "Demo"} />
-          <Metric label="ROI Hoje" value="+18.4%" />
-          <Metric label="Winrate" value="80%" />
+          <Metric label="ROI Hoje" value={`+${formatPercent(displayRoi?.today ?? displayStats?.roi, DEMO_ROI.today)}`} />
+          <Metric label="Winrate" value={formatPercent(displayStats?.winRate ?? displayStats?.winrate, DEMO_STATS.winRate)} />
         </div>
       </section>
 
       <section style={styles.quickStats}>
-        <MiniStat icon="🟢" label="Greens Demo" value="128" />
-        <MiniStat icon="🔴" label="Reds Demo" value="32" />
-        <MiniStat icon="🔥" label="Sequência" value="9 Greens" />
-        <MiniStat icon="🏆" label="Recorde" value="15 Greens" />
+        <MiniStat icon="🟢" label="Greens" value={safeNumber(displayStats?.greens, DEMO_STATS.greens)} />
+        <MiniStat icon="🔴" label="Reds" value={safeNumber(displayStats?.reds, DEMO_STATS.reds)} />
+        <MiniStat icon="🔥" label="Sequência" value={`${safeNumber(displayStats?.streak, DEMO_STATS.streak)} Greens`} />
+        <MiniStat icon="🏆" label="Recorde" value={`${safeNumber(displayStats?.bestStreak, DEMO_STATS.bestStreak)} Greens`} />
       </section>
 
       <section style={styles.grid}>
@@ -606,7 +719,7 @@ export default function VirtualPage() {
               </h2>
 
               <p style={styles.text}>
-                {bestPick.league} • {bestPick.timeLabel}
+                {bestPick.league} • {formatTimeLabel(bestPick.timeLabel)}
               </p>
 
               <div style={styles.pickBox}>
@@ -683,19 +796,23 @@ export default function VirtualPage() {
       <section style={styles.premiumGrid}>
         <PremiumCard
           title="📈 ROI Virtual"
-          items={["Hoje: +18.4%", "7 dias: +23.4%", "30 dias: +31.7%"]}
+          items={[
+            `Hoje: +${formatPercent(displayRoi?.today, DEMO_ROI.today)}`,
+            `7 dias: +${formatPercent(displayRoi?.sevenDays ?? displayRoi?.seven_days, DEMO_ROI.sevenDays)}`,
+            `30 dias: +${formatPercent(displayRoi?.thirtyDays ?? displayRoi?.thirty_days, DEMO_ROI.thirtyDays)}`,
+          ]}
         />
         <PremiumCard
           title="🏆 Hall da Fama"
           items={[
-            "Maior Green: Odd 2.35",
-            "Melhor sequência: 15 Greens",
-            "Liga destaque: Euro Cup",
+            `Maior Green: Odd ${safeNumber(displayHall?.bestOdd?.odd ?? displayHall?.best_odd?.odd, DEMO_HALL.bestOdd.odd)}`,
+            `Melhor sequência: ${safeNumber(displayHall?.bestStreak?.greens ?? displayHall?.best_streak?.greens, DEMO_HALL.bestStreak.greens)} Greens`,
+            `Liga destaque: ${displayHall?.topLeague?.league ?? displayHall?.top_league?.league ?? DEMO_HALL.topLeague.league}`,
           ]}
         />
         <PremiumCard
           title="🟢 Últimos Resultados"
-          items={["GREEN", "GREEN", "RED", "GREEN", "GREEN"]}
+          items={displayResults.slice(0, 5).map((item: any) => String(item?.status || item?.result || item))}
         />
       </section>
 
@@ -742,7 +859,7 @@ export default function VirtualPage() {
               <article key={match.id} style={styles.matchCard}>
                 <div style={styles.matchTop}>
                   <span>🎮 {match.competition || getLeagueName(league)}</span>
-                  <strong>{match.horario || "-"}</strong>
+                  <strong>{formatTimeLabel(match.horario)}</strong>
                 </div>
 
                 <div style={styles.virtualBadge}>FUTEBOL VIRTUAL • RNG</div>
@@ -865,6 +982,7 @@ const styles: Record<string, CSSProperties> = {
       "radial-gradient(circle at 80% 0%, rgba(250,204,21,.18), transparent 32%), #030303",
     color: "#fff",
     padding: "28px",
+    paddingBottom: 96,
     fontFamily: "Inter, system-ui, sans-serif",
   },
   hero: {
