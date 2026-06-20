@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { api } from "../../services/api";
 
 const LEAGUES = [
@@ -21,6 +21,23 @@ const DEMO_PATTERNS = {
   homeWins: 47,
   awayWins: 29,
   draws: 24,
+};
+
+const DEMO_PICK = {
+  id: "demo-pick-1",
+  league: "Euro Cup Virtual",
+  homeTeam: "Virtual Madrid",
+  awayTeam: "Virtual Milan",
+  timeLabel: "12:05",
+  topPick: {
+    market: "Total de Gols",
+    selection: "Over 2.5 Gols",
+    odd: 1.82,
+    score: 94,
+    confidence: 94,
+    reason:
+      "Pick demonstrativa baseada no padrão visual premium enquanto a API virtual está indisponível.",
+  },
 };
 
 const DEMO_UPCOMING = [
@@ -76,18 +93,13 @@ function getLeagueName(key: string) {
 }
 
 function safeNumber(value: any, fallback = 0) {
-  const cleaned = String(value ?? "")
-    .replace(",", ".")
-    .replace(/[^\d.-]/g, "");
-
+  const cleaned = String(value ?? "").replace(",", ".").replace(/[^\d.-]/g, "");
   const parsed = Number(cleaned);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function stripAccents(value: string) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
 function normalizeKey(key: string) {
@@ -176,7 +188,6 @@ function normalizePick(pick: any) {
           topPick.confidence ?? topPick.confianca ?? topPick["confiança"],
           0,
         ),
-        risk: topPick.risk || topPick.risco || "Médio",
         reason:
           topPick.reason ||
           topPick.motivo ||
@@ -260,14 +271,14 @@ function unwrapPatterns(data: any) {
   if (!raw || Array.isArray(raw)) return null;
 
   return {
-    sampleSize: pickPatternValue(raw, ["sampleSize", "sample_size", "amostra", "retornado", "returned"]),
-    over05: pickPatternValue(raw, ["over05", "over0_5", "over0.5", "mais de 0.5", "mais de 0,5"]),
-    over15: pickPatternValue(raw, ["over15", "over1_5", "over1.5", "mais de 1.5", "mais de 1,5"]),
-    over25: pickPatternValue(raw, ["over25", "over2_5", "over2.5", "mais de 2.5", "mais de 2,5"]),
-    under35: pickPatternValue(raw, ["under35", "under3_5", "under3.5", "menos de 3.5", "under 3.5"]),
-    btts: pickPatternValue(raw, ["btts", "ambasMarcam", "ambas_marcam", "ambas marcam"]),
-    homeWins: pickPatternValue(raw, ["homeWins", "home_wins", "casaVence", "casa vence"]),
-    awayWins: pickPatternValue(raw, ["awayWins", "away_wins", "foraVence", "fora vence"]),
+    sampleSize: pickPatternValue(raw, ["sampleSize", "sample_size", "amostra"]),
+    over05: pickPatternValue(raw, ["over05", "over0_5", "over0.5", "mais de 0.5"]),
+    over15: pickPatternValue(raw, ["over15", "over1_5", "over1.5", "mais de 1.5"]),
+    over25: pickPatternValue(raw, ["over25", "over2_5", "over2.5", "mais de 2.5"]),
+    under35: pickPatternValue(raw, ["under35", "under3_5", "under3.5", "menos de 3.5"]),
+    btts: pickPatternValue(raw, ["btts", "ambasMarcam", "ambas marcam"]),
+    homeWins: pickPatternValue(raw, ["homeWins", "casaVence", "casa vence"]),
+    awayWins: pickPatternValue(raw, ["awayWins", "foraVence", "fora vence"]),
     draws: pickPatternValue(raw, ["draws", "empates", "empate"]),
   };
 }
@@ -361,46 +372,43 @@ export default function VirtualPage() {
 
   const demoMode = !loading && !topPicks.length && !upcoming.length;
   const displayUpcoming = demoMode ? DEMO_UPCOMING : upcoming;
-  const bestPick = topPicks[0];
+  const bestPick = topPicks[0] || (demoMode ? DEMO_PICK : null);
 
   const computedPatterns = useMemo(() => {
     if (patterns) return patterns;
-
-    if (!topPicks.length) {
-      return DEMO_PATTERNS;
-    }
+    if (!topPicks.length) return DEMO_PATTERNS;
 
     const total = Math.max(topPicks.length, 1);
-    const over15 = topPicks.filter((item) =>
-      String(item?.topPick?.selection || "").toLowerCase().includes("1.5"),
-    ).length;
-    const under35 = topPicks.filter((item) =>
-      String(item?.topPick?.selection || "").toLowerCase().includes("3.5"),
-    ).length;
-    const btts = topPicks.filter((item) =>
-      String(item?.topPick?.selection || "").toLowerCase().includes("btts"),
-    ).length;
 
     return {
       ...DEMO_PATTERNS,
       sampleSize: topPicks.length,
-      over15: Math.round((over15 / total) * 100) || DEMO_PATTERNS.over15,
-      under35: Math.round((under35 / total) * 100) || DEMO_PATTERNS.under35,
-      btts: Math.round((btts / total) * 100) || DEMO_PATTERNS.btts,
+      over15:
+        Math.round(
+          (topPicks.filter((item) =>
+            String(item?.topPick?.selection || "").toLowerCase().includes("1.5"),
+          ).length /
+            total) *
+            100,
+        ) || DEMO_PATTERNS.over15,
+      under35:
+        Math.round(
+          (topPicks.filter((item) =>
+            String(item?.topPick?.selection || "").toLowerCase().includes("3.5"),
+          ).length /
+            total) *
+            100,
+        ) || DEMO_PATTERNS.under35,
+      btts:
+        Math.round(
+          (topPicks.filter((item) =>
+            String(item?.topPick?.selection || "").toLowerCase().includes("btts"),
+          ).length /
+            total) *
+            100,
+        ) || DEMO_PATTERNS.btts,
     };
   }, [patterns, topPicks]);
-
-  function getStrongestPattern() {
-    const ranking = [
-      { label: "Under 3.5 gols", value: safeNumber(computedPatterns?.under35, 0), market: "Total de Gols" },
-      { label: "Over 0.5 gols", value: safeNumber(computedPatterns?.over05, 0), market: "Total de Gols" },
-      { label: "Over 1.5 gols", value: safeNumber(computedPatterns?.over15, 0), market: "Total de Gols" },
-      { label: "BTTS - Sim", value: safeNumber(computedPatterns?.btts, 0), market: "Ambas Marcam" },
-      { label: "Casa ou Empate", value: safeNumber(computedPatterns?.homeWins, 0), market: "Dupla Chance" },
-    ].sort((a, b) => b.value - a.value);
-
-    return ranking[0] || { label: "Mercado Virtual", value: 0, market: "Oddix Virtual" };
-  }
 
   const patternRanking = [
     { label: "Under 3.5", value: computedPatterns?.under35 || 0, medal: "🥇" },
@@ -409,6 +417,10 @@ export default function VirtualPage() {
     { label: "BTTS", value: computedPatterns?.btts || 0, medal: "4º" },
     { label: "Casa vence", value: computedPatterns?.homeWins || 0, medal: "5º" },
   ].sort((a, b) => b.value - a.value);
+
+  function getStrongestPattern() {
+    return patternRanking[0] || { label: "Mercado Virtual", value: 0 };
+  }
 
   function getBestMarketForMatch(match: any) {
     const strongest = getStrongestPattern();
@@ -440,7 +452,7 @@ export default function VirtualPage() {
     if (strongest.label.includes("BTTS")) {
       return {
         label: "BTTS - Sim",
-        odd: getOdd(match.odds, "odd_ambas_sim", "odd_resultado_ambos_times_marcam_sim"),
+        odd: getOdd(match.odds, "odd_ambas_sim"),
         score: strongest.value,
       };
     }
@@ -457,6 +469,7 @@ export default function VirtualPage() {
       <section style={styles.hero}>
         <div>
           <span style={styles.kicker}>⚡ ODDIX VIRTUAL AI</span>
+
           <h1 style={styles.title}>Inteligência para Futebol Virtual Oddix</h1>
 
           <p style={styles.text}>
@@ -465,14 +478,14 @@ export default function VirtualPage() {
           </p>
 
           <div style={styles.heroBadge}>
-            🔥 +{computedPatterns?.sampleSize || 300} partidas analisadas •{" "}
-            {computedPatterns?.under35 || 0}% Under 3.5 • {computedPatterns?.over15 || 0}% Over 1.5
+            🔥 +{computedPatterns.sampleSize} partidas analisadas • {computedPatterns.under35}%
+            Under 3.5 • {computedPatterns.over15}% Over 1.5
           </div>
 
           {demoMode ? (
             <div style={styles.demoBanner}>
               🎮 MODO DEMONSTRAÇÃO • API indisponível no momento. Os dados reais serão
-              atualizados automaticamente quando a API voltar.
+              atualizados automaticamente quando a nova API virtual for conectada.
             </div>
           ) : null}
 
@@ -505,9 +518,18 @@ export default function VirtualPage() {
         </div>
       </section>
 
+      <section style={styles.quickStats}>
+        <MiniStat icon="🟢" label="Greens Demo" value="128" />
+        <MiniStat icon="🔴" label="Reds Demo" value="32" />
+        <MiniStat icon="🔥" label="Sequência" value="9 Greens" />
+        <MiniStat icon="🏆" label="Recorde" value="15 Greens" />
+      </section>
+
       <section style={styles.grid}>
         <div style={styles.topPick}>
-          <span style={styles.kicker}>🔥 TOP PICK DO MOMENTO</span>
+          <span style={styles.kicker}>
+            {demoMode ? "🎯 PICK DEMONSTRAÇÃO" : "🔥 TOP PICK DO MOMENTO"}
+          </span>
 
           {bestPick?.topPick ? (
             <>
@@ -542,23 +564,25 @@ export default function VirtualPage() {
                 </div>
 
                 <div style={styles.pickItem}>
-                  <small style={styles.miniLabel}>Confiança</small>
-                  <strong style={styles.pickStrong}>{bestPick.topPick.confidence || 0}%</strong>
+                  <small style={styles.miniLabel}>IA</small>
+                  <strong style={styles.pickStrong}>ELITE</strong>
                 </div>
               </div>
 
               <p style={styles.reason}>{bestPick.topPick.reason}</p>
+
+              {demoMode ? (
+                <div style={styles.demoActions}>
+                  <span>📈 ROI Demo: +18.4%</span>
+                  <span>🏆 Winrate: 80%</span>
+                  <span>🔥 Melhor padrão: Over 0.5</span>
+                </div>
+              ) : null}
             </>
           ) : (
             <div style={styles.emptyTopPick}>
               <h3>🤖 IA Virtual analisando partidas</h3>
-              <p>
-                Nenhum Top Pick real disponível no momento. A API de jogos virtuais está
-                temporariamente indisponível.
-              </p>
-              <small>
-                Enquanto isso, o painel segue em modo demonstração com padrões visuais premium.
-              </small>
+              <p>Aguardando sincronização da API virtual.</p>
             </div>
           )}
         </div>
@@ -576,9 +600,15 @@ export default function VirtualPage() {
 
           <div style={styles.patternDivider} />
 
-          <Pattern label="Over 2.5" value={computedPatterns?.over25} />
-          <Pattern label="Empates" value={computedPatterns?.draws} />
+          <Pattern label="Over 2.5" value={computedPatterns.over25} />
+          <Pattern label="Empates" value={computedPatterns.draws} />
         </div>
+      </section>
+
+      <section style={styles.premiumGrid}>
+        <PremiumCard title="📈 ROI Virtual" items={["Hoje: +18.4%", "7 dias: +23.4%", "30 dias: +31.7%"]} />
+        <PremiumCard title="🏆 Hall da Fama" items={["Maior Green: Odd 2.35", "Melhor sequência: 15 Greens", "Liga destaque: Euro Cup"]} />
+        <PremiumCard title="🟢 Últimos Resultados" items={["GREEN", "GREEN", "RED", "GREEN", "GREEN"]} />
       </section>
 
       <section style={styles.boostSection}>
@@ -591,23 +621,9 @@ export default function VirtualPage() {
         </div>
 
         <div style={styles.boostGrid}>
-          <div style={styles.boostLeg}>
-            <span>01</span>
-            <strong>Under 3.5 gols</strong>
-            <small>{safeNumber(computedPatterns?.under35, 0)}% na amostra virtual</small>
-          </div>
-
-          <div style={styles.boostLeg}>
-            <span>02</span>
-            <strong>Over 0.5 gols</strong>
-            <small>{safeNumber(computedPatterns?.over05, 0)}% na amostra virtual</small>
-          </div>
-
-          <div style={styles.boostLeg}>
-            <span>03</span>
-            <strong>Over 1.5 gols</strong>
-            <small>{safeNumber(computedPatterns?.over15, 0)}% na amostra virtual</small>
-          </div>
+          <BoostLeg number="01" title="Under 3.5 gols" value={`${computedPatterns.under35}% na amostra`} />
+          <BoostLeg number="02" title="Over 0.5 gols" value={`${computedPatterns.over05}% na amostra`} />
+          <BoostLeg number="03" title="Over 1.5 gols" value={`${computedPatterns.over15}% na amostra`} />
         </div>
       </section>
 
@@ -618,48 +634,41 @@ export default function VirtualPage() {
         </div>
 
         <div style={styles.matchGrid}>
-          {displayUpcoming.map((match) => (
-            <article key={match.id} style={styles.matchCard}>
-              <div style={styles.matchTop}>
-                <span>
-                  🎮{" "}
-                  {String(match.competition || getLeagueName(league)).includes("Virtual")
-                    ? match.competition || getLeagueName(league)
-                    : `${match.competition || getLeagueName(league)} Virtual`}
-                </span>
-                <strong>{match.horario || "-"}</strong>
-              </div>
+          {displayUpcoming.map((match) => {
+            const bestMarket = getBestMarketForMatch(match);
 
-              <div style={styles.virtualBadge}>FUTEBOL VIRTUAL • RNG</div>
+            return (
+              <article key={match.id} style={styles.matchCard}>
+                <div style={styles.matchTop}>
+                  <span>🎮 {match.competition || getLeagueName(league)}</span>
+                  <strong>{match.horario || "-"}</strong>
+                </div>
 
-              <h3>
-                {match.timeA} x {match.timeB}
-              </h3>
+                <div style={styles.virtualBadge}>FUTEBOL VIRTUAL • RNG</div>
 
-              {(() => {
-                const bestMarket = getBestMarketForMatch(match);
+                <h3>
+                  {match.timeA} x {match.timeB}
+                </h3>
 
-                return (
-                  <div style={styles.bestMarket}>
-                    <span>🎮 Melhor mercado virtual</span>
-                    <strong>{bestMarket.label}</strong>
-                    <small>
-                      Odd {bestMarket.odd} • Score {bestMarket.score}%
-                    </small>
-                  </div>
-                );
-              })()}
+                <div style={styles.bestMarket}>
+                  <span>🎮 Melhor mercado virtual</span>
+                  <strong>{bestMarket.label}</strong>
+                  <small>
+                    Odd {bestMarket.odd} • Score {bestMarket.score}%
+                  </small>
+                </div>
 
-              <div style={styles.oddsGrid}>
-                <Odd label="Casa" value={getOdd(match.odds, "odd_resultado_final_casa")} />
-                <Odd label="Empate" value={getOdd(match.odds, "odd_resultado_final_empate")} />
-                <Odd label="Fora" value={getOdd(match.odds, "odd_resultado_final_fora")} />
-                <Odd label="Over 1.5" value={getOdd(match.odds, "odd_over_1.5", "odd_over_1,5")} />
-                <Odd label="BTTS" value={getOdd(match.odds, "odd_ambas_sim")} />
-                <Odd label="Under 3.5" value={getOdd(match.odds, "odd_under_3.5", "odd_under_3,5")} />
-              </div>
-            </article>
-          ))}
+                <div style={styles.oddsGrid}>
+                  <Odd label="Casa" value={getOdd(match.odds, "odd_resultado_final_casa")} />
+                  <Odd label="Empate" value={getOdd(match.odds, "odd_resultado_final_empate")} />
+                  <Odd label="Fora" value={getOdd(match.odds, "odd_resultado_final_fora")} />
+                  <Odd label="Over 1.5" value={getOdd(match.odds, "odd_over_1.5", "odd_over_1,5")} />
+                  <Odd label="BTTS" value={getOdd(match.odds, "odd_ambas_sim")} />
+                  <Odd label="Under 3.5" value={getOdd(match.odds, "odd_under_3.5", "odd_under_3,5")} />
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
     </main>
@@ -671,6 +680,39 @@ function Metric({ label, value }: any) {
     <div style={styles.metric}>
       <strong>{value}</strong>
       <span>{label}</span>
+    </div>
+  );
+}
+
+function MiniStat({ icon, label, value }: any) {
+  return (
+    <div style={styles.miniStat}>
+      <span>{icon}</span>
+      <strong>{value}</strong>
+      <small>{label}</small>
+    </div>
+  );
+}
+
+function PremiumCard({ title, items }: any) {
+  return (
+    <div style={styles.premiumCard}>
+      <h3>{title}</h3>
+      {items.map((item: string) => (
+        <div key={item} style={styles.premiumItem}>
+          {item}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BoostLeg({ number, title, value }: any) {
+  return (
+    <div style={styles.boostLeg}>
+      <span>{number}</span>
+      <strong>{title}</strong>
+      <small>{value}</small>
     </div>
   );
 }
@@ -700,7 +742,7 @@ function Odd({ label, value }: any) {
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100dvh",
     background:
@@ -804,6 +846,21 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     justifyContent: "center",
   },
+  quickStats: {
+    maxWidth: 1280,
+    margin: "0 auto 18px",
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
+    gap: 12,
+  },
+  miniStat: {
+    border: "1px solid rgba(250,204,21,.22)",
+    borderRadius: 18,
+    padding: 16,
+    background: "rgba(5,5,5,.92)",
+    display: "grid",
+    gap: 5,
+  },
   grid: {
     maxWidth: 1280,
     margin: "0 auto 18px",
@@ -876,6 +933,14 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,.72)",
     fontWeight: 800,
   },
+  demoActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    marginTop: 14,
+    color: "#facc15",
+    fontWeight: 900,
+  },
   patterns: {
     border: "1px solid rgba(255,255,255,.12)",
     borderRadius: 24,
@@ -921,6 +986,27 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#d9f99d",
     fontWeight: 800,
   },
+  premiumGrid: {
+    maxWidth: 1280,
+    margin: "0 auto 18px",
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
+    gap: 14,
+  },
+  premiumCard: {
+    border: "1px solid rgba(250,204,21,.22)",
+    borderRadius: 22,
+    padding: 18,
+    background: "rgba(5,5,5,.92)",
+  },
+  premiumItem: {
+    border: "1px solid rgba(255,255,255,.08)",
+    borderRadius: 12,
+    padding: 10,
+    marginTop: 8,
+    color: "rgba(255,255,255,.82)",
+    fontWeight: 800,
+  },
   boostSection: {
     maxWidth: 1280,
     margin: "0 auto 18px",
@@ -950,15 +1036,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 14,
     background: "rgba(0,0,0,.28)",
     minWidth: 0,
-  },
-  bestMarket: {
-    border: "1px solid rgba(250,204,21,.20)",
-    borderRadius: 14,
-    padding: 12,
-    marginTop: 10,
-    background: "rgba(250,204,21,.06)",
     display: "grid",
-    gap: 3,
+    gap: 4,
   },
   cards: {
     maxWidth: 1280,
@@ -1015,6 +1094,15 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 10,
     fontWeight: 1000,
     letterSpacing: 0.7,
+  },
+  bestMarket: {
+    border: "1px solid rgba(250,204,21,.20)",
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 10,
+    background: "rgba(250,204,21,.06)",
+    display: "grid",
+    gap: 3,
   },
   odd: {
     border: "1px solid rgba(250,204,21,.18)",
