@@ -17,7 +17,6 @@ import { WhatsappWebModule } from './whatsapp-web/whatsapp-web.module';
 import { MarketingModule } from './marketing/marketing.module';
 import { PaymentsModule } from './payments/payments.module';
 
-/* ODDIX VIRTUAL */
 import { VirtualModule } from './virtual/virtual.module';
 
 @Module({
@@ -43,7 +42,6 @@ import { VirtualModule } from './virtual/virtual.module';
     MarketingModule,
     PaymentsModule,
 
-    /* ODDIX VIRTUAL */
     VirtualModule,
   ],
 })

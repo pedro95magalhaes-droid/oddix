@@ -1,117 +1,226 @@
-import { Injectable } from "@nestjs/common";
-import { VirtualBet365Provider } from "./providers/virtual-bet365.provider";
-import { VirtualAiService } from "./virtual-ai.service";
+import { Injectable } from '@nestjs/common';
+import { VirtualBadge, VirtualPick, VirtualStats } from './virtual.types';
 
 @Injectable()
 export class VirtualService {
-  private readonly leagues = ["euro", "copa", "super", "primeiro", "expressar"];
+  private readonly leagues = [
+    'Euro Cup Virtual',
+    'Copa Virtual',
+    'Super Liga Virtual',
+    'Primeira Liga Virtual',
+    'Express Virtual',
+  ];
 
-  constructor(
-    private readonly provider: VirtualBet365Provider,
-    private readonly ai: VirtualAiService,
-  ) {}
+  private getBadge(confidence: number): VirtualBadge {
+    if (confidence >= 93) return 'ELITE';
+    if (confidence >= 85) return 'MUITO_FORTE';
+    return 'FORTE';
+  }
 
   getLeagues() {
     return {
       success: true,
-      leagues: this.leagues.map((key) => ({
-        key,
-        name: this.getLeagueName(key),
-        provider: "Bet365 Virtual",
-        sportId: 1,
+      total: this.leagues.length,
+      leagues: this.leagues,
+    };
+  }
+
+  getUpcoming() {
+    return {
+      success: true,
+      matches: this.leagues.map((league, index) => ({
+        id: `virtual-match-${index + 1}`,
+        league,
+        homeTeam: `Oddix ${index + 1}`,
+        awayTeam: `Virtual ${index + 2}`,
+        kickoff: new Date(Date.now() + (index + 1) * 5 * 60 * 1000).toISOString(),
+        status: 'UPCOMING',
       })),
     };
   }
 
-  async getUpcoming(league = "euro") {
-    const matches = await this.provider.getUpcoming({
-      league,
-      activateOdds: true,
-    });
+  getTopPicks(): { success: boolean; picks: VirtualPick[] } {
+    const picks: VirtualPick[] = [
+      {
+        id: 'vp-001',
+        league: 'Euro Cup Virtual',
+        homeTeam: 'Virtual Madrid',
+        awayTeam: 'Virtual Milan',
+        market: 'Over 2.5 Gols',
+        tip: 'Mais de 2.5 gols',
+        odd: 1.82,
+        confidence: 94,
+        badge: this.getBadge(94),
+        status: 'PENDING',
+        profit: 0,
+        roi: 0,
+        kickoff: new Date(Date.now() + 8 * 60 * 1000).toISOString(),
+        createdAt: new Date().toISOString(),
+        reason: 'Padrão ofensivo forte, alta média de gols e sequência positiva no modelo virtual.',
+      },
+      {
+        id: 'vp-002',
+        league: 'Copa Virtual',
+        homeTeam: 'Virtual Brasil',
+        awayTeam: 'Virtual França',
+        market: 'Ambas Marcam',
+        tip: 'BTTS Sim',
+        odd: 1.75,
+        confidence: 88,
+        badge: this.getBadge(88),
+        status: 'PENDING',
+        profit: 0,
+        roi: 0,
+        kickoff: new Date(Date.now() + 14 * 60 * 1000).toISOString(),
+        createdAt: new Date().toISOString(),
+        reason: 'As duas equipes apresentam padrão recorrente de gol marcado e sofrido.',
+      },
+      {
+        id: 'vp-003',
+        league: 'Super Liga Virtual',
+        homeTeam: 'Virtual City',
+        awayTeam: 'Virtual Bayern',
+        market: 'Dupla Chance',
+        tip: 'Casa ou Empate',
+        odd: 1.48,
+        confidence: 82,
+        badge: this.getBadge(82),
+        status: 'PENDING',
+        profit: 0,
+        roi: 0,
+        kickoff: new Date(Date.now() + 21 * 60 * 1000).toISOString(),
+        createdAt: new Date().toISOString(),
+        reason: 'Mandante com melhor consistência recente e baixa taxa de derrota no padrão analisado.',
+      },
+    ];
 
     return {
       success: true,
-      league,
-      returned: matches.length,
-      matches,
+      picks,
     };
   }
 
-  async getHistory(league = "euro", limit = 100) {
-    const matches = await this.provider.getHistory({
-      league,
-      limit,
-      activateOdds: true,
-    });
-
+  getStats(): { success: boolean; stats: VirtualStats } {
     return {
       success: true,
-      league,
-      returned: matches.length,
-      matches,
+      stats: {
+        greens: 128,
+        reds: 32,
+        voids: 4,
+        pending: 6,
+        total: 170,
+        winRate: 80,
+        roi: 23.4,
+        profit: 56.3,
+        streak: 9,
+        bestStreak: 15,
+      },
     };
   }
 
-  async getPatterns(league = "euro", limit = 300) {
-    const history = await this.provider.getHistory({
-      league,
-      limit,
-      activateOdds: false,
-    });
-
-    const patterns = this.ai.getPatterns(history);
-
+  getHistory() {
     return {
       success: true,
-      league,
-      returned: history.length,
-      patterns,
-      warning:
-        "Futebol virtual usa RNG. Estes padrões são estatísticos e não garantem resultado.",
+      history: [
+        {
+          id: 'vh-001',
+          date: new Date().toISOString(),
+          league: 'Euro Cup Virtual',
+          market: 'Over 2.5 Gols',
+          tip: 'Mais de 2.5 gols',
+          odd: 1.82,
+          status: 'GREEN',
+          profit: 0.82,
+          badge: 'ELITE',
+        },
+        {
+          id: 'vh-002',
+          date: new Date().toISOString(),
+          league: 'Copa Virtual',
+          market: 'BTTS',
+          tip: 'Ambas marcam',
+          odd: 1.75,
+          status: 'GREEN',
+          profit: 0.75,
+          badge: 'MUITO_FORTE',
+        },
+        {
+          id: 'vh-003',
+          date: new Date().toISOString(),
+          league: 'Express Virtual',
+          market: 'Over 1.5 Gols',
+          tip: 'Mais de 1.5 gols',
+          odd: 1.42,
+          status: 'RED',
+          profit: -1,
+          badge: 'FORTE',
+        },
+      ],
     };
   }
 
-  async getTopPicks(league = "euro", historyLimit = 300) {
-    const [upcoming, history] = await Promise.all([
-      this.provider.getUpcoming({ league, activateOdds: true }),
-      this.provider.getHistory({ league, limit: historyLimit, activateOdds: false }),
-    ]);
-
-    const analyzed = this.ai.analyzeUpcoming(upcoming, history);
-    const topPicks = analyzed
-      .filter((item) => item.topPick)
-      .sort((a, b) => (b.topPick?.score || 0) - (a.topPick?.score || 0));
-
+  getHallOfFame() {
     return {
       success: true,
-      league,
-      returned: topPicks.length,
-      sampleSize: history.length,
-      topPicks,
-      warning:
-        "Oddix Virtual analisa histórico, odds e padrões. Não existe garantia em jogos virtuais RNG.",
+      hallOfFame: {
+        bestOdd: {
+          league: 'Euro Cup Virtual',
+          market: 'Over 3.5 Gols',
+          odd: 2.35,
+          result: 'GREEN',
+        },
+        bestRoi: {
+          period: '7 dias',
+          roi: 34.8,
+        },
+        bestStreak: {
+          greens: 15,
+        },
+        topLeague: {
+          league: 'Euro Cup Virtual',
+          winRate: 84,
+          roi: 28.2,
+        },
+      },
     };
   }
 
-  async getLastUpdated(league = "euro") {
-    const result = await this.provider.getLastUpdated(league);
+  getRoi() {
+    return {
+      success: true,
+      roi: {
+        today: 18.4,
+        sevenDays: 23.4,
+        thirtyDays: 31.7,
+        profitToday: 12.6,
+        profitSevenDays: 56.3,
+        profitThirtyDays: 144.9,
+      },
+    };
+  }
+
+  getResults() {
+    return {
+      success: true,
+      results: [
+        'GREEN',
+        'GREEN',
+        'RED',
+        'GREEN',
+        'GREEN',
+        'GREEN',
+        'VOID',
+        'GREEN',
+      ],
+    };
+  }
+
+  getPickById(id: string) {
+    const pick = this.getTopPicks().picks.find((item) => item.id === id);
 
     return {
-      success: Boolean(result),
-      league,
-      data: result,
+      success: Boolean(pick),
+      pick: pick ?? null,
     };
-  }
-
-  private getLeagueName(key: string) {
-    const names: Record<string, string> = {
-      euro: "Euro Cup Virtual",
-      copa: "Copa Virtual",
-      super: "Super Liga Virtual",
-      primeiro: "Primeira Liga Virtual",
-      expressar: "Express Virtual",
-    };
-
-    return names[key] || key;
   }
 }

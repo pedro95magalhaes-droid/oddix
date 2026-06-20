@@ -1,12 +1,10 @@
-import { Module } from "@nestjs/common";
-import { VirtualController } from "./virtual.controller";
-import { VirtualService } from "./virtual.service";
-import { VirtualAiService } from "./virtual-ai.service";
-import { VirtualBet365Provider } from "./providers/virtual-bet365.provider";
+import { Module } from '@nestjs/common';
+import { VirtualController } from './virtual.controller';
+import { VirtualService } from './virtual.service';
 
 @Module({
   controllers: [VirtualController],
-  providers: [VirtualService, VirtualAiService, VirtualBet365Provider],
-  exports: [VirtualService, VirtualAiService],
+  providers: [VirtualService],
+  exports: [VirtualService],
 })
 export class VirtualModule {}

@@ -1,46 +1,52 @@
-import { Controller, Get, Query } from "@nestjs/common";
-import { VirtualService } from "./virtual.service";
+import { Controller, Get, Param } from '@nestjs/common';
+import { VirtualService } from './virtual.service';
 
-@Controller("virtual")
+@Controller('virtual')
 export class VirtualController {
   constructor(private readonly virtualService: VirtualService) {}
 
-  @Get("leagues")
+  @Get('leagues')
   getLeagues() {
     return this.virtualService.getLeagues();
   }
 
-  @Get("upcoming")
-  getUpcoming(@Query("league") league = "euro") {
-    return this.virtualService.getUpcoming(league);
+  @Get('upcoming')
+  getUpcoming() {
+    return this.virtualService.getUpcoming();
   }
 
-  @Get("history")
-  getHistory(
-    @Query("league") league = "euro",
-    @Query("limit") limit = "100",
-  ) {
-    return this.virtualService.getHistory(league, Number(limit || 100));
+  @Get('top-picks')
+  getTopPicks() {
+    return this.virtualService.getTopPicks();
   }
 
-  @Get("patterns")
-  getPatterns(
-    @Query("league") league = "euro",
-    @Query("limit") limit = "300",
-  ) {
-    return this.virtualService.getPatterns(league, Number(limit || 300));
+  @Get('stats')
+  getStats() {
+    return this.virtualService.getStats();
   }
 
-  @Get("top-picks")
-  getTopPicks(
-    @Query("league") league = "euro",
-    @Query("historyLimit") historyLimit = "300",
-  ) {
-    return this.virtualService.getTopPicks(league, Number(historyLimit || 300));
+  @Get('history')
+  getHistory() {
+    return this.virtualService.getHistory();
   }
 
-  @Get("last-updated")
-  getLastUpdated(@Query("league") league = "euro") {
-    return this.virtualService.getLastUpdated(league);
+  @Get('hall-of-fame')
+  getHallOfFame() {
+    return this.virtualService.getHallOfFame();
+  }
+
+  @Get('roi')
+  getRoi() {
+    return this.virtualService.getRoi();
+  }
+
+  @Get('results')
+  getResults() {
+    return this.virtualService.getResults();
+  }
+
+  @Get('pick/:id')
+  getPickById(@Param('id') id: string) {
+    return this.virtualService.getPickById(id);
   }
 }
