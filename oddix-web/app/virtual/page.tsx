@@ -29,6 +29,7 @@ const DEMO_PICK = {
   homeTeam: "Virtual Madrid",
   awayTeam: "Virtual Milan",
   timeLabel: "12:05",
+  odds: {},
   topPick: {
     market: "Total de Gols",
     selection: "Over 2.5 Gols",
@@ -36,7 +37,7 @@ const DEMO_PICK = {
     score: 94,
     confidence: 94,
     reason:
-      "Pick demonstrativa baseada no padrão visual premium enquanto a API virtual está indisponível.",
+      "Pick demonstrativa usada apenas quando a API real não retorna Top Pick válido.",
   },
 };
 
@@ -150,7 +151,9 @@ function normalizeMatch(match: any, fallbackLeague = "euro") {
     ...match,
     id: String(
       match?.id ||
-        `${match?.timeA || match?.homeTeam}-${match?.timeB || match?.awayTeam}-${match?.horario || ""}`,
+        `${match?.timeA || match?.homeTeam}-${match?.timeB || match?.awayTeam}-${
+          match?.horario || ""
+        }`,
     ),
     competition:
       match?.competition ||
@@ -159,18 +162,53 @@ function normalizeMatch(match: any, fallbackLeague = "euro") {
       match?.league ||
       match?.liga ||
       getLeagueName(fallbackLeague),
-    timeA: match?.timeA || match?.homeTeam || match?.home || match?.casa || "Casa",
-    timeB: match?.timeB || match?.awayTeam || match?.away || match?.fora || "Fora",
+    timeA:
+      match?.timeA ||
+      match?.homeTeam ||
+      match?.home ||
+      match?.casa ||
+      "Casa",
+    timeB:
+      match?.timeB ||
+      match?.awayTeam ||
+      match?.away ||
+      match?.fora ||
+      "Fora",
     horario:
       match?.horario ||
       match?.timeLabel ||
+      match?.kickoff ||
       `${match?.hora || ""}:${match?.minuto || ""}`,
     odds,
   };
 }
 
 function normalizePick(pick: any) {
-  const topPick = pick?.topPick || pick?.top_pick || pick?.principal || null;
+  const directTopPick =
+    pick?.market || pick?.tip || pick?.selection || pick?.odd
+      ? {
+          market: pick?.market || pick?.mercado || "Mercado",
+          selection:
+            pick?.selection ||
+            pick?.selecao ||
+            pick?.escolha ||
+            pick?.tip ||
+            "Entrada",
+          odd: pick?.odd,
+          score: pick?.score ?? pick?.confidence,
+          confidence: pick?.confidence,
+          reason: pick?.reason,
+        }
+      : null;
+
+  const topPick =
+    pick?.topPick ||
+    pick?.top_pick ||
+    pick?.principal ||
+    pick?.bestPick ||
+    pick?.best_pick ||
+    directTopPick ||
+    null;
 
   const normalizedTopPick = topPick
     ? {
@@ -183,25 +221,41 @@ function normalizePick(pick: any) {
           topPick.tip ||
           "Entrada",
         odd: safeNumber(topPick.odd, 0),
-        score: safeNumber(topPick.score ?? topPick.pontuacao ?? topPick["pontuação"], 0),
+        score: safeNumber(
+          topPick.score ?? topPick.pontuacao ?? topPick["pontuação"] ?? topPick.confidence,
+          0,
+        ),
         confidence: safeNumber(
-          topPick.confidence ?? topPick.confianca ?? topPick["confiança"],
+          topPick.confidence ??
+            topPick.confianca ??
+            topPick["confiança"] ??
+            topPick.score,
           0,
         ),
         reason:
           topPick.reason ||
           topPick.motivo ||
+          pick?.reason ||
           "Padrão estatístico detectado pela IA Virtual.",
       }
     : null;
 
   return {
     ...pick,
-    id: String(pick?.id || `${pick?.homeTeam}-${pick?.awayTeam}-${pick?.timeLabel || ""}`),
+    id: String(
+      pick?.id ||
+        `${pick?.homeTeam || pick?.timeA}-${pick?.awayTeam || pick?.timeB}-${
+          pick?.timeLabel || ""
+        }`,
+    ),
     league: pick?.league || pick?.liga || pick?.competition || "virtual",
     homeTeam: pick?.homeTeam || pick?.timeA || pick?.casa || "Casa",
     awayTeam: pick?.awayTeam || pick?.timeB || pick?.fora || "Fora",
-    timeLabel: pick?.timeLabel || pick?.horario || `${pick?.hora || ""}:${pick?.minuto || ""}`,
+    timeLabel:
+      pick?.timeLabel ||
+      pick?.horario ||
+      pick?.kickoff ||
+      `${pick?.hora || ""}:${pick?.minuto || ""}`,
     topPick: normalizedTopPick,
     odds: normalizeOdds(pick?.odds || {}),
   };
@@ -296,11 +350,12 @@ export default function VirtualPage() {
       setLoading(true);
       setError("");
 
-      const [topResponse, patternResponse, upcomingResponse] = await Promise.allSettled([
-        api.get(`/virtual/top-picks?league=${league}&historyLimit=300`),
-        api.get(`/virtual/patterns?league=${league}&limit=300`),
-        api.get(`/virtual/upcoming?league=${league}`),
-      ]);
+      const [topResponse, patternResponse, upcomingResponse] =
+        await Promise.allSettled([
+          api.get(`/virtual/top-picks?league=${league}&historyLimit=300`),
+          api.get(`/virtual/patterns?league=${league}&limit=300`),
+          api.get(`/virtual/upcoming?league=${league}`),
+        ]);
 
       let normalizedTopPicks: any[] = [];
       let normalizedUpcoming: any[] = [];
@@ -335,7 +390,9 @@ export default function VirtualPage() {
           "data",
         ]);
 
-        normalizedUpcoming = rows.map((match: any) => normalizeMatch(match, league));
+        normalizedUpcoming = rows.map((match: any) =>
+          normalizeMatch(match, league),
+        );
       }
 
       if (!normalizedUpcoming.length && normalizedTopPicks.length) {
@@ -370,12 +427,17 @@ export default function VirtualPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [league]);
 
-  const demoMode = !loading && !topPicks.length && !upcoming.length;
-  const displayUpcoming = demoMode ? DEMO_UPCOMING : upcoming;
-  const bestPick = topPicks[0] || (demoMode ? DEMO_PICK : null);
+  const hasRealData = topPicks.length > 0 || upcoming.length > 0;
+  const hasValidTopPick = Boolean(topPicks[0]?.topPick);
+
+  const demoMode = !loading && !hasRealData;
+
+  const displayUpcoming = upcoming.length > 0 ? upcoming : DEMO_UPCOMING;
+  const bestPick = hasValidTopPick ? topPicks[0] : DEMO_PICK;
 
   const computedPatterns = useMemo(() => {
     if (patterns) return patterns;
+
     if (!topPicks.length) return DEMO_PATTERNS;
 
     const total = Math.max(topPicks.length, 1);
@@ -473,19 +535,20 @@ export default function VirtualPage() {
           <h1 style={styles.title}>Inteligência para Futebol Virtual Oddix</h1>
 
           <p style={styles.text}>
-            Análise estatística avançada, padrões recorrentes, odds inteligentes e Top Picks
-            gerados pela IA Oddix Virtual.
+            Análise estatística avançada, padrões recorrentes, odds inteligentes
+            e Top Picks gerados pela IA Oddix Virtual.
           </p>
 
           <div style={styles.heroBadge}>
-            🔥 +{computedPatterns.sampleSize} partidas analisadas • {computedPatterns.under35}%
-            Under 3.5 • {computedPatterns.over15}% Over 1.5
+            🔥 +{computedPatterns.sampleSize} partidas analisadas •{" "}
+            {computedPatterns.under35}% Under 3.5 • {computedPatterns.over15}%
+            Over 1.5
           </div>
 
           {demoMode ? (
             <div style={styles.demoBanner}>
-              🎮 MODO DEMONSTRAÇÃO • API indisponível no momento. Os dados reais serão
-              atualizados automaticamente quando a nova API virtual for conectada.
+              🎮 MODO DEMONSTRAÇÃO • API indisponível no momento. Os dados reais
+              serão atualizados automaticamente quando a API virtual responder.
             </div>
           ) : null}
 
@@ -528,7 +591,7 @@ export default function VirtualPage() {
       <section style={styles.grid}>
         <div style={styles.topPick}>
           <span style={styles.kicker}>
-            {demoMode ? "🎯 PICK DEMONSTRAÇÃO" : "🔥 TOP PICK DO MOMENTO"}
+            {hasValidTopPick ? "🔥 TOP PICK DO MOMENTO" : "🎯 PICK DEMONSTRAÇÃO"}
           </span>
 
           {bestPick?.topPick ? (
@@ -549,29 +612,41 @@ export default function VirtualPage() {
               <div style={styles.pickBox}>
                 <div style={styles.pickItem}>
                   <small style={styles.miniLabel}>Mercado</small>
-                  <strong style={styles.pickStrong}>{bestPick.topPick.selection}</strong>
+                  <strong style={styles.pickStrong}>
+                    {bestPick.topPick.selection}
+                  </strong>
                   <span style={styles.pickSub}>{bestPick.topPick.market}</span>
                 </div>
 
                 <div style={styles.pickItem}>
                   <small style={styles.miniLabel}>Odd</small>
-                  <strong style={styles.pickStrong}>{bestPick.topPick.odd || "-"}</strong>
+                  <strong style={styles.pickStrong}>
+                    {bestPick.topPick.odd || "-"}
+                  </strong>
                 </div>
 
                 <div style={styles.pickItem}>
                   <small style={styles.miniLabel}>Score</small>
-                  <strong style={styles.pickStrong}>{bestPick.topPick.score || 0}/100</strong>
+                  <strong style={styles.pickStrong}>
+                    {bestPick.topPick.score || 0}/100
+                  </strong>
                 </div>
 
                 <div style={styles.pickItem}>
                   <small style={styles.miniLabel}>IA</small>
-                  <strong style={styles.pickStrong}>ELITE</strong>
+                  <strong style={styles.pickStrong}>
+                    {(bestPick.topPick.confidence || 0) >= 93
+                      ? "ELITE"
+                      : (bestPick.topPick.confidence || 0) >= 85
+                        ? "MUITO FORTE"
+                        : "FORTE"}
+                  </strong>
                 </div>
               </div>
 
               <p style={styles.reason}>{bestPick.topPick.reason}</p>
 
-              {demoMode ? (
+              {!hasValidTopPick ? (
                 <div style={styles.demoActions}>
                   <span>📈 ROI Demo: +18.4%</span>
                   <span>🏆 Winrate: 80%</span>
@@ -606,9 +681,22 @@ export default function VirtualPage() {
       </section>
 
       <section style={styles.premiumGrid}>
-        <PremiumCard title="📈 ROI Virtual" items={["Hoje: +18.4%", "7 dias: +23.4%", "30 dias: +31.7%"]} />
-        <PremiumCard title="🏆 Hall da Fama" items={["Maior Green: Odd 2.35", "Melhor sequência: 15 Greens", "Liga destaque: Euro Cup"]} />
-        <PremiumCard title="🟢 Últimos Resultados" items={["GREEN", "GREEN", "RED", "GREEN", "GREEN"]} />
+        <PremiumCard
+          title="📈 ROI Virtual"
+          items={["Hoje: +18.4%", "7 dias: +23.4%", "30 dias: +31.7%"]}
+        />
+        <PremiumCard
+          title="🏆 Hall da Fama"
+          items={[
+            "Maior Green: Odd 2.35",
+            "Melhor sequência: 15 Greens",
+            "Liga destaque: Euro Cup",
+          ]}
+        />
+        <PremiumCard
+          title="🟢 Últimos Resultados"
+          items={["GREEN", "GREEN", "RED", "GREEN", "GREEN"]}
+        />
       </section>
 
       <section style={styles.boostSection}>
@@ -616,14 +704,27 @@ export default function VirtualPage() {
           <span style={styles.kicker}>⚡ ODDIX VIRTUAL BOOST</span>
           <h2 style={styles.boostTitle}>Combinação inteligente do momento</h2>
           <p style={styles.text}>
-            Seleção automática baseada nos padrões mais fortes da amostra recente.
+            Seleção automática baseada nos padrões mais fortes da amostra
+            recente.
           </p>
         </div>
 
         <div style={styles.boostGrid}>
-          <BoostLeg number="01" title="Under 3.5 gols" value={`${computedPatterns.under35}% na amostra`} />
-          <BoostLeg number="02" title="Over 0.5 gols" value={`${computedPatterns.over05}% na amostra`} />
-          <BoostLeg number="03" title="Over 1.5 gols" value={`${computedPatterns.over15}% na amostra`} />
+          <BoostLeg
+            number="01"
+            title="Under 3.5 gols"
+            value={`${computedPatterns.under35}% na amostra`}
+          />
+          <BoostLeg
+            number="02"
+            title="Over 0.5 gols"
+            value={`${computedPatterns.over05}% na amostra`}
+          />
+          <BoostLeg
+            number="03"
+            title="Over 1.5 gols"
+            value={`${computedPatterns.over15}% na amostra`}
+          />
         </div>
       </section>
 
@@ -659,12 +760,27 @@ export default function VirtualPage() {
                 </div>
 
                 <div style={styles.oddsGrid}>
-                  <Odd label="Casa" value={getOdd(match.odds, "odd_resultado_final_casa")} />
-                  <Odd label="Empate" value={getOdd(match.odds, "odd_resultado_final_empate")} />
-                  <Odd label="Fora" value={getOdd(match.odds, "odd_resultado_final_fora")} />
-                  <Odd label="Over 1.5" value={getOdd(match.odds, "odd_over_1.5", "odd_over_1,5")} />
+                  <Odd
+                    label="Casa"
+                    value={getOdd(match.odds, "odd_resultado_final_casa")}
+                  />
+                  <Odd
+                    label="Empate"
+                    value={getOdd(match.odds, "odd_resultado_final_empate")}
+                  />
+                  <Odd
+                    label="Fora"
+                    value={getOdd(match.odds, "odd_resultado_final_fora")}
+                  />
+                  <Odd
+                    label="Over 1.5"
+                    value={getOdd(match.odds, "odd_over_1.5", "odd_over_1,5")}
+                  />
                   <Odd label="BTTS" value={getOdd(match.odds, "odd_ambas_sim")} />
-                  <Odd label="Under 3.5" value={getOdd(match.odds, "odd_under_3.5", "odd_under_3,5")} />
+                  <Odd
+                    label="Under 3.5"
+                    value={getOdd(match.odds, "odd_under_3.5", "odd_under_3,5")}
+                  />
                 </div>
               </article>
             );
