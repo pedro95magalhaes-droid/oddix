@@ -28,44 +28,28 @@ export class ChatFootballService {
 
     const lastTicket = this.findLastTicket(history);
 
-    if (intent === 'EXPLAIN_LAST') {
-      return this.explainLastTicket(lastTicket);
-    }
-
-    if (intent === 'MORE_MARKETS') {
-      return this.addMoreMarkets(lastTicket);
-    }
-
-    if (intent === 'MAKE_SAFER') {
-      return this.makeTicketSafer(lastTicket);
-    }
-
-    if (intent === 'MAKE_AGGRESSIVE') {
-      return this.makeTicketAggressive(lastTicket);
-    }
+    if (intent === 'EXPLAIN_LAST') return this.explainLastTicket(lastTicket);
+    if (intent === 'MORE_MARKETS') return this.addMoreMarkets(lastTicket);
+    if (intent === 'MAKE_SAFER') return this.makeTicketSafer(lastTicket);
+    if (intent === 'MAKE_AGGRESSIVE') return this.makeTicketAggressive(lastTicket);
+    if (intent === 'RISK_EXPLAIN') return this.explainRisk(lastTicket);
+    if (intent === 'BANKROLL') return this.explainBankroll(message, lastTicket);
 
     switch (intent) {
       case 'MULTIPLE':
         return this.buildMultipleResponse(mode);
-
       case 'PLAYER_PROPS':
         return this.buildPlayerPropsResponse();
-
       case 'LIVE':
         return this.buildLiveResponse();
-
       case 'VIRTUAL':
         return this.buildVirtualResponse();
-
       case 'TOP_PICKS':
         return this.buildTopPicksResponse();
-
       case 'SIMPLE':
         return this.buildSimpleResponse();
-
       case 'ANALYZE':
         return this.buildAnalyzeResponse(message);
-
       default:
         return this.buildWelcomeResponse();
     }
@@ -73,6 +57,30 @@ export class ChatFootballService {
 
   private detectIntent(message: string): ChatIntent {
     const text = this.clean(message);
+
+    if (
+      text.includes('quanto ganho') ||
+      text.includes('quanto retorna') ||
+      text.includes('retorno') ||
+      text.includes('gestao') ||
+      text.includes('gestão') ||
+      text.includes('banca') ||
+      text.includes('com r$') ||
+      text.includes('com ') && text.includes(' reais')
+    ) {
+      return 'BANKROLL';
+    }
+
+    if (
+      text.includes('risco') ||
+      text.includes('arriscada') ||
+      text.includes('perigosa') ||
+      text.includes('ta boa') ||
+      text.includes('está boa') ||
+      text.includes('vale a pena')
+    ) {
+      return 'RISK_EXPLAIN';
+    }
 
     if (
       text.includes('explica') ||
@@ -109,7 +117,7 @@ export class ChatFootballService {
       text.includes('mais agressiva') ||
       text.includes('aumenta odd') ||
       text.includes('odd maior') ||
-      text.includes('arriscada')
+      text.includes('agressiva')
     ) {
       return 'MAKE_AGGRESSIVE';
     }
@@ -213,12 +221,14 @@ Posso fazer agora:
 📈 Analisar jogo ao vivo
 🎮 Analisar futebol virtual
 🏆 Encontrar Top Picks
+💰 Calcular retorno e gestão de banca
 
 Manda assim:
 "Monte uma múltipla segura"
 "Analisa Flamengo x Palmeiras"
 "Quero Player Props"
-"Explique a múltipla"`,
+"Quanto ganho com R$20?"
+"Essa múltipla está arriscada?"`,
     };
   }
 
@@ -316,11 +326,7 @@ Over 1.5 gols
     const baseSelections: ChatSelection[] = [
       {
         game: 'Espanha x Arábia Saudita',
-        markets: [
-          'Espanha vence',
-          'Over 1.5 gols',
-          'Lamine Yamal 1+ chute no gol',
-        ],
+        markets: ['Espanha vence', 'Over 1.5 gols', 'Lamine Yamal 1+ chute no gol'],
         odd: 1.88,
         confidence: 90,
         risk: 'MEDIO',
@@ -330,10 +336,7 @@ Over 1.5 gols
       },
       {
         game: 'Bélgica x Irã',
-        markets: [
-          'Over 1.5 gols',
-          'Jérémy Doku 1+ chute no gol',
-        ],
+        markets: ['Over 1.5 gols', 'Jérémy Doku 1+ chute no gol'],
         odd: 1.72,
         confidence: 84,
         risk: 'MEDIO',
@@ -343,10 +346,7 @@ Over 1.5 gols
       },
       {
         game: 'Uruguai x Cabo Verde',
-        markets: [
-          'Over 4.5 escanteios',
-          'Over 0.5 gol no 1º tempo',
-        ],
+        markets: ['Over 4.5 escanteios', 'Over 0.5 gol no 1º tempo'],
         odd: 1.61,
         confidence: 81,
         risk: 'MEDIO',
@@ -382,7 +382,7 @@ Over 1.5 gols
       {
         game: 'Bélgica x Irã',
         markets: ['Romelu Lukaku para marcar'],
-        odd: 1.80,
+        odd: 1.8,
         confidence: 81,
         risk: 'MEDIO_ALTO',
         seal: this.getSeal(81),
@@ -529,7 +529,13 @@ Aí depois você pode perguntar:
       intent: 'EXPLAIN_LAST',
       data: { ticket },
       answer:
-`Claro! 😄 Vou explicar a múltipla ponto por ponto.
+`🔥 Boa pergunta! Vou explicar essa múltipla ponto por ponto.
+
+📌 O objetivo aqui foi equilibrar:
+✅ segurança
+✅ valor
+✅ mercados de menor variância
+✅ alguns props com lógica ofensiva
 
 ${ticket.selections
   .map(
@@ -559,34 +565,29 @@ ${item.reason}`,
 ⚠️ Risco geral: ${ticket.risk}
 
 🔥 Resumo da IA:
-A múltipla foi montada buscando equilíbrio entre valor e segurança. Eu evitei mercados muito voláteis e priorizei gols, favoritos, escanteios e props com lógica ofensiva.`,
+A múltipla está bem montada, mas como tem várias seleções, eu não trataria como entrada conservadora. Para banca, eu usaria stake controlada.`,
     };
   }
 
   private addMoreMarkets(ticket: ChatTicket | null): ChatFootballResponse {
-    if (!ticket) {
-      return this.buildMultipleResponse('balanced');
-    }
+    if (!ticket) return this.buildMultipleResponse('balanced');
 
-    const upgraded: ChatTicket = {
-      ...ticket,
-      selections: ticket.selections.map((item, index) => ({
-        ...item,
-        markets: [
-          ...item.markets,
-          index === 0
-            ? 'Over 4.5 escanteios'
-            : index === 1
-              ? 'Over 0.5 cartões'
-              : 'Dupla chance 12',
-        ],
-        odd: Number((item.odd * 1.18).toFixed(2)),
-        confidence: Math.max(75, item.confidence - 3),
-        risk: item.risk === 'BAIXO' ? 'MEDIO' : item.risk,
-      })),
-    };
+    const upgradedSelections = ticket.selections.map((item, index) => ({
+      ...item,
+      markets: [
+        ...item.markets,
+        index === 0
+          ? 'Over 4.5 escanteios'
+          : index === 1
+            ? 'Over 0.5 cartões'
+            : 'Dupla chance 12',
+      ],
+      odd: Number((item.odd * 1.18).toFixed(2)),
+      confidence: Math.max(75, item.confidence - 3),
+      risk: item.risk === 'BAIXO' ? 'MEDIO' : item.risk,
+    }));
 
-    const recalculated = this.createTicket(upgraded.selections, 'multiple');
+    const recalculated = this.createTicket(upgradedSelections, 'multiple');
 
     return {
       success: true,
@@ -603,9 +604,7 @@ ${this.formatMultipleAnswer(recalculated, 'aggressive')}`,
   }
 
   private makeTicketSafer(ticket: ChatTicket | null): ChatFootballResponse {
-    if (!ticket) {
-      return this.buildMultipleResponse('safe');
-    }
+    if (!ticket) return this.buildMultipleResponse('safe');
 
     const saferSelections = ticket.selections
       .map((item) => ({
@@ -627,18 +626,103 @@ ${this.formatMultipleAnswer(recalculated, 'aggressive')}`,
       answer:
 `🛡️ Fechado! Deixei a múltipla mais segura.
 
-Removi mercados mais arriscados e mantive apenas os que têm maior confiança.
+Removi mercados mais arriscados e mantive apenas os de maior confiança.
 
 ${this.formatMultipleAnswer(saferTicket, 'safe')}`,
     };
   }
 
   private makeTicketAggressive(ticket: ChatTicket | null): ChatFootballResponse {
+    if (!ticket) return this.buildMultipleResponse('aggressive');
+    return this.addMoreMarkets(ticket);
+  }
+
+  private explainRisk(ticket: ChatTicket | null): ChatFootballResponse {
     if (!ticket) {
-      return this.buildMultipleResponse('aggressive');
+      return {
+        success: true,
+        intent: 'RISK_EXPLAIN',
+        answer:
+`⚠️ Ainda não tenho um bilhete anterior para avaliar o risco.
+
+Manda uma múltipla primeiro:
+"Monte uma múltipla segura"
+
+Depois pergunta:
+"Essa múltipla está arriscada?"`,
+      };
     }
 
-    return this.addMoreMarkets(ticket);
+    return {
+      success: true,
+      intent: 'RISK_EXPLAIN',
+      data: { ticket },
+      answer:
+`⚠️ Analisando o risco da múltipla...
+
+📊 Odd total: ${ticket.oddTotal.toFixed(2)}
+🤖 Confiança geral: ${ticket.confidence}%
+🔥 Status: ${ticket.status}
+
+Minha leitura:
+${ticket.confidence >= 87
+  ? '🟢 A múltipla está bem equilibrada. Ainda não é conservadora, mas está dentro de um risco aceitável.'
+  : ticket.confidence >= 80
+    ? '🟡 A múltipla é boa, mas tem risco médio-alto por ter várias seleções combinadas.'
+    : '🔴 A múltipla está agressiva. Eu só entraria com stake pequena.'}
+
+Pontos de atenção:
+${ticket.selections
+  .map((item) => `• ${item.game}: ${this.formatRisk(item.risk)} — ${item.confidence}%`)
+  .join('\n')}
+
+💡 Minha recomendação:
+Se sua banca for curta, eu deixaria mais segura.
+Se sua banca estiver confortável, entraria com valor controlado.`,
+    };
+  }
+
+  private explainBankroll(message: string, ticket: ChatTicket | null): ChatFootballResponse {
+    const amount = this.extractMoney(message) || 20;
+    const odd = ticket?.oddTotal || 5.21;
+    const potentialReturn = amount * odd;
+    const profit = potentialReturn - amount;
+
+    const conservative = Math.max(1, amount * 0.25);
+    const moderate = amount * 0.5;
+    const aggressive = amount;
+
+    return {
+      success: true,
+      intent: 'BANKROLL',
+      data: { amount, odd, potentialReturn, profit, ticket },
+      answer:
+`💰 Gestão Oddix IA
+
+Com R$${this.money(amount)}:
+
+📊 Odd usada: ${odd.toFixed(2)}
+💵 Retorno potencial: R$${this.money(potentialReturn)}
+📈 Lucro líquido: R$${this.money(profit)}
+
+Minha gestão recomendada:
+
+🟢 Entrada conservadora:
+R$${this.money(conservative)}
+
+🟡 Entrada moderada:
+R$${this.money(moderate)}
+
+🔴 Entrada agressiva:
+R$${this.money(aggressive)}
+
+⚠️ Regra Oddix:
+Valor menor = conservador.
+Valor médio = moderado.
+Valor total/maior = agressivo.
+
+🚨 Eu evitaria colocar mais de 3% da banca em uma múltipla, principalmente se tiver Player Props ou muitos mercados combinados.`,
+    };
   }
 
   private createTicket(selections: ChatSelection[], type: ChatTicket['type']): ChatTicket {
@@ -703,35 +787,42 @@ Quer que eu:
 🧠 explique a múltipla?
 🛡️ deixe mais segura?
 🚀 deixe mais agressiva?
-➕ adicione mais mercados?`;
+➕ adicione mais mercados?
+💰 calcule retorno e gestão?`;
   }
 
   private filterMultipleSelections(
     selections: ChatSelection[],
     mode: 'safe' | 'balanced' | 'aggressive',
   ) {
-    if (mode === 'safe') {
-      return selections.filter((item) => item.confidence >= 85).slice(0, 3);
-    }
-
-    if (mode === 'aggressive') {
-      return selections.filter((item) => item.confidence >= 75).slice(0, 6);
-    }
-
+    if (mode === 'safe') return selections.filter((item) => item.confidence >= 85).slice(0, 3);
+    if (mode === 'aggressive') return selections.filter((item) => item.confidence >= 75).slice(0, 6);
     return selections.filter((item) => item.confidence >= 80).slice(0, 4);
   }
 
   private findLastTicket(history: ChatHistoryMessage[]): ChatTicket | null {
     for (let index = history.length - 1; index >= 0; index -= 1) {
-      const data = history[index]?.data;
-      const ticket = data?.ticket;
-
-      if (ticket?.selections?.length) {
-        return ticket;
-      }
+      const ticket = history[index]?.data?.ticket;
+      if (ticket?.selections?.length) return ticket;
     }
 
     return null;
+  }
+
+  private extractMoney(message: string): number | null {
+    const normalized = String(message || '').replace(',', '.');
+    const match =
+      normalized.match(/r\$\s*(\d+(\.\d+)?)/i) ||
+      normalized.match(/(\d+(\.\d+)?)\s*reais/i) ||
+      normalized.match(/com\s+(\d+(\.\d+)?)/i);
+
+    const value = Number(match?.[1]);
+
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
+
+  private money(value: number) {
+    return Number(value || 0).toFixed(2).replace('.', ',');
   }
 
   private getSeal(confidence: number): ChatSeal {

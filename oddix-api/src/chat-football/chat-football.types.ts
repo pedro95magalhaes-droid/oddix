@@ -10,6 +10,8 @@ export type ChatIntent =
   | 'MORE_MARKETS'
   | 'MAKE_SAFER'
   | 'MAKE_AGGRESSIVE'
+  | 'RISK_EXPLAIN'
+  | 'BANKROLL'
   | 'GENERAL';
 
 export type ChatRisk = 'BAIXO' | 'MEDIO' | 'MEDIO_ALTO' | 'ALTO';
