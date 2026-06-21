@@ -3,6 +3,12 @@
 import { useState } from "react";
 import { api } from "../services/api";
 
+import { redirect } from "next/navigation";
+
+export default function Home() {
+  redirect("/chat");
+}
+
 const VIP_LINK = "https://chat.whatsapp.com/JQuwv77T1b8J6KMlXCEeRb";
 
 type AuthMode = "login" | "register";
