@@ -37,7 +37,11 @@ export interface ChatFootballResponse {
   success: boolean;
   intent: ChatIntent;
   answer: string;
-  data?: any;
+  data?: {
+    ticket?: ChatTicket;
+    suggestions?: string[];
+    [key: string]: any;
+  };
 }
 
 export interface ChatSelection {

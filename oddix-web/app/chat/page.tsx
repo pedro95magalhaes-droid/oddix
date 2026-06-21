@@ -5,6 +5,8 @@ import ChatSidebar from "../../components/chat/ChatSidebar";
 import ChatMessage from "../../components/chat/ChatMessage";
 import ChatInput from "../../components/chat/ChatInput";
 import QuickActions from "../../components/chat/QuickActions";
+import BetSlipCard from "../../components/chat/BetSlipCard";
+import SuggestedReplies from "../../components/chat/SuggestedReplies";
 import { sendChatMessage } from "../../services/chat.service";
 
 type Message = {
@@ -14,11 +16,9 @@ type Message = {
   data?: any;
 };
 
-const WELCOME = `🤖 Olá, Pedro!
+const WELCOME = `🤖 Fala, Pedro! Bora pra cima. 🔥
 
 Eu sou a Oddix IA.
-
-Sou especialista em futebol e apostas.
 
 Posso:
 
@@ -27,8 +27,9 @@ Posso:
 🔥 Montar múltiplas
 👤 Criar Player Props
 📈 Analisar jogos ao vivo
-🏆 Encontrar oportunidades de valor
+🏆 Encontrar oportunidades
 🎮 Futebol Virtual
+💰 Calcular retorno e gestão de banca
 
 O que você quer apostar hoje?`;
 
@@ -40,6 +41,15 @@ export default function ChatPage() {
       id: "welcome",
       role: "assistant",
       content: WELCOME,
+      data: {
+        suggestions: [
+          "🔥 Monte uma múltipla segura",
+          "🎯 Quero uma aposta simples",
+          "👤 Quero Player Props",
+          "📈 Analisar jogo ao vivo",
+          "🎮 Top Pick Virtual",
+        ],
+      },
     },
   ]);
 
@@ -55,55 +65,73 @@ export default function ChatPage() {
         id: "welcome",
         role: "assistant",
         content: WELCOME,
+        data: {
+          suggestions: [
+            "🔥 Monte uma múltipla segura",
+            "🎯 Quero uma aposta simples",
+            "👤 Quero Player Props",
+            "📈 Analisar jogo ao vivo",
+            "🎮 Top Pick Virtual",
+          ],
+        },
       },
     ]);
   }
 
   async function handleSend(text: string) {
-  const userMessage: Message = {
-    id: `user-${Date.now()}`,
-    role: "user",
-    content: text,
-  };
+    if (!text.trim() || loading) return;
 
-  const nextMessages = [...messages, userMessage];
-
-  setMessages(nextMessages);
-  setLoading(true);
-
-  try {
-    const chatHistory = nextMessages.map((item) => ({
-      role: item.role,
-      content: item.content,
-      data: item.data,
-    }));
-
-    const response = await sendChatMessage(text, "balanced", chatHistory);
-
-    const aiMessage: Message = {
-      id: `ai-${Date.now()}`,
-      role: "assistant",
-      content:
-        response?.answer ||
-        "Não consegui gerar uma resposta agora. Tente novamente.",
-      data: response?.data,
+    const userMessage: Message = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: text,
     };
 
-    setMessages((current) => [...current, aiMessage]);
-  } catch (error: any) {
-    setMessages((current) => [
-      ...current,
-      {
-        id: `error-${Date.now()}`,
+    const nextMessages = [...messages, userMessage];
+
+    setMessages(nextMessages);
+    setLoading(true);
+
+    try {
+      const chatHistory = nextMessages.map((item) => ({
+        role: item.role,
+        content: item.content,
+        data: item.data,
+      }));
+
+      const response = await sendChatMessage(text, "balanced", chatHistory);
+
+      const aiMessage: Message = {
+        id: `ai-${Date.now()}`,
         role: "assistant",
         content:
-          "⚠️ Não consegui conectar com a Oddix IA agora. Verifique se o backend está online.",
-      },
-    ]);
-  } finally {
-    setLoading(false);
+          response?.answer ||
+          "Não consegui gerar uma resposta agora. Tente novamente.",
+        data: response?.data,
+      };
+
+      setMessages((current) => [...current, aiMessage]);
+    } catch {
+      setMessages((current) => [
+        ...current,
+        {
+          id: `error-${Date.now()}`,
+          role: "assistant",
+          content:
+            "⚠️ Não consegui conectar com a Oddix IA agora. Verifique se o backend está online.",
+          data: {
+            suggestions: [
+              "🔄 Tentar novamente",
+              "🎯 Quero uma aposta simples",
+              "🔥 Monte uma múltipla segura",
+            ],
+          },
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
   return (
     <main style={styles.page}>
@@ -123,17 +151,27 @@ export default function ChatPage() {
         </header>
 
         <div style={styles.body}>
-          {messages.map((message) => (
-            <ChatMessage
-              key={message.id}
-              role={message.role}
-              content={message.content}
-            />
+          {messages.map((message, index) => (
+            <div key={message.id}>
+              <ChatMessage role={message.role} content={message.content} />
+
+              {message.role === "assistant" && message.data?.ticket ? (
+                <BetSlipCard ticket={message.data.ticket} />
+              ) : null}
+
+              {message.role === "assistant" && index === messages.length - 1 ? (
+                <SuggestedReplies
+                  suggestions={message.data?.suggestions}
+                  disabled={loading}
+                  onSelect={handleSend}
+                />
+              ) : null}
+            </div>
           ))}
 
           {loading && (
             <div style={styles.typing}>
-              🤖 Oddix IA está analisando mercados, odds e estatísticas...
+              🤖 Oddix IA está analisando mercados, odds, risco e gestão de banca...
             </div>
           )}
 
