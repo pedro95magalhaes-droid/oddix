@@ -19,6 +19,8 @@ import { PaymentsModule } from './payments/payments.module';
 
 import { VirtualModule } from './virtual/virtual.module';
 
+import { ChatFootballModule } from './chat-football/chat-football.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
