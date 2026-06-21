@@ -11,48 +11,75 @@ export type OddixAgentContext = {
   research?: ResearchResult | null;
 };
 
+type AgentSignal = {
+  score: number;
+  confidence: number;
+  risk: 'BAIXO' | 'MEDIO' | 'ALTO';
+  label: string;
+  reasons: string[];
+  markets: string[];
+};
+
 @Injectable()
 export class FootballAgentsService {
   buildTeamResearchAgent(context: OddixAgentContext) {
-    return `🧠 TeamResearchAgent
+    return `🧠 TeamResearchAgent V7
 
 Equipe analisada:
 ${context.teamName || 'Não identificada'}
 
-${this.buildFormAgent(context)}
+${this.buildTrendAgent(context)}
+
+${this.buildMomentumAgent(context)}
 
 ${this.buildHistoryAgent(context)}
 
 ${this.buildNewsSummaryAgent(context)}
 
-${this.buildBettingContextAgent(context)}`;
+${this.buildNewsImpactAgent(context)}
+
+${this.buildBettingContextAgent(context)}
+
+${this.buildFinalDecisionAgent(context)}`;
   }
 
   buildMatchResearchAgent(context: OddixAgentContext) {
     const home = context.homeTeam || context.fixture?.teams?.home?.name || 'Casa';
     const away = context.awayTeam || context.fixture?.teams?.away?.name || 'Fora';
 
-    return `⚽ MatchResearchAgent
+    return `⚽ MatchResearchAgent V7
 
 Jogo analisado:
 ${home} x ${away}
 
 ${this.buildH2HAgent(context)}
 
+${this.buildTrendAgent(context)}
+
+${this.buildMomentumAgent(context)}
+
 ${this.buildNewsSummaryAgent(context)}
+
+${this.buildNewsImpactAgent(context)}
 
 ${this.buildStatisticsAgent(context)}
 
-${this.buildPlayerResearchAgent(context)}
+${this.buildPlayerPropsAgent(context)}
 
-${this.buildBettingContextAgent(context)}`;
+${this.buildValueBetAgent(context)}
+
+${this.buildPredictionAgent(context)}
+
+${this.buildRecommendationAgent(context)}
+
+${this.buildFinalDecisionAgent(context)}`;
   }
 
   buildMatchDiscoveryAgent(context: OddixAgentContext) {
     const home = context.homeTeam || 'Time A';
     const away = context.awayTeam || 'Time B';
 
-    return `🔎 MatchDiscoveryAgent
+    return `🔎 MatchDiscoveryAgent V7
 
 Procurei por:
 ${home} x ${away}
@@ -64,11 +91,15 @@ ${this.buildH2HAgent(context)}
 
 ${this.buildNewsSummaryAgent(context)}
 
-⚠️ Status Oddix:
-Mesmo encontrando notícias ou contexto externo, não libero entrada oficial sem:
+${this.buildNewsImpactAgent(context)}
+
+🎯 Status Oddix:
+Mesmo encontrando notícias/contexto externo, não libero entrada oficial sem:
+
 ✅ partida na base Oddix
 ✅ odds reais
-✅ estatísticas reais`;
+✅ estatísticas reais
+✅ mercado disponível`;
   }
 
   buildNewsSummaryAgent(context: OddixAgentContext) {
@@ -103,7 +134,7 @@ Mesmo encontrando notícias ou contexto externo, não libero entrada oficial sem
 ${highlights}
 
 📌 Leitura rápida:
-As fontes externas ajudam a entender contexto, calendário, agenda, histórico e notícias, mas não substituem dados reais de odds e estatísticas.`;
+As fontes externas ajudam com contexto, agenda, notícias e histórico público, mas não substituem estatísticas reais e odds reais.`;
   }
 
   buildH2HAgent(context: OddixAgentContext) {
@@ -152,119 +183,256 @@ ${h2h
   .join('\n\n')}`;
   }
 
-  buildFormAgent(context: OddixAgentContext) {
+  buildTrendAgent(context: OddixAgentContext) {
     const fixtures = context.fixtures || [];
-    const team = this.normalize(context.teamName || '');
+    const home = this.normalize(context.homeTeam || context.teamName || '');
+    const away = this.normalize(context.awayTeam || '');
 
-    if (!fixtures.length || !team) {
-      return `📈 FormAgent:
-⚠️ Ainda não encontrei jogos suficientes para medir fase recente.`;
+    if (!fixtures.length) {
+      return `📊 TrendAgent:
+⚠️ Ainda não tenho jogos suficientes para medir tendência.`;
     }
 
-    const finished = fixtures
-      .filter((game) => this.isFinished(game))
-      .filter((game) => {
-        const home = this.normalize(game?.teams?.home?.name);
-        const away = this.normalize(game?.teams?.away?.name);
-        return home.includes(team) || away.includes(team);
-      })
-      .slice(-5);
+    const homeTrend = home ? this.calculateTeamTrend(fixtures, home) : null;
+    const awayTrend = away ? this.calculateTeamTrend(fixtures, away) : null;
 
-    if (!finished.length) {
-      return `📈 FormAgent:
-⚠️ Sem jogos finalizados suficientes na base Oddix.`;
+    if (!homeTrend && !awayTrend) {
+      return `📊 TrendAgent:
+⚠️ Não encontrei amostra suficiente para tendência recente.`;
     }
 
-    const form = finished.map((game) => this.getTeamResultEmoji(game, team)).join(' ');
-    const goals = this.calculateGoalsSummary(finished, team);
+    const homeText = homeTrend
+      ? `Casa/Equipe 1:
+Forma: ${homeTrend.form}
+⚽ Gols marcados: ${homeTrend.scored}
+🛡️ Gols sofridos: ${homeTrend.conceded}
+📈 Média gols pró: ${homeTrend.avgScored.toFixed(2)}
+📉 Média gols contra: ${homeTrend.avgConceded.toFixed(2)}`
+      : '';
 
-    return `📈 FormAgent — fase recente:
+    const awayText = awayTrend
+      ? `Fora/Equipe 2:
+Forma: ${awayTrend.form}
+⚽ Gols marcados: ${awayTrend.scored}
+🛡️ Gols sofridos: ${awayTrend.conceded}
+📈 Média gols pró: ${awayTrend.avgScored.toFixed(2)}
+📉 Média gols contra: ${awayTrend.avgConceded.toFixed(2)}`
+      : '';
 
-Forma:
-${form}
+    return `📊 TrendAgent — tendências recentes:
 
-Gols nos jogos encontrados:
-⚽ Marcados: ${goals.scored}
-🛡️ Sofridos: ${goals.conceded}
+${homeText}
+
+${awayText}
 
 Leitura:
-${this.describeForm(form)}`;
+${this.describeTrend(homeTrend, awayTrend)}`;
   }
 
-  buildHistoryAgent(context: OddixAgentContext) {
-    const fixtures = context.fixtures || [];
-    const team = this.normalize(context.teamName || '');
+  buildMomentumAgent(context: OddixAgentContext) {
+    const signal = this.calculateSignal(context);
 
-    if (!fixtures.length || !team) {
-      return `📊 HistoryAgent:
-⚠️ Ainda não encontrei jogos suficientes para montar histórico.`;
-    }
+    return `🔥 MomentumAgent:
 
-    const games = fixtures
-      .filter((game) => {
-        const home = this.normalize(game?.teams?.home?.name);
-        const away = this.normalize(game?.teams?.away?.name);
-        return home.includes(team) || away.includes(team);
-      })
-      .slice(0, 8);
+Pontuação de momento:
+${signal.score}/100
 
-    if (!games.length) {
-      return `📊 HistoryAgent:
-⚠️ Nenhum jogo recente/próximo encontrado para ${context.teamName}.`;
-    }
+Confiança:
+${signal.confidence}%
 
-    return `📊 HistoryAgent — jogos encontrados:
+Risco:
+${signal.risk}
 
-${games
-  .map((game, index) => {
-    const home = game?.teams?.home?.name || 'Casa';
-    const away = game?.teams?.away?.name || 'Fora';
-    const score = this.formatScore(game);
-    const status = game?.fixture?.status?.short || 'NS';
-    const date = this.formatDate(game?.fixture?.date);
-    const league = game?.league?.name || 'Liga não informada';
+Leitura:
+${signal.label}
 
-    return `${index + 1}️⃣ ${home} x ${away}
-🏆 ${league}
-📅 ${date}
-📌 Status: ${status}${score ? `\n⚽ Placar: ${score}` : ''}`;
-  })
-  .join('\n\n')}`;
+Fatores:
+${signal.reasons.length ? signal.reasons.map((r) => `• ${r}`).join('\n') : '• Aguardando mais dados reais.'}`;
   }
 
-  buildStatisticsAgent(context: OddixAgentContext) {
-    if (!context.statistics) {
-      return `📈 StatisticsAgent:
-⚠️ Estatísticas reais ainda não validadas.`;
+  buildPlayerPropsAgent(context: OddixAgentContext) {
+    const hasFixture = !!context.fixture;
+    const hasStats = !!context.statistics;
+
+    if (!hasFixture) {
+      return `👤 PlayerPropsAgent:
+⚠️ Preciso de uma partida válida para analisar jogadores.`;
     }
 
-    return `📈 StatisticsAgent:
-✅ Estatísticas reais recebidas.
-
-Posso avaliar:
-• gols
-• ambas marcam
-• dupla chance
-• escanteios
-• player props
-• risco da entrada`;
-  }
-
-  buildPlayerResearchAgent(context: OddixAgentContext) {
-    if (!context.fixture) {
-      return `👤 PlayerAgent:
-⚠️ Preciso de uma partida válida para buscar jogadores.`;
-    }
-
-    return `👤 PlayerAgent:
-⚠️ Aguardando escalações/player props reais para esta partida.
+    if (!hasStats) {
+      return `👤 PlayerPropsAgent:
+⚠️ Aguardando escalações, estatísticas e player props reais.
 
 Quando disponíveis, posso avaliar:
 • chutes no gol
-• jogador para marcar
 • finalizações
+• jogador para marcar
 • cartões
 • participação ofensiva`;
+    }
+
+    return `👤 PlayerPropsAgent:
+✅ Base estatística mínima encontrada.
+
+Mercados que podem ser avaliados:
+• 1+ chute no gol
+• 2+ finalizações
+• jogador para marcar
+• cartões
+• participação ofensiva
+
+⚠️ Ainda preciso validar odds reais antes de liberar entrada oficial.`;
+  }
+
+  buildValueBetAgent(context: OddixAgentContext) {
+    const hasStats = !!context.statistics;
+    const odds = this.extractOdds(context.fixture);
+
+    if (!hasStats) {
+      return `💰 ValueBetAgent:
+❌ Sem cálculo de valor.
+
+Motivo:
+Ainda não existem estatísticas reais suficientes para calcular odd justa.`;
+    }
+
+    if (!odds.length) {
+      return `💰 ValueBetAgent:
+⚠️ Estatísticas existem, mas odds reais ainda não foram localizadas.
+
+Sem odd real:
+❌ não calculo value bet
+❌ não libero bilhete`;
+    }
+
+    return `💰 ValueBetAgent:
+✅ Odds reais encontradas.
+
+Odds detectadas:
+${odds.map((odd) => `• ${odd.name}: ${odd.value.toFixed(2)}`).join('\n')}
+
+Próximo passo:
+Comparar odd real x odd justa estimada pela IA.`;
+  }
+
+  buildPredictionAgent(context: OddixAgentContext) {
+    const signal = this.calculateSignal(context);
+
+    if (!context.statistics) {
+      return `🔮 PredictionAgent:
+⚠️ Previsão bloqueada.
+
+Motivo:
+Sem estatísticas reais suficientes.
+
+Mercados que poderei prever quando liberar:
+• Over 1.5
+• Over 2.5
+• Ambas marcam
+• Dupla chance
+• Handicap seguro`;
+    }
+
+    const markets = signal.markets.length ? signal.markets : ['Over 1.5 gols', 'Dupla chance'];
+
+    return `🔮 PredictionAgent:
+✅ Dados mínimos encontrados.
+
+Mercados prováveis para análise:
+${markets.map((market) => `• ${market}`).join('\n')}
+
+Confiança preliminar:
+${signal.confidence}%
+
+Risco:
+${signal.risk}`;
+  }
+
+  buildRecommendationAgent(context: OddixAgentContext) {
+    const signal = this.calculateSignal(context);
+
+    if (!context.statistics) {
+      return `🎯 RecommendationAgent:
+❌ NÃO APOSTAR AGORA.
+
+Motivo:
+Sem estatísticas reais suficientes.
+
+Status:
+AGUARDAR DADOS.`;
+    }
+
+    if (signal.confidence < 80) {
+      return `🎯 RecommendationAgent:
+❌ NÃO APOSTAR.
+
+Motivo:
+Confiança abaixo do padrão Oddix.
+
+Confiança:
+${signal.confidence}%`;
+    }
+
+    return `🎯 RecommendationAgent:
+✅ POSSÍVEL ENTRADA EM ANÁLISE.
+
+Mercados candidatos:
+${signal.markets.map((market) => `• ${market}`).join('\n')}
+
+Confiança:
+${signal.confidence}%
+
+Risco:
+${signal.risk}
+
+⚠️ Entrada final depende das odds reais.`;
+  }
+
+  buildNewsImpactAgent(context: OddixAgentContext) {
+    const research = context.research;
+
+    if (!research?.items?.length) {
+      return `🗞️ NewsImpactAgent:
+⚠️ Sem notícias suficientes para medir impacto externo.`;
+    }
+
+    const text = this.normalize(
+      research.items
+        .map((item) => `${item.title} ${item.description}`)
+        .join(' '),
+    );
+
+    const impacts: string[] = [];
+
+    if (text.includes('lesao') || text.includes('lesionado') || text.includes('injury')) {
+      impacts.push('🚑 Possível impacto de lesões citado nas notícias.');
+    }
+
+    if (text.includes('suspenso') || text.includes('suspensao') || text.includes('suspensão')) {
+      impacts.push('🟥 Possível suspensão citada nas notícias.');
+    }
+
+    if (text.includes('convocacao') || text.includes('convocação') || text.includes('convocado')) {
+      impacts.push('📋 Notícias citam convocação/elenco.');
+    }
+
+    if (text.includes('treinador') || text.includes('tecnico') || text.includes('técnico')) {
+      impacts.push('🧠 Notícias citam treinador/comando técnico.');
+    }
+
+    if (text.includes('odds') || text.includes('palpite') || text.includes('apostas')) {
+      impacts.push('💰 Notícias citam odds/palpites externos — usar apenas como contexto.');
+    }
+
+    if (!impacts.length) {
+      impacts.push('🟡 Notícias encontradas, mas sem impacto claro em lesões, suspensões ou escalação.');
+    }
+
+    return `🗞️ NewsImpactAgent:
+
+${impacts.map((item) => `• ${item}`).join('\n')}
+
+⚠️ Impacto noticioso não libera entrada sozinho.`;
   }
 
   buildBettingContextAgent(context: OddixAgentContext) {
@@ -292,6 +460,154 @@ Mercados que podem ser avaliados:
 ⚠️ Entrada final depende das odds reais.`;
   }
 
+  buildFinalDecisionAgent(context: OddixAgentContext) {
+    const signal = this.calculateSignal(context);
+    const odds = this.extractOdds(context.fixture);
+
+    if (!context.statistics) {
+      return `🤖 FinalDecisionAgent:
+
+Decisão:
+❌ SEM ENTRADA
+
+Motivo:
+Sem estatísticas reais suficientes.
+
+Status:
+AGUARDANDO DADOS REAIS
+
+Confiança:
+0%
+
+Risco:
+ALTO`;
+    }
+
+    if (!odds.length) {
+      return `🤖 FinalDecisionAgent:
+
+Decisão:
+⚠️ AGUARDAR ODDS
+
+Motivo:
+Estatísticas encontradas, mas odds reais ainda não foram validadas.
+
+Confiança preliminar:
+${signal.confidence}%
+
+Risco:
+${signal.risk}`;
+    }
+
+    if (signal.confidence < 80) {
+      return `🤖 FinalDecisionAgent:
+
+Decisão:
+❌ SEM ENTRADA
+
+Motivo:
+Confiança abaixo do mínimo profissional Oddix.
+
+Confiança:
+${signal.confidence}%
+
+Risco:
+${signal.risk}`;
+    }
+
+    return `🤖 FinalDecisionAgent:
+
+Decisão:
+✅ ENTRADA CANDIDATA
+
+Melhores mercados:
+${signal.markets.map((market) => `• ${market}`).join('\n')}
+
+Confiança:
+${signal.confidence}%
+
+Risco:
+${signal.risk}
+
+Status:
+AGUARDANDO VALIDAÇÃO FINAL DAS ODDS`;
+  }
+
+  private calculateSignal(context: OddixAgentContext): AgentSignal {
+    let score = 50;
+    const reasons: string[] = [];
+    const markets: string[] = [];
+
+    if (context.statistics) {
+      score += 25;
+      reasons.push('Estatísticas reais disponíveis.');
+    } else {
+      reasons.push('Estatísticas reais ainda não validadas.');
+    }
+
+    const odds = this.extractOdds(context.fixture);
+
+    if (odds.length) {
+      score += 10;
+      reasons.push('Odds reais detectadas.');
+    } else {
+      reasons.push('Odds reais ainda não detectadas.');
+    }
+
+    const fixtures = context.fixtures || [];
+
+    if (fixtures.length >= 5) {
+      score += 8;
+      reasons.push('Amostra de jogos suficiente para leitura inicial.');
+    } else if (fixtures.length > 0) {
+      score += 4;
+      reasons.push('Poucos jogos encontrados para contexto.');
+    }
+
+    if (context.research?.items?.length) {
+      score += 5;
+      reasons.push('Notícias/contexto externo encontrados.');
+    }
+
+    if (score >= 75) markets.push('Over 1.5 gols');
+    if (score >= 82) markets.push('Dupla chance');
+    if (score >= 86) markets.push('Ambas marcam');
+    if (score >= 90) markets.push('Handicap seguro');
+
+    const confidence = Math.max(0, Math.min(95, score));
+    const risk: AgentSignal['risk'] =
+      confidence >= 88 ? 'BAIXO' : confidence >= 78 ? 'MEDIO' : 'ALTO';
+
+    const label =
+      confidence >= 88
+        ? '🔥 Cenário forte, mas ainda depende de odds reais.'
+        : confidence >= 78
+          ? '🟡 Cenário interessante, porém exige cautela.'
+          : '🔴 Cenário insuficiente para entrada profissional.';
+
+    return {
+      score,
+      confidence,
+      risk,
+      label,
+      reasons,
+      markets,
+    };
+  }
+
+  private extractOdds(fixture: any): { name: string; value: number }[] {
+    const options = fixture?.odds?.options || fixture?.odds || [];
+
+    if (!Array.isArray(options)) return [];
+
+    return options
+      .map((item: any) => ({
+        name: String(item?.name || item?.label || item?.market || 'Odd'),
+        value: Number(item?.odd || item?.value || item?.price || 0),
+      }))
+      .filter((item) => Number.isFinite(item.value) && item.value > 1);
+  }
+
   private extractH2HFromResearch(research?: ResearchResult | null) {
     if (!research?.items?.length) return '';
 
@@ -311,6 +627,45 @@ Mercados que podem ser avaliados:
 ${h2hItem.title}
 ${h2hItem.description || ''}
 ${h2hItem.source ? `Fonte: ${h2hItem.source}` : ''}`;
+  }
+
+  private calculateTeamTrend(games: any[], team: string) {
+    const finished = games
+      .filter((game) => this.isFinished(game))
+      .filter((game) => {
+        const home = this.normalize(game?.teams?.home?.name);
+        const away = this.normalize(game?.teams?.away?.name);
+        return home.includes(team) || away.includes(team);
+      })
+      .slice(-5);
+
+    if (!finished.length) return null;
+
+    const form = finished.map((game) => this.getTeamResultEmoji(game, team)).join(' ');
+    const goals = this.calculateGoalsSummary(finished, team);
+
+    return {
+      games: finished.length,
+      form,
+      scored: goals.scored,
+      conceded: goals.conceded,
+      avgScored: goals.scored / finished.length,
+      avgConceded: goals.conceded / finished.length,
+    };
+  }
+
+  private describeTrend(homeTrend: any, awayTrend: any) {
+    if (!homeTrend && !awayTrend) return 'Aguardando amostra maior.';
+
+    if (homeTrend && !awayTrend) return this.describeForm(homeTrend.form);
+    if (!homeTrend && awayTrend) return this.describeForm(awayTrend.form);
+
+    const homeBalance = homeTrend.avgScored - homeTrend.avgConceded;
+    const awayBalance = awayTrend.avgScored - awayTrend.avgConceded;
+
+    if (homeBalance > awayBalance + 0.5) return '🟢 Equipe 1 chega com tendência superior.';
+    if (awayBalance > homeBalance + 0.5) return '🟢 Equipe 2 chega com tendência superior.';
+    return '🟡 Tendência equilibrada entre os lados.';
   }
 
   private calculateGoalsSummary(games: any[], team: string) {
