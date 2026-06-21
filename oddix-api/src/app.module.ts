@@ -18,7 +18,6 @@ import { MarketingModule } from './marketing/marketing.module';
 import { PaymentsModule } from './payments/payments.module';
 
 import { VirtualModule } from './virtual/virtual.module';
-
 import { ChatFootballModule } from './chat-football/chat-football.module';
 
 @Module({
@@ -45,6 +44,7 @@ import { ChatFootballModule } from './chat-football/chat-football.module';
     PaymentsModule,
 
     VirtualModule,
+    ChatFootballModule,
   ],
 })
 export class AppModule {}
