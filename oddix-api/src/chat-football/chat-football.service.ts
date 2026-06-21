@@ -25,6 +25,9 @@ export class ChatFootballService {
       return this.waitingForRealData('GENERAL');
     }
 
+    const realAnalysis = await this.analyzeRealMatch(message, intent);
+    if (realAnalysis) return realAnalysis;
+
     if (intent === 'EXPLAIN_LAST') {
       if (!lastTicket) return this.waitingForRealData('EXPLAIN_LAST');
       return this.explainLastTicket(lastTicket);
@@ -44,6 +47,231 @@ export class ChatFootballService {
     }
 
     return this.waitingForRealData(intent);
+  }
+
+  private async analyzeRealMatch(
+    message: string,
+    intent: ChatIntent,
+  ): Promise<ChatFootballResponse | null> {
+    if (!this.footballService) return null;
+
+    const teams = this.extractTeams(message);
+    if (!teams) return null;
+
+    try {
+      const fixturesResponse: any = await this.footballService.getFixtures();
+      const fixtures = Array.isArray(fixturesResponse)
+        ? fixturesResponse
+        : fixturesResponse?.data || fixturesResponse?.fixtures || [];
+
+      const homeQuery = this.normalize(teams.home);
+      const awayQuery = this.normalize(teams.away);
+
+      const match = fixtures.find((item: any) => {
+        const home = this.normalize(item?.teams?.home?.name);
+        const away = this.normalize(item?.teams?.away?.name);
+
+        return (
+          (home.includes(homeQuery) && away.includes(awayQuery)) ||
+          (home.includes(awayQuery) && away.includes(homeQuery))
+        );
+      });
+
+      if (!match) {
+        return {
+          success: true,
+          intent,
+          answer:
+`📡 ODDIX IA — PARTIDA NÃO ENCONTRADA
+
+Não encontrei essa partida na base atual de jogos.
+
+Busca feita:
+⚽ ${teams.home} x ${teams.away}
+
+Status:
+⚠️ AGUARDANDO DADOS REAIS
+
+❌ Nenhuma entrada aprovada no momento.`,
+          data: {
+            waitingForData: true,
+            suggestions: this.waitingSuggestions(),
+          },
+        };
+      }
+
+      const fixtureId = String(match?.fixture?.id || '');
+
+      if (!fixtureId) {
+        return this.waitingForRealData(intent);
+      }
+
+      const statsResponse: any = await this.footballService.getStatistics(fixtureId);
+
+      const hasRealStats =
+        statsResponse?.ok === true ||
+        statsResponse?.success === true ||
+        statsResponse?.available === true ||
+        statsResponse?.data?.available === true ||
+        statsResponse?.data?.realStatsAvailable === true ||
+        statsResponse?.realStatsAvailable === true;
+
+      const stats = statsResponse?.data || statsResponse;
+
+      if (!hasRealStats) {
+        return {
+          success: true,
+          intent,
+          answer:
+`📡 ODDIX IA — AGUARDANDO DADOS REAIS
+
+Encontrei a partida:
+
+⚽ ${match?.teams?.home?.name || teams.home} x ${match?.teams?.away?.name || teams.away}
+🏆 ${match?.league?.name || 'Liga não informada'}
+
+Mas ainda não tenho estatísticas reais suficientes para gerar uma análise confiável.
+
+Para manter a qualidade da Oddix IA, eu não vou inventar palpite nem montar bilhete baseado em suposição.
+
+Status:
+⚠️ AGUARDANDO DADOS REAIS
+
+Para liberar uma entrada, preciso de:
+
+✅ Estatísticas reais
+✅ Odds reais
+✅ Dados recentes da partida
+✅ Mercado disponível
+✅ Confiança mínima da IA
+
+❌ Nenhuma entrada aprovada no momento.`,
+          data: {
+            waitingForData: true,
+            fixture: match,
+            suggestions: this.waitingSuggestions(),
+          },
+        };
+      }
+
+      return this.buildRealMatchAnalysis(match, stats, intent);
+    } catch (error: any) {
+      return {
+        success: true,
+        intent,
+        answer:
+`📡 ODDIX IA — AGUARDANDO DADOS REAIS
+
+Tentei buscar os dados reais desta partida, mas ainda não consegui validar estatísticas suficientes.
+
+Motivo técnico:
+${error?.message || 'Falha ao consultar dados reais'}
+
+❌ Nenhuma entrada aprovada no momento.`,
+        data: {
+          waitingForData: true,
+          suggestions: this.waitingSuggestions(),
+        },
+      };
+    }
+  }
+
+  private buildRealMatchAnalysis(
+    match: any,
+    stats: any,
+    intent: ChatIntent,
+  ): ChatFootballResponse {
+    const home = match?.teams?.home?.name || 'Casa';
+    const away = match?.teams?.away?.name || 'Fora';
+    const league = match?.league?.name || 'Liga não informada';
+
+    const oddOptions = match?.odds?.options || [];
+    const oddsText = oddOptions.length
+      ? oddOptions
+          .map((item: any) => `${item.name}: ${Number(item.odd || 0).toFixed(2)}`)
+          .join(' | ')
+      : 'Odds 1X2 ainda não disponíveis';
+
+    return {
+      success: true,
+      intent,
+      answer:
+`⚽ ANÁLISE REAL ODDIX IA
+
+Jogo:
+${home} x ${away}
+
+Liga:
+${league}
+
+📊 Estatísticas reais carregadas com sucesso.
+✅ A análise foi liberada porque existem dados reais disponíveis.
+
+Odds:
+${oddsText}
+
+Leitura inicial:
+🧠 A Oddix IA encontrou dados suficientes para avaliar mercados com mais segurança.
+
+Mercados que posso analisar agora:
+
+🎯 Aposta simples
+🔥 Múltipla
+👤 Player Props
+📈 Ao vivo
+💰 Gestão de banca
+
+Próximo passo:
+Peça assim:
+"Monte uma entrada para esse jogo"
+"Explique os melhores mercados"
+"Quero uma aposta simples"
+"Quero player props"`,
+      data: {
+        fixture: match,
+        statistics: stats,
+        suggestions: [
+          '🎯 Quero uma aposta simples',
+          '🔥 Monte uma múltipla segura',
+          '👤 Quero Player Props',
+          '💰 Quanto ganho com R$20?',
+          '⚠️ Essa entrada está arriscada?',
+        ],
+      },
+    };
+  }
+
+  private extractTeams(message: string) {
+    const cleaned = String(message || '')
+      .replace(/analisa/gi, '')
+      .replace(/analisar/gi, '')
+      .replace(/analise/gi, '')
+      .replace(/análise/gi, '')
+      .replace(/quero/gi, '')
+      .replace(/uma/gi, '')
+      .replace(/aposta/gi, '')
+      .replace(/simples/gi, '')
+      .replace(/segura/gi, '')
+      .trim();
+
+    const separators = [' x ', ' vs ', ' versus ', ' contra '];
+
+    for (const separator of separators) {
+      const normalized = cleaned.toLowerCase();
+
+      if (normalized.includes(separator)) {
+        const parts = normalized.split(separator);
+
+        if (parts[0]?.trim() && parts[1]?.trim()) {
+          return {
+            home: parts[0].trim(),
+            away: parts[1].trim(),
+          };
+        }
+      }
+    }
+
+    return null;
   }
 
   private detectIntent(message: string): ChatIntent {
@@ -311,7 +539,7 @@ ${ticket.selections
     };
   }
 
-    private explainBankroll(message: string, ticket: ChatTicket | null): ChatFootballResponse {
+  private explainBankroll(message: string, ticket: ChatTicket | null): ChatFootballResponse {
     const amount = this.extractMoney(message) || 20;
     const odd = ticket?.oddTotal || 1;
     const potentialReturn = amount * odd;
@@ -406,10 +634,17 @@ Valor total/maior = agressivo.
     return Number(value || 0).toFixed(2).replace('.', ',');
   }
 
-  private clean(value: string) {
+  private normalize(value: any) {
     return String(value || '')
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private clean(value: string) {
+    return this.normalize(value);
   }
 }
