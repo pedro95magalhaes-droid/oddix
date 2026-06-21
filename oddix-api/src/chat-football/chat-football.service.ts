@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { FootballService } from '../football/football.service';
 import type {
   ChatFootballRequest,
   ChatFootballResponse,
@@ -9,6 +10,11 @@ import type {
 
 @Injectable()
 export class ChatFootballService {
+  constructor(
+    @Optional()
+    private readonly footballService?: FootballService,
+  ) {}
+
   async handleMessage(payload: ChatFootballRequest): Promise<ChatFootballResponse> {
     const message = payload?.message || '';
     const history = payload?.history || [];
