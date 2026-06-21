@@ -11,6 +11,7 @@ type Message = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  data?: any;
 };
 
 const WELCOME = `🤖 Olá, Pedro!
@@ -59,41 +60,50 @@ export default function ChatPage() {
   }
 
   async function handleSend(text: string) {
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: text,
+  const userMessage: Message = {
+    id: `user-${Date.now()}`,
+    role: "user",
+    content: text,
+  };
+
+  const nextMessages = [...messages, userMessage];
+
+  setMessages(nextMessages);
+  setLoading(true);
+
+  try {
+    const chatHistory = nextMessages.map((item) => ({
+      role: item.role,
+      content: item.content,
+      data: item.data,
+    }));
+
+    const response = await sendChatMessage(text, "balanced", chatHistory);
+
+    const aiMessage: Message = {
+      id: `ai-${Date.now()}`,
+      role: "assistant",
+      content:
+        response?.answer ||
+        "Não consegui gerar uma resposta agora. Tente novamente.",
+      data: response?.data,
     };
 
-    setMessages((current) => [...current, userMessage]);
-    setLoading(true);
-
-    try {
-      const data = await sendChatMessage(text);
-
-      const aiMessage: Message = {
-        id: `ai-${Date.now()}`,
+    setMessages((current) => [...current, aiMessage]);
+  } catch (error: any) {
+    setMessages((current) => [
+      ...current,
+      {
+        id: `error-${Date.now()}`,
         role: "assistant",
         content:
-          data?.answer ||
-          "Não consegui gerar uma resposta agora. Tente novamente.",
-      };
-
-      setMessages((current) => [...current, aiMessage]);
-    } catch (error: any) {
-      setMessages((current) => [
-        ...current,
-        {
-          id: `error-${Date.now()}`,
-          role: "assistant",
-          content:
-            "⚠️ Não consegui conectar com a Oddix IA agora. Verifique se o backend está online.",
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
+          "⚠️ Não consegui conectar com a Oddix IA agora. Verifique se o backend está online.",
+      },
+    ]);
+  } finally {
+    setLoading(false);
   }
+}
 
   return (
     <main style={styles.page}>

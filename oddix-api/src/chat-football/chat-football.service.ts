@@ -1,17 +1,118 @@
 import { Injectable } from '@nestjs/common';
-import {
+import type {
   ChatFootballRequest,
   ChatFootballResponse,
+  ChatHistoryMessage,
   ChatIntent,
   ChatRisk,
   ChatSeal,
   ChatSelection,
+  ChatTicket,
 } from './chat-football.types';
 
 @Injectable()
 export class ChatFootballService {
+  async handleMessage(payload: ChatFootballRequest): Promise<ChatFootballResponse> {
+    const message = payload?.message || '';
+    const history = payload?.history || [];
+    const intent = this.detectIntent(message);
+    const mode = payload?.mode || this.detectMode(message);
+
+    if (!message.trim()) {
+      return {
+        success: false,
+        intent: 'GENERAL',
+        answer: 'Manda sua pergunta que a Oddix IA já analisa pra você. 🔥',
+      };
+    }
+
+    const lastTicket = this.findLastTicket(history);
+
+    if (intent === 'EXPLAIN_LAST') {
+      return this.explainLastTicket(lastTicket);
+    }
+
+    if (intent === 'MORE_MARKETS') {
+      return this.addMoreMarkets(lastTicket);
+    }
+
+    if (intent === 'MAKE_SAFER') {
+      return this.makeTicketSafer(lastTicket);
+    }
+
+    if (intent === 'MAKE_AGGRESSIVE') {
+      return this.makeTicketAggressive(lastTicket);
+    }
+
+    switch (intent) {
+      case 'MULTIPLE':
+        return this.buildMultipleResponse(mode);
+
+      case 'PLAYER_PROPS':
+        return this.buildPlayerPropsResponse();
+
+      case 'LIVE':
+        return this.buildLiveResponse();
+
+      case 'VIRTUAL':
+        return this.buildVirtualResponse();
+
+      case 'TOP_PICKS':
+        return this.buildTopPicksResponse();
+
+      case 'SIMPLE':
+        return this.buildSimpleResponse();
+
+      case 'ANALYZE':
+        return this.buildAnalyzeResponse(message);
+
+      default:
+        return this.buildWelcomeResponse();
+    }
+  }
+
   private detectIntent(message: string): ChatIntent {
     const text = this.clean(message);
+
+    if (
+      text.includes('explica') ||
+      text.includes('explique') ||
+      text.includes('porque') ||
+      text.includes('por que') ||
+      text.includes('motivo') ||
+      text.includes('entender a multipla') ||
+      text.includes('entender o bilhete')
+    ) {
+      return 'EXPLAIN_LAST';
+    }
+
+    if (
+      text.includes('mais mercado') ||
+      text.includes('mais mercados') ||
+      text.includes('adiciona mercado') ||
+      text.includes('coloca mais') ||
+      text.includes('inserir mercado')
+    ) {
+      return 'MORE_MARKETS';
+    }
+
+    if (
+      text.includes('mais segura') ||
+      text.includes('deixa segura') ||
+      text.includes('reduz risco') ||
+      text.includes('conservadora')
+    ) {
+      return 'MAKE_SAFER';
+    }
+
+    if (
+      text.includes('mais agressiva') ||
+      text.includes('aumenta odd') ||
+      text.includes('odd maior') ||
+      text.includes('arriscada')
+    ) {
+      return 'MAKE_AGGRESSIVE';
+    }
 
     if (
       text.includes('multipla') ||
@@ -34,18 +135,11 @@ export class ChatFootballService {
       return 'PLAYER_PROPS';
     }
 
-    if (
-      text.includes('ao vivo') ||
-      text.includes('live') ||
-      text.includes('tempo real')
-    ) {
+    if (text.includes('ao vivo') || text.includes('live') || text.includes('tempo real')) {
       return 'LIVE';
     }
 
-    if (
-      text.includes('virtual') ||
-      text.includes('futebol virtual')
-    ) {
+    if (text.includes('virtual') || text.includes('futebol virtual')) {
       return 'VIRTUAL';
     }
 
@@ -79,46 +173,6 @@ export class ChatFootballService {
     return 'GENERAL';
   }
 
-  async handleMessage(payload: ChatFootballRequest): Promise<ChatFootballResponse> {
-    const message = payload?.message || '';
-    const intent = this.detectIntent(message);
-    const mode = payload?.mode || this.detectMode(message);
-
-    if (!message.trim()) {
-      return {
-        success: false,
-        intent: 'GENERAL',
-        answer: 'Digite uma pergunta para a Oddix IA analisar.',
-      };
-    }
-
-    switch (intent) {
-      case 'MULTIPLE':
-        return this.buildMultipleResponse(mode);
-
-      case 'PLAYER_PROPS':
-        return this.buildPlayerPropsResponse();
-
-      case 'LIVE':
-        return this.buildLiveResponse();
-
-      case 'VIRTUAL':
-        return this.buildVirtualResponse();
-
-      case 'TOP_PICKS':
-        return this.buildTopPicksResponse();
-
-      case 'SIMPLE':
-        return this.buildSimpleResponse();
-
-      case 'ANALYZE':
-        return this.buildAnalyzeResponse(message);
-
-      default:
-        return this.buildWelcomeResponse();
-    }
-  }
-
   private detectMode(message: string): 'safe' | 'balanced' | 'aggressive' {
     const text = this.clean(message);
 
@@ -147,52 +201,63 @@ export class ChatFootballService {
       success: true,
       intent: 'GENERAL',
       answer:
-`🤖 Olá, eu sou a Oddix IA.
+`🤖 Fala, Pedro! Bora pra cima. 🔥
 
-Sou especializada em futebol e apostas.
+Eu sou a Oddix IA, seu assistente de futebol e apostas.
 
-Posso te ajudar com:
+Posso fazer agora:
 
-⚽ Analisar jogos
 🎯 Criar aposta simples
-🔥 Montar múltiplas
+🔥 Montar múltipla segura ou agressiva
 👤 Buscar Player Props
-📈 Analisar jogos ao vivo
+📈 Analisar jogo ao vivo
+🎮 Analisar futebol virtual
 🏆 Encontrar Top Picks
-🎮 Futebol Virtual
 
-Exemplos:
+Manda assim:
+"Monte uma múltipla segura"
 "Analisa Flamengo x Palmeiras"
-"Monta uma múltipla segura para hoje"
-"Quero player props"
-"Quero uma aposta simples"`,
+"Quero Player Props"
+"Explique a múltipla"`,
     };
   }
 
   private buildSimpleResponse(): ChatFootballResponse {
     const selection: ChatSelection = {
       game: 'Espanha x Arábia Saudita',
-      market: 'Over 1.5 gols',
+      markets: ['Over 1.5 gols'],
       odd: 1.35,
       confidence: 88,
       risk: 'BAIXO',
       seal: this.getSeal(88),
       reason:
-        'A IA encontrou padrão ofensivo forte, superioridade técnica e boa tendência de pelo menos dois gols.',
+        'A Espanha tem superioridade técnica, bom volume ofensivo e tendência forte de pelo menos dois gols no jogo.',
+    };
+
+    const ticket: ChatTicket = {
+      type: 'simple',
+      title: '🎯 APOSTA SIMPLES ODDIX IA',
+      oddTotal: selection.odd,
+      confidence: selection.confidence,
+      risk: 'Baixo',
+      status: 'APROVADA',
+      selections: [selection],
     };
 
     return {
       success: true,
       intent: 'SIMPLE',
-      data: selection,
+      data: { ticket },
       answer:
 `🎯 APOSTA SIMPLES ODDIX IA
+
+🔥 Encontrei uma entrada bem interessante!
 
 Jogo:
 ${selection.game}
 
 Mercado:
-${selection.market}
+✅ ${selection.markets[0]}
 
 Odd ideal:
 Acima de ${selection.odd.toFixed(2)}
@@ -206,10 +271,10 @@ ${this.formatRisk(selection.risk)}
 Selo:
 ${this.formatSeal(selection.seal)}
 
-📝 Análise:
+🧠 Por que gostei?
 ${selection.reason}
 
-✅ Status: ENTRADA APROVADA PELA IA`,
+✅ Entrada aprovada pela Oddix IA.`,
     };
   }
 
@@ -225,162 +290,141 @@ ${selection.reason}
 Jogo:
 ${game}
 
-✅ Melhor entrada:
-Over 1.5 gols
+🔥 Gostei mais destes mercados:
 
-Odd ideal:
-Acima de 1.35
-
-Confiança:
-87%
-
-Risco:
-Médio-Baixo
-
-Selo:
-🟢 SEGURA
-
-📊 Mercados aprovados:
 ✅ Over 1.5 gols — 87%
 ✅ Over 4.5 escanteios — 82%
 ✅ Ambas marcam — 78%
 ✅ Jogador destaque 1+ chute no gol — 80%
 
-❌ Mercados reprovados:
+❌ Eu evitaria:
 ❌ Placar correto
 ❌ Handicap muito esticado
 ❌ Over 3.5 gols sem odd de valor
 
-📝 Análise:
-A IA encontrou tendência de jogo aberto, volume ofensivo consistente e mercados de menor variância.
+🧠 Leitura da IA:
+Vejo tendência de jogo aberto, bom volume ofensivo e mercados com menor variância.
 
-✅ Status: ENTRADA APROVADA`,
+🏆 Melhor entrada:
+Over 1.5 gols
+
+✅ Status: APROVADA`,
     };
   }
 
   private buildMultipleResponse(mode: 'safe' | 'balanced' | 'aggressive'): ChatFootballResponse {
-    const selections: ChatSelection[] = [
+    const baseSelections: ChatSelection[] = [
       {
         game: 'Espanha x Arábia Saudita',
-        market: 'Espanha vence + Over 1.5 gols + Lamine Yamal 1+ chute no gol',
+        markets: [
+          'Espanha vence',
+          'Over 1.5 gols',
+          'Lamine Yamal 1+ chute no gol',
+        ],
         odd: 1.88,
         confidence: 90,
         risk: 'MEDIO',
         seal: this.getSeal(90),
         reason:
-          'Espanha tem superioridade técnica, bom volume ofensivo e Lamine Yamal costuma participar bastante das ações de ataque.',
+          'Espanha é superior tecnicamente, deve controlar o jogo e Yamal tem alto envolvimento ofensivo.',
       },
       {
         game: 'Bélgica x Irã',
-        market: 'Over 1.5 gols + Doku 1+ chute no gol',
+        markets: [
+          'Over 1.5 gols',
+          'Jérémy Doku 1+ chute no gol',
+        ],
         odd: 1.72,
         confidence: 84,
         risk: 'MEDIO',
         seal: this.getSeal(84),
         reason:
-          'Bélgica apresenta criação ofensiva forte. O mercado de chute no gol aumenta a odd, mas mantém boa lógica estatística.',
+          'Bélgica cria bastante, Doku acelera muito pelos lados e o cenário favorece finalizações.',
       },
       {
         game: 'Uruguai x Cabo Verde',
-        market: 'Over 4.5 escanteios + Over 0.5 gol no 1º tempo',
+        markets: [
+          'Over 4.5 escanteios',
+          'Over 0.5 gol no 1º tempo',
+        ],
         odd: 1.61,
         confidence: 81,
         risk: 'MEDIO',
         seal: this.getSeal(81),
         reason:
-          'A IA encontrou tendência de pressão, volume lateral e boa chance de início movimentado.',
+          'Uruguai tende a pressionar cedo, gerando escanteios e boas chances no primeiro tempo.',
       },
     ];
 
-    const filtered = this.filterMultipleSelections(selections, mode);
-    const oddTotal = filtered.reduce((acc, item) => acc * item.odd, 1);
-    const confidence = Math.round(
-      filtered.reduce((acc, item) => acc + item.confidence, 0) / filtered.length,
-    );
-
-    if (!filtered.length || confidence < 75) {
-      return {
-        success: true,
-        intent: 'MULTIPLE',
-        answer:
-`⚠️ SEM MÚLTIPLA SEGURA
-
-A Oddix IA analisou os mercados disponíveis, mas não encontrou seleções suficientes com qualidade.
-
-Critérios usados:
-✅ Confiança mínima
-✅ Odds com valor
-✅ Menor variância
-✅ Player Props com lógica estatística
-
-Recomendação:
-Aguardar novos jogos ou pedir uma aposta simples.`,
-      };
-    }
+    const selections = this.filterMultipleSelections(baseSelections, mode);
+    const ticket = this.createTicket(selections, 'multiple');
 
     return {
       success: true,
       intent: 'MULTIPLE',
-      data: {
-        selections: filtered,
-        oddTotal,
-        confidence,
-        mode,
-      },
-      answer: this.formatMultipleAnswer(filtered, oddTotal, confidence),
+      data: { ticket },
+      answer: this.formatMultipleAnswer(ticket, mode),
     };
   }
 
   private buildPlayerPropsResponse(): ChatFootballResponse {
+    const selections: ChatSelection[] = [
+      {
+        game: 'Espanha x Arábia Saudita',
+        markets: ['Lamine Yamal 1+ chute no gol'],
+        odd: 1.45,
+        confidence: 86,
+        risk: 'MEDIO',
+        seal: this.getSeal(86),
+        reason:
+          'Yamal participa muito das jogadas ofensivas e costuma finalizar quando recebe em zonas avançadas.',
+      },
+      {
+        game: 'Bélgica x Irã',
+        markets: ['Romelu Lukaku para marcar'],
+        odd: 1.80,
+        confidence: 81,
+        risk: 'MEDIO_ALTO',
+        seal: this.getSeal(81),
+        reason:
+          'Lukaku tem presença de área forte, mas o mercado de gol do jogador sempre tem variância maior.',
+      },
+    ];
+
+    const ticket = this.createTicket(selections, 'player_props');
+
     return {
       success: true,
       intent: 'PLAYER_PROPS',
+      data: { ticket },
       answer:
 `👤 PLAYER PROPS ODDIX IA
 
-A IA encontrou estes mercados de jogador com melhor valor:
+🔥 Achei props interessantes, mas aqui a IA precisa ser mais exigente.
 
-━━━━━━━━━━━━━━
-1️⃣ Lamine Yamal
-Jogo: Espanha x Arábia Saudita
+${selections
+  .map(
+    (item, index) => `━━━━━━━━━━━━━━
+${index + 1}️⃣ ${item.game}
 
-✅ Mercado:
-1+ chute no gol
-
-Odd ideal:
-Acima de 1.45
-
-Confiança:
-86%
-
-Selo:
-🟢 SEGURA
-
-📝 Análise:
-Jogador com alto envolvimento ofensivo, boa frequência de finalizações e tendência de enfrentar defesa recuada.
-
-━━━━━━━━━━━━━━
-2️⃣ Romelu Lukaku
-Jogo: Bélgica x Irã
-
-✅ Mercado:
-Para marcar
+✅ ${item.markets.join('\n✅ ')}
 
 Odd ideal:
-Acima de 1.80
+${item.odd.toFixed(2)}+
 
 Confiança:
-81%
+${item.confidence}%
 
 Selo:
-🟡 BOA
+${this.formatSeal(item.seal)}
 
-📝 Análise:
-Boa presença de área, mas mercado depende de finalização e tempo em campo.
+🧠 Análise:
+${item.reason}`,
+  )
+  .join('\n\n')}
 
-━━━━━━━━━━━━━━
-⚠️ Filtro Oddix:
-Player Props só são aprovadas quando a IA identifica boa chance de titularidade, minutos prováveis e estatística compatível.`,
+⚠️ Regra Oddix:
+Player Prop só passa quando existe boa chance de titularidade, minutos prováveis e padrão estatístico forte.`,
     };
   }
 
@@ -391,17 +435,17 @@ Player Props só são aprovadas quando a IA identifica boa chance de titularidad
       answer:
 `📈 AO VIVO ODDIX IA
 
-Para análise live, envie o jogo ou escolha um jogo ao vivo.
+🔥 Manda o jogo ao vivo que eu analiso pra você.
 
-A IA vai analisar:
+Eu vou olhar:
 
 ⚽ posse
-🥅 finalizações
-🎯 chutes no gol
+🎯 finalizações
+🥅 chutes no gol
 🚩 escanteios
 🟨 cartões
 🔥 pressão ofensiva
-⏱️ momento do jogo
+⏱️ minuto do jogo
 
 Exemplo:
 "Analisa ao vivo Flamengo x Palmeiras"`,
@@ -415,7 +459,9 @@ Exemplo:
       answer:
 `🎮 ODDIX VIRTUAL IA
 
-Mercados virtuais disponíveis:
+🔥 No virtual eu busco padrões repetitivos e mercados de menor variância.
+
+Mercados que analiso:
 
 ✅ Over 1.5 gols
 ✅ Over 2.5 gols
@@ -424,10 +470,9 @@ Mercados virtuais disponíveis:
 ✅ Dupla chance
 ✅ Virtual Boost
 
-Exemplo:
+Manda:
 "Monte uma múltipla virtual"
-"Quero top pick virtual"
-"Analisa Euro Cup Virtual"`,
+"Quero top pick virtual"`,
     };
   }
 
@@ -437,6 +482,8 @@ Exemplo:
       intent: 'TOP_PICKS',
       answer:
 `🏆 TOP PICKS ODDIX IA
+
+🔥 Separei as melhores entradas do momento:
 
 1️⃣ Espanha x Arábia Saudita
 ✅ Over 1.5 gols
@@ -453,39 +500,174 @@ Selo: 🟡 BOA
 Confiança: 80%
 Selo: 🟡 BOA
 
-✅ Todos passaram no filtro mínimo da IA.`,
+✅ Todas passaram no filtro mínimo da Oddix IA.`,
     };
   }
 
-  private filterMultipleSelections(
-    selections: ChatSelection[],
-    mode: 'safe' | 'balanced' | 'aggressive',
-  ) {
-    if (mode === 'safe') {
-      return selections.filter((item) => item.confidence >= 85).slice(0, 3);
+  private explainLastTicket(ticket: ChatTicket | null): ChatFootballResponse {
+    if (!ticket) {
+      return {
+        success: true,
+        intent: 'EXPLAIN_LAST',
+        answer:
+`Claro! 🔥
+
+Mas eu ainda não encontrei uma múltipla anterior nesta conversa.
+
+Manda:
+"Monte uma múltipla segura"
+
+Aí depois você pode perguntar:
+"Explica essa múltipla"
+"Deixa mais segura"
+"Adiciona mais mercados"`,
+      };
     }
 
-    if (mode === 'aggressive') {
-      return selections.filter((item) => item.confidence >= 75).slice(0, 6);
-    }
+    return {
+      success: true,
+      intent: 'EXPLAIN_LAST',
+      data: { ticket },
+      answer:
+`Claro! 😄 Vou explicar a múltipla ponto por ponto.
 
-    return selections.filter((item) => item.confidence >= 80).slice(0, 4);
+${ticket.selections
+  .map(
+    (item, index) => `━━━━━━━━━━━━━━
+${index + 1}️⃣ ${item.game}
+
+Mercados escolhidos:
+✅ ${item.markets.join('\n✅ ')}
+
+Confiança:
+${item.confidence}%
+
+Risco:
+${this.formatRisk(item.risk)}
+
+Selo:
+${this.formatSeal(item.seal)}
+
+🧠 Por que entrou?
+${item.reason}`,
+  )
+  .join('\n\n')}
+
+━━━━━━━━━━━━━━
+📊 Odd total: ${ticket.oddTotal.toFixed(2)}
+🤖 Confiança geral: ${ticket.confidence}%
+⚠️ Risco geral: ${ticket.risk}
+
+🔥 Resumo da IA:
+A múltipla foi montada buscando equilíbrio entre valor e segurança. Eu evitei mercados muito voláteis e priorizei gols, favoritos, escanteios e props com lógica ofensiva.`,
+    };
   }
 
-  private formatMultipleAnswer(
-    selections: ChatSelection[],
-    oddTotal: number,
-    confidence: number,
-  ) {
-    const risk = confidence >= 85 ? 'Médio' : 'Médio-Alto';
-    const status = confidence >= 75 ? 'APROVADA' : 'REPROVADA';
+  private addMoreMarkets(ticket: ChatTicket | null): ChatFootballResponse {
+    if (!ticket) {
+      return this.buildMultipleResponse('balanced');
+    }
 
-    const body = selections
+    const upgraded: ChatTicket = {
+      ...ticket,
+      selections: ticket.selections.map((item, index) => ({
+        ...item,
+        markets: [
+          ...item.markets,
+          index === 0
+            ? 'Over 4.5 escanteios'
+            : index === 1
+              ? 'Over 0.5 cartões'
+              : 'Dupla chance 12',
+        ],
+        odd: Number((item.odd * 1.18).toFixed(2)),
+        confidence: Math.max(75, item.confidence - 3),
+        risk: item.risk === 'BAIXO' ? 'MEDIO' : item.risk,
+      })),
+    };
+
+    const recalculated = this.createTicket(upgraded.selections, 'multiple');
+
+    return {
+      success: true,
+      intent: 'MORE_MARKETS',
+      data: { ticket: recalculated },
+      answer:
+`🔥 Boa! Adicionei mais mercados e recalculei a múltipla.
+
+⚠️ Aviso da IA:
+Mais mercados aumentam a odd, mas também aumentam o risco.
+
+${this.formatMultipleAnswer(recalculated, 'aggressive')}`,
+    };
+  }
+
+  private makeTicketSafer(ticket: ChatTicket | null): ChatFootballResponse {
+    if (!ticket) {
+      return this.buildMultipleResponse('safe');
+    }
+
+    const saferSelections = ticket.selections
+      .map((item) => ({
+        ...item,
+        markets: item.markets.slice(0, 1),
+        odd: Number(Math.max(1.25, item.odd * 0.72).toFixed(2)),
+        confidence: Math.min(96, item.confidence + 5),
+        risk: 'BAIXO' as ChatRisk,
+        seal: this.getSeal(Math.min(96, item.confidence + 5)),
+      }))
+      .filter((item) => item.confidence >= 85);
+
+    const saferTicket = this.createTicket(saferSelections, 'multiple');
+
+    return {
+      success: true,
+      intent: 'MAKE_SAFER',
+      data: { ticket: saferTicket },
+      answer:
+`🛡️ Fechado! Deixei a múltipla mais segura.
+
+Removi mercados mais arriscados e mantive apenas os que têm maior confiança.
+
+${this.formatMultipleAnswer(saferTicket, 'safe')}`,
+    };
+  }
+
+  private makeTicketAggressive(ticket: ChatTicket | null): ChatFootballResponse {
+    if (!ticket) {
+      return this.buildMultipleResponse('aggressive');
+    }
+
+    return this.addMoreMarkets(ticket);
+  }
+
+  private createTicket(selections: ChatSelection[], type: ChatTicket['type']): ChatTicket {
+    const oddTotal = selections.reduce((acc, item) => acc * item.odd, 1);
+    const confidence = Math.round(
+      selections.reduce((acc, item) => acc + item.confidence, 0) / Math.max(selections.length, 1),
+    );
+
+    return {
+      type,
+      title: type === 'simple' ? '🎯 APOSTA SIMPLES ODDIX IA' : '🔥 MÚLTIPLA ODDIX IA',
+      oddTotal: Number(oddTotal.toFixed(2)),
+      confidence,
+      risk: confidence >= 87 ? 'Médio' : confidence >= 80 ? 'Médio-Alto' : 'Alto',
+      status: confidence >= 75 ? 'APROVADA' : 'REPROVADA',
+      selections,
+    };
+  }
+
+  private formatMultipleAnswer(ticket: ChatTicket, mode: 'safe' | 'balanced' | 'aggressive') {
+    const modeLabel =
+      mode === 'safe' ? 'Conservadora' : mode === 'aggressive' ? 'Agressiva' : 'Balanceada';
+
+    const body = ticket.selections
       .map((item, index) => {
         return `━━━━━━━━━━━━━━
 ${index + 1}️⃣ ${item.game}
 ━━━━━━━━━━━━━━
-✅ ${item.market}
+✅ ${item.markets.join('\n✅ ')}
 
 Odd:
 ${item.odd.toFixed(2)}
@@ -506,16 +688,50 @@ ${item.reason}`;
 
     return `🔥 MÚLTIPLA ODDIX IA
 
-📊 Odd Total: ${oddTotal.toFixed(2)}
-🤖 Confiança Geral: ${confidence}%
-⚠️ Risco Geral: ${risk}
-🏆 Status: ${status}
+💎 Perfil: ${modeLabel}
+📊 Odd Total: ${ticket.oddTotal.toFixed(2)}
+🤖 Confiança Geral: ${ticket.confidence}%
+⚠️ Risco Geral: ${ticket.risk}
+🏆 Status: ${ticket.status}
 
 ${body}
 
 ━━━━━━━━━━━━━━
-✅ Múltipla aprovada pela Oddix IA.
-A IA analisou mercados de gols, resultado, escanteios, cartões e Player Props antes de montar o bilhete.`;
+✅ Bilhete aprovado pela Oddix IA.
+
+Quer que eu:
+🧠 explique a múltipla?
+🛡️ deixe mais segura?
+🚀 deixe mais agressiva?
+➕ adicione mais mercados?`;
+  }
+
+  private filterMultipleSelections(
+    selections: ChatSelection[],
+    mode: 'safe' | 'balanced' | 'aggressive',
+  ) {
+    if (mode === 'safe') {
+      return selections.filter((item) => item.confidence >= 85).slice(0, 3);
+    }
+
+    if (mode === 'aggressive') {
+      return selections.filter((item) => item.confidence >= 75).slice(0, 6);
+    }
+
+    return selections.filter((item) => item.confidence >= 80).slice(0, 4);
+  }
+
+  private findLastTicket(history: ChatHistoryMessage[]): ChatTicket | null {
+    for (let index = history.length - 1; index >= 0; index -= 1) {
+      const data = history[index]?.data;
+      const ticket = data?.ticket;
+
+      if (ticket?.selections?.length) {
+        return ticket;
+      }
+    }
+
+    return null;
   }
 
   private getSeal(confidence: number): ChatSeal {
