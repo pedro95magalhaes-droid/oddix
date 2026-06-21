@@ -207,7 +207,6 @@ export class ChatFootballService {
         .filter((game: any) => {
           const home = this.normalize(game?.teams?.home?.name);
           const away = this.normalize(game?.teams?.away?.name);
-
           return normalizedAliases.some((alias) => home.includes(alias) || away.includes(alias));
         })
         .sort((a: any, b: any) => {
@@ -521,16 +520,21 @@ ${error?.message || 'Falha ao consultar FootballService'}
       });
 
       if (!match) {
+        const discoveryAgent =
+          this.agentsService?.buildMatchDiscoveryAgent({
+            homeTeam: teams.home,
+            awayTeam: teams.away,
+            fixtures,
+            research,
+          }) || this.formatResearchBlock(research);
+
         return {
           success: true,
           intent,
           answer:
 `📡 PARTIDA NÃO ENCONTRADA
 
-Não encontrei na base Oddix:
-⚽ ${teams.home} x ${teams.away}
-
-${this.formatResearchBlock(research)}
+${discoveryAgent}
 
 ⚠️ Mesmo com notícias, não vou liberar palpite sem estatísticas e odds reais.`,
           data: {
@@ -557,6 +561,15 @@ ${this.formatResearchBlock(research)}
       const stats = statsResponse?.data || statsResponse;
 
       if (!hasRealStats) {
+        const matchAgent =
+          this.agentsService?.buildMatchResearchAgent({
+            homeTeam: match?.teams?.home?.name || teams.home,
+            awayTeam: match?.teams?.away?.name || teams.away,
+            fixtures,
+            fixture: match,
+            research,
+          }) || this.formatResearchBlock(research);
+
         return {
           success: true,
           intent,
@@ -566,9 +579,7 @@ ${this.formatResearchBlock(research)}
 Encontrei a partida. ✅
 🏆 ${match?.league?.name || 'Liga não informada'}
 
-Mas ainda não tenho estatísticas reais suficientes para liberar palpite.
-
-${this.formatResearchBlock(research)}
+${matchAgent}
 
 📡 Status:
 ⚠️ AGUARDANDO DADOS REAIS
@@ -583,7 +594,7 @@ ${this.formatResearchBlock(research)}
         };
       }
 
-      return this.buildRealMatchAnalysis(match, stats, intent, research);
+      return this.buildRealMatchAnalysis(match, fixtures, stats, intent, research);
     } catch (error: any) {
       return {
         success: true,
@@ -607,6 +618,7 @@ ${error?.message || 'Falha ao consultar dados reais'}
 
   private buildRealMatchAnalysis(
     match: any,
+    fixtures: any[],
     stats: any,
     intent: ChatIntent,
     research?: ResearchResult | null,
@@ -618,6 +630,7 @@ ${error?.message || 'Falha ao consultar dados reais'}
       this.agentsService?.buildMatchResearchAgent({
         homeTeam: home,
         awayTeam: away,
+        fixtures,
         fixture: match,
         statistics: stats,
         research,
