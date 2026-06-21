@@ -15,14 +15,27 @@ export class ChatFootballService {
     private readonly footballService?: FootballService,
   ) {}
 
-  async handleMessage(payload: ChatFootballRequest): Promise<ChatFootballResponse> {
-    const message = payload?.message || '';
-    const history = payload?.history || [];
+  async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
+    const message =
+      typeof payload === 'string'
+        ? payload
+        : String(
+            payload?.message ||
+              payload?.text ||
+              payload?.prompt ||
+              payload?.question ||
+              '',
+          );
+
+    const history: ChatHistoryMessage[] = Array.isArray(payload?.history)
+      ? payload.history
+      : [];
+
     const intent = this.detectIntent(message);
     const lastTicket = this.findLastTicket(history);
 
     if (!message.trim()) {
-      return this.waitingForRealData('GENERAL');
+      return this.buildRecommendationResponse();
     }
 
     if (intent === 'LIST_MATCHES') {
@@ -31,6 +44,10 @@ export class ChatFootballService {
 
     if (intent === 'ASK_RECOMMENDATION') {
       return this.buildRecommendationResponse();
+    }
+
+    if (intent === 'MULTIPLE') {
+      return this.buildMultipleRequestResponse();
     }
 
     if (this.shouldListGames(message)) {
@@ -93,6 +110,39 @@ Me diga algo como:
     };
   }
 
+  private buildMultipleRequestResponse(): ChatFootballResponse {
+    return {
+      success: true,
+      intent: 'MULTIPLE',
+      answer:
+`🔥 MÚLTIPLAS ODDIX IA
+
+Posso montar múltiplas, mas seguindo a regra profissional da Oddix:
+
+✅ Só uso jogos reais
+✅ Só libero entrada com estatísticas reais
+✅ Só monto bilhete com odds reais
+❌ Não vou inventar múltipla baseada em suposição
+
+Para eu montar uma múltipla agora, primeiro preciso carregar os jogos disponíveis.
+
+Clique em:
+🏆 Mostrar jogos de hoje
+
+Ou mande:
+"Mostrar jogos de hoje"`,
+      data: {
+        waitingForData: true,
+        suggestions: [
+          '🏆 Mostrar jogos de hoje',
+          '📈 Jogos ao vivo',
+          '🎮 Futebol Virtual',
+          '🎯 Quero uma aposta simples',
+        ],
+      },
+    };
+  }
+
   private shouldListGames(message: string) {
     const text = this.clean(message);
 
@@ -104,12 +154,10 @@ Me diga algo como:
       text.includes('lista jogos') ||
       text.includes('listar jogos') ||
       text.includes('jogos disponiveis') ||
-      text.includes('jogos disponíveis') ||
       text.includes('tem jogos') ||
       text.includes('tem partida') ||
       text.includes('tem partidas') ||
       text.includes('analise de partidas') ||
-      text.includes('análise de partidas') ||
       text.includes('analisar partidas') ||
       text === 'jogos' ||
       text === 'partidas'
@@ -185,7 +233,7 @@ Eu só libero palpite se tiver estatísticas reais e odds reais suficientes.`,
             '🔄 Atualizar jogos',
             '📈 Jogos ao vivo',
             '🎮 Futebol Virtual',
-            '🏆 Ver Top Picks',
+            '🔥 Monte uma múltipla segura',
           ],
         },
       };
@@ -445,7 +493,6 @@ Peça assim:
       text.includes('mostra jogos') ||
       text.includes('jogos de hoje') ||
       text.includes('analise de partidas') ||
-      text.includes('análise de partidas') ||
       text.includes('analisar partidas')
     ) {
       return 'LIST_MATCHES';
@@ -456,8 +503,7 @@ Peça assim:
       text.includes('tem jogo bom') ||
       text.includes('me indica uma entrada') ||
       text.includes('me recomenda uma aposta') ||
-      text.includes('quero uma recomendacao') ||
-      text.includes('quero uma recomendação')
+      text.includes('quero uma recomendacao')
     ) {
       return 'ASK_RECOMMENDATION';
     }
@@ -467,7 +513,6 @@ Peça assim:
       text.includes('quanto retorna') ||
       text.includes('retorno') ||
       text.includes('gestao') ||
-      text.includes('gestão') ||
       text.includes('banca') ||
       text.includes('com r$') ||
       (text.includes('com ') && text.includes(' reais'))
@@ -480,7 +525,6 @@ Peça assim:
       text.includes('arriscada') ||
       text.includes('perigosa') ||
       text.includes('ta boa') ||
-      text.includes('está boa') ||
       text.includes('vale a pena')
     ) {
       return 'RISK_EXPLAIN';
@@ -523,15 +567,11 @@ Peça assim:
 
     if (
       text.includes('multipla') ||
-      text.includes('múltipla') ||
       text.includes('bilhete') ||
       text.includes('combinada') ||
       text.includes('tem multipla') ||
-      text.includes('tem múltipla') ||
       text.includes('tem multiplas') ||
-      text.includes('tem múltiplas') ||
-      text.includes('me mostra uma multipla') ||
-      text.includes('me mostra uma múltipla')
+      text.includes('me mostra uma multipla')
     ) {
       return 'MULTIPLE';
     }
@@ -541,7 +581,6 @@ Peça assim:
       text.includes('jogador') ||
       text.includes('chute') ||
       text.includes('finalizacao') ||
-      text.includes('finalização') ||
       text.includes('marca gol') ||
       text.includes('para marcar')
     ) {
@@ -583,7 +622,6 @@ Peça assim:
       text.includes('analisa') ||
       text.includes('analisar') ||
       text.includes('analise') ||
-      text.includes('análise') ||
       text.includes(' x ') ||
       text.includes(' vs ')
     ) {
