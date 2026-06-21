@@ -9,11 +9,6 @@ type AuthMode = "login" | "register";
 type Plan = "Free" | "Pro" | "Vip";
 
 export default function Home() {
-
-type AuthMode = "login" | "register";
-type Plan = "Free" | "Pro" | "Vip";
-
-export default function Home() {
   const [authOpen, setAuthOpen] = useState(false);
   const [mode, setMode] = useState<AuthMode>("register");
   const [selectedPlan, setSelectedPlan] = useState<Plan>("Free");
