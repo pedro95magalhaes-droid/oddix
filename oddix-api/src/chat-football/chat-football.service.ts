@@ -1,6 +1,7 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { FootballService } from '../football/football.service';
 import { FootballResearchService, ResearchResult } from './football-research.service';
+import { FootballAgentsService } from './football-agents.service';
 import type {
   ChatFootballRequest,
   ChatFootballResponse,
@@ -25,6 +26,9 @@ export class ChatFootballService {
 
     @Optional()
     private readonly researchService?: FootballResearchService,
+
+    @Optional()
+    private readonly agentsService?: FootballAgentsService,
   ) {}
 
   async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
@@ -122,7 +126,6 @@ export class ChatFootballService {
     ];
 
     const hasTrigger = naturalTriggers.some((trigger) => text.includes(this.clean(trigger)));
-
     const aliases = this.teamAliases();
 
     for (const [canonical, names] of Object.entries(aliases)) {
@@ -213,20 +216,28 @@ export class ChatFootballService {
           return da - db;
         });
 
+      const teamAgent =
+        this.agentsService?.buildTeamResearchAgent({
+          teamName,
+          fixtures: teamGames,
+          research,
+        }) || this.formatResearchBlock(research);
+
       if (!teamGames.length) {
         return {
           success: true,
           intent: 'ANALYZE',
           answer:
-`🧠 ODDIX IA — PESQUISA DA EQUIPE
+`🔥 ODDIX IA — PESQUISA DA EQUIPE
 
-Procurei por:
+Você perguntou sobre:
 ${teamName}
 
+${teamAgent}
+
+━━━━━━━━━━━━━━
 📊 Base Oddix:
 Ainda não encontrei jogos dessa equipe na janela de partidas recentes/próximas.
-
-${this.formatResearchBlock(research)}
 
 ⚠️ Regra Oddix:
 Mesmo com notícias, eu só libero palpite quando houver estatísticas reais + odds reais.
@@ -245,31 +256,8 @@ Mesmo com notícias, eu só libero palpite quando houver estatísticas reais + o
         };
       }
 
-      const finishedGames = teamGames.filter((game: any) => this.isFinished(game)).slice(-5);
       const nextGame =
         teamGames.find((game: any) => !this.isFinished(game)) || teamGames[teamGames.length - 1];
-      const statsBlock = await this.tryGetGameStats(nextGame);
-
-      const gamesText = teamGames
-        .slice(0, 8)
-        .map((game: any, index: number) => {
-          const home = game?.teams?.home?.name || 'Casa';
-          const away = game?.teams?.away?.name || 'Fora';
-          const league = game?.league?.name || 'Liga não informada';
-          const status = game?.fixture?.status?.short || 'NS';
-          const score = this.formatScore(game);
-          const kickoff = this.formatKickoff(game?.fixture?.date);
-
-          return `${index + 1}️⃣ ${home} x ${away}
-🏆 ${league}
-⏰ ${kickoff}
-📌 Status: ${status}${score ? `\n⚽ Placar: ${score}` : ''}`;
-        })
-        .join('\n\n');
-
-      const recentForm = finishedGames.length
-        ? finishedGames.map((game: any) => this.getTeamResultEmoji(game, teamName)).join(' ')
-        : 'aguardando jogos finalizados na base';
 
       return {
         success: true,
@@ -277,10 +265,7 @@ Mesmo com notícias, eu só libero palpite quando houver estatísticas reais + o
         answer:
 `🔥 ODDIX IA — VISÃO DA EQUIPE
 
-Você perguntou sobre:
-${teamName}
-
-Busquei dados reais da base Oddix e também fiz pesquisa externa. ✅
+${teamAgent}
 
 ━━━━━━━━━━━━━━
 📅 Jogo de referência:
@@ -290,29 +275,14 @@ ${nextGame?.teams?.home?.name || 'Casa'} x ${nextGame?.teams?.away?.name || 'For
 📌 Status: ${nextGame?.fixture?.status?.short || 'NS'}
 
 ━━━━━━━━━━━━━━
-📊 Forma recente:
-${recentForm}
-
-━━━━━━━━━━━━━━
-📋 Jogos encontrados:
-
-${gamesText}
-
-━━━━━━━━━━━━━━
-${statsBlock}
-
-━━━━━━━━━━━━━━
-${this.formatResearchBlock(research)}
-
-━━━━━━━━━━━━━━
 ⚠️ Regra Oddix:
 Notícias ajudam contexto, mas palpite só sai com estatísticas reais e odds reais.
 
 ✅ Posso fazer agora:
 🎯 analisar o jogo de referência
-🔥 procurar múltipla com jogos reais
-👤 avaliar Player Props se houver dados
-💰 calcular retorno e gestão`,
+🔥 procurar múltiplas
+👤 avaliar Player Props
+💰 calcular retorno`,
         data: {
           fixture: nextGame,
           fixtures: teamGames,
@@ -433,171 +403,6 @@ ${items}`;
       seen.add(id);
       return true;
     });
-  }
-
-  private async tryGetGameStats(game: any) {
-    try {
-      const fixtureId = String(game?.fixture?.id || '');
-
-      if (!fixtureId || !this.footballService) {
-        return '📊 Estatísticas detalhadas: aguardando fixture válido.';
-      }
-
-      const statsResponse: any = await this.footballService.getStatistics(fixtureId);
-
-      const hasStats =
-        statsResponse?.ok === true ||
-        statsResponse?.success === true ||
-        statsResponse?.available === true ||
-        statsResponse?.data?.available === true ||
-        statsResponse?.data?.realStatsAvailable === true ||
-        statsResponse?.realStatsAvailable === true;
-
-      if (!hasStats) {
-        return `📊 Estatísticas detalhadas:
-⚠️ Ainda aguardando estatísticas reais suficientes.
-
-❌ Sem estatística real = sem palpite.`;
-      }
-
-      return `📊 Estatísticas detalhadas:
-✅ Dados reais encontrados para esta partida.
-
-Agora posso avaliar:
-🎯 gols
-🔥 dupla chance
-📈 ambas marcam
-🚩 escanteios
-👤 player props
-⚠️ risco da entrada`;
-    } catch {
-      return `📊 Estatísticas detalhadas:
-⚠️ Não consegui validar estatísticas agora.`;
-    }
-  }
-
-  private buildSmartRecommendation(): ChatFootballResponse {
-    return {
-      success: true,
-      intent: 'ASK_RECOMMENDATION',
-      answer:
-`🔥 Fala, Pedro! Bora caçar valor com calma.
-
-Agora a Oddix IA trabalha assim:
-
-1️⃣ entende sua pergunta
-2️⃣ busca jogos reais
-3️⃣ pesquisa notícias/contexto
-4️⃣ tenta validar estatísticas e odds
-5️⃣ só libera entrada se tiver dados suficientes
-
-Você pode perguntar naturalmente:
-
-🇪🇸 "Como está a seleção da Espanha?"
-🇧🇷 "Como está seleção do Brasil?"
-🇺🇾 "Me fale do Uruguai"
-🏆 "Mostrar jogos de hoje"
-🔥 "Tem múltiplas?"
-🎯 "Qual melhor entrada?"
-💰 "Quanto ganho com R$20?"`,
-      data: {
-        suggestions: [
-          '🏆 Mostrar jogos de hoje',
-          '🔥 Monte uma múltipla segura',
-          '🇧🇷 Como está seleção do Brasil?',
-          '🇺🇾 Me fale do Uruguai',
-        ],
-      },
-    };
-  }
-
-  private buildMultipleRequestResponse(): ChatFootballResponse {
-    return {
-      success: true,
-      intent: 'MULTIPLE',
-      answer:
-`🔥 Boa! Você quer múltipla.
-
-Eu consigo montar, mas vou seguir a regra profissional da Oddix:
-
-✅ buscar jogos reais
-✅ conferir estatísticas reais
-✅ conferir odds reais
-✅ evitar mercados inventados
-❌ sem dados = sem bilhete fake
-
-Para começar, clique ou mande:
-
-🏆 "Mostrar jogos de hoje"
-
-Depois eu filtro:
-🛡️ múltipla segura
-⚖️ múltipla balanceada
-🚀 múltipla agressiva`,
-      data: {
-        waitingForData: true,
-        suggestions: [
-          '🏆 Mostrar jogos de hoje',
-          '📈 Jogos ao vivo',
-          '🎮 Futebol Virtual',
-          '🎯 Quero uma aposta simples',
-        ],
-      },
-    };
-  }
-
-  private buildSmartFallback(message: string): ChatFootballResponse {
-    return {
-      success: true,
-      intent: 'GENERAL',
-      answer:
-`🧠 Entendi sua pergunta:
-
-"${message}"
-
-Ainda não tenho informação suficiente para transformar isso em análise, mas posso buscar pelo caminho certo.
-
-Tente assim:
-
-🇧🇷 "Como está seleção do Brasil?"
-🇪🇸 "Como está a seleção da Espanha?"
-🇺🇾 "Me fale do Uruguai"
-⚽ "Analisa Espanha x Uruguai"
-🏆 "Mostrar jogos de hoje"
-🔥 "Tem múltiplas?"
-👤 "Quero Player Props"
-
-A Oddix IA vai buscar dados reais antes de responder com palpite.`,
-      data: {
-        suggestions: [
-          '🏆 Mostrar jogos de hoje',
-          '🔥 Monte uma múltipla segura',
-          '🇧🇷 Como está seleção do Brasil?',
-          '🇺🇾 Me fale do Uruguai',
-        ],
-      },
-    };
-  }
-
-  private shouldListGames(message: string) {
-    const text = this.clean(message);
-
-    return (
-      text.includes('jogos de hoje') ||
-      text.includes('mostrar jogos') ||
-      text.includes('mostra jogos') ||
-      text.includes('quais jogos') ||
-      text.includes('lista jogos') ||
-      text.includes('listar jogos') ||
-      text.includes('jogos disponiveis') ||
-      text.includes('tem jogos') ||
-      text.includes('tem partida') ||
-      text.includes('tem partidas') ||
-      text.includes('analise de partidas') ||
-      text.includes('analisar partidas') ||
-      text === 'jogos' ||
-      text === 'partidas'
-    );
   }
 
   private async listRealGames(intent: ChatIntent): Promise<ChatFootballResponse> {
@@ -808,14 +613,15 @@ ${error?.message || 'Falha ao consultar dados reais'}
   ): ChatFootballResponse {
     const home = match?.teams?.home?.name || 'Casa';
     const away = match?.teams?.away?.name || 'Fora';
-    const league = match?.league?.name || 'Liga não informada';
 
-    const oddOptions = match?.odds?.options || [];
-    const oddsText = oddOptions.length
-      ? oddOptions
-          .map((item: any) => `${item.name}: ${Number(item.odd || 0).toFixed(2)}`)
-          .join(' | ')
-      : 'Odds 1X2 ainda não disponíveis';
+    const matchAgent =
+      this.agentsService?.buildMatchResearchAgent({
+        homeTeam: home,
+        awayTeam: away,
+        fixture: match,
+        statistics: stats,
+        research,
+      }) || this.formatResearchBlock(research || null);
 
     return {
       success: true,
@@ -823,28 +629,14 @@ ${error?.message || 'Falha ao consultar dados reais'}
       answer:
 `⚽ ANÁLISE REAL ODDIX IA
 
-${home} x ${away}
-🏆 ${league}
-
-📊 Estatísticas reais carregadas.
-✅ Agora posso analisar com segurança.
-
-Odds:
-${oddsText}
+${matchAgent}
 
 ━━━━━━━━━━━━━━
-${this.formatResearchBlock(research || null)}
-
-━━━━━━━━━━━━━━
-Leitura da IA:
-🔥 Dados suficientes encontrados.
-Agora posso avaliar mercados como gols, dupla chance, ambas marcam, escanteios e player props.
-
-Me diga:
-🎯 "Quero uma aposta simples"
-🔥 "Monte uma múltipla"
-👤 "Quero Player Props"
-💰 "Quanto ganho com R$20?"`,
+🎯 Agora posso:
+• gerar aposta simples
+• gerar múltiplas
+• avaliar player props
+• calcular gestão de banca`,
       data: {
         fixture: match,
         statistics: stats,
@@ -916,18 +708,152 @@ Me diga:
     if (text.includes('mais mercado') || text.includes('adiciona mercado')) return 'MORE_MARKETS';
     if (text.includes('mais segura') || text.includes('conservadora')) return 'MAKE_SAFER';
     if (text.includes('mais agressiva') || text.includes('odd maior')) return 'MAKE_AGGRESSIVE';
-    if (text.includes('player') || text.includes('jogador') || text.includes('chute') || text.includes('marca gol')) {
+
+    if (
+      text.includes('player') ||
+      text.includes('jogador') ||
+      text.includes('chute') ||
+      text.includes('marca gol')
+    ) {
       return 'PLAYER_PROPS';
     }
+
     if (text.includes('ao vivo') || text.includes('live')) return 'LIVE';
     if (text.includes('virtual')) return 'VIRTUAL';
     if (text.includes('top pick') || text.includes('melhores entradas')) return 'TOP_PICKS';
     if (text.includes('simples') || text.includes('aposta segura')) return 'SIMPLE';
-    if (text.includes('analisa') || text.includes('analisar') || text.includes('analise') || text.includes(' x ') || text.includes(' vs ')) {
+
+    if (
+      text.includes('analisa') ||
+      text.includes('analisar') ||
+      text.includes('analise') ||
+      text.includes(' x ') ||
+      text.includes(' vs ')
+    ) {
       return 'ANALYZE';
     }
 
     return 'GENERAL';
+  }
+
+  private buildSmartRecommendation(): ChatFootballResponse {
+    return {
+      success: true,
+      intent: 'ASK_RECOMMENDATION',
+      answer:
+`🔥 Fala, Pedro! Bora caçar valor com calma.
+
+Agora a Oddix IA trabalha assim:
+
+1️⃣ entende sua pergunta
+2️⃣ busca jogos reais
+3️⃣ pesquisa notícias/contexto
+4️⃣ ativa agentes de análise
+5️⃣ só libera entrada se tiver dados suficientes
+
+Você pode perguntar naturalmente:
+
+🇧🇷 "Como está seleção do Brasil?"
+🇺🇾 "Me fale do Uruguai"
+🏆 "Mostrar jogos de hoje"
+🔥 "Tem múltiplas?"
+🎯 "Qual melhor entrada?"
+💰 "Quanto ganho com R$20?"`,
+      data: {
+        suggestions: [
+          '🏆 Mostrar jogos de hoje',
+          '🔥 Monte uma múltipla segura',
+          '🇧🇷 Como está seleção do Brasil?',
+          '🇺🇾 Me fale do Uruguai',
+        ],
+      },
+    };
+  }
+
+  private buildMultipleRequestResponse(): ChatFootballResponse {
+    return {
+      success: true,
+      intent: 'MULTIPLE',
+      answer:
+`🔥 Boa! Você quer múltipla.
+
+Eu consigo montar, mas vou seguir a regra profissional da Oddix:
+
+✅ buscar jogos reais
+✅ conferir estatísticas reais
+✅ conferir odds reais
+✅ evitar mercados inventados
+❌ sem dados = sem bilhete fake
+
+Para começar, clique ou mande:
+
+🏆 "Mostrar jogos de hoje"
+
+Depois eu filtro:
+🛡️ múltipla segura
+⚖️ múltipla balanceada
+🚀 múltipla agressiva`,
+      data: {
+        waitingForData: true,
+        suggestions: [
+          '🏆 Mostrar jogos de hoje',
+          '📈 Jogos ao vivo',
+          '🎮 Futebol Virtual',
+          '🎯 Quero uma aposta simples',
+        ],
+      },
+    };
+  }
+
+  private buildSmartFallback(message: string): ChatFootballResponse {
+    return {
+      success: true,
+      intent: 'GENERAL',
+      answer:
+`🧠 Entendi sua pergunta:
+
+"${message}"
+
+Ainda não tenho informação suficiente para transformar isso em análise, mas posso buscar pelo caminho certo.
+
+Tente assim:
+
+🇧🇷 "Como está seleção do Brasil?"
+🇺🇾 "Me fale do Uruguai"
+⚽ "Analisa Brasil x Argentina"
+🏆 "Mostrar jogos de hoje"
+🔥 "Tem múltiplas?"
+👤 "Quero Player Props"`,
+      data: {
+        suggestions: [
+          '🏆 Mostrar jogos de hoje',
+          '🔥 Monte uma múltipla segura',
+          '🇧🇷 Como está seleção do Brasil?',
+          '🇺🇾 Me fale do Uruguai',
+        ],
+      },
+    };
+  }
+
+  private shouldListGames(message: string) {
+    const text = this.clean(message);
+
+    return (
+      text.includes('jogos de hoje') ||
+      text.includes('mostrar jogos') ||
+      text.includes('mostra jogos') ||
+      text.includes('quais jogos') ||
+      text.includes('lista jogos') ||
+      text.includes('listar jogos') ||
+      text.includes('jogos disponiveis') ||
+      text.includes('tem jogos') ||
+      text.includes('tem partida') ||
+      text.includes('tem partidas') ||
+      text.includes('analise de partidas') ||
+      text.includes('analisar partidas') ||
+      text === 'jogos' ||
+      text === 'partidas'
+    );
   }
 
   private extractFixtureArray(response: any) {
@@ -1126,36 +1052,19 @@ Com R$${this.money(amount)}:
     return ['FT', 'AET', 'PEN', 'CANC', 'PST'].includes(short);
   }
 
-  private getTeamResultEmoji(game: any, teamName: string) {
-    const homeName = this.normalize(game?.teams?.home?.name);
-    const awayName = this.normalize(game?.teams?.away?.name);
-    const key = this.normalize(teamName);
+  private formatKickoff(value: any) {
+    if (!value) return 'Horário não informado';
 
-    const homeGoals = Number(game?.goals?.home);
-    const awayGoals = Number(game?.goals?.away);
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Horário não informado';
 
-    if (!Number.isFinite(homeGoals) || !Number.isFinite(awayGoals)) return '➖';
-
-    const isHome = homeName.includes(key);
-    const isAway = awayName.includes(key);
-
-    if (!isHome && !isAway) return '➖';
-
-    const teamGoals = isHome ? homeGoals : awayGoals;
-    const oppGoals = isHome ? awayGoals : homeGoals;
-
-    if (teamGoals > oppGoals) return '✅';
-    if (teamGoals === oppGoals) return '➖';
-    return '❌';
-  }
-
-  private formatScore(game: any) {
-    const home = game?.goals?.home;
-    const away = game?.goals?.away;
-
-    if (home === null || home === undefined || away === null || away === undefined) return '';
-
-    return `${home} x ${away}`;
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
   }
 
   private extractMoney(message: string): number | null {
@@ -1171,21 +1080,6 @@ Com R$${this.money(amount)}:
 
   private money(value: number) {
     return Number(value || 0).toFixed(2).replace('.', ',');
-  }
-
-  private formatKickoff(value: any) {
-    if (!value) return 'Horário não informado';
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'Horário não informado';
-
-    return new Intl.DateTimeFormat('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
   }
 
   private normalize(value: any) {
