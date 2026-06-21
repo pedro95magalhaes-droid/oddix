@@ -16,25 +16,37 @@ type Message = {
   data?: any;
 };
 
+const START_SUGGESTIONS = [
+  "🏆 Mostrar jogos de hoje",
+  "🔥 Monte uma múltipla segura",
+  "🎯 Quero uma aposta simples",
+  "👤 Quero Player Props",
+  "📈 Analisar jogo ao vivo",
+  "🎮 Top Pick Virtual",
+];
+
 const WELCOME = `🤖 Fala, Pedro! Bora pra cima. 🔥
 
 Eu sou a Oddix IA.
 
-Posso:
+Posso te ajudar com:
 
-⚽ Analisar jogos
-🎯 Criar aposta simples
-🔥 Montar múltiplas
-👤 Criar Player Props
-📈 Analisar jogos ao vivo
-🏆 Encontrar oportunidades
+🏆 Jogos de hoje
+⚽ Análise de partidas
+🎯 Aposta simples
+🔥 Múltiplas
+👤 Player Props
+📈 Ao vivo
 🎮 Futebol Virtual
-💰 Calcular retorno e gestão de banca
+💰 Gestão de banca
 
-O que você quer apostar hoje?`;
+Me diga o que você quer analisar hoje.`;
 
 export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -42,18 +54,10 @@ export default function ChatPage() {
       role: "assistant",
       content: WELCOME,
       data: {
-        suggestions: [
-          "🔥 Monte uma múltipla segura",
-          "🎯 Quero uma aposta simples",
-          "👤 Quero Player Props",
-          "📈 Analisar jogo ao vivo",
-          "🎮 Top Pick Virtual",
-        ],
+        suggestions: START_SUGGESTIONS,
       },
     },
   ]);
-
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -66,13 +70,7 @@ export default function ChatPage() {
         role: "assistant",
         content: WELCOME,
         data: {
-          suggestions: [
-            "🔥 Monte uma múltipla segura",
-            "🎯 Quero uma aposta simples",
-            "👤 Quero Player Props",
-            "📈 Analisar jogo ao vivo",
-            "🎮 Top Pick Virtual",
-          ],
+          suggestions: START_SUGGESTIONS,
         },
       },
     ]);
@@ -122,8 +120,8 @@ export default function ChatPage() {
           data: {
             suggestions: [
               "🔄 Tentar novamente",
-              "🎯 Quero uma aposta simples",
-              "🔥 Monte uma múltipla segura",
+              "🏆 Mostrar jogos de hoje",
+              "🎮 Futebol Virtual",
             ],
           },
         },
@@ -135,7 +133,11 @@ export default function ChatPage() {
 
   return (
     <main style={styles.page}>
-      <ChatSidebar onNewChat={newChat} />
+      <ChatSidebar
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((value) => !value)}
+        onNewChat={newChat}
+      />
 
       <section style={styles.chat}>
         <header style={styles.header}>
@@ -171,7 +173,7 @@ export default function ChatPage() {
 
           {loading && (
             <div style={styles.typing}>
-              🤖 Oddix IA está analisando mercados, odds, risco e gestão de banca...
+              🤖 Oddix IA está consultando jogos, estatísticas e mercados reais...
             </div>
           )}
 
@@ -244,7 +246,7 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     overflowY: "auto",
     padding: "24px",
-    maxWidth: 1100,
+    maxWidth: 1180,
     width: "100%",
     margin: "0 auto",
   },

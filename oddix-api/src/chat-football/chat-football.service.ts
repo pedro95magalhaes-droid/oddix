@@ -25,6 +25,10 @@ export class ChatFootballService {
       return this.waitingForRealData('GENERAL');
     }
 
+    if (this.shouldListGames(message)) {
+      return this.listRealGames(intent);
+    }
+
     const realAnalysis = await this.analyzeRealMatch(message, intent);
     if (realAnalysis) return realAnalysis;
 
@@ -49,6 +53,117 @@ export class ChatFootballService {
     return this.waitingForRealData(intent);
   }
 
+  private shouldListGames(message: string) {
+    const text = this.clean(message);
+
+    return (
+      text.includes('jogos de hoje') ||
+      text.includes('mostrar jogos') ||
+      text.includes('mostra jogos') ||
+      text.includes('quais jogos') ||
+      text.includes('lista jogos') ||
+      text.includes('listar jogos') ||
+      text.includes('jogos disponiveis') ||
+      text.includes('jogos disponíveis') ||
+      text === 'jogos' ||
+      text === 'partidas'
+    );
+  }
+
+  private async listRealGames(intent: ChatIntent): Promise<ChatFootballResponse> {
+    if (!this.footballService) {
+      return this.waitingForRealData(intent);
+    }
+
+    try {
+      const response: any = await this.footballService.getFixtures();
+      const fixtures = this.extractFixtureArray(response)
+        .filter((item: any) => item?.teams?.home?.name && item?.teams?.away?.name)
+        .slice(0, 20);
+
+      if (!fixtures.length) {
+        return {
+          success: true,
+          intent,
+          answer:
+`📡 ODDIX IA — AGUARDANDO JOGOS REAIS
+
+Ainda não encontrei jogos disponíveis na base atual.
+
+Status:
+⚠️ AGUARDANDO DADOS REAIS
+
+❌ Nenhuma entrada aprovada no momento.`,
+          data: {
+            waitingForData: true,
+            suggestions: this.waitingSuggestions(),
+          },
+        };
+      }
+
+      const gamesText = fixtures
+        .map((item: any, index: number) => {
+          const home = item?.teams?.home?.name || 'Casa';
+          const away = item?.teams?.away?.name || 'Fora';
+          const league = item?.league?.name || 'Liga não informada';
+          const status = item?.fixture?.status?.short || 'NS';
+          const kickoff = this.formatKickoff(item?.fixture?.date);
+
+          return `${index + 1}️⃣ ${home} x ${away}
+🏆 ${league}
+⏰ ${kickoff}
+📌 Status: ${status}`;
+        })
+        .join('\n\n');
+
+      return {
+        success: true,
+        intent,
+        answer:
+`🏆 JOGOS REAIS ENCONTRADOS
+
+Encontrei ${fixtures.length} jogos disponíveis na base Oddix.
+
+${gamesText}
+
+━━━━━━━━━━━━━━
+📌 Para analisar um jogo, mande assim:
+
+"Analisa Time A x Time B"
+
+⚠️ Importante:
+Eu só libero palpite se tiver estatísticas reais e odds reais suficientes.`,
+        data: {
+          fixtures,
+          suggestions: [
+            '🔄 Atualizar jogos',
+            '📈 Jogos ao vivo',
+            '🎮 Futebol Virtual',
+            '🏆 Ver Top Picks',
+          ],
+        },
+      };
+    } catch (error: any) {
+      return {
+        success: true,
+        intent,
+        answer:
+`📡 ODDIX IA — ERRO AO BUSCAR JOGOS
+
+Tentei consultar os jogos reais, mas ainda não consegui carregar a lista.
+
+Motivo técnico:
+${error?.message || 'Falha ao consultar FootballService'}
+
+❌ Nenhuma entrada aprovada no momento.`,
+        data: {
+          waitingForData: true,
+          suggestions: this.waitingSuggestions(),
+        },
+      };
+    }
+  }
+
   private async analyzeRealMatch(
     message: string,
     intent: ChatIntent,
@@ -60,9 +175,7 @@ export class ChatFootballService {
 
     try {
       const fixturesResponse: any = await this.footballService.getFixtures();
-      const fixtures = Array.isArray(fixturesResponse)
-        ? fixturesResponse
-        : fixturesResponse?.data || fixturesResponse?.fixtures || [];
+      const fixtures = this.extractFixtureArray(fixturesResponse);
 
       const homeQuery = this.normalize(teams.home);
       const awayQuery = this.normalize(teams.away);
@@ -132,18 +245,8 @@ Encontrei a partida:
 
 Mas ainda não tenho estatísticas reais suficientes para gerar uma análise confiável.
 
-Para manter a qualidade da Oddix IA, eu não vou inventar palpite nem montar bilhete baseado em suposição.
-
 Status:
 ⚠️ AGUARDANDO DADOS REAIS
-
-Para liberar uma entrada, preciso de:
-
-✅ Estatísticas reais
-✅ Odds reais
-✅ Dados recentes da partida
-✅ Mercado disponível
-✅ Confiança mínima da IA
 
 ❌ Nenhuma entrada aprovada no momento.`,
           data: {
@@ -239,6 +342,16 @@ Peça assim:
         ],
       },
     };
+  }
+
+  private extractFixtureArray(response: any) {
+    if (Array.isArray(response)) return response;
+    if (Array.isArray(response?.data)) return response.data;
+    if (Array.isArray(response?.fixtures)) return response.fixtures;
+    if (Array.isArray(response?.games)) return response.games;
+    if (Array.isArray(response?.matches)) return response.matches;
+    if (Array.isArray(response?.items)) return response.items;
+    return [];
   }
 
   private extractTeams(message: string) {
@@ -422,15 +535,7 @@ Para liberar uma entrada, preciso de:
 ✅ Mercado disponível
 ✅ Confiança mínima da IA
 
-❌ Nenhuma entrada aprovada no momento.
-
-Quando os dados reais estiverem disponíveis, eu consigo gerar:
-
-🎯 Aposta simples
-🔥 Múltipla
-👤 Player Props
-📈 Análise ao vivo
-🧠 Explicação completa`,
+❌ Nenhuma entrada aprovada no momento.`,
       data: {
         waitingForData: true,
         suggestions: this.waitingSuggestions(),
@@ -612,7 +717,7 @@ Valor total/maior = agressivo.
   private waitingSuggestions() {
     return [
       '🔄 Tentar novamente',
-      '🏆 Ver Top Picks',
+      '🏆 Mostrar jogos de hoje',
       '🎮 Futebol Virtual',
       '📈 Jogos ao vivo',
     ];
@@ -632,6 +737,22 @@ Valor total/maior = agressivo.
 
   private money(value: number) {
     return Number(value || 0).toFixed(2).replace('.', ',');
+  }
+
+  private formatKickoff(value: any) {
+    if (!value) return 'Horário não informado';
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return 'Horário não informado';
+
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
   }
 
   private normalize(value: any) {
