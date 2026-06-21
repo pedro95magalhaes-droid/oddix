@@ -8,12 +8,12 @@ import type {
   ChatTicket,
 } from './chat-football.types';
 
-type OddixChatBrain = {
+type OddixBrain = {
   message: string;
   text: string;
   intent: ChatIntent;
-  topicTeam: string | null;
   teams: { home: string; away: string } | null;
+  topicTeam: string | null;
 };
 
 @Injectable()
@@ -26,7 +26,6 @@ export class ChatFootballService {
   async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
     const message = this.readMessage(payload);
     const history: ChatHistoryMessage[] = Array.isArray(payload?.history) ? payload.history : [];
-
     const brain = this.buildBrain(message);
     const lastTicket = this.findLastTicket(history);
 
@@ -41,13 +40,8 @@ export class ChatFootballService {
       return this.listRealGames(brain.intent);
     }
 
-    if (brain.intent === 'ASK_RECOMMENDATION') {
-      return this.buildSmartRecommendation();
-    }
-
-    if (brain.intent === 'MULTIPLE') {
-      return this.buildMultipleRequestResponse();
-    }
+    if (brain.intent === 'ASK_RECOMMENDATION') return this.buildSmartRecommendation();
+    if (brain.intent === 'MULTIPLE') return this.buildMultipleRequestResponse();
 
     const realAnalysis = await this.analyzeRealMatch(message, brain.intent);
     if (realAnalysis) return realAnalysis;
@@ -62,13 +56,8 @@ export class ChatFootballService {
       return this.explainRisk(lastTicket);
     }
 
-    if (brain.intent === 'BANKROLL') {
-      return this.explainBankroll(message, lastTicket);
-    }
-
-    if (brain.intent === 'VIRTUAL') {
-      return this.buildVirtualResponse();
-    }
+    if (brain.intent === 'BANKROLL') return this.explainBankroll(message, lastTicket);
+    if (brain.intent === 'VIRTUAL') return this.buildVirtualResponse();
 
     return this.buildSmartFallback(message);
   }
@@ -86,7 +75,7 @@ export class ChatFootballService {
     );
   }
 
-  private buildBrain(message: string): OddixChatBrain {
+  private buildBrain(message: string): OddixBrain {
     const text = this.clean(message);
     const intent = this.detectIntent(message);
     const teams = this.extractTeams(message);
@@ -104,111 +93,114 @@ export class ChatFootballService {
   private extractTeamTopic(message: string): string | null {
     const text = this.clean(message);
 
-    const triggers = [
+    if (text.includes(' x ') || text.includes(' vs ')) return null;
+
+    const naturalTriggers = [
       'como esta',
       'como está',
-      'me fale sobre',
-      'fale sobre',
-      'situacao',
-      'situação',
+      'me fale',
+      'fala do',
+      'fale do',
+      'fale da',
+      'fale de',
+      'sobre o',
+      'sobre a',
       'noticias',
       'notícias',
       'estatisticas',
       'estatísticas',
       'proximo jogo',
       'próximo jogo',
-      'selecao da',
-      'seleção da',
+      'selecao',
+      'seleção',
       'time do',
       'time da',
     ];
 
-    const hasTrigger = triggers.some((trigger) => text.includes(this.clean(trigger)));
-    if (!hasTrigger) return null;
+    const hasTrigger = naturalTriggers.some((trigger) => text.includes(this.clean(trigger)));
 
-    const knownTeams = [
-      'espanha',
-      'brasil',
-      'argentina',
-      'portugal',
-      'franca',
-      'frança',
-      'inglaterra',
-      'alemanha',
-      'italia',
-      'itália',
-      'holanda',
-      'uruguai',
-      'belgica',
-      'bélgica',
-      'japao',
-      'japão',
-      'suecia',
-      'suécia',
-      'croacia',
-      'croácia',
-      'marrocos',
-      'mexico',
-      'méxico',
-      'estados unidos',
-      'colombia',
-      'colômbia',
-      'goias',
-      'goiás',
-      'flamengo',
-      'palmeiras',
-      'corinthians',
-      'sao paulo',
-      'são paulo',
-      'santos',
-      'vasco',
-      'gremio',
-      'grêmio',
-      'internacional',
-      'botafogo',
-      'fluminense',
-      'cruzeiro',
-      'atletico mineiro',
-      'atlético mineiro',
-    ];
+    const aliases = this.teamAliases();
 
-    for (const team of knownTeams) {
-      if (text.includes(this.clean(team))) return team;
+    for (const [canonical, names] of Object.entries(aliases)) {
+      if (names.some((name) => text.includes(this.clean(name)))) {
+        return canonical;
+      }
     }
 
-    const cleaned = message
-      .replace(/chat/gi, '')
-      .replace(/me fale/gi, '')
-      .replace(/fale/gi, '')
-      .replace(/sobre/gi, '')
-      .replace(/como está/gi, '')
-      .replace(/como esta/gi, '')
-      .replace(/a seleção da/gi, '')
-      .replace(/a selecao da/gi, '')
-      .replace(/seleção da/gi, '')
-      .replace(/selecao da/gi, '')
-      .replace(/o time do/gi, '')
-      .replace(/o time da/gi, '')
+    if (!hasTrigger) return null;
+
+    const cleaned = text
+      .replace(/chat/g, '')
+      .replace(/me fale/g, '')
+      .replace(/fala/g, '')
+      .replace(/fale/g, '')
+      .replace(/sobre/g, '')
+      .replace(/como esta/g, '')
+      .replace(/como está/g, '')
+      .replace(/a selecao/g, '')
+      .replace(/a seleção/g, '')
+      .replace(/selecao/g, '')
+      .replace(/seleção/g, '')
+      .replace(/do/g, '')
+      .replace(/da/g, '')
+      .replace(/de/g, '')
+      .replace(/o time/g, '')
+      .replace(/time/g, '')
       .trim();
 
     return cleaned.length >= 3 ? cleaned : null;
   }
 
+  private teamAliases(): Record<string, string[]> {
+    return {
+      espanha: ['espanha', 'seleção da espanha', 'selecao da espanha', 'spain'],
+      brasil: ['brasil', 'seleção do brasil', 'selecao do brasil', 'brazil'],
+      argentina: ['argentina'],
+      portugal: ['portugal'],
+      uruguai: ['uruguai', 'uruguay', 'seleção do uruguai', 'selecao do uruguai'],
+      egito: ['egito', 'egypt', 'seleção do egito', 'selecao do egito'],
+      franca: ['franca', 'frança', 'france'],
+      inglaterra: ['inglaterra', 'england'],
+      alemanha: ['alemanha', 'germany'],
+      italia: ['italia', 'itália', 'italy'],
+      holanda: ['holanda', 'netherlands', 'países baixos', 'paises baixos'],
+      belgica: ['belgica', 'bélgica', 'belgium'],
+      japao: ['japao', 'japão', 'japan'],
+      suecia: ['suecia', 'suécia', 'sweden'],
+      croacia: ['croacia', 'croácia', 'croatia'],
+      marrocos: ['marrocos', 'morocco'],
+      mexico: ['mexico', 'méxico'],
+      colombia: ['colombia', 'colômbia'],
+      goias: ['goias', 'goiás'],
+      flamengo: ['flamengo'],
+      palmeiras: ['palmeiras'],
+      corinthians: ['corinthians'],
+      santos: ['santos'],
+      vasco: ['vasco'],
+      botafogo: ['botafogo'],
+      fluminense: ['fluminense'],
+      cruzeiro: ['cruzeiro'],
+      gremio: ['gremio', 'grêmio'],
+      internacional: ['internacional'],
+      'sao paulo': ['sao paulo', 'são paulo'],
+      'atletico mineiro': ['atletico mineiro', 'atlético mineiro'],
+    };
+  }
+
   private async buildTeamOverview(teamName: string): Promise<ChatFootballResponse | null> {
-    if (!this.footballService) {
-      return this.waitingForRealData('ANALYZE');
-    }
+    if (!this.footballService) return this.waitingForRealData('ANALYZE');
 
     try {
-      const response: any = await this.footballService.getFixtures();
-      const fixtures = this.extractFixtureArray(response);
-      const teamKey = this.normalize(teamName);
+      const fixtures = await this.getFixturesWindow(7, 10);
+      const aliases = this.teamAliases()[this.normalize(teamName)] || [teamName];
+      const normalizedAliases = aliases.map((item) => this.normalize(item));
 
       const teamGames = fixtures
         .filter((game: any) => {
           const home = this.normalize(game?.teams?.home?.name);
           const away = this.normalize(game?.teams?.away?.name);
-          return home.includes(teamKey) || away.includes(teamKey);
+
+          return normalizedAliases.some((alias) => home.includes(alias) || away.includes(alias));
         })
         .sort((a: any, b: any) => {
           const da = new Date(a?.fixture?.date || 0).getTime();
@@ -223,11 +215,11 @@ export class ChatFootballService {
           answer:
 `🧠 ODDIX IA
 
-Procurei por dados recentes de:
+Procurei em uma janela de jogos recentes e próximos por:
 
 ${teamName}
 
-Ainda não encontrei jogos dessa equipe na base atual do Oddix.
+Ainda não encontrei essa equipe na base atual do Oddix.
 
 Isso pode acontecer quando:
 ⚠️ o jogo ainda não entrou no provedor
@@ -236,7 +228,7 @@ Isso pode acontecer quando:
 
 ❌ Não vou inventar notícias ou estatísticas.
 
-Me manda assim:
+Me manda:
 "Mostrar jogos de hoje"
 ou
 "Analisa Espanha x Uruguai"`,
@@ -247,10 +239,12 @@ ou
         };
       }
 
-      const nextGame = teamGames.find((game: any) => !this.isFinished(game)) || teamGames[0];
-      const recentGames = teamGames.slice(0, 5);
+      const finishedGames = teamGames.filter((game: any) => this.isFinished(game)).slice(-5);
+      const nextGame = teamGames.find((game: any) => !this.isFinished(game)) || teamGames[teamGames.length - 1];
+      const statsBlock = await this.tryGetGameStats(nextGame);
 
-      const gamesText = recentGames
+      const gamesText = teamGames
+        .slice(0, 8)
         .map((game: any, index: number) => {
           const home = game?.teams?.home?.name || 'Casa';
           const away = game?.teams?.away?.name || 'Fora';
@@ -266,7 +260,11 @@ ou
         })
         .join('\n\n');
 
-      const statsBlock = await this.tryGetGameStats(nextGame);
+      const recentForm = finishedGames.length
+        ? finishedGames
+            .map((game: any) => this.getTeamResultEmoji(game, teamName))
+            .join(' ')
+        : 'aguardando jogos finalizados na base';
 
       return {
         success: true,
@@ -277,7 +275,7 @@ ou
 Você perguntou sobre:
 ${teamName}
 
-Encontrei dados reais na base Oddix. Agora sim dá para analisar sem inventar. ✅
+Agora eu busquei dados reais na base Oddix antes de responder. ✅
 
 📅 Jogo de referência:
 ${nextGame?.teams?.home?.name || 'Casa'} x ${nextGame?.teams?.away?.name || 'Fora'}
@@ -286,7 +284,11 @@ ${nextGame?.teams?.home?.name || 'Casa'} x ${nextGame?.teams?.away?.name || 'For
 📌 Status: ${nextGame?.fixture?.status?.short || 'NS'}
 
 ━━━━━━━━━━━━━━
-📊 Jogos encontrados:
+📊 Forma recente:
+${recentForm}
+
+━━━━━━━━━━━━━━
+📋 Jogos encontrados:
 
 ${gamesText}
 
@@ -295,16 +297,13 @@ ${statsBlock}
 
 ━━━━━━━━━━━━━━
 📰 Notícias:
-No momento o Chat Oddix ainda não está conectado a uma fonte de notícias em tempo real. Então eu não vou inventar notícia.
+Ainda não conectamos o Oddix a uma fonte de notícias em tempo real. Então eu não vou inventar notícia.
 
-✅ O que eu consigo fazer agora:
-• analisar os jogos encontrados
-• buscar estatísticas pelo fixture
-• avaliar mercados
-• montar leitura de risco
-• sugerir onde esperar dados reais
-
-🎯 Quer que eu analise o jogo de referência?`,
+✅ Posso fazer agora:
+🎯 analisar o jogo de referência
+🔥 procurar múltipla com jogos reais
+👤 avaliar Player Props se houver escalação/dados
+💰 calcular retorno e gestão`,
         data: {
           fixture: nextGame,
           fixtures: teamGames,
@@ -312,7 +311,7 @@ No momento o Chat Oddix ainda não está conectado a uma fonte de notícias em t
             `🎯 Analisa ${nextGame?.teams?.home?.name || ''} x ${nextGame?.teams?.away?.name || ''}`.trim(),
             '🏆 Mostrar jogos de hoje',
             '🔥 Monte uma múltipla segura',
-            '💰 Gestão de banca',
+            '💰 Quanto ganho com R$20?',
           ],
         },
       };
@@ -337,9 +336,41 @@ ${error?.message || 'Falha ao consultar dados reais'}
     }
   }
 
+  private async getFixturesWindow(daysBack = 3, daysForward = 7): Promise<any[]> {
+    const dates: string[] = [];
+    const now = new Date();
+
+    for (let i = -daysBack; i <= daysForward; i += 1) {
+      const date = new Date(now);
+      date.setDate(now.getDate() + i);
+      dates.push(date.toISOString().slice(0, 10));
+    }
+
+    const all: any[] = [];
+
+    for (const date of dates) {
+      try {
+        const response: any = await this.footballService?.getFixtures(date);
+        all.push(...this.extractFixtureArray(response));
+      } catch {
+        // ignora falha de uma data e continua
+      }
+    }
+
+    const seen = new Set<string>();
+
+    return all.filter((game: any) => {
+      const id = String(game?.fixture?.id || `${game?.teams?.home?.name}-${game?.teams?.away?.name}-${game?.fixture?.date}`);
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }
+
   private async tryGetGameStats(game: any) {
     try {
       const fixtureId = String(game?.fixture?.id || '');
+
       if (!fixtureId || !this.footballService) {
         return '📊 Estatísticas detalhadas: aguardando fixture válido.';
       }
@@ -367,7 +398,7 @@ ${error?.message || 'Falha ao consultar dados reais'}
 Agora posso avaliar:
 🎯 gols
 🔥 dupla chance
-📈 BTTS
+📈 ambas marcam
 🚩 escanteios
 👤 player props
 ⚠️ risco da entrada`;
@@ -382,30 +413,29 @@ Agora posso avaliar:
       success: true,
       intent: 'ASK_RECOMMENDATION',
       answer:
-`🔥 Fechado, Pedro! Agora a Oddix IA trabalha assim:
+`🔥 Fala, Pedro! Bora caçar valor com calma.
 
-Primeiro eu busco os jogos reais.
-Depois verifico se tem estatísticas e odds.
-Só então eu libero entrada.
+Agora a Oddix IA trabalha assim:
 
-Me manda uma dessas:
+1️⃣ entende sua pergunta
+2️⃣ busca jogos reais
+3️⃣ tenta validar estatísticas e odds
+4️⃣ só libera entrada se tiver dados suficientes
 
+Você pode perguntar naturalmente:
+
+🇪🇸 "Como está a seleção da Espanha?"
+🇺🇾 "Me fale do Uruguai"
 🏆 "Mostrar jogos de hoje"
-⚽ "Analisa Espanha x Uruguai"
-🔥 "Monte uma múltipla segura"
-👤 "Quero Player Props"
-💰 "Quanto ganho com R$20?"
-
-Se você perguntar:
-"Como está a seleção da Espanha?"
-
-eu vou buscar jogos da Espanha, estatísticas disponíveis e te dar uma visão completa sem inventar dados.`,
+🔥 "Tem múltiplas?"
+🎯 "Qual melhor entrada?"
+💰 "Quanto ganho com R$20?"`,
       data: {
         suggestions: [
           '🏆 Mostrar jogos de hoje',
           '🔥 Monte uma múltipla segura',
-          '🎯 Quero uma aposta simples',
           '🇪🇸 Como está a seleção da Espanha?',
+          '🇺🇾 Me fale do Uruguai',
         ],
       },
     };
@@ -420,17 +450,17 @@ eu vou buscar jogos da Espanha, estatísticas disponíveis e te dar uma visão c
 
 Eu consigo montar, mas vou seguir a regra profissional da Oddix:
 
-✅ Buscar jogos reais
-✅ Conferir estatísticas reais
-✅ Conferir odds reais
-✅ Evitar mercados inventados
-❌ Sem dados = sem bilhete fake
+✅ buscar jogos reais
+✅ conferir estatísticas reais
+✅ conferir odds reais
+✅ evitar mercados inventados
+❌ sem dados = sem bilhete fake
 
-Para começar, me manda ou clique:
+Para começar, clique ou mande:
 
 🏆 "Mostrar jogos de hoje"
 
-Depois eu posso filtrar:
+Depois eu filtro:
 🛡️ múltipla segura
 ⚖️ múltipla balanceada
 🚀 múltipla agressiva`,
@@ -455,24 +485,24 @@ Depois eu posso filtrar:
 
 "${message}"
 
-Ainda não tenho informação suficiente para transformar isso em entrada, mas posso buscar pelo caminho certo.
+Ainda não tenho informação suficiente para transformar isso em análise, mas posso buscar pelo caminho certo.
 
-Tente perguntar assim:
+Tente assim:
 
+🇪🇸 "Como está a seleção da Espanha?"
+🇺🇾 "Me fale do Uruguai"
 ⚽ "Analisa Espanha x Uruguai"
 🏆 "Mostrar jogos de hoje"
-🇪🇸 "Como está a seleção da Espanha?"
 🔥 "Tem múltiplas?"
 👤 "Quero Player Props"
-💰 "Quanto ganho com R$20?"
 
-A Oddix IA vai buscar os dados reais antes de responder com palpite.`,
+A Oddix IA vai buscar dados reais antes de responder com palpite.`,
       data: {
         suggestions: [
           '🏆 Mostrar jogos de hoje',
           '🔥 Monte uma múltipla segura',
           '🇪🇸 Como está a seleção da Espanha?',
-          '🎮 Futebol Virtual',
+          '🇺🇾 Me fale do Uruguai',
         ],
       },
     };
@@ -598,8 +628,7 @@ ${error?.message || 'Falha ao consultar FootballService'}
     if (!teams) return null;
 
     try {
-      const fixturesResponse: any = await this.footballService.getFixtures();
-      const fixtures = this.extractFixtureArray(fixturesResponse);
+      const fixtures = await this.getFixturesWindow(3, 7);
 
       const homeQuery = this.normalize(teams.home);
       const awayQuery = this.normalize(teams.away);
@@ -665,12 +694,7 @@ Mas ainda não tenho estatísticas reais suficientes para liberar palpite.
 📡 Status:
 ⚠️ AGUARDANDO DADOS REAIS
 
-❌ Nenhuma entrada aprovada agora.
-
-Posso:
-🏆 mostrar outros jogos
-🎮 analisar futebol virtual
-💰 calcular gestão de banca`,
+❌ Nenhuma entrada aprovada agora.`,
           data: {
             waitingForData: true,
             fixture: match,
@@ -708,7 +732,9 @@ ${error?.message || 'Falha ao consultar dados reais'}
 
     const oddOptions = match?.odds?.options || [];
     const oddsText = oddOptions.length
-      ? oddOptions.map((item: any) => `${item.name}: ${Number(item.odd || 0).toFixed(2)}`).join(' | ')
+      ? oddOptions
+          .map((item: any) => `${item.name}: ${Number(item.odd || 0).toFixed(2)}`)
+          .join(' | ')
       : 'Odds 1X2 ainda não disponíveis';
 
     return {
@@ -728,7 +754,7 @@ ${oddsText}
 
 Leitura da IA:
 🔥 Dados suficientes encontrados.
-Agora posso avaliar mercados como gols, dupla chance, BTTS, escanteios e player props.
+Agora posso avaliar mercados como gols, dupla chance, ambas marcam, escanteios e player props.
 
 Me diga:
 🎯 "Quero uma aposta simples"
@@ -766,7 +792,9 @@ Me diga:
       text.includes('tem jogo bom') ||
       text.includes('me indica uma entrada') ||
       text.includes('me recomenda uma aposta') ||
-      text.includes('quero uma recomendacao')
+      text.includes('quero uma recomendacao') ||
+      text.includes('qual melhor entrada') ||
+      text.includes('qual a melhor aposta')
     ) return 'ASK_RECOMMENDATION';
 
     if (
@@ -813,6 +841,7 @@ Me diga:
 
     for (const separator of [' x ', ' vs ', ' versus ', ' contra ']) {
       const normalized = cleaned.toLowerCase();
+
       if (normalized.includes(separator)) {
         const parts = normalized.split(separator);
         if (parts[0]?.trim() && parts[1]?.trim()) {
@@ -986,6 +1015,29 @@ Com R$${this.money(amount)}:
   private isFinished(game: any) {
     const short = String(game?.fixture?.status?.short || '').toUpperCase();
     return ['FT', 'AET', 'PEN', 'CANC', 'PST'].includes(short);
+  }
+
+  private getTeamResultEmoji(game: any, teamName: string) {
+    const homeName = this.normalize(game?.teams?.home?.name);
+    const awayName = this.normalize(game?.teams?.away?.name);
+    const key = this.normalize(teamName);
+
+    const homeGoals = Number(game?.goals?.home);
+    const awayGoals = Number(game?.goals?.away);
+
+    if (!Number.isFinite(homeGoals) || !Number.isFinite(awayGoals)) return '➖';
+
+    const isHome = homeName.includes(key);
+    const isAway = awayName.includes(key);
+
+    if (!isHome && !isAway) return '➖';
+
+    const teamGoals = isHome ? homeGoals : awayGoals;
+    const oppGoals = isHome ? awayGoals : homeGoals;
+
+    if (teamGoals > oppGoals) return '✅';
+    if (teamGoals === oppGoals) return '➖';
+    return '❌';
   }
 
   private formatScore(game: any) {
