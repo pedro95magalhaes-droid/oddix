@@ -12,6 +12,8 @@ export type ChatIntent =
   | 'MAKE_AGGRESSIVE'
   | 'RISK_EXPLAIN'
   | 'BANKROLL'
+  | 'LIST_MATCHES'
+  | 'ASK_RECOMMENDATION'
   | 'GENERAL';
 
 export type ChatRisk = 'BAIXO' | 'MEDIO' | 'MEDIO_ALTO' | 'ALTO';
@@ -40,6 +42,14 @@ export interface ChatFootballResponse {
   data?: {
     ticket?: ChatTicket;
     suggestions?: string[];
+    waitingForData?: boolean;
+    fixture?: any;
+    fixtures?: any[];
+    statistics?: any;
+    amount?: number;
+    odd?: number;
+    potentialReturn?: number;
+    profit?: number;
     [key: string]: any;
   };
 }

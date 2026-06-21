@@ -25,6 +25,14 @@ export class ChatFootballService {
       return this.waitingForRealData('GENERAL');
     }
 
+    if (intent === 'LIST_MATCHES') {
+      return this.listRealGames(intent);
+    }
+
+    if (intent === 'ASK_RECOMMENDATION') {
+      return this.buildRecommendationResponse();
+    }
+
     if (this.shouldListGames(message)) {
       return this.listRealGames(intent);
     }
@@ -53,6 +61,38 @@ export class ChatFootballService {
     return this.waitingForRealData(intent);
   }
 
+  private buildRecommendationResponse(): ChatFootballResponse {
+    return {
+      success: true,
+      intent: 'ASK_RECOMMENDATION',
+      answer:
+`🔥 Fala! Posso te ajudar com:
+
+🏆 Jogos de hoje
+🔥 Múltiplas
+🎯 Apostas simples
+👤 Player Props
+📈 Jogos ao vivo
+🎮 Futebol Virtual
+💰 Gestão de banca
+
+Me diga algo como:
+
+• "Mostrar jogos de hoje"
+• "Monte uma múltipla segura"
+• "Analisa Flamengo x Palmeiras"
+• "Quero Player Props"`,
+      data: {
+        suggestions: [
+          '🏆 Mostrar jogos de hoje',
+          '🔥 Monte uma múltipla segura',
+          '🎯 Quero uma aposta simples',
+          '👤 Quero Player Props',
+        ],
+      },
+    };
+  }
+
   private shouldListGames(message: string) {
     const text = this.clean(message);
 
@@ -65,6 +105,12 @@ export class ChatFootballService {
       text.includes('listar jogos') ||
       text.includes('jogos disponiveis') ||
       text.includes('jogos disponíveis') ||
+      text.includes('tem jogos') ||
+      text.includes('tem partida') ||
+      text.includes('tem partidas') ||
+      text.includes('analise de partidas') ||
+      text.includes('análise de partidas') ||
+      text.includes('analisar partidas') ||
       text === 'jogos' ||
       text === 'partidas'
     );
@@ -391,6 +437,32 @@ Peça assim:
     const text = this.clean(message);
 
     if (
+      text.includes('tem jogos') ||
+      text.includes('tem partida') ||
+      text.includes('tem partidas') ||
+      text.includes('quais jogos') ||
+      text.includes('mostrar jogos') ||
+      text.includes('mostra jogos') ||
+      text.includes('jogos de hoje') ||
+      text.includes('analise de partidas') ||
+      text.includes('análise de partidas') ||
+      text.includes('analisar partidas')
+    ) {
+      return 'LIST_MATCHES';
+    }
+
+    if (
+      text.includes('o que tem para apostar') ||
+      text.includes('tem jogo bom') ||
+      text.includes('me indica uma entrada') ||
+      text.includes('me recomenda uma aposta') ||
+      text.includes('quero uma recomendacao') ||
+      text.includes('quero uma recomendação')
+    ) {
+      return 'ASK_RECOMMENDATION';
+    }
+
+    if (
       text.includes('quanto ganho') ||
       text.includes('quanto retorna') ||
       text.includes('retorno') ||
@@ -419,9 +491,7 @@ Peça assim:
       text.includes('explique') ||
       text.includes('porque') ||
       text.includes('por que') ||
-      text.includes('motivo') ||
-      text.includes('entender a multipla') ||
-      text.includes('entender o bilhete')
+      text.includes('motivo')
     ) {
       return 'EXPLAIN_LAST';
     }
@@ -430,15 +500,13 @@ Peça assim:
       text.includes('mais mercado') ||
       text.includes('mais mercados') ||
       text.includes('adiciona mercado') ||
-      text.includes('coloca mais') ||
-      text.includes('inserir mercado')
+      text.includes('coloca mais')
     ) {
       return 'MORE_MARKETS';
     }
 
     if (
       text.includes('mais segura') ||
-      text.includes('deixa segura') ||
       text.includes('reduz risco') ||
       text.includes('conservadora')
     ) {
@@ -448,8 +516,7 @@ Peça assim:
     if (
       text.includes('mais agressiva') ||
       text.includes('aumenta odd') ||
-      text.includes('odd maior') ||
-      text.includes('agressiva')
+      text.includes('odd maior')
     ) {
       return 'MAKE_AGGRESSIVE';
     }
@@ -458,7 +525,13 @@ Peça assim:
       text.includes('multipla') ||
       text.includes('múltipla') ||
       text.includes('bilhete') ||
-      text.includes('combinada')
+      text.includes('combinada') ||
+      text.includes('tem multipla') ||
+      text.includes('tem múltipla') ||
+      text.includes('tem multiplas') ||
+      text.includes('tem múltiplas') ||
+      text.includes('me mostra uma multipla') ||
+      text.includes('me mostra uma múltipla')
     ) {
       return 'MULTIPLE';
     }
@@ -475,11 +548,18 @@ Peça assim:
       return 'PLAYER_PROPS';
     }
 
-    if (text.includes('ao vivo') || text.includes('live') || text.includes('tempo real')) {
+    if (
+      text.includes('ao vivo') ||
+      text.includes('live') ||
+      text.includes('tempo real')
+    ) {
       return 'LIVE';
     }
 
-    if (text.includes('virtual') || text.includes('futebol virtual')) {
+    if (
+      text.includes('virtual') ||
+      text.includes('futebol virtual')
+    ) {
       return 'VIRTUAL';
     }
 
