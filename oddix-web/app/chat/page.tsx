@@ -351,57 +351,57 @@ Ou pergunte:
 
     const cleanApiBase = apiBase.replace(/\/$/, '');
 
-    const endpoints = [
-      `${cleanApiBase}/chat-football`,
-      `${cleanApiBase}/chat-football/message`,
-      `${cleanApiBase}/chat-football/ask`,
-    ];
+    const endpoint = `${cleanApiBase}/chat-football/message`;
 
-    for (const endpoint of endpoints) {
-      try {
-        console.log('Tentando endpoint Oddix:', endpoint);
+    try {
+      console.log('Chamando Oddix API:', endpoint);
 
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: prompt,
+          question: prompt,
+          messages,
+          context: {
+            source: 'oddix-web-chat',
+            version: 'V7.6.8',
           },
-          body: JSON.stringify({
-            message: prompt,
-            question: prompt,
-            messages,
-            context: {
-              source: 'oddix-web-chat',
-              version: 'V7.6.7',
-            },
-          }),
-        });
+        }),
+      });
 
-        console.log('Status Oddix API:', endpoint, response.status);
+      console.log('Status Oddix API:', response.status);
 
-        if (!response.ok) continue;
-
-        const data = (await response.json()) as OddixApiResponse;
-
-        const answer =
-          data.answer ||
-          data.response ||
-          data.message ||
-          data.text ||
-          data.result;
-
-        if (answer) {
-          setApiConnected(true);
-          setApiStatus('api online');
-          return answer;
-        }
-      } catch (error) {
-        console.warn('Falha no endpoint Oddix:', endpoint, error);
+      if (!response.ok) {
+        setApiStatus(`erro ${response.status}`);
+        return null;
       }
-    }
 
-    setApiStatus('api sem resposta');
-    return null;
+      const data = (await response.json()) as OddixApiResponse;
+
+      const answer =
+        data.answer ||
+        data.response ||
+        data.message ||
+        data.text ||
+        data.result;
+
+      if (answer) {
+        setApiConnected(true);
+        setApiStatus('api online');
+        return answer;
+      }
+
+      setApiStatus('sem resposta');
+      return null;
+    } catch (error) {
+      console.warn('Falha na Oddix API:', error);
+      setApiConnected(false);
+      setApiStatus('falha na api');
+      return null;
+    }
   }
 
   async function sendMessage(customText?: string) {
@@ -520,9 +520,9 @@ Ou pergunte:
           </div>
 
           <div className="mt-auto rounded-2xl border border-emerald-400/20 bg-black/45 p-4">
-            <div className="text-xs font-black text-emerald-300">Oddix Chat V7.6.7</div>
+            <div className="text-xs font-black text-emerald-300">Oddix Chat V7.6.8</div>
             <p className="mt-2 text-[11px] leading-relaxed text-white/55">
-              Debug de API ativo. Status: {apiStatus}
+              API ligada em /chat-football/message. Status: {apiStatus}
             </p>
           </div>
         </div>
@@ -545,7 +545,7 @@ Ou pergunte:
             </button>
 
             <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black text-emerald-300 md:px-3 md:text-xs">
-              CHAT V7.6.7
+              CHAT V7.6.8
             </span>
           </div>
 
@@ -566,7 +566,7 @@ Ou pergunte:
                   : 'border-yellow-400/20 bg-yellow-500/10 text-yellow-300',
               ].join(' ')}
             >
-              {apiConnected ? '● API configurada' : '● API offline'}
+              {apiConnected ? '● API online' : '● API offline'}
             </div>
           </div>
         </header>
