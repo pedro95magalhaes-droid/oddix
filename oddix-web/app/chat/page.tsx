@@ -65,7 +65,7 @@ export default function OddixChatPage() {
   const apiBase = process.env.NEXT_PUBLIC_ODDIX_API_URL;
   const cleanApiBase = apiBase?.replace(/\/$/, '') ?? '';
   const historyApi = cleanApiBase ? `${cleanApiBase}/chat-history` : '';
-  const hasConversation = messages.length > 0;
+  const hasConversation = messages.some((item) => item.content?.trim().length > 0);
   const showSidebarLabels = sidebarOpen || mobileSidebarOpen;
   const userId = 'demo-user';
 
@@ -615,15 +615,15 @@ export default function OddixChatPage() {
             type="button"
             aria-label="Fechar barra lateral"
             onClick={closeMobileSidebar}
-            className="fixed inset-0 z-40 bg-black/55 md:hidden"
+            className="fixed inset-0 z-40 bg-black/55 lg:hidden"
           />
         )}
 
         <aside
           className={[
-            'fixed inset-y-0 left-0 z-50 flex h-full w-[var(--sidebar-width)] shrink-0 flex-col overflow-hidden border-r border-[#2a2a2a] bg-[var(--oddix-sidebar)] text-[#ecfff7] transition-[width,transform] duration-150 ease-out md:relative md:z-10 md:translate-x-0',
-            mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
-            sidebarOpen ? 'md:w-[var(--sidebar-width)]' : 'md:w-[var(--sidebar-rail-width)] oddix-sidebar-rail',
+            'fixed inset-y-0 left-0 z-50 flex h-full w-[var(--sidebar-width)] shrink-0 flex-col overflow-hidden border-r border-[#2a2a2a] bg-[var(--oddix-sidebar)] text-[#ecfff7] transition-[width,transform] duration-150 ease-out lg:relative lg:z-10 lg:translate-x-0',
+            mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+            sidebarOpen ? 'lg:w-[var(--sidebar-width)]' : 'lg:w-[var(--sidebar-rail-width)] oddix-sidebar-rail',
           ].join(' ')}
         >
           <div className="flex h-full min-h-0 flex-col">
@@ -643,7 +643,7 @@ export default function OddixChatPage() {
               <button
                 type="button"
                 onClick={() => setSidebarOpen((current) => !current)}
-                className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 md:flex"
+                className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 lg:flex"
                 aria-label={sidebarOpen ? 'Fechar barra lateral' : 'Abrir barra lateral'}
               >
                 {sidebarOpen ? '‹' : '›'}
@@ -652,7 +652,7 @@ export default function OddixChatPage() {
               <button
                 type="button"
                 onClick={closeMobileSidebar}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 md:hidden"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 lg:hidden"
                 aria-label="Fechar histórico"
               >
                 ✕
@@ -779,12 +779,12 @@ export default function OddixChatPage() {
         </aside>
 
         <section className="@container/main oddix-premium-bg relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--oddix-bg)]">
-          <header className="sticky top-0 z-20 flex h-[var(--header-height)] shrink-0 items-center justify-between bg-[rgba(11,15,20,.86)] px-2 border-b border-[var(--oddix-border)] backdrop-blur-xl md:px-3">
+          <header className="sticky top-0 z-20 flex h-[var(--header-height)] shrink-0 items-center justify-between bg-[rgba(11,15,20,.86)] px-2 border-b border-[var(--oddix-border)] backdrop-blur-xl lg:px-3">
             <div className="flex min-w-0 items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => setMobileSidebarOpen(true)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl text-white/82 hover:bg-white/10 md:hidden"
+                className="flex h-10 w-10 items-center justify-center rounded-xl text-white/82 hover:bg-white/10 lg:hidden"
                 aria-label="Abrir barra lateral"
               >
                 ☰
@@ -794,7 +794,7 @@ export default function OddixChatPage() {
                 <button
                   type="button"
                   onClick={() => setSidebarOpen(true)}
-                  className="hidden h-10 w-10 items-center justify-center rounded-xl text-white/82 hover:bg-white/10 md:flex"
+                  className="hidden h-10 w-10 items-center justify-center rounded-xl text-white/82 hover:bg-white/10 lg:flex"
                   aria-label="Abrir barra lateral"
                 >
                   ☰
@@ -804,7 +804,7 @@ export default function OddixChatPage() {
               <button
                 type="button"
                 onClick={handleNewConversation}
-                className="hidden h-10 w-10 items-center justify-center rounded-xl text-white/82 hover:bg-white/10 md:flex"
+                className="hidden h-10 w-10 items-center justify-center rounded-xl text-white/82 hover:bg-white/10 lg:flex"
                 aria-label="Novo chat"
               >
                 ✎
