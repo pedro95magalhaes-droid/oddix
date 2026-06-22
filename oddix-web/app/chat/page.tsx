@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 
 type Suggestion = {
@@ -32,17 +32,19 @@ type OddixApiResponse = {
 
 export default function OddixChatPage() {
   const [message, setMessage] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [apiConnected, setApiConnected] = useState(false);
   const [apiStatus, setApiStatus] = useState('verificando');
 
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   const apiBase = process.env.NEXT_PUBLIC_ODDIX_API_URL;
   const hasConversation = messages.length > 0;
+  const showSidebarLabels = sidebarOpen || mobileSidebarOpen;
 
   const suggestions: Suggestion[] = [
     {
@@ -116,10 +118,10 @@ export default function OddixChatPage() {
 
   const quickCards = useMemo(
     () => [
-      ['🔥', 'Top Pick', 'Qual é o Top Pick do dia com maior confiança?'],
-      ['⚡', 'Ao Vivo', 'Analise os jogos ao vivo agora.'],
-      ['📈', 'Mercado', 'Mostre movimento de odds e value bets.'],
-      ['🧠', 'Agents', 'Explique a análise usando os agents Oddix.'],
+      ['🔥', 'Top Pick', 'Qual entrada tem maior confiança hoje?'],
+      ['⚡', 'Live Pro', 'Analise pressão, finalizações e odds ao vivo.'],
+      ['📈', 'Value Bet', 'Onde existe valor escondido no mercado hoje?'],
+      ['🧠', 'Oddix Agents', 'Explique a decisão usando os agentes Oddix.'],
     ],
     [],
   );
@@ -146,8 +148,16 @@ export default function OddixChatPage() {
     });
   }, [messages, isThinking]);
 
-  function closeSidebar() {
-    setSidebarOpen(false);
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, Math.max(120, window.innerHeight * 0.3))}px`;
+  }, [message]);
+
+  function closeMobileSidebar() {
+    setMobileSidebarOpen(false);
   }
 
   function getLastUserContext() {
@@ -180,18 +190,7 @@ export default function OddixChatPage() {
     const calc = extractOddAndStake(prompt);
 
     if (calc) {
-      return `💰 **Calculadora Oddix**
-
-Valor apostado: **R$${calc.stake.toFixed(2)}**
-Odd: **${calc.odd.toFixed(2)}**
-
-Retorno total: **R$${calc.retorno.toFixed(2)}**
-Lucro estimado: **R$${calc.lucro.toFixed(2)}**
-
-✅ Fórmula usada:
-**Retorno = valor apostado × odd**
-
-⚠️ Lembrete: retorno não é garantia. Aposte com responsabilidade.`;
+      return `💰 **Calculadora Oddix**\n\nValor apostado: **R$${calc.stake.toFixed(2)}**\nOdd: **${calc.odd.toFixed(2)}**\n\nRetorno total: **R$${calc.retorno.toFixed(2)}**\nLucro estimado: **R$${calc.lucro.toFixed(2)}**\n\n✅ Fórmula usada:\n**Retorno = valor apostado × odd**\n\n⚠️ Lembrete: retorno não é garantia. Aposte com responsabilidade.`;
     }
 
     if (
@@ -202,149 +201,34 @@ Lucro estimado: **R$${calc.lucro.toFixed(2)}**
       lower.includes('mais segura') ||
       lower.includes('mais agressiva')
     ) {
-      return `🧠 **Contexto entendido**
-
-Você está continuando a conversa anterior.
-
-Último contexto identificado:
-**${lastContext || 'nenhum jogo específico encontrado ainda'}**
-
-Posso seguir com:
-• análise mais conservadora;
-• análise mais agressiva;
-• melhor mercado;
-• risco da entrada;
-• cálculo de retorno;
-• alternativa de múltipla.`;
+      return `🧠 **Contexto entendido**\n\nVocê está continuando a conversa anterior.\n\nÚltimo contexto identificado:\n**${lastContext || 'nenhum jogo específico encontrado ainda'}**\n\nPosso seguir com:\n• análise mais conservadora;\n• análise mais agressiva;\n• melhor mercado;\n• risco da entrada;\n• cálculo de retorno;\n• alternativa de múltipla.`;
     }
 
     if (lower.includes('múltipla') || lower.includes('multipla')) {
-      return `🔥 **Múltipla segura Oddix**
-
-Estratégia ideal para múltipla:
-
-1. Evitar odds muito altas
-2. Priorizar mercados protegidos
-3. Usar jogos com estatística real
-4. Não misturar muitos riscos
-5. Evitar jogo sem informação confiável
-
-Modelo seguro:
-• Dupla chance
-• Over 0.5 gols
-• Over 1.5 gols
-• Time marca 1+ gol
-• Handicap +1.5`;
+      return `🔥 **Múltipla segura Oddix**\n\nEstratégia ideal para múltipla:\n\n1. Evitar odds muito altas\n2. Priorizar mercados protegidos\n3. Usar jogos com estatística real\n4. Não misturar muitos riscos\n5. Evitar jogo sem informação confiável\n\nModelo seguro:\n• Dupla chance\n• Over 0.5 gols\n• Over 1.5 gols\n• Time marca 1+ gol\n• Handicap +1.5`;
     }
 
     if (lower.includes('top pick') || lower.includes('melhores palpites') || lower.includes('palpites')) {
-      return `🏆 **Top Picks Oddix**
-
-Para um Top Pick profissional, a IA avalia:
-
-• forma recente dos times;
-• mando de campo;
-• gols marcados e sofridos;
-• lesões e desfalques;
-• notícias recentes;
-• movimento das odds;
-• valor real da entrada;
-• risco x confiança.
-
-✅ Regra Oddix:
-**sem dados reais suficientes = sem entrada**`;
+      return `🏆 **Top Picks Oddix**\n\nPara um Top Pick profissional, a IA avalia:\n\n• forma recente dos times;\n• mando de campo;\n• gols marcados e sofridos;\n• lesões e desfalques;\n• notícias recentes;\n• movimento das odds;\n• valor real da entrada;\n• risco x confiança.\n\n✅ Regra Oddix:\n**sem dados reais suficientes = sem entrada**`;
     }
 
     if (lower.includes('mercado') || lower.includes('odds') || lower.includes('value')) {
-      return `📈 **Mercado e Value Bet**
-
-A leitura do mercado considera:
-
-• odd de abertura;
-• odd atual;
-• queda brusca;
-• subida suspeita;
-• possível entrada de dinheiro;
-• valor escondido;
-• risco de armadilha.
-
-💎 Uma value bet acontece quando a probabilidade real parece maior que a probabilidade indicada pela odd.`;
+      return `📈 **Mercado e Value Bet**\n\nA leitura do mercado considera:\n\n• odd de abertura;\n• odd atual;\n• queda brusca;\n• subida suspeita;\n• possível entrada de dinheiro;\n• valor escondido;\n• risco de armadilha.\n\n💎 Uma value bet acontece quando a probabilidade real parece maior que a probabilidade indicada pela odd.`;
     }
 
     if (lower.includes('lesões') || lower.includes('desfalques')) {
-      return `🚑 **Lesões e Desfalques**
-
-O impacto é medido por:
-
-• titular fora;
-• posição do jogador;
-• substituto provável;
-• perda ofensiva;
-• perda defensiva;
-• impacto tático;
-• notícias recentes.
-
-Um atacante titular fora muda mercado de gols.
-Um zagueiro titular fora pode aumentar chance de BTTS/Over.`;
+      return `🚑 **Lesões e Desfalques**\n\nO impacto é medido por:\n\n• titular fora;\n• posição do jogador;\n• substituto provável;\n• perda ofensiva;\n• perda defensiva;\n• impacto tático;\n• notícias recentes.\n\nUm atacante titular fora muda mercado de gols.\nUm zagueiro titular fora pode aumentar chance de BTTS/Over.`;
     }
 
     if (lower.includes('notícia') || lower.includes('noticias')) {
-      return `📰 **News Agent Oddix**
-
-Resumo focado em apostas:
-
-• notícias recentes;
-• escalações prováveis;
-• desfalques;
-• clima interno;
-• declarações de treinador;
-• calendário e desgaste;
-• impacto nas odds.`;
+      return `📰 **News Agent Oddix**\n\nResumo focado em apostas:\n\n• notícias recentes;\n• escalações prováveis;\n• desfalques;\n• clima interno;\n• declarações de treinador;\n• calendário e desgaste;\n• impacto nas odds.`;
     }
 
     if (lower.includes('ao vivo') || lower.includes('live')) {
-      return `⚡ **Análise ao vivo Oddix**
-
-No live, a IA prioriza:
-
-• pressão ofensiva;
-• finalizações;
-• chutes no gol;
-• escanteios;
-• posse perigosa;
-• ataques recentes;
-• odd subindo ou caindo;
-• minuto do jogo.
-
-Mercados possíveis:
-• próximo gol;
-• over gols;
-• escanteios;
-• dupla chance live.`;
+      return `⚡ **Análise ao vivo Oddix**\n\nNo live, a IA prioriza:\n\n• pressão ofensiva;\n• finalizações;\n• chutes no gol;\n• escanteios;\n• posse perigosa;\n• ataques recentes;\n• odd subindo ou caindo;\n• minuto do jogo.\n\nMercados possíveis:\n• próximo gol;\n• over gols;\n• escanteios;\n• dupla chance live.`;
     }
 
-    return `🧠 **Análise Oddix iniciada**
-
-Entendi sua pergunta:
-
-**${prompt}**
-
-Para uma análise profissional, vou avaliar:
-
-• momento das equipes;
-• estatísticas recentes;
-• mando de campo;
-• notícias e desfalques;
-• tendência de mercado;
-• valor da odd;
-• risco da entrada;
-• confiança final.
-
-✅ Me envie um jogo específico, por exemplo:
-**Flamengo x Palmeiras**
-
-Ou pergunte:
-**quanto ganho com R$20 na odd 1.85?**`;
+    return `🧠 **Análise Oddix iniciada**\n\nEntendi sua pergunta:\n\n**${prompt}**\n\nPara uma análise profissional, vou avaliar:\n\n• momento das equipes;\n• estatísticas recentes;\n• mando de campo;\n• notícias e desfalques;\n• tendência de mercado;\n• valor da odd;\n• risco da entrada;\n• confiança final.\n\n✅ Me envie um jogo específico, por exemplo:\n**Flamengo x Palmeiras**\n\nOu pergunte:\n**quanto ganho com R$20 na odd 1.85?**`;
   }
 
   async function callOddixApi(prompt: string) {
@@ -366,7 +250,7 @@ Ou pergunte:
           messages,
           context: {
             source: 'oddix-web-chat',
-            version: 'V9.6-mobile-safe-layout',
+            version: 'V10-oddix-premium-layout',
           },
         }),
       });
@@ -377,13 +261,7 @@ Ou pergunte:
       }
 
       const data = (await response.json()) as OddixApiResponse;
-
-      const answer =
-        data.answer ||
-        data.response ||
-        data.message ||
-        data.text ||
-        data.result;
+      const answer = data.answer || data.response || data.message || data.text || data.result;
 
       if (answer) {
         setApiConnected(true);
@@ -403,7 +281,6 @@ Ou pergunte:
 
   async function sendMessage(customText?: string) {
     const text = (customText ?? message).trim();
-
     if (!text || isThinking) return;
 
     const userMessage: ChatMessage = {
@@ -415,7 +292,7 @@ Ou pergunte:
     setMessages((current) => [...current, userMessage]);
     setMessage('');
     setIsThinking(true);
-    closeSidebar();
+    closeMobileSidebar();
 
     const apiAnswer = await callOddixApi(text);
 
@@ -434,17 +311,23 @@ Ou pergunte:
     sendMessage();
   }
 
+  function handleTextareaKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  }
+
   function handleNewConversation() {
     setMessages([]);
     setMessage('');
     setIsThinking(false);
-    closeSidebar();
-
-    window.setTimeout(() => inputRef.current?.focus(), 50);
+    closeMobileSidebar();
+    window.setTimeout(() => textareaRef.current?.focus(), 60);
   }
 
   return (
-    <main className="fixed inset-0 overflow-hidden bg-[#02070d] text-white">
+    <main className="oddix-chat-root h-dvh w-screen overflow-hidden bg-[var(--oddix-bg)] text-[#ecfff7] [--header-height:52px] [--sidebar-width:260px] [--sidebar-rail-width:72px] [--thread-content-max-width:48rem] [--thread-content-margin:clamp(1rem,4vw,4rem)] [--oddix-bg:#0b0f14] [--oddix-sidebar:#081019] [--oddix-surface:#101922] [--oddix-surface-2:#132231] [--oddix-border:rgba(16,185,129,.18)] [--oddix-green:#10b981]">
       <style jsx global>{`
         html,
         body {
@@ -452,26 +335,28 @@ Ou pergunte:
           max-width: 100%;
           height: 100%;
           overflow: hidden;
-          background: #02070d;
+          background: #0b0f14;
+          overscroll-behavior: none;
+          -webkit-font-smoothing: antialiased;
+          text-rendering: geometricPrecision;
         }
 
         * {
           box-sizing: border-box;
         }
 
-        .oddix-safe,
-        .oddix-safe * {
-          min-width: 0 !important;
-          writing-mode: horizontal-tb !important;
-          text-orientation: mixed !important;
-          white-space: normal !important;
-          word-break: break-word !important;
-          overflow-wrap: anywhere !important;
+        .oddix-chat-root,
+        .oddix-chat-root * {
+          min-width: 0;
+          writing-mode: horizontal-tb;
+          text-orientation: mixed;
+          word-break: break-word;
+          overflow-wrap: anywhere;
         }
 
         .oddix-scroll {
           scrollbar-width: thin;
-          scrollbar-color: rgba(16, 185, 129, 0.58) rgba(255, 255, 255, 0.06);
+          scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
         }
 
         .oddix-scroll::-webkit-scrollbar {
@@ -479,258 +364,345 @@ Ou pergunte:
         }
 
         .oddix-scroll::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.04);
+          background: transparent;
         }
 
         .oddix-scroll::-webkit-scrollbar-thumb {
-          background: rgba(16, 185, 129, 0.55);
+          background: rgba(255, 255, 255, 0.22);
           border-radius: 999px;
+        }
+
+        .oddix-message strong {
+          color: #d1fae5;
+          font-weight: 800;
+        }
+
+        .oddix-premium-bg {
+          background:
+            radial-gradient(circle at 50% 0%, rgba(16,185,129,.14), transparent 34%),
+            radial-gradient(circle at 85% 18%, rgba(59,130,246,.10), transparent 30%),
+            linear-gradient(180deg, #0b0f14 0%, #0b0f14 52%, #070b10 100%);
+        }
+
+        .oddix-glass {
+          background: linear-gradient(180deg, rgba(16,25,34,.92), rgba(10,18,26,.92));
+          border: 1px solid rgba(16,185,129,.16);
+          box-shadow: 0 18px 60px rgba(0,0,0,.28);
+        }
+
+        .oddix-premium-chip {
+          border: 1px solid rgba(16,185,129,.18);
+          background: rgba(16,185,129,.08);
+          color: #a7f3d0;
+        }
+
+        .oddix-logo-glow {
+          box-shadow: 0 0 34px rgba(16,185,129,.32), inset 0 0 18px rgba(255,255,255,.08);
+        }
+
+        .oddix-chat-root textarea {
+          scrollbar-width: thin;
+        }
+
+        .oddix-sidebar-label {
+          opacity: 1;
+          transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+
+        .oddix-sidebar-rail .oddix-sidebar-label {
+          opacity: 0;
+          transform: translateX(-4px);
+          pointer-events: none;
+        }
+
+        @supports (height: 100svh) {
+          .oddix-chat-root {
+            height: 100svh;
+          }
         }
       `}</style>
 
-      <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('/images/oddix-chat-bg.png')" }}
-      />
+      <div className="flex h-full w-full overflow-hidden">
+        {mobileSidebarOpen && (
+          <button
+            type="button"
+            aria-label="Fechar barra lateral"
+            onClick={closeMobileSidebar}
+            className="fixed inset-0 z-40 bg-black/55 md:hidden"
+          />
+        )}
 
-      <div className="absolute inset-0 bg-black/60" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,197,94,.14),transparent_58%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(2,7,13,.12),rgba(2,7,13,.46)_48%,rgba(2,7,13,.96))]" />
-
-      {sidebarOpen && (
-        <button
-          type="button"
-          onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-40 bg-black/65 xl:hidden"
-          aria-label="Fechar histórico"
-        />
-      )}
-
-      <div className="relative z-10 grid h-full w-full grid-cols-1 overflow-hidden xl:grid-cols-[280px_minmax(0,1fr)]">
         <aside
           className={[
-            'oddix-safe fixed left-0 top-0 z-50 h-full w-[280px] max-w-[86vw] border-r border-white/10 bg-black/85 backdrop-blur-2xl transition-transform duration-300 xl:static xl:z-10 xl:max-w-none xl:translate-x-0',
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+            'fixed inset-y-0 left-0 z-50 flex h-full w-[var(--sidebar-width)] shrink-0 flex-col overflow-hidden border-r border-[#2a2a2a] bg-[var(--oddix-sidebar)] text-[#ecfff7] transition-[width,transform] duration-150 ease-out md:relative md:z-10 md:translate-x-0',
+            mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+            sidebarOpen ? 'md:w-[var(--sidebar-width)]' : 'md:w-[var(--sidebar-rail-width)] oddix-sidebar-rail',
           ].join(' ')}
         >
-          <div className="flex h-full min-h-0 flex-col p-4">
-            <div className="mb-5 flex shrink-0 items-center justify-between gap-3">
-              <img
-                src="/images/oddix-logo.png"
-                alt="Oddix"
-                className="h-7 w-auto object-contain"
-                draggable={false}
-              />
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="flex h-[var(--header-height)] shrink-0 items-center justify-between px-3">
+              <button
+                type="button"
+                onClick={handleNewConversation}
+                className="flex min-w-0 items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-semibold text-white/90 hover:bg-white/10"
+                aria-label="Início Oddix"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center oddix-logo-glow rounded-full bg-emerald-500 text-xs font-black text-black">
+                  O
+                </span>
+                {showSidebarLabels && <span className="oddix-sidebar-label truncate">Oddix</span>}
+              </button>
 
               <button
                 type="button"
-                onClick={() => setSidebarOpen(false)}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70 hover:bg-white/10 xl:hidden"
+                onClick={() => setSidebarOpen((current) => !current)}
+                className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 md:flex"
+                aria-label={sidebarOpen ? 'Fechar barra lateral' : 'Abrir barra lateral'}
+              >
+                {sidebarOpen ? '‹' : '›'}
+              </button>
+
+              <button
+                type="button"
+                onClick={closeMobileSidebar}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 md:hidden"
                 aria-label="Fechar histórico"
               >
                 ✕
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleNewConversation}
-              className="mb-4 shrink-0 rounded-2xl border border-emerald-400/30 bg-emerald-500/15 px-4 py-3 text-left text-sm font-black text-emerald-300 hover:bg-emerald-500/25"
-            >
-              + Nova conversa
-            </button>
+            <nav className="shrink-0 px-2 pb-2">
+              <button
+                type="button"
+                onClick={handleNewConversation}
+                className="group flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm text-white/88 hover:bg-white/10"
+              >
+                <span className="text-lg leading-none">＋</span>
+                {showSidebarLabels && <span className="oddix-sidebar-label truncate">Novo chat</span>}
+              </button>
 
-            <div className="mb-3 shrink-0 text-xs font-black uppercase tracking-[0.22em] text-white/35">
-              Histórico
+              <button
+                type="button"
+                onClick={() => sendMessage('Busque os melhores jogos para analisar hoje.')}
+                className="group mt-1 flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm text-white/88 hover:bg-white/10"
+              >
+                <span className="text-lg leading-none">⌕</span>
+                {showSidebarLabels && <span className="oddix-sidebar-label truncate">Buscar chats</span>}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => sendMessage('Mostre minha biblioteca de análises Oddix: Top Picks, múltiplas e jogos ao vivo.')}
+                className="group mt-1 flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm text-white/88 hover:bg-white/10"
+              >
+                <span className="text-lg leading-none">▦</span>
+                {showSidebarLabels && <span className="oddix-sidebar-label truncate">Biblioteca</span>}
+              </button>
+            </nav>
+
+            <div className="oddix-scroll min-h-0 flex-1 overflow-y-auto px-2 py-2">
+              {showSidebarLabels && (
+                <div className="mb-2 px-3 text-xs font-medium text-white/45">Recentes</div>
+              )}
+
+              <div className="space-y-1">
+                {history.map((item, index) => (
+                  <motion.button
+                    key={item.id}
+                    type="button"
+                    onClick={() => sendMessage(item.prompt)}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.035 }}
+                    className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-white/82 hover:bg-white/10"
+                    title={item.title}
+                  >
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400/80" />
+                    {showSidebarLabels && (
+                      <span className="oddix-sidebar-label min-w-0 flex-1">
+                        <span className="block truncate">{item.title}</span>
+                        <span className="mt-0.5 block truncate text-xs text-white/38">{item.desc}</span>
+                      </span>
+                    )}
+                  </motion.button>
+                ))}
+              </div>
             </div>
 
-            <div className="oddix-scroll min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-              {history.map((item, index) => (
-                <motion.button
-                  key={item.id}
-                  type="button"
-                  onClick={() => sendMessage(item.prompt)}
-                  initial={{ opacity: 0, x: -16 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left hover:border-emerald-400/30 hover:bg-emerald-500/10"
-                >
-                  <div className="text-sm font-black text-white/90">{item.title}</div>
-                  <div className="mt-1 text-[11px] text-white/45">{item.desc}</div>
-                </motion.button>
-              ))}
-            </div>
-
-            <div className="mt-4 shrink-0 rounded-2xl border border-emerald-400/20 bg-black/45 p-4">
-              <div className="text-xs font-black text-emerald-300">Oddix Chat V9.6</div>
-              <p className="mt-2 text-[11px] leading-relaxed text-white/55">
-                Layout seguro. Status: {apiStatus}
-              </p>
+            <div className="shrink-0 border-t border-white/5 p-2">
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-white/10"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/12 text-xs font-black text-emerald-300">
+                  PM
+                </span>
+                {showSidebarLabels && (
+                  <span className="oddix-sidebar-label min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-white/90">Pedro Magalhães</span>
+                    <span className="block truncate text-xs text-white/42">Oddix Premium IA • {apiStatus}</span>
+                  </span>
+                )}
+              </button>
             </div>
           </div>
         </aside>
 
-        <section className="oddix-safe flex h-full min-h-0 w-full flex-col overflow-hidden">
-          <header className="flex h-[60px] shrink-0 items-center justify-between border-b border-white/5 px-3 sm:h-[66px] sm:px-4 md:px-6">
-            <div className="flex min-w-0 items-center gap-2">
+        <section className="@container/main oddix-premium-bg relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--oddix-bg)]">
+          <header className="sticky top-0 z-20 flex h-[var(--header-height)] shrink-0 items-center justify-between bg-[rgba(11,15,20,.86)] px-2 border-b border-[var(--oddix-border)] backdrop-blur-xl md:px-3">
+            <div className="flex min-w-0 items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => setSidebarOpen(true)}
-                className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-white/80 backdrop-blur-xl hover:bg-white/10 xl:hidden"
-                aria-label="Abrir histórico"
+                onClick={() => setMobileSidebarOpen(true)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl text-white/82 hover:bg-white/10 md:hidden"
+                aria-label="Abrir barra lateral"
               >
                 ☰
               </button>
 
-              <span className="truncate rounded-lg border border-emerald-400/20 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black text-emerald-300 md:px-3 md:text-xs">
-                CHAT V9.6
-              </span>
+              {!sidebarOpen && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(true)}
+                  className="hidden h-10 w-10 items-center justify-center rounded-xl text-white/82 hover:bg-white/10 md:flex"
+                  aria-label="Abrir barra lateral"
+                >
+                  ☰
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleNewConversation}
+                className="hidden h-10 w-10 items-center justify-center rounded-xl text-white/82 hover:bg-white/10 md:flex"
+                aria-label="Novo chat"
+              >
+                ✎
+              </button>
+
+              <div className="ml-1 flex min-w-0 items-center gap-2 rounded-xl px-2 py-1.5 text-[15px] font-semibold text-white/92 hover:bg-white/5">
+                <span className="truncate">Oddix Chat</span>
+                <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                  V10
+                </span>
+              </div>
             </div>
 
-            <div
-              className={[
-                'rounded-full border px-3 py-2 text-[10px] font-black md:px-4 md:text-xs',
-                apiConnected
-                  ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-300'
-                  : 'border-yellow-400/20 bg-yellow-500/10 text-yellow-300',
-              ].join(' ')}
-            >
-              {apiConnected ? '● API online' : '● API offline'}
+            <div className="flex shrink-0 items-center gap-2">
+              <span
+                className={[
+                  'hidden rounded-full px-3 py-1.5 text-xs font-semibold sm:inline-flex',
+                  apiConnected ? 'bg-emerald-500/12 text-emerald-300' : 'bg-yellow-500/12 text-yellow-300',
+                ].join(' ')}
+              >
+                {apiConnected ? '● API online' : '● API offline'}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => sendMessage('Ative uma análise temporária com foco em risco baixo para o próximo jogo.')}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-white/82 hover:bg-white/10"
+                aria-label="Chat temporário"
+              >
+                ⏱
+              </button>
             </div>
           </header>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {!hasConversation && (
-              <div className="oddix-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-5 sm:px-5 md:px-8">
-                <div className="mx-auto flex min-h-full w-full max-w-[1100px] flex-col items-center justify-center">
-                  <motion.img
-                    src="/images/oddix-logo-banner.png"
-                    alt="Oddix"
-                    initial={{ opacity: 0, y: -24 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.7 }}
-                    className="w-full max-w-[280px] object-contain drop-shadow-[0_0_50px_rgba(34,197,94,.28)] min-[420px]:max-w-[340px] sm:max-w-[430px] md:max-w-[560px]"
-                    draggable={false}
-                  />
-
-                  <p className="mt-2 max-w-full px-2 text-center text-xs leading-relaxed text-white/68 md:text-base">
-                    Seu assistente inteligente para análise de futebol, odds e apostas.
-                  </p>
-
+          <div
+            ref={chatScrollRef}
+            data-scroll-root=""
+            className="oddix-scroll relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden scroll-pt-[var(--header-height)] [scrollbar-gutter:stable]"
+          >
+            {!hasConversation ? (
+              <div className="flex min-h-full flex-1 flex-col">
+                <div className="mx-auto flex w-full max-w-[var(--thread-content-max-width)] flex-1 flex-col items-center justify-center px-[var(--thread-content-margin)] pb-4 pt-8 text-center sm:min-h-[calc(42svh-var(--header-height))]">
                   <motion.div
-                    initial={{ opacity: 0, y: 22 }}
-                    animate={{
-                      opacity: 1,
-                      y: 0,
-                      boxShadow: [
-                        '0 0 16px rgba(34,197,94,.10)',
-                        '0 0 42px rgba(34,197,94,.28)',
-                        '0 0 16px rgba(34,197,94,.10)',
-                      ],
-                    }}
-                    transition={{
-                      opacity: { duration: 0.7, delay: 0.1 },
-                      y: { duration: 0.7, delay: 0.1 },
-                      boxShadow: {
-                        duration: 3,
-                        repeat: Infinity,
-                        ease: 'easeInOut',
-                      },
-                    }}
-                    className="mt-4 w-full rounded-2xl border border-emerald-400/25 bg-black/45 p-3 text-left backdrop-blur-2xl md:mt-6 md:rounded-3xl md:p-5"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.45 }}
+                    className="mb-7 flex flex-col items-center"
                   >
-                    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300 md:text-xs">
-                          Destaque principal
-                        </div>
-                        <h2 className="mt-1 text-lg font-black text-white md:text-2xl">
-                          🔥 Top Pick do Dia
-                        </h2>
-                      </div>
-
-                      <span className="w-fit rounded-full border border-emerald-400/25 bg-emerald-500/15 px-3 py-2 text-[10px] font-black text-emerald-300 md:px-4 md:text-xs">
-                        Score Oddix 88%
-                      </span>
+                    <div className="mb-5 flex h-16 w-16 items-center justify-center oddix-logo-glow rounded-3xl bg-emerald-500 text-2xl font-black text-black shadow-[0_0_40px_rgba(16,185,129,.35)]">
+                      O
                     </div>
+                    <h1 className="text-balance text-[28px] font-normal leading-tight text-white sm:text-[32px]">
+                      O que deseja analisar hoje?
+                    </h1>
+                    <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/48 sm:text-base">
+                      Jogos, odds, estatísticas, notícias, múltiplas e análises profissionais com IA.
+                    </p>
 
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:gap-3">
-                      {['Análise automática', 'Melhor entrada', 'Risco controlado', '19 Agents ativos'].map(
-                        (item) => (
-                          <div
-                            key={item}
-                            className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 md:p-3"
-                          >
-                            <div className="text-[11px] font-black md:text-sm">{item}</div>
-                          </div>
-                        ),
-                      )}
+                    <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em]">
+                      <span className="oddix-premium-chip rounded-full px-3 py-1.5">Real Stats Only</span>
+                      <span className="oddix-premium-chip rounded-full px-3 py-1.5">+18 Responsável</span>
+                      <span className="oddix-premium-chip rounded-full px-3 py-1.5">Oddix Agents</span>
                     </div>
                   </motion.div>
 
-                  <div className="mt-4 grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:mt-6 xl:grid-cols-4 xl:gap-3">
-                    {suggestions.map((item, index) => (
-                      <motion.button
-                        key={item.label}
-                        type="button"
-                        onClick={() => sendMessage(item.prompt)}
-                        initial={{ opacity: 0, y: 18 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2 + index * 0.04 }}
-                        className="rounded-2xl border border-white/10 bg-black/35 p-3 text-left backdrop-blur-xl hover:border-emerald-400/40 hover:bg-emerald-500/10"
-                      >
-                        <div className="mb-1 text-lg md:mb-2 md:text-xl">{item.icon}</div>
-                        <div className="text-sm font-black text-white/90">{item.label}</div>
-                        <div className="mt-1 line-clamp-2 text-[11px] text-white/45">
-                          {item.prompt}
-                        </div>
-                      </motion.button>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:mt-5 xl:grid-cols-4 xl:gap-3">
+                  <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
                     {quickCards.map((item, index) => (
                       <motion.button
                         key={item[1]}
                         type="button"
                         onClick={() => sendMessage(item[2])}
-                        initial={{ opacity: 0, y: 18 }}
+                        initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.45 + index * 0.05 }}
-                        className="rounded-2xl border border-emerald-400/20 bg-black/40 p-3 text-left backdrop-blur-xl hover:bg-emerald-500/10 md:rounded-3xl md:p-4"
+                        transition={{ delay: 0.08 + index * 0.04 }}
+                        className="oddix-glass rounded-2xl p-4 text-left text-white/88 transition hover:bg-[var(--oddix-surface-2)]"
                       >
-                        <div className="text-lg md:text-xl">{item[0]}</div>
-                        <div className="mt-1 text-sm font-black md:mt-2">{item[1]}</div>
-                        <p className="mt-1 text-[11px] text-white/50">{item[2]}</p>
+                        <span className="text-xl">{item[0]}</span>
+                        <span className="ml-2 text-sm font-semibold">{item[1]}</span>
+                        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-white/48">{item[2]}</p>
+                      </motion.button>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 grid w-full grid-cols-2 gap-2 sm:grid-cols-4">
+                    {suggestions.slice(0, 4).map((item, index) => (
+                      <motion.button
+                        key={item.label}
+                        type="button"
+                        onClick={() => sendMessage(item.prompt)}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.24 + index * 0.04 }}
+                        className="rounded-2xl border border-[var(--oddix-border)] bg-[rgba(16,25,34,.78)] px-3 py-3 text-sm text-white/76 hover:bg-[var(--oddix-surface-2)]"
+                      >
+                        <span className="mr-1.5">{item.icon}</span>
+                        {item.label}
                       </motion.button>
                     ))}
                   </div>
                 </div>
               </div>
-            )}
-
-            {hasConversation && (
-              <div
-                ref={chatScrollRef}
-                className="oddix-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-5 md:px-8"
-              >
-                <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
+            ) : (
+              <div className="w-full px-[var(--thread-content-margin)] py-6">
+                <div className="mx-auto flex w-full max-w-[var(--thread-content-max-width)] flex-col gap-7">
                   {messages.map((item) => (
                     <motion.div
                       key={item.id}
-                      initial={{ opacity: 0, y: 12 }}
+                      initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className={[
-                        'max-w-[92%] break-words rounded-3xl px-5 py-4 text-sm leading-relaxed md:text-base',
-                        item.role === 'user'
-                          ? 'ml-auto bg-emerald-500/20 text-white'
-                          : 'mr-auto border border-white/10 bg-white/[0.06] text-white/85',
-                      ].join(' ')}
+                      className={['flex w-full', item.role === 'user' ? 'justify-end' : 'justify-start'].join(' ')}
                     >
-                      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300 md:text-xs">
-                        {item.role === 'user' ? 'Você' : 'Oddix IA'}
+                      {item.role === 'assistant' && (
+                        <div className="mr-3 mt-1 hidden h-8 w-8 shrink-0 items-center justify-center oddix-logo-glow rounded-full bg-emerald-500 text-xs font-black text-black sm:flex">
+                          O
+                        </div>
+                      )}
+
+                      <div
+                        className={[
+                          'oddix-message max-w-[min(100%,42rem)] whitespace-pre-line text-[15px] leading-7 sm:text-base',
+                          item.role === 'user'
+                            ? 'rounded-[26px] bg-[var(--oddix-surface)] px-5 py-3.5 text-white/92'
+                            : 'px-0 py-1 text-white/88',
+                        ].join(' ')}
+                      >
+                        {item.content}
                       </div>
-                      <div className="whitespace-pre-line break-words">{item.content}</div>
                     </motion.div>
                   ))}
 
@@ -738,61 +710,76 @@ Ou pergunte:
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className="mr-auto rounded-3xl border border-white/10 bg-white/[0.06] px-5 py-4 text-sm text-white/70"
+                      className="flex items-center gap-3 text-sm text-white/58"
                     >
-                      <span className="text-emerald-300">Oddix IA</span> analisando...
+                      <div className="hidden h-8 w-8 shrink-0 items-center justify-center oddix-logo-glow rounded-full bg-emerald-500 text-xs font-black text-black sm:flex">
+                        O
+                      </div>
+                      <div className="flex items-center gap-1 rounded-2xl bg-[var(--oddix-surface)] px-4 py-3">
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/55 [animation-delay:-.2s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/55 [animation-delay:-.1s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/55" />
+                      </div>
                     </motion.div>
                   )}
                 </div>
               </div>
             )}
+          </div>
 
-            <div className="shrink-0 border-t border-white/5 px-3 pb-3 pt-3 sm:px-5 md:px-8">
+          <div className="sticky bottom-0 z-10 shrink-0 bg-[var(--oddix-bg)] px-[var(--thread-content-margin)] pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] pt-2 sm:pb-4">
+            <div className="mx-auto w-full max-w-[var(--thread-content-max-width)]">
               <motion.form
-                initial={{ opacity: 0, y: 24 }}
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 0.15 }}
+                transition={{ duration: 0.35 }}
                 onSubmit={handleSubmit}
-                className="mx-auto flex w-full max-w-[1100px] items-center gap-2 rounded-2xl border border-emerald-400/30 bg-[#0d141d]/92 px-3 py-3 shadow-[0_30px_100px_rgba(0,0,0,.65),0_0_45px_rgba(34,197,94,.15)] backdrop-blur-3xl focus-within:border-emerald-400/60 md:gap-3 md:rounded-full md:px-7 md:py-4"
+                className="relative min-h-[52px] rounded-[28px] transition-all duration-200 bg-[var(--oddix-surface)] px-2 py-[9px] shadow-[0_0_0_1px_rgba(16,185,129,.16),0_12px_44px_rgba(0,0,0,.42),0_0_40px_rgba(16,185,129,.08)] transition focus-within:shadow-[0_0_0_1px_rgba(16,185,129,.36),0_14px_52px_rgba(0,0,0,.48),0_0_48px_rgba(16,185,129,.14)]"
               >
-                <button
-                  type="button"
-                  onClick={handleNewConversation}
-                  className="text-xl text-white/80 hover:text-emerald-300 md:text-2xl"
-                  title="Nova conversa"
-                >
-                  +
-                </button>
+                <div className="flex items-end gap-2">
+                  <button
+                    type="button"
+                    onClick={handleNewConversation}
+                    className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl text-white/75 hover:bg-white/10 hover:text-white"
+                    aria-label="Nova conversa"
+                  >
+                    +
+                  </button>
 
-                <input
-                  ref={inputRef}
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                  placeholder="Pergunte sobre jogos, odds, estatísticas..."
-                  className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/42 md:text-base"
-                />
+                  <textarea
+                    ref={textareaRef}
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                    onKeyDown={handleTextareaKeyDown}
+                    rows={1}
+                    placeholder="Pergunte alguma coisa"
+                    className="max-h-[30svh] min-h-10 flex-1 resize-none bg-transparent px-1.5 py-1.5 text-[15px] leading-6 text-white outline-none placeholder:text-white/40 sm:text-base"
+                  />
 
-                <button
-                  type="button"
-                  onClick={() => setMessage('Ajuste a análise para risco baixo e odd máxima 2.00.')}
-                  className="hidden text-xl text-white/85 hover:text-emerald-300 sm:block"
-                >
-                  🎚️
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setMessage('Ajuste a análise para risco baixo e odd máxima 2.00.')}
+                    className="mb-0.5 hidden h-10 w-10 shrink-0 items-center justify-center rounded-full text-white/75 hover:bg-white/10 hover:text-white sm:flex"
+                    aria-label="Ajustar risco"
+                  >
+                    🎚️
+                  </button>
 
-                <button
-                  type="submit"
-                  disabled={isThinking}
-                  className="rounded-full bg-emerald-500/20 px-3 py-2.5 text-[10px] font-black text-emerald-300 hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50 md:px-6 md:py-3 md:text-xs"
-                >
-                  {isThinking ? 'Analisando...' : '✨ IA'}
-                </button>
+                  <button
+                    type="submit"
+                    disabled={!message.trim() || isThinking}
+                    className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-lg font-black text-black transition hover:scale-105 disabled:cursor-not-allowed disabled:bg-white/18 disabled:text-white/40 disabled:hover:scale-100"
+                    aria-label="Enviar mensagem"
+                  >
+                    {isThinking ? '…' : '↑'}
+                  </button>
+                </div>
               </motion.form>
 
-              <div className="mx-auto mt-2 w-full max-w-[1100px] rounded-2xl border border-white/10 bg-black/50 px-4 py-2 text-center text-[10px] leading-relaxed text-white/60 backdrop-blur-xl md:mt-3 md:px-5 md:py-3 md:text-xs">
-                🛡️ Oddix Chat pode cometer erros. Confirme as informações antes de apostar.
-                <span className="ml-1 font-black text-emerald-400">+18</span>
-              </div>
+              <p className="mx-auto mt-2 max-w-2xl text-center text-[11px] leading-relaxed text-white/42">
+                Oddix IA usa dados, mercado e contexto. Confirme informações antes de apostar.{' '}
+                <span className="font-semibold text-emerald-300">+18 • Jogue com responsabilidade.</span>
+              </p>
             </div>
           </div>
         </section>
