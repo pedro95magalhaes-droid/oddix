@@ -32,7 +32,7 @@ type OddixApiResponse = {
 
 export default function OddixChatPage() {
   const [message, setMessage] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [apiConnected, setApiConnected] = useState(false);
@@ -125,8 +125,6 @@ export default function OddixChatPage() {
   );
 
   useEffect(() => {
-    console.log('ODDIX API URL:', apiBase);
-
     if (!apiBase) {
       setApiConnected(false);
       setApiStatus('sem env');
@@ -145,6 +143,18 @@ export default function OddixChatPage() {
       behavior: 'smooth',
     });
   }, [messages, isThinking]);
+
+  useEffect(() => {
+    function handleResize() {
+      if (window.innerWidth >= 1024) setSidebarOpen(true);
+      if (window.innerWidth < 1024) setSidebarOpen(false);
+    }
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   function getLastUserContext() {
     const lastUserMessage = [...messages].reverse().find((item) => item.role === 'user');
@@ -350,29 +360,22 @@ Ou pergunte:
     }
 
     const cleanApiBase = apiBase.replace(/\/$/, '');
-
     const endpoint = `${cleanApiBase}/chat-football/message`;
 
     try {
-      console.log('Chamando Oddix API:', endpoint);
-
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: prompt,
           question: prompt,
           messages,
           context: {
             source: 'oddix-web-chat',
-            version: 'V7.6.8',
+            version: 'V9-responsive',
           },
         }),
       });
-
-      console.log('Status Oddix API:', response.status);
 
       if (!response.ok) {
         setApiStatus(`erro ${response.status}`);
@@ -419,6 +422,8 @@ Ou pergunte:
     setMessage('');
     setIsThinking(true);
 
+    if (window.innerWidth < 1024) setSidebarOpen(false);
+
     const apiAnswer = await callOddixApi(text);
 
     const assistantMessage: ChatMessage = {
@@ -441,327 +446,326 @@ Ou pergunte:
     setMessage('');
     setIsThinking(false);
 
-    window.setTimeout(() => {
-      inputRef.current?.focus();
-    }, 50);
+    if (window.innerWidth < 1024) setSidebarOpen(false);
+
+    window.setTimeout(() => inputRef.current?.focus(), 50);
   }
 
   return (
-    <main className="relative h-[100dvh] overflow-hidden bg-[#02070d] text-white">
+    <main className="relative h-[100dvh] min-h-[100dvh] overflow-hidden bg-[#02070d] text-white">
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/images/oddix-chat-bg.png')" }}
       />
 
-      <div className="absolute inset-0 bg-black/50" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,197,94,.22),transparent_58%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(2,7,13,.12),rgba(2,7,13,.35)_50%,rgba(2,7,13,.92))]" />
+      <div className="absolute inset-0 bg-black/55" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,197,94,.20),transparent_58%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(2,7,13,.15),rgba(2,7,13,.42)_50%,rgba(2,7,13,.95))]" />
 
       {sidebarOpen && (
         <button
           type="button"
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-20 bg-black/45 md:hidden"
+          className="fixed inset-0 z-30 bg-black/55 lg:hidden"
           aria-label="Fechar menu"
         />
       )}
 
-      <aside
-        className={[
-          'fixed left-0 top-0 z-30 h-[100dvh] w-[260px] border-r border-white/10 bg-black/70 backdrop-blur-2xl transition-transform duration-300 md:bg-black/62',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
-        ].join(' ')}
-      >
-        <div className="flex h-full flex-col p-4">
-          <div className="mb-6 flex items-center justify-between">
-            <img
-              src="/images/oddix-logo.png"
-              alt="Oddix"
-              className="h-7 w-fit object-contain"
-              draggable={false}
-            />
-
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(false)}
-              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70 hover:bg-white/10 md:hidden"
-            >
-              ✕
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleNewConversation}
-            className="mb-5 rounded-2xl border border-emerald-400/30 bg-emerald-500/15 px-4 py-3 text-left text-sm font-black text-emerald-300 hover:bg-emerald-500/25"
-          >
-            + Nova conversa
-          </button>
-
-          <div className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-white/35">
-            Histórico
-          </div>
-
-          <div className="space-y-2">
-            {history.map((item, index) => (
-              <motion.button
-                key={item.id}
-                type="button"
-                onClick={() => sendMessage(item.prompt)}
-                initial={{ opacity: 0, x: -16 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.07 }}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left hover:border-emerald-400/30 hover:bg-emerald-500/10"
-              >
-                <div className="text-sm font-black text-white/90">{item.title}</div>
-                <div className="mt-1 text-[11px] text-white/45">{item.desc}</div>
-              </motion.button>
-            ))}
-          </div>
-
-          <div className="mt-auto rounded-2xl border border-emerald-400/20 bg-black/45 p-4">
-            <div className="text-xs font-black text-emerald-300">Oddix Chat V7.6.8</div>
-            <p className="mt-2 text-[11px] leading-relaxed text-white/55">
-              API ligada em /chat-football/message. Status: {apiStatus}
-            </p>
-          </div>
-        </div>
-      </aside>
-
-      <section
-        className={[
-          'relative z-10 flex h-[100dvh] flex-col transition-all duration-300',
-          sidebarOpen ? 'md:pl-[260px]' : 'pl-0',
-        ].join(' ')}
-      >
-        <header className="flex h-[64px] shrink-0 items-center justify-between px-3 md:h-[76px] md:px-8">
-          <div className="flex items-center gap-2 md:gap-3">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-white/80 backdrop-blur-xl hover:bg-white/10"
-            >
-              ☰
-            </button>
-
-            <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black text-emerald-300 md:px-3 md:text-xs">
-              CHAT V7.6.8
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 md:gap-3">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="hidden rounded-full border border-white/10 bg-black/25 px-5 py-3 text-sm font-semibold text-white/90 backdrop-blur-xl hover:bg-white/10 md:block"
-            >
-              ↺ Histórico
-            </button>
-
-            <div
-              className={[
-                'rounded-full border px-3 py-2 text-[10px] font-black md:px-4 md:text-xs',
-                apiConnected
-                  ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-300'
-                  : 'border-yellow-400/20 bg-yellow-500/10 text-yellow-300',
-              ].join(' ')}
-            >
-              {apiConnected ? '● API online' : '● API offline'}
-            </div>
-          </div>
-        </header>
-
-        <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col items-center px-3 pb-3 md:px-5 md:pb-5">
-          {!hasConversation && (
-            <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-y-auto py-2 md:py-4">
-              <motion.img
-                src="/images/oddix-logo-banner.png"
+      <div className="relative z-10 flex h-full min-h-0 w-full overflow-hidden">
+        <aside
+          className={[
+            'fixed left-0 top-0 z-40 h-[100dvh] w-[260px] max-w-[84vw] border-r border-white/10 bg-black/75 backdrop-blur-2xl transition-transform duration-300 lg:relative lg:z-10 lg:h-full lg:translate-x-0 lg:bg-black/62',
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+          ].join(' ')}
+        >
+          <div className="flex h-full min-h-0 flex-col p-3 sm:p-4">
+            <div className="mb-5 flex shrink-0 items-center justify-between">
+              <img
+                src="/images/oddix-logo.png"
                 alt="Oddix"
-                initial={{ opacity: 0, y: -24 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7 }}
-                className="w-[420px] max-w-[88vw] object-contain drop-shadow-[0_0_50px_rgba(34,197,94,.28)] md:w-[560px]"
+                className="h-6 w-auto object-contain sm:h-7"
                 draggable={false}
               />
 
-              <p className="mt-2 max-w-[90vw] text-center text-xs text-white/68 md:text-base">
-                Seu assistente inteligente para análise de futebol, odds e apostas.
-              </p>
-
-              <motion.div
-                initial={{ opacity: 0, y: 22 }}
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                  boxShadow: [
-                    '0 0 16px rgba(34,197,94,.10)',
-                    '0 0 42px rgba(34,197,94,.28)',
-                    '0 0 16px rgba(34,197,94,.10)',
-                  ],
-                }}
-                transition={{
-                  opacity: { duration: 0.7, delay: 0.1 },
-                  y: { duration: 0.7, delay: 0.1 },
-                  boxShadow: {
-                    duration: 3,
-                    repeat: Infinity,
-                    ease: 'easeInOut',
-                  },
-                }}
-                className="mt-4 w-full max-w-5xl rounded-2xl border border-emerald-400/25 bg-black/45 p-3 text-left backdrop-blur-2xl md:mt-6 md:rounded-3xl md:p-5"
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70 hover:bg-white/10 lg:hidden"
               >
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300 md:text-xs">
-                      Destaque principal
-                    </div>
-                    <h2 className="mt-1 text-lg font-black text-white md:text-2xl">
-                      🔥 Top Pick do Dia
-                    </h2>
-                  </div>
-
-                  <span className="rounded-full border border-emerald-400/25 bg-emerald-500/15 px-3 py-2 text-[10px] font-black text-emerald-300 md:px-4 md:text-xs">
-                    Score Oddix 88%
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
-                  {['Análise automática', 'Melhor entrada', 'Risco controlado', '19 Agents ativos'].map(
-                    (item) => (
-                      <div
-                        key={item}
-                        className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 md:p-3"
-                      >
-                        <div className="text-[11px] font-black md:text-sm">{item}</div>
-                      </div>
-                    ),
-                  )}
-                </div>
-              </motion.div>
-
-              <div className="mt-4 grid w-full max-w-5xl grid-cols-1 gap-2 sm:grid-cols-2 md:mt-6 md:grid-cols-4 md:gap-3">
-                {suggestions.map((item, index) => (
-                  <motion.button
-                    key={item.label}
-                    type="button"
-                    onClick={() => sendMessage(item.prompt)}
-                    initial={{ opacity: 0, y: 18 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 + index * 0.05 }}
-                    className="rounded-2xl border border-white/10 bg-black/35 p-3 text-left backdrop-blur-xl hover:border-emerald-400/40 hover:bg-emerald-500/10"
-                  >
-                    <div className="mb-1 text-lg md:mb-2 md:text-xl">{item.icon}</div>
-                    <div className="text-sm font-black text-white/90">{item.label}</div>
-                    <div className="mt-1 line-clamp-2 text-[11px] text-white/45">
-                      {item.prompt}
-                    </div>
-                  </motion.button>
-                ))}
-              </div>
-
-              <div className="mt-4 grid w-full max-w-5xl grid-cols-1 gap-2 sm:grid-cols-2 md:mt-5 md:grid-cols-4 md:gap-3">
-                {quickCards.map((item, index) => (
-                  <motion.button
-                    key={item[1]}
-                    type="button"
-                    onClick={() => sendMessage(item[2])}
-                    initial={{ opacity: 0, y: 18 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.45 + index * 0.06 }}
-                    className="rounded-2xl border border-emerald-400/20 bg-black/40 p-3 text-left backdrop-blur-xl hover:bg-emerald-500/10 md:rounded-3xl md:p-4"
-                  >
-                    <div className="text-lg md:text-xl">{item[0]}</div>
-                    <div className="mt-1 text-sm font-black md:mt-2">{item[1]}</div>
-                    <p className="mt-1 text-[11px] text-white/50">{item[2]}</p>
-                  </motion.button>
-                ))}
-              </div>
+                ✕
+              </button>
             </div>
-          )}
 
-          {hasConversation && (
-            <div
-              ref={chatScrollRef}
-              className="flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-3 overflow-y-auto rounded-2xl border border-white/10 bg-black/42 p-3 text-left backdrop-blur-2xl md:gap-4 md:rounded-3xl md:p-4"
-            >
-              {messages.map((item) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={[
-                    'max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed md:max-w-[88%] md:rounded-3xl md:px-5 md:py-4 md:text-base',
-                    item.role === 'user'
-                      ? 'ml-auto bg-emerald-500/20 text-white'
-                      : 'mr-auto border border-white/10 bg-white/[0.06] text-white/85',
-                  ].join(' ')}
-                >
-                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300 md:text-xs">
-                    {item.role === 'user' ? 'Você' : 'Oddix IA'}
-                  </div>
-                  <div className="whitespace-pre-line">{item.content}</div>
-                </motion.div>
-              ))}
-
-              {isThinking && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="mr-auto rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/70 md:rounded-3xl md:px-5 md:py-4"
-                >
-                  <span className="text-emerald-300">Oddix IA</span> analisando...
-                </motion.div>
-              )}
-            </div>
-          )}
-
-          <motion.form
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.15 }}
-            onSubmit={handleSubmit}
-            className="mt-3 flex w-full max-w-5xl shrink-0 items-center gap-2 rounded-2xl border border-emerald-400/30 bg-[#0d141d]/92 px-3 py-3 shadow-[0_30px_100px_rgba(0,0,0,.65),0_0_45px_rgba(34,197,94,.15)] backdrop-blur-3xl focus-within:border-emerald-400/60 md:mt-4 md:gap-3 md:rounded-full md:px-7 md:py-4"
-          >
             <button
               type="button"
               onClick={handleNewConversation}
-              className="text-xl text-white/80 hover:text-emerald-300 md:text-2xl"
-              title="Nova conversa"
+              className="mb-4 shrink-0 rounded-2xl border border-emerald-400/30 bg-emerald-500/15 px-4 py-3 text-left text-sm font-black text-emerald-300 hover:bg-emerald-500/25"
             >
-              +
+              + Nova conversa
             </button>
 
-            <input
-              ref={inputRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Pergunte sobre jogos, odds, estatísticas..."
-              className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/42 md:text-base"
-            />
+            <div className="mb-3 shrink-0 text-xs font-black uppercase tracking-[0.22em] text-white/35">
+              Histórico
+            </div>
 
-            <button
-              type="button"
-              onClick={() => setMessage('Ajuste a análise para risco baixo e odd máxima 2.00.')}
-              className="hidden text-xl text-white/85 hover:text-emerald-300 sm:block"
-            >
-              🎚️
-            </button>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+              {history.map((item, index) => (
+                <motion.button
+                  key={item.id}
+                  type="button"
+                  onClick={() => sendMessage(item.prompt)}
+                  initial={{ opacity: 0, x: -16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left hover:border-emerald-400/30 hover:bg-emerald-500/10"
+                >
+                  <div className="text-sm font-black text-white/90">{item.title}</div>
+                  <div className="mt-1 text-[11px] text-white/45">{item.desc}</div>
+                </motion.button>
+              ))}
+            </div>
 
-            <button
-              type="submit"
-              disabled={isThinking}
-              className="rounded-full bg-emerald-500/20 px-3 py-2.5 text-[10px] font-black text-emerald-300 hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50 md:px-6 md:py-3 md:text-xs"
-            >
-              {isThinking ? 'Analisando...' : '✨ IA'}
-            </button>
-          </motion.form>
-
-          <div className="mt-2 w-full max-w-5xl rounded-2xl border border-white/10 bg-black/50 px-4 py-2 text-center text-[10px] text-white/60 backdrop-blur-xl md:mt-3 md:px-5 md:py-3 md:text-xs">
-            🛡️ Oddix Chat pode cometer erros. Confirme as informações antes de apostar.
-            <span className="ml-1 font-black text-emerald-400">+18</span>
+            <div className="mt-4 shrink-0 rounded-2xl border border-emerald-400/20 bg-black/45 p-4">
+              <div className="text-xs font-black text-emerald-300">Oddix Chat V9</div>
+              <p className="mt-2 text-[11px] leading-relaxed text-white/55">
+                Chat responsivo. Status: {apiStatus}
+              </p>
+            </div>
           </div>
-        </div>
-      </section>
+        </aside>
+
+        <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <header className="flex h-[58px] shrink-0 items-center justify-between gap-2 px-3 sm:h-[64px] md:h-[72px] md:px-5 xl:px-8">
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-white/80 backdrop-blur-xl hover:bg-white/10"
+              >
+                ☰
+              </button>
+
+              <span className="truncate rounded-lg border border-emerald-400/20 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black text-emerald-300 md:px-3 md:text-xs">
+                CHAT V9
+              </span>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2 md:gap-3">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                className="hidden rounded-full border border-white/10 bg-black/25 px-5 py-3 text-sm font-semibold text-white/90 backdrop-blur-xl hover:bg-white/10 lg:block"
+              >
+                ↺ Histórico
+              </button>
+
+              <div
+                className={[
+                  'rounded-full border px-3 py-2 text-[10px] font-black md:px-4 md:text-xs',
+                  apiConnected
+                    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-300'
+                    : 'border-yellow-400/20 bg-yellow-500/10 text-yellow-300',
+                ].join(' ')}
+              >
+                {apiConnected ? '● API online' : '● API offline'}
+              </div>
+            </div>
+          </header>
+
+          <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col items-center overflow-hidden px-3 pb-3 sm:px-4 md:px-5 md:pb-5">
+            {!hasConversation && (
+              <div className="min-h-0 w-full flex-1 overflow-y-auto overflow-x-hidden py-2 md:py-4">
+                <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col items-center justify-center">
+                  <motion.img
+                    src="/images/oddix-logo-banner.png"
+                    alt="Oddix"
+                    initial={{ opacity: 0, y: -24 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.7 }}
+                    className="w-full max-w-[330px] object-contain drop-shadow-[0_0_50px_rgba(34,197,94,.28)] sm:max-w-[420px] md:max-w-[560px]"
+                    draggable={false}
+                  />
+
+                  <p className="mt-2 max-w-[92vw] text-center text-xs text-white/68 md:text-base">
+                    Seu assistente inteligente para análise de futebol, odds e apostas.
+                  </p>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 22 }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                      boxShadow: [
+                        '0 0 16px rgba(34,197,94,.10)',
+                        '0 0 42px rgba(34,197,94,.28)',
+                        '0 0 16px rgba(34,197,94,.10)',
+                      ],
+                    }}
+                    transition={{
+                      opacity: { duration: 0.7, delay: 0.1 },
+                      y: { duration: 0.7, delay: 0.1 },
+                      boxShadow: {
+                        duration: 3,
+                        repeat: Infinity,
+                        ease: 'easeInOut',
+                      },
+                    }}
+                    className="mt-4 w-full rounded-2xl border border-emerald-400/25 bg-black/45 p-3 text-left backdrop-blur-2xl md:mt-6 md:rounded-3xl md:p-5"
+                  >
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300 md:text-xs">
+                          Destaque principal
+                        </div>
+                        <h2 className="mt-1 text-lg font-black text-white md:text-2xl">
+                          🔥 Top Pick do Dia
+                        </h2>
+                      </div>
+
+                      <span className="rounded-full border border-emerald-400/25 bg-emerald-500/15 px-3 py-2 text-[10px] font-black text-emerald-300 md:px-4 md:text-xs">
+                        Score Oddix 88%
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 xl:grid-cols-4 xl:gap-3">
+                      {['Análise automática', 'Melhor entrada', 'Risco controlado', '19 Agents ativos'].map(
+                        (item) => (
+                          <div
+                            key={item}
+                            className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 md:p-3"
+                          >
+                            <div className="text-[11px] font-black md:text-sm">{item}</div>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </motion.div>
+
+                  <div className="mt-4 grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:mt-6 xl:grid-cols-4 xl:gap-3">
+                    {suggestions.map((item, index) => (
+                      <motion.button
+                        key={item.label}
+                        type="button"
+                        onClick={() => sendMessage(item.prompt)}
+                        initial={{ opacity: 0, y: 18 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 + index * 0.04 }}
+                        className="rounded-2xl border border-white/10 bg-black/35 p-3 text-left backdrop-blur-xl hover:border-emerald-400/40 hover:bg-emerald-500/10"
+                      >
+                        <div className="mb-1 text-lg md:mb-2 md:text-xl">{item.icon}</div>
+                        <div className="text-sm font-black text-white/90">{item.label}</div>
+                        <div className="mt-1 line-clamp-2 text-[11px] text-white/45">
+                          {item.prompt}
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:mt-5 xl:grid-cols-4 xl:gap-3">
+                    {quickCards.map((item, index) => (
+                      <motion.button
+                        key={item[1]}
+                        type="button"
+                        onClick={() => sendMessage(item[2])}
+                        initial={{ opacity: 0, y: 18 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.45 + index * 0.05 }}
+                        className="rounded-2xl border border-emerald-400/20 bg-black/40 p-3 text-left backdrop-blur-xl hover:bg-emerald-500/10 md:rounded-3xl md:p-4"
+                      >
+                        <div className="text-lg md:text-xl">{item[0]}</div>
+                        <div className="mt-1 text-sm font-black md:mt-2">{item[1]}</div>
+                        <p className="mt-1 text-[11px] text-white/50">{item[2]}</p>
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {hasConversation && (
+              <div
+                ref={chatScrollRef}
+                className="flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden rounded-2xl border border-white/10 bg-black/42 p-3 text-left backdrop-blur-2xl md:gap-4 md:rounded-3xl md:p-4"
+              >
+                {messages.map((item) => (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={[
+                      'max-w-[94%] break-words rounded-2xl px-4 py-3 text-sm leading-relaxed md:max-w-[88%] md:rounded-3xl md:px-5 md:py-4 md:text-base',
+                      item.role === 'user'
+                        ? 'ml-auto bg-emerald-500/20 text-white'
+                        : 'mr-auto border border-white/10 bg-white/[0.06] text-white/85',
+                    ].join(' ')}
+                  >
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300 md:text-xs">
+                      {item.role === 'user' ? 'Você' : 'Oddix IA'}
+                    </div>
+                    <div className="whitespace-pre-line">{item.content}</div>
+                  </motion.div>
+                ))}
+
+                {isThinking && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="mr-auto rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/70 md:rounded-3xl md:px-5 md:py-4"
+                  >
+                    <span className="text-emerald-300">Oddix IA</span> analisando...
+                  </motion.div>
+                )}
+              </div>
+            )}
+
+            <motion.form
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.15 }}
+              onSubmit={handleSubmit}
+              className="mt-3 flex w-full max-w-5xl shrink-0 items-center gap-2 rounded-2xl border border-emerald-400/30 bg-[#0d141d]/92 px-3 py-3 shadow-[0_30px_100px_rgba(0,0,0,.65),0_0_45px_rgba(34,197,94,.15)] backdrop-blur-3xl focus-within:border-emerald-400/60 md:mt-4 md:gap-3 md:rounded-full md:px-7 md:py-4"
+            >
+              <button
+                type="button"
+                onClick={handleNewConversation}
+                className="text-xl text-white/80 hover:text-emerald-300 md:text-2xl"
+                title="Nova conversa"
+              >
+                +
+              </button>
+
+              <input
+                ref={inputRef}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Pergunte sobre jogos, odds, estatísticas..."
+                className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/42 md:text-base"
+              />
+
+              <button
+                type="button"
+                onClick={() => setMessage('Ajuste a análise para risco baixo e odd máxima 2.00.')}
+                className="hidden text-xl text-white/85 hover:text-emerald-300 sm:block"
+              >
+                🎚️
+              </button>
+
+              <button
+                type="submit"
+                disabled={isThinking}
+                className="rounded-full bg-emerald-500/20 px-3 py-2.5 text-[10px] font-black text-emerald-300 hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50 md:px-6 md:py-3 md:text-xs"
+              >
+                {isThinking ? 'Analisando...' : '✨ IA'}
+              </button>
+            </motion.form>
+
+            <div className="mt-2 w-full max-w-5xl shrink-0 rounded-2xl border border-white/10 bg-black/50 px-4 py-2 text-center text-[10px] text-white/60 backdrop-blur-xl md:mt-3 md:px-5 md:py-3 md:text-xs">
+              🛡️ Oddix Chat pode cometer erros. Confirme as informações antes de apostar.
+              <span className="ml-1 font-black text-emerald-400">+18</span>
+            </div>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
