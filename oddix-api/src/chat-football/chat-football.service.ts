@@ -6,6 +6,7 @@ import { OddixMemoryService } from './oddix-memory.service';
 import { OddixResponseBuilderService } from './oddix-response-builder.service';
 import { OddixRouterService } from './oddix-router.service';
 import { OddixGlobalAiService } from './oddix-global-ai.service';
+import { OddixIntentParserService } from './oddix-intent-parser.service';
 import type {
   BetCalc,
   ChatFootballRequest,
@@ -43,10 +44,12 @@ export class ChatFootballService {
     @Optional() private readonly responseBuilder?: OddixResponseBuilderService,
     @Optional() private readonly routerService?: OddixRouterService,
     @Optional() private readonly globalAi?: OddixGlobalAiService,
+    @Optional() private readonly intentParser?: OddixIntentParserService,
   ) {}
 
   async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
     const message = this.readMessage(payload);
+    const parsedIntent = await this.intentParser?.parse(message);
 
     if (!message.trim()) {
       const history = this.readHistory(payload);
@@ -57,8 +60,8 @@ export class ChatFootballService {
     }
 
     const shouldUseGlobalAi =
-      this.globalAi?.isGeneralQuestion(message) === true &&
-      !this.isOddixFootballQuestion(message);
+      parsedIntent?.intent === 'GENERAL' &&
+      this.globalAi;
 
     if (shouldUseGlobalAi && this.globalAi) {
       const response = await this.globalAi.answer(message);
@@ -80,6 +83,13 @@ export class ChatFootballService {
     const memory = this.memoryService?.buildMemory(payload, history) || this.buildMemoryFallback(history);
     const profile = this.memoryService?.buildProfile(payload, memory) || this.buildProfileFallback(payload);
     const brain = this.buildBrain(message, history, memory);
+    if (parsedIntent?.intent && parsedIntent.intent !== 'GENERAL') {
+      brain.intent =
+        parsedIntent.intent === 'MATCH_ANALYSIS'
+          ? 'ANALYZE'
+          : (parsedIntent.intent as any);
+    }
+
     const routed = this.routerService?.resolve(
       message,
       brain.intent,

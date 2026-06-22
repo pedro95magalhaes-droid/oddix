@@ -10,6 +10,7 @@ import { OddixIntentService } from './oddix-intent.service';
 import { OddixMemoryService } from './oddix-memory.service';
 import { OddixRouterService } from './oddix-router.service';
 import { OddixGlobalAiService } from './oddix-global-ai.service';
+import { OddixIntentParserService } from './oddix-intent-parser.service';
 
 @Module({
   imports: [FootballModule],
@@ -23,15 +24,17 @@ import { OddixGlobalAiService } from './oddix-global-ai.service';
     OddixIntentService,
     OddixMemoryService,
     OddixRouterService,
-	OddixGlobalAiService,
-	OddixGlobalAiService,
-],
+    OddixGlobalAiService,
+    OddixIntentParserService,
+  ],
   exports: [
     ChatFootballService,
     FootballAgentsService,
     OddixMemoryService,
     OddixLlmService,
     OddixResponseBuilderService,
+    OddixGlobalAiService,
+    OddixIntentParserService,
   ],
 })
 export class ChatFootballModule {}
