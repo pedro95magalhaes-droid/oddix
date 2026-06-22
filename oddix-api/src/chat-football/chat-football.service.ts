@@ -7,7 +7,7 @@ import { OddixResponseBuilderService } from './oddix-response-builder.service';
 import { OddixRouterService } from './oddix-router.service';
 import { OddixGlobalAiService } from './oddix-global-ai.service';
 import { OddixIntentParserService } from './oddix-intent-parser.service';
-import { OddixBrainService } from './oddix-brain.service';
+import { OddixBrainService, OddixBrainDecision } from './oddix-brain.service';
 import type {
   BetCalc,
   ChatFootballRequest,
@@ -52,7 +52,8 @@ export class ChatFootballService {
   async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
     const message = this.readMessage(payload);
     const parsedIntent = await this.intentParser?.parse(message);
-    const brainDecision = await this.brainService?.think(message, payload?.sessionId || 'anonymous');
+    const sessionId = payload?.sessionId || payload?.conversationId || payload?.chatId || 'anonymous';
+    const brainDecision = await this.brainService?.think(message, sessionId);
 
     if (!message.trim()) {
       const history = this.readHistory(payload);
@@ -87,10 +88,12 @@ export class ChatFootballService {
     const profile = this.memoryService?.buildProfile(payload, memory) || this.buildProfileFallback(payload);
     const brain = this.buildBrain(message, history, memory);
     if (brainDecision?.intent && brainDecision.intent !== 'GENERAL') {
-      brain.intent =
-        brainDecision.intent === 'MATCH_ANALYSIS'
-          ? 'ANALYZE'
-          : (brainDecision.intent as any);
+      brain.intent = this.mapBrainIntentToChatIntent(brainDecision.intent);
+      brain.topicTeam = brainDecision.entities.team || brain.topicTeam;
+      brain.isFollowUp =
+        brain.isFollowUp ||
+        brainDecision.intent === 'FOLLOW_UP' ||
+        brainDecision.reference === 'lastMatch';
     } else if (parsedIntent?.intent && parsedIntent.intent !== 'GENERAL') {
       brain.intent =
         parsedIntent.intent === 'MATCH_ANALYSIS'
@@ -109,6 +112,16 @@ export class ChatFootballService {
     }
 
     const lastTicket = memory.lastTicket || this.findLastTicket(history);
+
+    const brainRoute = await this.routeBrainDecision(
+      brainDecision,
+      message,
+      memory,
+      profile,
+      lastTicket,
+    );
+
+    if (brainRoute) return brainRoute;
 
     const calc = this.extractBetCalculation(message, lastTicket);
     if (calc) return this.buildBetCalculatorResponse(calc, message, memory, profile);
@@ -167,6 +180,323 @@ export class ChatFootballService {
 
     return this.direct('GENERAL', this.buildFallbackText(message, memory), memory, profile);
   }
+
+
+  private async routeBrainDecision(
+    brainDecision: OddixBrainDecision | undefined,
+    message: string,
+    memory: ConversationMemory,
+    profile: UserBetProfile,
+    lastTicket: ChatTicket | null,
+  ): Promise<ChatFootballResponse | null> {
+    if (!brainDecision) return null;
+
+    if (brainDecision.intent === 'GENERAL' && this.globalAi) {
+      const response = await this.globalAi.answer(message);
+
+      return {
+        success: true,
+        intent: 'GENERAL',
+        answer: response.answer,
+        data: {
+          suggestions: response.suggestions || this.defaultSuggestions('GENERAL'),
+          brain: brainDecision,
+        },
+      } as ChatFootballResponse;
+    }
+
+    if (brainDecision.intent === 'BANKROLL') {
+      const stake = brainDecision.entities.stake || this.extractMoney(message);
+      const odd = brainDecision.entities.odd || this.extractOdd(message) || lastTicket?.oddTotal || null;
+
+      if (stake && odd && odd > 1) {
+        return this.buildBetCalculatorResponse(
+          {
+            stake,
+            odd,
+            retorno: stake * odd,
+            lucro: stake * odd - stake,
+          },
+          message,
+          memory,
+          profile,
+        );
+      }
+    }
+
+    if (brainDecision.intent === 'LIVE') {
+      return this.handleBrainLiveIntent(brainDecision, memory, profile);
+    }
+
+    if (brainDecision.intent === 'FOLLOW_UP' && memory.lastMatch) {
+      return this.analyzeRealMatch(
+        `${memory.lastMatch.home} x ${memory.lastMatch.away}`,
+        'ANALYZE',
+        memory,
+        profile,
+        message,
+      );
+    }
+
+    if (
+      brainDecision.intent === 'MATCH_ANALYSIS' &&
+      brainDecision.entities.homeTeam &&
+      brainDecision.entities.awayTeam
+    ) {
+      return this.analyzeRealMatch(
+        `${brainDecision.entities.homeTeam} x ${brainDecision.entities.awayTeam}`,
+        'ANALYZE',
+        memory,
+        profile,
+        message,
+      );
+    }
+
+    if (brainDecision.intent === 'TEAM' && brainDecision.entities.team) {
+      return this.buildTeamOverview(
+        brainDecision.entities.team,
+        memory,
+        profile,
+      );
+    }
+
+    return null;
+  }
+
+  private async handleBrainLiveIntent(
+    brainDecision: OddixBrainDecision,
+    memory: ConversationMemory,
+    profile: UserBetProfile,
+  ): Promise<ChatFootballResponse> {
+    const team = this.resolveTeamAlias(
+      brainDecision.entities.team ||
+        brainDecision.entities.homeTeam ||
+        brainDecision.entities.awayTeam ||
+        memory.lastTeam ||
+        '',
+    );
+
+    if (!team) {
+      return this.direct(
+        'LIVE',
+        '⚡ Entendi que você quer acompanhar um jogo ao vivo. Me diga qual time ou partida, por exemplo: "como tá o jogo da França?" ou "Flamengo x Palmeiras ao vivo".',
+        memory,
+        profile,
+        {
+          waitingForData: true,
+          brain: brainDecision,
+        },
+      );
+    }
+
+    if (!this.footballService) {
+      return this.direct(
+        'LIVE',
+        `⚡ Entendi que você quer o jogo ao vivo de ${team}, mas o módulo de futebol real não está disponível agora.`,
+        memory,
+        profile,
+        {
+          waitingForData: true,
+          team,
+          brain: brainDecision,
+        },
+      );
+    }
+
+    try {
+      const fixtures = await this.getFixturesWindow(1, 1);
+      const liveCandidates = fixtures.filter((game: any) => {
+        const status = String(game?.fixture?.status?.short || '').toUpperCase();
+        return ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'INT', 'SUSP', 'BT'].includes(status);
+      });
+
+      const candidates = liveCandidates.length ? liveCandidates : fixtures;
+      const match = this.findTeamMatch(candidates, team) || this.findTeamMatch(fixtures, team);
+
+      if (!match) {
+        return this.direct(
+          'LIVE',
+          `⚡ Procurei jogo ao vivo envolvendo ${team}, mas ainda não encontrei uma partida ativa na base Oddix.\n\nSe você está vendo esse jogo em outra fonte, pode ser atraso da API ou diferença de nome da equipe. Não vou inventar placar.`,
+          memory,
+          profile,
+          {
+            waitingForData: true,
+            team,
+            brain: brainDecision,
+          },
+        );
+      }
+
+      const home = match?.teams?.home?.name || 'Casa';
+      const away = match?.teams?.away?.name || 'Fora';
+      const statusShort = String(match?.fixture?.status?.short || 'NS').toUpperCase();
+      const elapsed = match?.fixture?.status?.elapsed;
+      const homeGoals = match?.goals?.home ?? match?.score?.fulltime?.home ?? 0;
+      const awayGoals = match?.goals?.away ?? match?.score?.fulltime?.away ?? 0;
+      const fixtureId = String(match?.fixture?.id || '');
+      const richContext = await this.getFlashScoreRichContextSafe(fixtureId, match);
+
+      const updatedMemory: ConversationMemory = {
+        ...memory,
+        lastIntent: 'LIVE',
+        lastTeam: team,
+        lastMatch: {
+          home,
+          away,
+          label: `${home} x ${away}`,
+        },
+        lastFixture: match,
+        lastRichContext: richContext,
+      };
+
+      this.memoryService?.remember({ sessionId: 'anonymous' }, updatedMemory);
+
+      const clock =
+        statusShort === 'NS'
+          ? 'pré-jogo'
+          : elapsed
+            ? `${elapsed}'`
+            : statusShort;
+
+      const answer = `⚡ **${home} x ${away}**
+
+⏱️ Status: ${clock}
+📊 Placar: ${homeGoals} x ${awayGoals}
+
+${this.buildRichContextSummary(richContext)}
+
+Leitura Oddix: ${this.describeLiveStatus(statusShort)}
+
+⚠️ Entrada oficial só é liberada se houver pressão, estatísticas reais e odds validadas.`;
+
+      return this.human({
+        intent: 'LIVE',
+        userMessage: brainDecision.userMessage,
+        baseAnswer: answer,
+        memory: updatedMemory,
+        profile,
+        facts: { fixture: match, richContext, brain: brainDecision },
+        data: {
+          fixture: match,
+          richContext,
+          brain: brainDecision,
+          waitingForData: statusShort === 'NS',
+        },
+        suggestions: [
+          'Esse jogo presta?',
+          'Me dá uma opção segura',
+          'Quanto ganho com R$50?',
+          'Continua a análise',
+        ],
+      });
+    } catch (error: any) {
+      return this.direct(
+        'LIVE',
+        `⚡ Tentei buscar o jogo ao vivo de ${team}, mas não consegui validar agora.\n\nMotivo: ${error?.message || 'falha ao consultar dados reais'}\n\nSem placar inventado e sem entrada oficial.`,
+        memory,
+        profile,
+        {
+          waitingForData: true,
+          team,
+          brain: brainDecision,
+        },
+      );
+    }
+  }
+
+  private mapBrainIntentToChatIntent(intent: OddixBrainDecision['intent']): ChatIntent {
+    const map: Record<string, ChatIntent> = {
+      TOP_PICKS: 'TOP_PICKS',
+      MATCH_ANALYSIS: 'ANALYZE',
+      LIVE: 'LIVE',
+      MULTIPLE: 'MULTIPLE',
+      BANKROLL: 'BANKROLL',
+      NEWS: 'NEWS',
+      TEAM: 'ANALYZE',
+      PLAYER: 'PLAYER_PROPS',
+      VIRTUAL: 'VIRTUAL',
+      VALUE_BETS: 'VALUE_BETS',
+      EXPLAIN: 'EXPLAIN_LAST',
+      FOLLOW_UP: 'ANALYZE',
+      GENERAL: 'GENERAL',
+    };
+
+    return map[intent] || 'GENERAL';
+  }
+
+  private findTeamMatch(fixtures: any[], teamName: string) {
+    const query = this.normalize(this.resolveTeamAlias(teamName));
+
+    return fixtures.find((game: any) => {
+      const home = this.normalize(game?.teams?.home?.name);
+      const away = this.normalize(game?.teams?.away?.name);
+
+      return (
+        home.includes(query) ||
+        away.includes(query) ||
+        query.includes(home) ||
+        query.includes(away)
+      );
+    });
+  }
+
+  private resolveTeamAlias(value: string) {
+    const key = this.normalize(value);
+
+    const aliases: Record<string, string> = {
+      franca: 'France',
+      france: 'France',
+      brasil: 'Brazil',
+      brazil: 'Brazil',
+      argentina: 'Argentina',
+      portugal: 'Portugal',
+      espanha: 'Spain',
+      spain: 'Spain',
+      inglaterra: 'England',
+      england: 'England',
+      alemanha: 'Germany',
+      germany: 'Germany',
+      italia: 'Italy',
+      italy: 'Italy',
+      fortaleza: 'Fortaleza',
+      ceara: 'Ceará',
+      flamengo: 'Flamengo',
+      palmeiras: 'Palmeiras',
+      corinthians: 'Corinthians',
+      santos: 'Santos',
+      vasco: 'Vasco',
+      botafogo: 'Botafogo',
+      fluminense: 'Fluminense',
+      cruzeiro: 'Cruzeiro',
+      gremio: 'Grêmio',
+      internacional: 'Internacional',
+    };
+
+    return aliases[key] || value;
+  }
+
+  private describeLiveStatus(statusShort: string) {
+    const status = String(statusShort || '').toUpperCase();
+
+    if (['1H', '2H', 'ET', 'P', 'LIVE', 'INT'].includes(status)) {
+      return 'partida em andamento. Agora eu preciso de pressão real, finalizações e odds para validar qualquer entrada.';
+    }
+
+    if (status === 'HT') {
+      return 'intervalo. Bom momento para revisar pressão, volume ofensivo e linha de gols ao vivo.';
+    }
+
+    if (status === 'SUSP') {
+      return 'partida suspensa. Não recomendo entrada até a confirmação de retorno do jogo.';
+    }
+
+    if (status === 'NS') {
+      return 'pré-jogo. Ainda preciso confirmar escalações, odds e estatísticas recentes.';
+    }
+
+    return 'status identificado, mas ainda preciso validar estatísticas e odds antes de qualquer entrada.';
+  }
+
 
   private readMessage(payload: any) {
     if (typeof payload === 'string') return payload;
