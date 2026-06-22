@@ -146,8 +146,12 @@ export default function OddixChatPage() {
 
   useEffect(() => {
     function handleResize() {
-      if (window.innerWidth >= 1024) setSidebarOpen(true);
-      if (window.innerWidth < 1024) setSidebarOpen(false);
+      if (window.innerWidth >= 1280) {
+        setSidebarOpen(true);
+        return;
+      }
+
+      setSidebarOpen(false);
     }
 
     handleResize();
@@ -372,7 +376,7 @@ Ou pergunte:
           messages,
           context: {
             source: 'oddix-web-chat',
-            version: 'V9-responsive',
+            version: 'V9.2-responsive',
           },
         }),
       });
@@ -422,7 +426,7 @@ Ou pergunte:
     setMessage('');
     setIsThinking(true);
 
-    if (window.innerWidth < 1024) setSidebarOpen(false);
+    if (window.innerWidth < 1280) setSidebarOpen(false);
 
     const apiAnswer = await callOddixApi(text);
 
@@ -446,13 +450,13 @@ Ou pergunte:
     setMessage('');
     setIsThinking(false);
 
-    if (window.innerWidth < 1024) setSidebarOpen(false);
+    if (window.innerWidth < 1280) setSidebarOpen(false);
 
     window.setTimeout(() => inputRef.current?.focus(), 50);
   }
 
   return (
-    <main className="relative h-[100dvh] min-h-[100dvh] overflow-hidden bg-[#02070d] text-white">
+    <main className="relative h-[100dvh] min-h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#02070d] text-white">
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/images/oddix-chat-bg.png')" }}
@@ -466,15 +470,15 @@ Ou pergunte:
         <button
           type="button"
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-30 bg-black/55 lg:hidden"
+          className="fixed inset-0 z-30 bg-black/55 xl:hidden"
           aria-label="Fechar menu"
         />
       )}
 
-      <div className="relative z-10 flex h-full min-h-0 w-full overflow-hidden">
+      <div className="relative z-10 flex h-full min-h-0 w-full min-w-0 overflow-hidden">
         <aside
           className={[
-            'fixed left-0 top-0 z-40 h-[100dvh] w-[260px] max-w-[84vw] border-r border-white/10 bg-black/75 backdrop-blur-2xl transition-transform duration-300 lg:relative lg:z-10 lg:h-full lg:translate-x-0 lg:bg-black/62',
+            'fixed left-0 top-0 z-40 h-[100dvh] w-[260px] max-w-[84vw] border-r border-white/10 bg-black/75 backdrop-blur-2xl transition-transform duration-300 xl:relative xl:z-10 xl:h-full xl:shrink-0 xl:translate-x-0 xl:bg-black/62',
             sidebarOpen ? 'translate-x-0' : '-translate-x-full',
           ].join(' ')}
         >
@@ -490,7 +494,7 @@ Ou pergunte:
               <button
                 type="button"
                 onClick={() => setSidebarOpen(false)}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70 hover:bg-white/10 lg:hidden"
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70 hover:bg-white/10 xl:hidden"
               >
                 ✕
               </button>
@@ -526,7 +530,7 @@ Ou pergunte:
             </div>
 
             <div className="mt-4 shrink-0 rounded-2xl border border-emerald-400/20 bg-black/45 p-4">
-              <div className="text-xs font-black text-emerald-300">Oddix Chat V9</div>
+              <div className="text-xs font-black text-emerald-300">Oddix Chat V9.2</div>
               <p className="mt-2 text-[11px] leading-relaxed text-white/55">
                 Chat responsivo. Status: {apiStatus}
               </p>
@@ -546,7 +550,7 @@ Ou pergunte:
               </button>
 
               <span className="truncate rounded-lg border border-emerald-400/20 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black text-emerald-300 md:px-3 md:text-xs">
-                CHAT V9
+                CHAT V9.2
               </span>
             </div>
 
@@ -554,7 +558,7 @@ Ou pergunte:
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
-                className="hidden rounded-full border border-white/10 bg-black/25 px-5 py-3 text-sm font-semibold text-white/90 backdrop-blur-xl hover:bg-white/10 lg:block"
+                className="hidden rounded-full border border-white/10 bg-black/25 px-5 py-3 text-sm font-semibold text-white/90 backdrop-blur-xl hover:bg-white/10 xl:block"
               >
                 ↺ Histórico
               </button>
@@ -572,10 +576,10 @@ Ou pergunte:
             </div>
           </header>
 
-          <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col items-center overflow-hidden px-3 pb-3 sm:px-4 md:px-5 md:pb-5">
+          <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col items-center overflow-hidden px-3 pb-3 sm:px-4 md:px-5 md:pb-5">
             {!hasConversation && (
               <div className="min-h-0 w-full flex-1 overflow-y-auto overflow-x-hidden py-2 md:py-4">
-                <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col items-center justify-center">
+                <div className="mx-auto flex min-h-full w-full max-w-[1100px] flex-col items-center justify-center">
                   <motion.img
                     src="/images/oddix-logo-banner.png"
                     alt="Oddix"
@@ -627,7 +631,7 @@ Ou pergunte:
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 xl:grid-cols-4 xl:gap-3">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:gap-3">
                       {['Análise automática', 'Melhor entrada', 'Risco controlado', '19 Agents ativos'].map(
                         (item) => (
                           <div
@@ -685,7 +689,7 @@ Ou pergunte:
             {hasConversation && (
               <div
                 ref={chatScrollRef}
-                className="flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden rounded-2xl border border-white/10 bg-black/42 p-3 text-left backdrop-blur-2xl md:gap-4 md:rounded-3xl md:p-4"
+                className="flex min-h-0 w-full max-w-[1100px] flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden rounded-2xl border border-white/10 bg-black/42 p-3 text-left backdrop-blur-2xl md:gap-4 md:rounded-3xl md:p-4"
               >
                 {messages.map((item) => (
                   <motion.div
@@ -693,7 +697,7 @@ Ou pergunte:
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={[
-                      'max-w-[94%] break-words rounded-2xl px-4 py-3 text-sm leading-relaxed md:max-w-[88%] md:rounded-3xl md:px-5 md:py-4 md:text-base',
+                      'max-w-[94%] break-words rounded-2xl px-4 py-3 text-sm leading-relaxed md:max-w-[80%] md:rounded-3xl md:px-5 md:py-4 md:text-base',
                       item.role === 'user'
                         ? 'ml-auto bg-emerald-500/20 text-white'
                         : 'mr-auto border border-white/10 bg-white/[0.06] text-white/85',
@@ -723,7 +727,7 @@ Ou pergunte:
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.15 }}
               onSubmit={handleSubmit}
-              className="mt-3 flex w-full max-w-5xl shrink-0 items-center gap-2 rounded-2xl border border-emerald-400/30 bg-[#0d141d]/92 px-3 py-3 shadow-[0_30px_100px_rgba(0,0,0,.65),0_0_45px_rgba(34,197,94,.15)] backdrop-blur-3xl focus-within:border-emerald-400/60 md:mt-4 md:gap-3 md:rounded-full md:px-7 md:py-4"
+              className="mt-3 flex w-full max-w-[1100px] shrink-0 items-center gap-2 rounded-2xl border border-emerald-400/30 bg-[#0d141d]/92 px-3 py-3 shadow-[0_30px_100px_rgba(0,0,0,.65),0_0_45px_rgba(34,197,94,.15)] backdrop-blur-3xl focus-within:border-emerald-400/60 md:mt-4 md:gap-3 md:rounded-full md:px-7 md:py-4"
             >
               <button
                 type="button"
@@ -759,7 +763,7 @@ Ou pergunte:
               </button>
             </motion.form>
 
-            <div className="mt-2 w-full max-w-5xl shrink-0 rounded-2xl border border-white/10 bg-black/50 px-4 py-2 text-center text-[10px] text-white/60 backdrop-blur-xl md:mt-3 md:px-5 md:py-3 md:text-xs">
+            <div className="mt-2 w-full max-w-[1100px] shrink-0 rounded-2xl border border-white/10 bg-black/50 px-4 py-2 text-center text-[10px] text-white/60 backdrop-blur-xl md:mt-3 md:px-5 md:py-3 md:text-xs">
               🛡️ Oddix Chat pode cometer erros. Confirme as informações antes de apostar.
               <span className="ml-1 font-black text-emerald-400">+18</span>
             </div>
