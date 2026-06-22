@@ -7,6 +7,7 @@ import { OddixResponseBuilderService } from './oddix-response-builder.service';
 import { OddixRouterService } from './oddix-router.service';
 import { OddixGlobalAiService } from './oddix-global-ai.service';
 import { OddixIntentParserService } from './oddix-intent-parser.service';
+import { OddixBrainService } from './oddix-brain.service';
 import type {
   BetCalc,
   ChatFootballRequest,
@@ -45,11 +46,13 @@ export class ChatFootballService {
     @Optional() private readonly routerService?: OddixRouterService,
     @Optional() private readonly globalAi?: OddixGlobalAiService,
     @Optional() private readonly intentParser?: OddixIntentParserService,
+    @Optional() private readonly brainService?: OddixBrainService,
   ) {}
 
   async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
     const message = this.readMessage(payload);
     const parsedIntent = await this.intentParser?.parse(message);
+    const brainDecision = await this.brainService?.think(message, payload?.sessionId || 'anonymous');
 
     if (!message.trim()) {
       const history = this.readHistory(payload);
@@ -60,8 +63,8 @@ export class ChatFootballService {
     }
 
     const shouldUseGlobalAi =
-      parsedIntent?.intent === 'GENERAL' &&
-      this.globalAi;
+      brainDecision?.shouldUseGlobalAiDirect ||
+      (parsedIntent?.intent === 'GENERAL' && this.globalAi);
 
     if (shouldUseGlobalAi && this.globalAi) {
       const response = await this.globalAi.answer(message);
@@ -83,7 +86,12 @@ export class ChatFootballService {
     const memory = this.memoryService?.buildMemory(payload, history) || this.buildMemoryFallback(history);
     const profile = this.memoryService?.buildProfile(payload, memory) || this.buildProfileFallback(payload);
     const brain = this.buildBrain(message, history, memory);
-    if (parsedIntent?.intent && parsedIntent.intent !== 'GENERAL') {
+    if (brainDecision?.intent && brainDecision.intent !== 'GENERAL') {
+      brain.intent =
+        brainDecision.intent === 'MATCH_ANALYSIS'
+          ? 'ANALYZE'
+          : (brainDecision.intent as any);
+    } else if (parsedIntent?.intent && parsedIntent.intent !== 'GENERAL') {
       brain.intent =
         parsedIntent.intent === 'MATCH_ANALYSIS'
           ? 'ANALYZE'
