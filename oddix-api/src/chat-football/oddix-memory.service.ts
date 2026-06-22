@@ -1,130 +1,168 @@
 import { Injectable } from '@nestjs/common';
-import type {
-  ChatFootballRequest,
-  ChatHistoryMessage,
-  ChatIntent,
-  ChatTicket,
-  ConversationMemory,
-  OddixChatMode,
-  UserBetProfile,
-} from './chat-football.types';
+
+type AnyObject = Record<string, any>;
+
+type OddixRiskMode = 'safe' | 'balanced' | 'aggressive';
 
 @Injectable()
 export class OddixMemoryService {
-  private readonly volatileMemory = new Map<string, ConversationMemory>();
+  private readonly memory = new Map<string, AnyObject>();
 
-  buildMemory(payload: ChatFootballRequest | any, history: ChatHistoryMessage[]): ConversationMemory {
-    const key = this.key(payload);
-    const stored = this.volatileMemory.get(key);
-    const fromHistory = this.memoryFromHistory(history);
+  buildMemory(payload: AnyObject = {}, history: AnyObject[] = []) {
+    const sessionId = this.getSessionId(payload);
+    const stored = this.memory.get(sessionId) || {};
+
+    const safeHistory = Array.isArray(history) ? history : [];
+
+    const lastUserMessage = [...safeHistory]
+      .reverse()
+      .find((item) => item?.role === 'user')?.content;
+
+    const lastAssistantMessage = [...safeHistory]
+      .reverse()
+      .find((item) => item?.role === 'assistant')?.content;
+
+    const currentMessage = payload?.message || payload?.question || '';
+    const extractedMatch =
+      this.extractMatch(currentMessage) || this.extractMatch(lastUserMessage || '');
+
+    const lastMatch = stored.lastMatch || extractedMatch || null;
 
     return {
-      lastIntent: fromHistory.lastIntent || stored?.lastIntent,
-      lastUserMessage: fromHistory.lastUserMessage || stored?.lastUserMessage,
-      lastAssistantMessage: fromHistory.lastAssistantMessage || stored?.lastAssistantMessage,
-      lastMatch: fromHistory.lastMatch || stored?.lastMatch || null,
-      lastTeam: fromHistory.lastTeam || stored?.lastTeam || null,
-      lastTicket: fromHistory.lastTicket || stored?.lastTicket || null,
-      lastFixture: fromHistory.lastFixture || stored?.lastFixture,
-      lastRichContext: fromHistory.lastRichContext || stored?.lastRichContext,
-      topicStack: [...(stored?.topicStack || []), ...(fromHistory.topicStack || [])]
-        .filter(Boolean)
-        .slice(-12),
+      ...stored,
+      messages: safeHistory,
+      lastUserMessage: lastUserMessage || stored.lastUserMessage || currentMessage || null,
+      lastAssistantMessage: lastAssistantMessage || stored.lastAssistantMessage || null,
+      lastMatch,
+      lastIntent: stored.lastIntent || null,
+      lastTicket: stored.lastTicket || null,
+      lastFixture: stored.lastFixture || null,
+      lastRichContext: stored.lastRichContext || null,
+      topicStack: stored.topicStack || [],
+      profile: stored.profile || null,
     };
   }
 
-  buildProfile(payload: ChatFootballRequest | any, memory?: ConversationMemory): UserBetProfile {
-    const mode = this.normalizeMode(payload?.mode);
+  buildProfile(payload: AnyObject = {}, memory: AnyObject = {}) {
     const text = `${payload?.message || ''} ${memory?.lastUserMessage || ''}`.toLowerCase();
 
     const safe =
-      mode === 'safe' ||
       text.includes('segura') ||
       text.includes('conservadora') ||
-      text.includes('baixo risco');
+      text.includes('baixo risco') ||
+      text.includes('risco baixo');
 
     const aggressive =
-      mode === 'aggressive' ||
       text.includes('agressiva') ||
       text.includes('odd maior') ||
-      text.includes('arriscar');
+      text.includes('alto risco') ||
+      text.includes('risco alto');
 
-    return {
-      mode: safe ? 'safe' : aggressive ? 'aggressive' : 'balanced',
-      maxOdd: safe ? 2.0 : aggressive ? 5.0 : 3.0,
-      stakeLimitPercent: safe ? 1 : aggressive ? 3 : 2,
-      preferredMarkets: safe
-        ? ['dupla chance', 'over 0.5', 'over 1.5', 'handicap +1.5']
-        : ['over 1.5', 'dupla chance', 'ambas marcam', 'over 2.5'],
-      blockedMarkets: safe ? ['placar exato', 'virada', 'handicap alto'] : [],
-      language: 'pt-BR',
+    const mode: OddixRiskMode = safe
+      ? 'safe'
+      : aggressive
+        ? 'aggressive'
+        : this.normalizeMode(payload?.mode || memory?.profile?.mode);
+
+    const profile = {
+      mode,
+
+      bankroll: payload?.bankroll ?? memory?.profile?.bankroll ?? null,
+      stake: payload?.stake ?? memory?.profile?.stake ?? null,
+      maxOdd: safe
+        ? 2
+        : payload?.maxOdd ??
+          memory?.profile?.maxOdd ??
+          null,
+      risk: safe ? 'baixo' : aggressive ? 'alto' : 'moderado',
+
+      stakeLimitPercent:
+        payload?.stakeLimitPercent ??
+        memory?.profile?.stakeLimitPercent ??
+        3,
+
+      preferredMarkets:
+        payload?.preferredMarkets ??
+        memory?.profile?.preferredMarkets ??
+        [],
+
+      blockedMarkets:
+        payload?.blockedMarkets ??
+        memory?.profile?.blockedMarkets ??
+        [],
+
+      language:
+        payload?.language ??
+        memory?.profile?.language ??
+        'pt-BR',
     };
+
+    return profile;
   }
 
-  remember(payload: ChatFootballRequest | any, patch: Partial<ConversationMemory>) {
-    const key = this.key(payload);
-    const current = this.volatileMemory.get(key) || { topicStack: [] };
+  remember(payload: AnyObject = {}, patch: AnyObject = {}) {
+    const sessionId = this.getSessionId(payload);
+    const current = this.memory.get(sessionId) || {};
 
-    this.volatileMemory.set(key, {
+    const nextMemory = {
       ...current,
       ...patch,
-      topicStack: [...(current.topicStack || []), ...(patch.topicStack || [])].filter(Boolean).slice(-12),
-    });
+      topicStack: [
+        ...(current.topicStack || []),
+        ...(patch.topicStack || []),
+      ]
+        .filter(Boolean)
+        .slice(-12),
+    };
+
+    this.memory.set(sessionId, nextMemory);
+
+    return nextMemory;
   }
 
-  private memoryFromHistory(history: ChatHistoryMessage[]): ConversationMemory {
-    const memory: ConversationMemory = { topicStack: [] };
+  get(sessionId: string) {
+    return this.memory.get(sessionId) || {};
+  }
 
-    for (const item of history || []) {
-      const role = item?.role;
-      const content = String(item?.content || '');
-      const data = item?.data || {};
+  clear(sessionId: string) {
+    this.memory.delete(sessionId);
+  }
 
-      if (role === 'user' && content) memory.lastUserMessage = content;
-      if (role === 'assistant' && content) memory.lastAssistantMessage = content;
+  private getSessionId(payload: AnyObject = {}) {
+    return (
+      payload?.sessionId ||
+      payload?.conversationId ||
+      payload?.chatId ||
+      payload?.context?.sessionId ||
+      payload?.context?.conversationId ||
+      'anonymous'
+    );
+  }
 
-      if (data?.intent) memory.lastIntent = data.intent as ChatIntent;
-      if (data?.ticket?.selections?.length) memory.lastTicket = data.ticket as ChatTicket;
-      if (data?.fixture) memory.lastFixture = data.fixture;
-      if (data?.richContext) memory.lastRichContext = data.richContext;
-
-      const teams = this.extractTeams(content);
-      if (teams) {
-        memory.lastMatch = { ...teams, label: `${teams.home} x ${teams.away}` };
-        memory.topicStack.push(memory.lastMatch.label);
-      }
+  private normalizeMode(value: any): OddixRiskMode {
+    if (value === 'safe' || value === 'balanced' || value === 'aggressive') {
+      return value;
     }
 
-    return memory;
-  }
-
-  private extractTeams(message: string): { home: string; away: string } | null {
-    const cleaned = String(message || '')
-      .replace(/analisa/gi, '')
-      .replace(/analisar/gi, '')
-      .replace(/analise/gi, '')
-      .replace(/análise/gi, '')
-      .replace(/player props/gi, '')
-      .trim();
-
-    for (const separator of [' x ', ' vs ', ' versus ', ' contra ']) {
-      const normalized = cleaned.toLowerCase();
-      if (!normalized.includes(separator)) continue;
-      const parts = normalized.split(separator);
-      if (parts[0]?.trim() && parts[1]?.trim()) {
-        return { home: parts[0].trim(), away: parts[1].trim() };
-      }
-    }
-
-    return null;
-  }
-
-  private normalizeMode(mode?: string): OddixChatMode {
-    if (mode === 'safe' || mode === 'balanced' || mode === 'aggressive') return mode;
     return 'balanced';
   }
 
-  private key(payload: ChatFootballRequest | any) {
-    return String(payload?.sessionId || payload?.userId || 'anonymous');
+  private extractMatch(text: string) {
+    const clean = (text || '').trim();
+
+    const match = clean.match(
+      /([a-zA-ZÀ-ÿ0-9 .'-]{2,})\s+(?:x|vs|v|contra)\s+([a-zA-ZÀ-ÿ0-9 .'-]{2,})/i,
+    );
+
+    if (!match) return null;
+
+    const home = match[1].trim();
+    const away = match[2].trim();
+
+    return {
+      home,
+      away,
+      label: `${home} x ${away}`,
+    };
   }
 }
