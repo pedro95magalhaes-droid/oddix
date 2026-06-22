@@ -33,6 +33,7 @@ type OddixApiResponse = {
 export default function OddixChatPage() {
   const [message, setMessage] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [compactMode, setCompactMode] = useState(true);
   const [isThinking, setIsThinking] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [apiConnected, setApiConnected] = useState(false);
@@ -138,27 +139,34 @@ export default function OddixChatPage() {
   useEffect(() => {
     if (!chatScrollRef.current) return;
 
-    chatScrollRef.current.scrollTo({
-      top: chatScrollRef.current.scrollHeight,
-      behavior: 'smooth',
+    requestAnimationFrame(() => {
+      chatScrollRef.current?.scrollTo({
+        top: chatScrollRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
     });
   }, [messages, isThinking]);
 
   useEffect(() => {
-    function handleResize() {
-      if (window.innerWidth >= 1280) {
-        setSidebarOpen(true);
-        return;
-      }
+    function syncLayout() {
+      const width = window.innerWidth;
+      const compact = width < 1280;
 
-      setSidebarOpen(false);
+      setCompactMode(compact);
+      setSidebarOpen(!compact);
     }
 
-    handleResize();
-    window.addEventListener('resize', handleResize);
+    syncLayout();
+    window.addEventListener('resize', syncLayout);
 
-    return () => window.removeEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', syncLayout);
   }, []);
+
+  function closeSidebarIfCompact() {
+    if (compactMode || window.innerWidth < 1280) {
+      setSidebarOpen(false);
+    }
+  }
 
   function getLastUserContext() {
     const lastUserMessage = [...messages].reverse().find((item) => item.role === 'user');
@@ -376,7 +384,7 @@ Ou pergunte:
           messages,
           context: {
             source: 'oddix-web-chat',
-            version: 'V9.2-responsive',
+            version: 'V9.4-responsive-final',
           },
         }),
       });
@@ -425,8 +433,7 @@ Ou pergunte:
     setMessages((current) => [...current, userMessage]);
     setMessage('');
     setIsThinking(true);
-
-    if (window.innerWidth < 1280) setSidebarOpen(false);
+    closeSidebarIfCompact();
 
     const apiAnswer = await callOddixApi(text);
 
@@ -449,14 +456,41 @@ Ou pergunte:
     setMessages([]);
     setMessage('');
     setIsThinking(false);
-
-    if (window.innerWidth < 1280) setSidebarOpen(false);
+    closeSidebarIfCompact();
 
     window.setTimeout(() => inputRef.current?.focus(), 50);
   }
 
   return (
-    <main className="relative h-[100dvh] min-h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#02070d] text-white">
+    <main className="oddix-chat-page relative h-[100dvh] min-h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#02070d] text-white">
+      <style jsx global>{`
+        html,
+        body {
+          width: 100%;
+          max-width: 100%;
+          overflow: hidden;
+        }
+
+        .oddix-chat-page,
+        .oddix-chat-page * {
+          box-sizing: border-box;
+          min-width: 0;
+        }
+
+        .oddix-chat-page img {
+          max-width: 100%;
+          height: auto;
+        }
+
+        .oddix-no-vertical-text {
+          writing-mode: horizontal-tb !important;
+          text-orientation: mixed !important;
+          white-space: normal !important;
+          word-break: break-word;
+          overflow-wrap: anywhere;
+        }
+      `}</style>
+
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/images/oddix-chat-bg.png')" }}
@@ -466,11 +500,11 @@ Ou pergunte:
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,197,94,.20),transparent_58%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(2,7,13,.15),rgba(2,7,13,.42)_50%,rgba(2,7,13,.95))]" />
 
-      {sidebarOpen && (
+      {sidebarOpen && compactMode && (
         <button
           type="button"
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-30 bg-black/55 xl:hidden"
+          className="fixed inset-0 z-30 bg-black/60"
           aria-label="Fechar menu"
         />
       )}
@@ -478,8 +512,9 @@ Ou pergunte:
       <div className="relative z-10 flex h-full min-h-0 w-full min-w-0 overflow-hidden">
         <aside
           className={[
-            'fixed left-0 top-0 z-40 h-[100dvh] w-[260px] max-w-[84vw] border-r border-white/10 bg-black/75 backdrop-blur-2xl transition-transform duration-300 xl:relative xl:z-10 xl:h-full xl:shrink-0 xl:translate-x-0 xl:bg-black/62',
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+            'h-full w-[280px] shrink-0 border-r border-white/10 bg-black/80 backdrop-blur-2xl transition-transform duration-300',
+            compactMode ? 'fixed left-0 top-0 z-40 max-w-[85vw]' : 'relative z-10 translate-x-0',
+            compactMode && !sidebarOpen ? '-translate-x-full' : 'translate-x-0',
           ].join(' ')}
         >
           <div className="flex h-full min-h-0 flex-col p-3 sm:p-4">
@@ -491,13 +526,15 @@ Ou pergunte:
                 draggable={false}
               />
 
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(false)}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70 hover:bg-white/10 xl:hidden"
-              >
-                ✕
-              </button>
+              {compactMode && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(false)}
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70 hover:bg-white/10"
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
             <button
@@ -523,15 +560,15 @@ Ou pergunte:
                   transition={{ delay: index * 0.05 }}
                   className="w-full rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left hover:border-emerald-400/30 hover:bg-emerald-500/10"
                 >
-                  <div className="text-sm font-black text-white/90">{item.title}</div>
-                  <div className="mt-1 text-[11px] text-white/45">{item.desc}</div>
+                  <div className="oddix-no-vertical-text text-sm font-black text-white/90">{item.title}</div>
+                  <div className="oddix-no-vertical-text mt-1 text-[11px] text-white/45">{item.desc}</div>
                 </motion.button>
               ))}
             </div>
 
             <div className="mt-4 shrink-0 rounded-2xl border border-emerald-400/20 bg-black/45 p-4">
-              <div className="text-xs font-black text-emerald-300">Oddix Chat V9.2</div>
-              <p className="mt-2 text-[11px] leading-relaxed text-white/55">
+              <div className="oddix-no-vertical-text text-xs font-black text-emerald-300">Oddix Chat V9.4</div>
+              <p className="oddix-no-vertical-text mt-2 text-[11px] leading-relaxed text-white/55">
                 Chat responsivo. Status: {apiStatus}
               </p>
             </div>
@@ -543,29 +580,31 @@ Ou pergunte:
             <div className="flex min-w-0 items-center gap-2">
               <button
                 type="button"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
+                onClick={() => setSidebarOpen((current) => !current)}
                 className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-white/80 backdrop-blur-xl hover:bg-white/10"
               >
                 ☰
               </button>
 
-              <span className="truncate rounded-lg border border-emerald-400/20 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black text-emerald-300 md:px-3 md:text-xs">
-                CHAT V9.2
+              <span className="oddix-no-vertical-text truncate rounded-lg border border-emerald-400/20 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black text-emerald-300 md:px-3 md:text-xs">
+                CHAT V9.4
               </span>
             </div>
 
             <div className="flex shrink-0 items-center gap-2 md:gap-3">
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(true)}
-                className="hidden rounded-full border border-white/10 bg-black/25 px-5 py-3 text-sm font-semibold text-white/90 backdrop-blur-xl hover:bg-white/10 xl:block"
-              >
-                ↺ Histórico
-              </button>
+              {!compactMode && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(true)}
+                  className="rounded-full border border-white/10 bg-black/25 px-5 py-3 text-sm font-semibold text-white/90 backdrop-blur-xl hover:bg-white/10"
+                >
+                  ↺ Histórico
+                </button>
+              )}
 
               <div
                 className={[
-                  'rounded-full border px-3 py-2 text-[10px] font-black md:px-4 md:text-xs',
+                  'oddix-no-vertical-text rounded-full border px-3 py-2 text-[10px] font-black md:px-4 md:text-xs',
                   apiConnected
                     ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-300'
                     : 'border-yellow-400/20 bg-yellow-500/10 text-yellow-300',
@@ -586,11 +625,11 @@ Ou pergunte:
                     initial={{ opacity: 0, y: -24 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.7 }}
-                    className="w-full max-w-[330px] object-contain drop-shadow-[0_0_50px_rgba(34,197,94,.28)] sm:max-w-[420px] md:max-w-[560px]"
+                    className="w-full max-w-[280px] object-contain drop-shadow-[0_0_50px_rgba(34,197,94,.28)] min-[420px]:max-w-[330px] sm:max-w-[420px] md:max-w-[560px]"
                     draggable={false}
                   />
 
-                  <p className="mt-2 max-w-[92vw] text-center text-xs text-white/68 md:text-base">
+                  <p className="oddix-no-vertical-text mt-2 max-w-full px-2 text-center text-xs leading-relaxed text-white/68 md:text-base">
                     Seu assistente inteligente para análise de futebol, odds e apostas.
                   </p>
 
@@ -616,17 +655,17 @@ Ou pergunte:
                     }}
                     className="mt-4 w-full rounded-2xl border border-emerald-400/25 bg-black/45 p-3 text-left backdrop-blur-2xl md:mt-6 md:rounded-3xl md:p-5"
                   >
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
-                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300 md:text-xs">
+                        <div className="oddix-no-vertical-text text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300 md:text-xs">
                           Destaque principal
                         </div>
-                        <h2 className="mt-1 text-lg font-black text-white md:text-2xl">
+                        <h2 className="oddix-no-vertical-text mt-1 text-lg font-black text-white md:text-2xl">
                           🔥 Top Pick do Dia
                         </h2>
                       </div>
 
-                      <span className="rounded-full border border-emerald-400/25 bg-emerald-500/15 px-3 py-2 text-[10px] font-black text-emerald-300 md:px-4 md:text-xs">
+                      <span className="oddix-no-vertical-text w-fit rounded-full border border-emerald-400/25 bg-emerald-500/15 px-3 py-2 text-[10px] font-black text-emerald-300 md:px-4 md:text-xs">
                         Score Oddix 88%
                       </span>
                     </div>
@@ -638,7 +677,9 @@ Ou pergunte:
                             key={item}
                             className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 md:p-3"
                           >
-                            <div className="text-[11px] font-black md:text-sm">{item}</div>
+                            <div className="oddix-no-vertical-text text-[11px] font-black md:text-sm">
+                              {item}
+                            </div>
                           </div>
                         ),
                       )}
@@ -657,8 +698,10 @@ Ou pergunte:
                         className="rounded-2xl border border-white/10 bg-black/35 p-3 text-left backdrop-blur-xl hover:border-emerald-400/40 hover:bg-emerald-500/10"
                       >
                         <div className="mb-1 text-lg md:mb-2 md:text-xl">{item.icon}</div>
-                        <div className="text-sm font-black text-white/90">{item.label}</div>
-                        <div className="mt-1 line-clamp-2 text-[11px] text-white/45">
+                        <div className="oddix-no-vertical-text text-sm font-black text-white/90">
+                          {item.label}
+                        </div>
+                        <div className="oddix-no-vertical-text mt-1 line-clamp-2 text-[11px] text-white/45">
                           {item.prompt}
                         </div>
                       </motion.button>
@@ -677,8 +720,12 @@ Ou pergunte:
                         className="rounded-2xl border border-emerald-400/20 bg-black/40 p-3 text-left backdrop-blur-xl hover:bg-emerald-500/10 md:rounded-3xl md:p-4"
                       >
                         <div className="text-lg md:text-xl">{item[0]}</div>
-                        <div className="mt-1 text-sm font-black md:mt-2">{item[1]}</div>
-                        <p className="mt-1 text-[11px] text-white/50">{item[2]}</p>
+                        <div className="oddix-no-vertical-text mt-1 text-sm font-black md:mt-2">
+                          {item[1]}
+                        </div>
+                        <p className="oddix-no-vertical-text mt-1 text-[11px] text-white/50">
+                          {item[2]}
+                        </p>
                       </motion.button>
                     ))}
                   </div>
@@ -689,7 +736,7 @@ Ou pergunte:
             {hasConversation && (
               <div
                 ref={chatScrollRef}
-                className="flex min-h-0 w-full max-w-[1100px] flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden rounded-2xl border border-white/10 bg-black/42 p-3 text-left backdrop-blur-2xl md:gap-4 md:rounded-3xl md:p-4"
+                className="flex min-h-0 w-full max-w-[1100px] flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden rounded-3xl border border-white/10 bg-black/42 p-4 text-left backdrop-blur-2xl"
               >
                 {messages.map((item) => (
                   <motion.div
@@ -697,16 +744,18 @@ Ou pergunte:
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={[
-                      'max-w-[94%] break-words rounded-2xl px-4 py-3 text-sm leading-relaxed md:max-w-[80%] md:rounded-3xl md:px-5 md:py-4 md:text-base',
+                      'max-w-[92%] break-words rounded-3xl px-5 py-4 text-base leading-relaxed',
                       item.role === 'user'
                         ? 'ml-auto bg-emerald-500/20 text-white'
                         : 'mr-auto border border-white/10 bg-white/[0.06] text-white/85',
                     ].join(' ')}
                   >
-                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300 md:text-xs">
+                    <div className="oddix-no-vertical-text mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300 md:text-xs">
                       {item.role === 'user' ? 'Você' : 'Oddix IA'}
                     </div>
-                    <div className="whitespace-pre-line">{item.content}</div>
+                    <div className="oddix-no-vertical-text whitespace-pre-line break-words">
+                      {item.content}
+                    </div>
                   </motion.div>
                 ))}
 
@@ -714,7 +763,7 @@ Ou pergunte:
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="mr-auto rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/70 md:rounded-3xl md:px-5 md:py-4"
+                    className="mr-auto rounded-3xl border border-white/10 bg-white/[0.06] px-5 py-4 text-sm text-white/70"
                   >
                     <span className="text-emerald-300">Oddix IA</span> analisando...
                   </motion.div>
@@ -741,7 +790,7 @@ Ou pergunte:
               <input
                 ref={inputRef}
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(event) => setMessage(event.target.value)}
                 placeholder="Pergunte sobre jogos, odds, estatísticas..."
                 className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/42 md:text-base"
               />
@@ -763,7 +812,7 @@ Ou pergunte:
               </button>
             </motion.form>
 
-            <div className="mt-2 w-full max-w-[1100px] shrink-0 rounded-2xl border border-white/10 bg-black/50 px-4 py-2 text-center text-[10px] text-white/60 backdrop-blur-xl md:mt-3 md:px-5 md:py-3 md:text-xs">
+            <div className="oddix-no-vertical-text mt-2 w-full max-w-[1100px] shrink-0 rounded-2xl border border-white/10 bg-black/50 px-4 py-2 text-center text-[10px] leading-relaxed text-white/60 backdrop-blur-xl md:mt-3 md:px-5 md:py-3 md:text-xs">
               🛡️ Oddix Chat pode cometer erros. Confirme as informações antes de apostar.
               <span className="ml-1 font-black text-emerald-400">+18</span>
             </div>
