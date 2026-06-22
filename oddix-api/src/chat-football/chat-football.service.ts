@@ -26,6 +26,22 @@ type BetCalc = {
   lucro: number;
 };
 
+type FlashScoreRichContext = {
+  ok?: boolean;
+  source?: string;
+  fixture?: any;
+  fixtureId?: string;
+  flashScoreExternalId?: string | null;
+  statistics?: any;
+  odds?: any;
+  h2h?: any;
+  lineups?: any;
+  prematchStats?: any;
+  raw?: any;
+  errors?: string[];
+};
+
+
 @Injectable()
 export class ChatFootballService {
   constructor(
@@ -825,17 +841,23 @@ ${discoveryAgent}
       const fixtureId = String(match?.fixture?.id || '');
       if (!fixtureId) return this.waitingForRealData(intent);
 
-      const statsResponse: any = await this.footballService.getStatistics(fixtureId);
+      const richContext = await this.getFlashScoreRichContextSafe(fixtureId, match);
+      const statsResponse: any = richContext?.statistics || (await this.footballService.getStatistics(fixtureId));
 
       const hasRealStats =
+        richContext?.ok === true ||
         statsResponse?.ok === true ||
         statsResponse?.success === true ||
         statsResponse?.available === true ||
         statsResponse?.data?.available === true ||
         statsResponse?.data?.realStatsAvailable === true ||
-        statsResponse?.realStatsAvailable === true;
+        statsResponse?.realStatsAvailable === true ||
+        richContext?.prematchStats?.available === true ||
+        richContext?.odds?.available === true ||
+        richContext?.h2h?.available === true;
 
       const stats = statsResponse?.data || statsResponse;
+      const enrichedMatch = richContext?.fixture || match;
 
       if (!hasRealStats) {
         const matchAgent =
@@ -843,9 +865,15 @@ ${discoveryAgent}
             homeTeam: match?.teams?.home?.name || teams.home,
             awayTeam: match?.teams?.away?.name || teams.away,
             fixtures,
-            fixture: match,
+            fixture: enrichedMatch,
+            statistics: stats?.simulated ? null : stats,
             research,
-          }) || this.formatResearchBlock(research);
+            richContext,
+            h2h: richContext?.h2h,
+            odds: richContext?.odds,
+            lineups: richContext?.lineups,
+            prematchStats: richContext?.prematchStats,
+          } as any) || this.formatResearchBlock(research);
 
         return {
           success: true,
@@ -856,22 +884,25 @@ ${discoveryAgent}
 Encontrei a partida. ✅
 🏆 ${match?.league?.name || 'Liga não informada'}
 
+${this.buildRichContextSummary(richContext)}
+
 ${matchAgent}
 
 📡 Status:
-⚠️ AGUARDANDO DADOS REAIS
+⚠️ AINDA SEM CONFIRMAÇÃO COMPLETA PARA ENTRADA OFICIAL
 
 ❌ Nenhuma entrada aprovada agora.`,
           data: {
             waitingForData: true,
-            fixture: match,
+            fixture: enrichedMatch,
             research,
+            richContext,
             suggestions: this.waitingSuggestions(),
           },
         };
       }
 
-      return this.buildRealMatchAnalysis(match, fixtures, stats, intent, research);
+      return this.buildRealMatchAnalysis(enrichedMatch, fixtures, stats, intent, research, richContext);
     } catch (error: any) {
       return {
         success: true,
@@ -899,6 +930,7 @@ ${error?.message || 'Falha ao consultar dados reais'}
     stats: any,
     intent: ChatIntent,
     research?: ResearchResult | null,
+    richContext?: FlashScoreRichContext | null,
   ): ChatFootballResponse {
     const home = match?.teams?.home?.name || 'Casa';
     const away = match?.teams?.away?.name || 'Fora';
@@ -911,13 +943,20 @@ ${error?.message || 'Falha ao consultar dados reais'}
         fixture: match,
         statistics: stats,
         research,
-      }) || this.formatResearchBlock(research || null);
+        richContext,
+        h2h: richContext?.h2h,
+        odds: richContext?.odds,
+        lineups: richContext?.lineups,
+        prematchStats: richContext?.prematchStats,
+      } as any) || this.formatResearchBlock(research || null);
 
     return {
       success: true,
       intent,
       answer:
 `⚽ ANÁLISE REAL ODDIX IA
+
+${this.buildRichContextSummary(richContext)}
 
 ${matchAgent}
 
@@ -931,6 +970,7 @@ ${matchAgent}
         fixture: match,
         statistics: stats,
         research,
+        richContext,
         suggestions: [
           '🎯 Quero uma aposta simples',
           '🔥 Monte uma múltipla segura',
@@ -1357,6 +1397,52 @@ ${ticket.selections.map((item) => `• ${item.game}: ${item.risk} — ${item.con
 
     const value = Number(match?.[1]);
     return Number.isFinite(value) && value > 0 ? value : null;
+  }
+
+
+  private async getFlashScoreRichContextSafe(
+    fixtureId: string,
+    fixture: any,
+  ): Promise<FlashScoreRichContext | null> {
+    try {
+      const service: any = this.footballService as any;
+      if (!service?.getFlashScoreRichContext) return null;
+      return await service.getFlashScoreRichContext(String(fixtureId), fixture);
+    } catch (error: any) {
+      return {
+        ok: false,
+        fixture,
+        fixtureId: String(fixtureId),
+        errors: [error?.message || 'Falha ao montar contexto FlashScore'],
+      };
+    }
+  }
+
+  private buildRichContextSummary(context?: FlashScoreRichContext | null) {
+    if (!context) {
+      return `📡 Contexto FlashScore:
+⚠️ Rich context ainda não disponível.`;
+    }
+
+    const checks = [
+      `📊 Estatísticas: ${context.statistics?.available ? '✅ reais' : context.prematchStats?.available ? '🟡 pré-jogo/H2H' : '⚠️ indisponíveis'}`,
+      `💰 Odds: ${context.odds?.available ? '✅ reais' : '⚠️ não localizadas'}`,
+      `🤝 H2H: ${context.h2h?.available ? `✅ ${context.h2h.totalMatches || 0} jogos` : '⚠️ insuficiente'}`,
+      `👥 Lineups: ${context.lineups ? '✅ recebidas' : '⚠️ indisponíveis'}`,
+    ];
+
+    const oddsText = context.odds?.available
+      ? `
+1: ${context.odds.home || '-'} | X: ${context.odds.draw || '-'} | 2: ${context.odds.away || '-'}`
+      : '';
+
+    const h2hText = context.h2h?.available
+      ? `
+H2H: média gols ${context.h2h.avgGoals ?? '-'} | over 2.5 ${context.h2h.over25Rate ?? '-'}% | BTTS ${context.h2h.bttsRate ?? '-'}%`
+      : '';
+
+    return `📡 FlashScore Rich Context:
+${checks.map((item) => `• ${item}`).join('\n')}${oddsText}${h2hText}`;
   }
 
   private async researchTeamSafe(teamName: string): Promise<ResearchResult | null> {

@@ -9,6 +9,11 @@ export type OddixAgentContext = {
   fixture?: any;
   statistics?: any;
   research?: ResearchResult | null;
+  richContext?: any;
+  h2h?: any;
+  odds?: any;
+  lineups?: any;
+  prematchStats?: any;
 };
 
 type AgentRisk = 'BAIXO' | 'MEDIO' | 'ALTO';
@@ -62,6 +67,8 @@ ${this.buildFinalDecisionAgent(context)}`;
 Jogo analisado:
 ${home} x ${away}
 
+${this.buildRichContextAgent(context)}
+
 ${this.buildH2HAgent(context)}
 
 ${this.buildTrendAgent(context)}
@@ -93,6 +100,37 @@ ${this.buildRecommendationAgent(context)}
 ${this.buildConfidenceEngineAgent(context)}
 
 ${this.buildFinalDecisionAgent(context)}`;
+  }
+
+  buildRichContextAgent(context: OddixAgentContext) {
+    const rich = context.richContext || {};
+    const stats = context.statistics || rich.statistics;
+    const odds = context.odds || rich.odds;
+    const h2h = context.h2h || rich.h2h;
+    const lineups = context.lineups || rich.lineups;
+    const prematchStats = context.prematchStats || rich.prematchStats;
+
+    const hasStats = !!stats;
+    const hasOdds = !!odds;
+    const hasH2h = !!h2h;
+    const hasLineups = !!lineups;
+    const hasPrematch = !!prematchStats;
+
+    return `🧠 RichContextAgent V8.1
+
+FlashScore Rich Context:
+${hasStats ? '✅ Estatísticas reais recebidas' : '⚠️ Estatísticas ainda não recebidas'}
+${hasOdds ? '✅ Odds reais recebidas' : '⚠️ Odds ainda não recebidas'}
+${hasH2h ? '✅ H2H recebido' : '⚠️ H2H ainda não recebido'}
+${hasLineups ? '✅ Escalações/lineups recebidas' : '⚠️ Lineups ainda não recebidas'}
+${hasPrematch ? '✅ Estatísticas pré-jogo recebidas' : '⚠️ Pré-jogo ainda sem estatísticas'}
+
+Leitura:
+${
+  hasStats || hasOdds || hasH2h || hasLineups || hasPrematch
+    ? '✅ O chat já está recebendo contexto rico para análise.'
+    : '⚠️ O contexto rico ainda não chegou completo nos agents.'
+}`;
   }
 
   buildMatchDiscoveryAgent(context: OddixAgentContext) {
@@ -163,6 +201,20 @@ As fontes externas ajudam com contexto, agenda, notícias e histórico público,
     const home = this.normalize(context.homeTeam || '');
     const away = this.normalize(context.awayTeam || '');
     const fixtures = context.fixtures || [];
+    const richH2H = context.h2h || context.richContext?.h2h || context.prematchStats?.h2h;
+
+    if (richH2H?.available) {
+      return `🤝 H2HAgent — FlashScore:
+✅ Histórico direto encontrado.
+
+Total de jogos: ${richH2H.totalMatches || 0}
+Média de gols: ${richH2H.avgGoals ?? '-'}
+Over 2.5: ${richH2H.over25Rate ?? '-'}%
+BTTS: ${richH2H.bttsRate ?? '-'}%
+
+Leitura:
+${Number(richH2H.avgGoals || 0) >= 2.5 ? '🔥 Histórico com tendência de gols.' : '🟡 Histórico sem explosão clara de gols.'}`;
+    }
 
     if (!home || !away) {
       return `🤝 H2HAgent:
@@ -403,7 +455,7 @@ ${alerts.map((item) => `• ${item}`).join('\n')}
   }
 
   buildMarketMovementAgent(context: OddixAgentContext) {
-    const odds = this.extractOdds(context.fixture);
+    const odds = this.extractOdds(context.odds || context.richContext?.odds || context.fixture);
     const researchText = this.normalize(
       context.research?.items?.map((item) => `${item.title} ${item.description}`).join(' ') || '',
     );
@@ -485,9 +537,23 @@ ${games
   }
 
   buildStatisticsAgent(context: OddixAgentContext) {
-    if (!context.statistics) {
+    const stats = context.statistics || context.richContext?.statistics;
+    const prematch = context.prematchStats || context.richContext?.prematchStats;
+
+    if (!stats && !prematch?.available) {
       return `📈 StatisticsAgent:
 ⚠️ Estatísticas reais ainda não validadas.`;
+    }
+
+    if (!stats && prematch?.available) {
+      return `📈 StatisticsAgent:
+🟡 Estatística pré-jogo recebida via FlashScore H2H/odds.
+
+Over 2.5 H2H: ${prematch.h2h?.over25Rate ?? '-'}%
+BTTS H2H: ${prematch.h2h?.bttsRate ?? '-'}%
+Média gols H2H: ${prematch.h2h?.avgGoals ?? '-'}
+
+⚠️ Ainda considero parcial: serve para leitura, mas não substitui estatística live/completa.`;
     }
 
     return `📈 StatisticsAgent:
@@ -538,7 +604,7 @@ Mercados que podem ser avaliados:
 
   buildValueBetAgent(context: OddixAgentContext) {
     const hasStats = !!context.statistics;
-    const odds = this.extractOdds(context.fixture);
+    const odds = this.extractOdds(context.odds || context.richContext?.odds || context.fixture);
 
     if (!hasStats) {
       return `💰 ValueBetAgent:
@@ -570,7 +636,7 @@ Comparar odd real x odd justa estimada pela IA.`;
   buildPredictionAgent(context: OddixAgentContext) {
     const signal = this.calculateSignal(context);
 
-    if (!context.statistics) {
+    if (!context.statistics && !context.prematchStats?.available && !context.richContext?.prematchStats?.available) {
       return `🔮 PredictionAgent:
 ⚠️ Previsão bloqueada.
 
@@ -603,7 +669,7 @@ ${signal.risk}`;
   buildRecommendationAgent(context: OddixAgentContext) {
     const signal = this.calculateSignal(context);
 
-    if (!context.statistics) {
+    if (!context.statistics && !context.prematchStats?.available && !context.richContext?.prematchStats?.available) {
       return `🎯 RecommendationAgent:
 ❌ NÃO APOSTAR AGORA.
 
@@ -712,7 +778,7 @@ Mercados que podem ser avaliados:
 
   buildConfidenceEngineAgent(context: OddixAgentContext) {
     const signal = this.calculateSignal(context);
-    const odds = this.extractOdds(context.fixture);
+    const odds = this.extractOdds(context.odds || context.richContext?.odds || context.fixture);
 
     const agentScores = {
       TrendAgent: context.fixtures?.length ? 70 : 45,
@@ -758,9 +824,9 @@ ${
 
   buildFinalDecisionAgent(context: OddixAgentContext) {
     const signal = this.calculateSignal(context);
-    const odds = this.extractOdds(context.fixture);
+    const odds = this.extractOdds(context.odds || context.richContext?.odds || context.fixture);
 
-    if (!context.statistics) {
+    if (!context.statistics && !context.prematchStats?.available && !context.richContext?.prematchStats?.available) {
       return `🤖 FinalDecisionAgent:
 
 Decisão:
@@ -834,14 +900,14 @@ AGUARDANDO VALIDAÇÃO FINAL DAS ODDS`;
     const reasons: string[] = [];
     const markets: string[] = [];
 
-    if (context.statistics) {
-      score += 25;
+    if (context.statistics || context.richContext?.statistics || context.prematchStats?.available || context.richContext?.prematchStats?.available) {
+      score += context.statistics || context.richContext?.statistics ? 25 : 14;
       reasons.push('Estatísticas reais disponíveis.');
     } else {
       reasons.push('Estatísticas reais ainda não validadas.');
     }
 
-    const odds = this.extractOdds(context.fixture);
+    const odds = this.extractOdds(context.odds || context.richContext?.odds || context.fixture);
 
     if (odds.length) {
       score += 10;
@@ -890,8 +956,18 @@ AGUARDANDO VALIDAÇÃO FINAL DAS ODDS`;
     };
   }
 
-  private extractOdds(fixture: any): { name: string; value: number }[] {
-    const options = fixture?.odds?.options || fixture?.odds || [];
+  private extractOdds(input: any): { name: string; value: number }[] {
+    const source = input?.odds?.available ? input.odds : input?.richContext?.odds?.available ? input.richContext.odds : input;
+
+    if (source?.available && (source.home || source.draw || source.away)) {
+      return [
+        { name: '1', value: Number(source.home || 0) },
+        { name: 'X', value: Number(source.draw || 0) },
+        { name: '2', value: Number(source.away || 0) },
+      ].filter((item) => Number.isFinite(item.value) && item.value > 1);
+    }
+
+    const options = source?.odds?.options || source?.options || source?.odds || [];
 
     if (!Array.isArray(options)) return [];
 
