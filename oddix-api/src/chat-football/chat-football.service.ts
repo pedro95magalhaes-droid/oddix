@@ -5,6 +5,7 @@ import { FootballAgentsService } from './football-agents.service';
 import { OddixMemoryService } from './oddix-memory.service';
 import { OddixResponseBuilderService } from './oddix-response-builder.service';
 import { OddixRouterService } from './oddix-router.service';
+import { OddixGlobalAiService } from './oddix-global-ai.service';
 import type {
   BetCalc,
   ChatFootballRequest,
@@ -41,10 +42,40 @@ export class ChatFootballService {
     @Optional() private readonly memoryService?: OddixMemoryService,
     @Optional() private readonly responseBuilder?: OddixResponseBuilderService,
     @Optional() private readonly routerService?: OddixRouterService,
+    @Optional() private readonly globalAi?: OddixGlobalAiService,
   ) {}
 
   async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
     const message = this.readMessage(payload);
+
+    if (!message.trim()) {
+      const history = this.readHistory(payload);
+      const memory = this.memoryService?.buildMemory(payload, history) || this.buildMemoryFallback(history);
+      const profile = this.memoryService?.buildProfile(payload, memory) || this.buildProfileFallback(payload);
+
+      return this.direct('ASK_RECOMMENDATION', this.buildWelcomeText(), memory, profile);
+    }
+
+    const shouldUseGlobalAi =
+      this.globalAi?.isGeneralQuestion(message) === true &&
+      !this.isOddixFootballQuestion(message);
+
+    if (shouldUseGlobalAi && this.globalAi) {
+      const response = await this.globalAi.answer(message);
+
+      return {
+        success: true,
+        intent: 'GENERAL',
+        answer: response.answer,
+        data: {
+          suggestions: response.suggestions || [
+            '⚽ Mostrar jogos de hoje',
+            '🏆 Top Picks',
+            '🔥 Monte uma múltipla',
+          ],
+        },
+      } as ChatFootballResponse;
+    }
     const history = this.readHistory(payload);
     const memory = this.memoryService?.buildMemory(payload, history) || this.buildMemoryFallback(history);
     const profile = this.memoryService?.buildProfile(payload, memory) || this.buildProfileFallback(payload);
@@ -60,10 +91,6 @@ export class ChatFootballService {
     }
 
     const lastTicket = memory.lastTicket || this.findLastTicket(history);
-
-    if (!message.trim()) {
-      return this.direct('ASK_RECOMMENDATION', this.buildWelcomeText(), memory, profile);
-    }
 
     const calc = this.extractBetCalculation(message, lastTicket);
     if (calc) return this.buildBetCalculatorResponse(calc, message, memory, profile);
@@ -706,6 +733,103 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
     const match = normalized.match(/r\$\s*(\d+(\.\d+)?)/i) || normalized.match(/(\d+(\.\d+)?)\s*reais/i) || normalized.match(/com\s+(\d+(\.\d+)?)/i);
     const value = Number(match?.[1]);
     return Number.isFinite(value) && value > 0 ? value : null;
+  }
+
+  private isOddixFootballQuestion(message: string) {
+    const text = this.clean(message);
+
+    const footballKeywords = [
+      'jogo',
+      'jogos',
+      'partida',
+      'partidas',
+      'time',
+      'times',
+      'futebol',
+      'gol',
+      'gols',
+      'escanteio',
+      'escanteios',
+      'cartao',
+      'cartão',
+      'chute',
+      'finalizacao',
+      'finalização',
+      'odd',
+      'odds',
+      'aposta',
+      'apostas',
+      'palpite',
+      'palpites',
+      'entrada',
+      'entradas',
+      'top pick',
+      'top picks',
+      'multipla',
+      'múltipla',
+      'bilhete',
+      'combinada',
+      'ao vivo',
+      'live',
+      'virtual',
+      'value',
+      'mercado',
+      'banca',
+      'retorno',
+      'lucro',
+      'quanto ganho',
+      'over',
+      'under',
+      'btts',
+      'ambas marcam',
+      'dupla chance',
+      'handicap',
+      'player props',
+      'jogador',
+      'flamengo',
+      'palmeiras',
+      'corinthians',
+      'santos',
+      'vasco',
+      'botafogo',
+      'fluminense',
+      'sao paulo',
+      'são paulo',
+      'cruzeiro',
+      'gremio',
+      'grêmio',
+      'internacional',
+      'atletico',
+      'atlético',
+      'real madrid',
+      'barcelona',
+      'psg',
+      'manchester',
+      'liverpool',
+      'arsenal',
+      'chelsea',
+      'bayern',
+      'juventus',
+      'milan',
+      'inter de milao',
+      'inter de milão',
+      'brasil',
+      'argentina',
+      'espanha',
+      'portugal',
+      'franca',
+      'frança',
+      'inglaterra',
+      'alemanha',
+      'italia',
+      'itália',
+    ];
+
+    if (footballKeywords.some((keyword) => text.includes(this.clean(keyword)))) {
+      return true;
+    }
+
+    return !!this.extractTeams(message);
   }
 
   private shouldListGames(message: string) {
