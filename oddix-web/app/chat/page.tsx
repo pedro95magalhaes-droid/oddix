@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 
 type Suggestion = {
@@ -26,7 +26,9 @@ export default function OddixChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isThinking, setIsThinking] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const suggestions: Suggestion[] = [
     {
@@ -105,6 +107,13 @@ export default function OddixChatPage() {
     ],
     [],
   );
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end',
+    });
+  }, [messages, isThinking]);
 
   function buildFakeAnswer(prompt: string) {
     const lower = prompt.toLowerCase();
@@ -238,7 +247,10 @@ Me envie o jogo específico ou clique em uma sugestão para continuar.`;
     setMessages([]);
     setMessage('');
     setIsThinking(false);
-    window.setTimeout(() => inputRef.current?.focus(), 50);
+
+    window.setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
   }
 
   function openHistory(item: HistoryItem) {
@@ -312,9 +324,9 @@ Me envie o jogo específico ou clique em uma sugestão para continuar.`;
           </div>
 
           <div className="mt-auto rounded-2xl border border-emerald-400/20 bg-black/45 p-4">
-            <div className="text-xs font-black text-emerald-300">Oddix Chat V7.6.3</div>
+            <div className="text-xs font-black text-emerald-300">Oddix Chat V7.6.4</div>
             <p className="mt-2 text-[11px] leading-relaxed text-white/55">
-              Botões ativos, sugestões funcionais e conversa simulada.
+              Auto-scroll ativo para priorizar a resposta da IA.
             </p>
           </div>
         </div>
@@ -348,7 +360,7 @@ Me envie o jogo específico ou clique em uma sugestão para continuar.`;
             </button>
 
             <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/15 px-3 py-1 text-xs font-black text-emerald-300 shadow-[0_0_22px_rgba(34,197,94,.16)]">
-              CHAT V7.6.3
+              CHAT V7.6.4
             </span>
           </div>
 
@@ -459,7 +471,7 @@ Me envie o jogo específico ou clique em uma sugestão para continuar.`;
           )}
 
           {hasConversation && (
-            <div className="mb-6 flex w-full max-w-5xl flex-1 flex-col gap-4 rounded-3xl border border-white/10 bg-black/42 p-4 text-left shadow-[0_20px_80px_rgba(0,0,0,.45)] backdrop-blur-2xl">
+            <div className="mb-6 flex h-[58vh] w-full max-w-5xl flex-col gap-4 overflow-y-auto rounded-3xl border border-white/10 bg-black/42 p-4 text-left shadow-[0_20px_80px_rgba(0,0,0,.45)] backdrop-blur-2xl">
               {messages.map((item) => (
                 <motion.div
                   key={item.id}
@@ -489,6 +501,8 @@ Me envie o jogo específico ou clique em uma sugestão para continuar.`;
                   <span className="text-emerald-300">Oddix IA</span> analisando...
                 </motion.div>
               )}
+
+              <div ref={messagesEndRef} />
             </div>
           )}
 
