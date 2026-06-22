@@ -20,6 +20,8 @@ import { PaymentsModule } from './payments/payments.module';
 import { VirtualModule } from './virtual/virtual.module';
 import { ChatFootballModule } from './chat-football/chat-football.module';
 
+import { ChatHistoryModule } from './chat-history/chat-history.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -45,6 +47,8 @@ import { ChatFootballModule } from './chat-football/chat-football.module';
 
     VirtualModule,
     ChatFootballModule,
+	
+	ChatHistoryModule,
   ],
 })
 export class AppModule {}
