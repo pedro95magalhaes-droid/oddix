@@ -4,6 +4,7 @@ import { FootballResearchService, ResearchResult } from './football-research.ser
 import { FootballAgentsService } from './football-agents.service';
 import { OddixMemoryService } from './oddix-memory.service';
 import { OddixResponseBuilderService } from './oddix-response-builder.service';
+import { OddixRouterService } from './oddix-router.service';
 import type {
   BetCalc,
   ChatFootballRequest,
@@ -39,6 +40,7 @@ export class ChatFootballService {
     @Optional() private readonly agentsService?: FootballAgentsService,
     @Optional() private readonly memoryService?: OddixMemoryService,
     @Optional() private readonly responseBuilder?: OddixResponseBuilderService,
+    @Optional() private readonly routerService?: OddixRouterService,
   ) {}
 
   async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
@@ -47,6 +49,16 @@ export class ChatFootballService {
     const memory = this.memoryService?.buildMemory(payload, history) || this.buildMemoryFallback(history);
     const profile = this.memoryService?.buildProfile(payload, memory) || this.buildProfileFallback(payload);
     const brain = this.buildBrain(message, history, memory);
+    const routed = this.routerService?.resolve(
+      message,
+      brain.intent,
+      memory,
+    );
+
+    if (routed?.intent) {
+      brain.intent = routed.intent as any;
+    }
+
     const lastTicket = memory.lastTicket || this.findLastTicket(history);
 
     if (!message.trim()) {
