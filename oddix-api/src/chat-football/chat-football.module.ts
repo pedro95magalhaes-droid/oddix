@@ -8,6 +8,7 @@ import { OddixResponseBuilderService } from './oddix-response-builder.service';
 import { FootballModule } from '../football/football.module';
 import { OddixIntentService } from './oddix-intent.service';
 import { OddixMemoryService } from './oddix-memory.service';
+import { OddixRouterService } from './oddix-router.service';
 
 @Module({
   imports: [FootballModule],
@@ -21,6 +22,10 @@ import { OddixMemoryService } from './oddix-memory.service';
 	ChatFootballService,
     OddixIntentService,
     OddixMemoryService,
+	ChatFootballService,
+    OddixIntentService,
+    OddixMemoryService,
+    OddixRouterService,
   ],
   exports: [
     ChatFootballService,
