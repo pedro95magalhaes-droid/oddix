@@ -2871,6 +2871,121 @@ export class FootballService {
     };
   }
 
+
+  async getFlashScoreRichContext(fixtureId: string, fixtureInput?: any) {
+    const cachedRaw = await this.getFixtureFromCacheById(String(fixtureId));
+    const cached: any = cachedRaw || null;
+    const fixture: any = this.standardizeFixture(fixtureInput || cached || {});
+
+    const externalId =
+      fixture?.fixture?.externalId ||
+      cached?.fixture?.externalId ||
+      cached?.flashScoreRaw?.id ||
+      fixture?.flashScoreRaw?.id ||
+      fixture?.fixture?.id ||
+      cached?.fixture?.id ||
+      fixtureId;
+
+    const provider = String(fixture?.provider || cached?.provider || '').toLowerCase();
+    const canUseFlashScore = !!externalId && (provider === 'flashscore' || this.flashScoreService?.isEnabled?.());
+
+    const empty = {
+      ok: false,
+      source: 'flashscore',
+      fixture,
+      fixtureId: String(fixtureId),
+      flashScoreExternalId: externalId ? String(externalId) : null,
+      statistics: null,
+      odds: null,
+      h2h: null,
+      lineups: null,
+      prematchStats: null,
+      errors: [] as string[],
+    };
+
+    if (!canUseFlashScore) {
+      return {
+        ...empty,
+        errors: ['Fixture sem externalId FlashScore ou FlashScore desativada.'],
+      };
+    }
+
+    const errors: string[] = [];
+
+    const [statsResult, h2hResult, oddsResult, lineupsResult] = await Promise.allSettled([
+      this.flashScoreService.getStats(String(externalId)),
+      this.flashScoreService.getH2H(String(externalId)),
+      this.flashScoreService.getOdds(String(externalId)),
+      this.flashScoreService.getLineups(String(externalId)),
+    ]);
+
+    const readSettled = (result: PromiseSettledResult<any>, label: string) => {
+      if (result.status === 'rejected') {
+        errors.push(`${label}: ${result.reason?.message || result.reason || 'erro desconhecido'}`);
+        return null;
+      }
+
+      if (!result.value?.ok) {
+        if (result.value?.error) errors.push(`${label}: ${result.value.error}`);
+        return null;
+      }
+
+      return result.value?.data || null;
+    };
+
+    const rawStats = readSettled(statsResult, 'stats');
+    const rawH2h = readSettled(h2hResult, 'h2h');
+    const rawOdds = readSettled(oddsResult, 'odds');
+    const rawLineups = readSettled(lineupsResult, 'lineups');
+
+    const statistics = rawStats ? this.flashScoreService.mapStatsToOddix(String(fixtureId), rawStats) : null;
+    const h2h = rawH2h ? this.summarizeFlashScoreH2H(rawH2h) : null;
+    const odds = rawOdds ? this.summarizeFlashScoreOdds(rawOdds) : null;
+    const prematchStats = this.buildPreMatchStatsFromFlashScore(fixture, { ok: !!rawH2h, data: rawH2h }, { ok: !!rawOdds, data: rawOdds });
+
+    const mergedFixture = {
+      ...fixture,
+      provider: fixture?.provider || 'flashscore',
+      fixture: {
+        ...(fixture?.fixture || {}),
+        id: fixture?.fixture?.id || Number(fixtureId) || fixtureId,
+        externalId: String(externalId),
+      },
+      odds: odds?.available
+        ? {
+            source: 'flashscore',
+            market: '1X2',
+            options: [
+              { name: '1', odd: odds.home },
+              { name: 'X', odd: odds.draw },
+              { name: '2', odd: odds.away },
+            ].filter((item: any) => Number(item.odd) > 1),
+          }
+        : fixture?.odds || null,
+      oddixRichContext: true,
+    };
+
+    return {
+      ok: !!(statistics?.available || prematchStats?.available || odds?.available || h2h?.available || rawLineups),
+      source: 'flashscore',
+      fixture: mergedFixture,
+      fixtureId: String(fixtureId),
+      flashScoreExternalId: String(externalId),
+      statistics,
+      odds,
+      h2h,
+      lineups: rawLineups,
+      prematchStats,
+      raw: {
+        stats: rawStats,
+        h2h: rawH2h,
+        odds: rawOdds,
+        lineups: rawLineups,
+      },
+      errors,
+    };
+  }
+
   async getStatisticsFromFlashScore(fixtureId: string) {
     const cachedRaw = await this.getFixtureFromCacheById(fixtureId);
     const cached = cachedRaw as any;
