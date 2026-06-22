@@ -14,25 +14,33 @@ export type ChatIntent =
   | 'BANKROLL'
   | 'LIST_MATCHES'
   | 'ASK_RECOMMENDATION'
+  | 'NEWS'
+  | 'VALUE_BETS'
   | 'GENERAL';
 
 export type ChatRisk = 'BAIXO' | 'MEDIO' | 'MEDIO_ALTO' | 'ALTO';
 
 export type ChatSeal = 'REPROVADA' | 'ARRISCADA' | 'BOA' | 'SEGURA' | 'ELITE';
 
-export type ChatRole = 'user' | 'assistant';
+export type ChatRole = 'user' | 'assistant' | 'system';
+
+export type OddixChatMode = 'safe' | 'balanced' | 'aggressive';
 
 export interface ChatHistoryMessage {
   role: ChatRole;
   content: string;
   data?: any;
+  createdAt?: string;
 }
 
 export interface ChatFootballRequest {
   message: string;
   userId?: string;
-  mode?: 'safe' | 'balanced' | 'aggressive';
+  sessionId?: string;
+  mode?: OddixChatMode;
   history?: ChatHistoryMessage[];
+  messages?: ChatHistoryMessage[];
+  stream?: boolean;
 }
 
 export interface ChatFootballResponse {
@@ -46,6 +54,10 @@ export interface ChatFootballResponse {
     fixture?: any;
     fixtures?: any[];
     statistics?: any;
+    research?: any;
+    richContext?: any;
+    memory?: ConversationMemory;
+    profile?: UserBetProfile;
     amount?: number;
     odd?: number;
     potentialReturn?: number;
@@ -72,4 +84,47 @@ export interface ChatTicket {
   risk: string;
   status: string;
   selections: ChatSelection[];
+}
+
+export interface ConversationMemory {
+  lastIntent?: ChatIntent;
+  lastUserMessage?: string;
+  lastAssistantMessage?: string;
+  lastMatch?: {
+    home: string;
+    away: string;
+    label: string;
+  } | null;
+  lastTeam?: string | null;
+  lastTicket?: ChatTicket | null;
+  lastFixture?: any;
+  lastRichContext?: any;
+  topicStack: string[];
+}
+
+export interface UserBetProfile {
+  mode: OddixChatMode;
+  maxOdd: number;
+  stakeLimitPercent: number;
+  preferredMarkets: string[];
+  blockedMarkets: string[];
+  language: 'pt-BR';
+}
+
+export interface OddixBrain {
+  message: string;
+  text: string;
+  intent: ChatIntent;
+  teams: { home: string; away: string } | null;
+  topicTeam: string | null;
+  isFollowUp: boolean;
+  wantsSafer: boolean;
+  wantsAggressive: boolean;
+}
+
+export interface BetCalc {
+  stake: number;
+  odd: number;
+  retorno: number;
+  lucro: number;
 }
