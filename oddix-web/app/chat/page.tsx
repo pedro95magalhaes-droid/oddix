@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 
 type Suggestion = {
@@ -652,8 +653,15 @@ export default function OddixChatPage() {
                 className="flex min-w-0 items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-semibold text-white/90 hover:bg-white/10"
                 aria-label="Início Oddix"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center oddix-logo-glow rounded-full bg-emerald-500 text-xs font-black text-black">
-                  O
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center oddix-logo-glow rounded-full bg-emerald-500/10 p-0.5">
+                  <Image
+                    src="/images/oddix-logo-icon.png"
+                    alt="Oddix"
+                    width={28}
+                    height={28}
+                    className="h-6 w-6 object-contain"
+                    priority
+                  />
                 </span>
                 {showSidebarLabels && <span className="oddix-sidebar-label truncate">Oddix</span>}
               </button>
@@ -829,7 +837,14 @@ export default function OddixChatPage() {
               </button>
 
               <div className="ml-1 flex min-w-0 items-center gap-2 rounded-xl px-2 py-1.5 text-[15px] font-semibold text-white/92 hover:bg-white/5">
-                <span className="truncate">Oddix Chat</span>
+                <Image
+                  src="/images/oddix-logo.png"
+                  alt="Oddix"
+                  width={118}
+                  height={30}
+                  className="h-6 w-auto object-contain"
+                  priority
+                />
                 <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
                   V12.1
                 </span>
@@ -871,8 +886,15 @@ export default function OddixChatPage() {
                     transition={{ duration: 0.45 }}
                     className="mb-7 flex flex-col items-center"
                   >
-                    <div className="mb-5 flex h-16 w-16 items-center justify-center oddix-logo-glow rounded-3xl bg-emerald-500 text-2xl font-black text-black shadow-[0_0_40px_rgba(16,185,129,.35)]">
-                      O
+                    <div className="mb-5 flex items-center justify-center">
+                      <Image
+                        src="/images/oddix-logo-banner.png"
+                        alt="Oddix"
+                        width={280}
+                        height={90}
+                        className="h-auto w-[220px] object-contain drop-shadow-[0_0_42px_rgba(16,185,129,.28)] sm:w-[280px]"
+                        priority
+                      />
                     </div>
                     <h1 className="text-balance text-[28px] font-normal leading-tight text-white sm:text-[32px]">
                       O que deseja analisar hoje?
@@ -935,8 +957,14 @@ export default function OddixChatPage() {
                       className={['flex w-full', item.role === 'user' ? 'justify-end' : 'justify-start'].join(' ')}
                     >
                       {item.role === 'assistant' && (
-                        <div className="mr-3 mt-1 hidden h-8 w-8 shrink-0 items-center justify-center oddix-logo-glow rounded-full bg-emerald-500 text-xs font-black text-black sm:flex">
-                          O
+                        <div className="mr-3 mt-1 hidden h-8 w-8 shrink-0 items-center justify-center oddix-logo-glow rounded-full bg-emerald-500/10 p-1 sm:flex">
+                          <Image
+                            src="/images/oddix-logo-icon.png"
+                            alt="Oddix"
+                            width={24}
+                            height={24}
+                            className="h-6 w-6 object-contain"
+                          />
                         </div>
                       )}
 
@@ -959,8 +987,14 @@ export default function OddixChatPage() {
                       animate={{ opacity: 1 }}
                       className="flex items-center gap-3 text-sm text-white/58"
                     >
-                      <div className="hidden h-8 w-8 shrink-0 items-center justify-center oddix-logo-glow rounded-full bg-emerald-500 text-xs font-black text-black sm:flex">
-                        O
+                      <div className="hidden h-8 w-8 shrink-0 items-center justify-center oddix-logo-glow rounded-full bg-emerald-500/10 p-1 sm:flex">
+                        <Image
+                          src="/images/oddix-logo-icon.png"
+                          alt="Oddix"
+                          width={24}
+                          height={24}
+                          className="h-6 w-6 object-contain"
+                        />
                       </div>
                       <div className="flex items-center gap-1 rounded-2xl bg-[var(--oddix-surface)] px-4 py-3">
                         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white/55 [animation-delay:-.2s]" />
