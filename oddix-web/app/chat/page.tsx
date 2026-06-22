@@ -2,6 +2,7 @@
 
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
+import { MarkdownMessage } from '../../components/chat/MarkdownMessage';
 import { motion } from 'framer-motion';
 
 type Suggestion = {
@@ -970,13 +971,17 @@ export default function OddixChatPage() {
 
                       <div
                         className={[
-                          'oddix-message max-w-[min(100%,42rem)] whitespace-pre-line text-[15px] leading-7 sm:text-base',
+                          'oddix-message max-w-[min(100%,42rem)] text-[15px] leading-7 sm:text-base',
                           item.role === 'user'
                             ? 'rounded-[26px] bg-[var(--oddix-surface)] px-5 py-3.5 text-white/92'
                             : 'px-0 py-1 text-white/88',
                         ].join(' ')}
                       >
-                        {item.content}
+                        {item.role === 'assistant' ? (
+                          <MarkdownMessage content={item.content} />
+                        ) : (
+                          <span className="whitespace-pre-line">{item.content}</span>
+                        )}
                       </div>
                     </motion.div>
                   ))}
