@@ -65,7 +65,7 @@ export default function OddixChatPage() {
   const apiBase = process.env.NEXT_PUBLIC_ODDIX_API_URL;
   const cleanApiBase = apiBase?.replace(/\/$/, '') ?? '';
   const historyApi = cleanApiBase ? `${cleanApiBase}/chat-history` : '';
-  const hasConversation = messages.some((item) => item.content?.trim().length > 0);
+  const hasConversation = Array.isArray(messages) && messages.some((item) => item?.content?.trim().length > 0);
   const showSidebarLabels = sidebarOpen || mobileSidebarOpen;
   const userId = 'demo-user';
 
@@ -607,6 +607,24 @@ export default function OddixChatPage() {
             height: 100svh;
           }
         }
+
+        @media (max-width: 1023px) {
+          .oddix-main-panel {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            width: 100vw;
+            height: 100dvh;
+            min-height: 100dvh;
+          }
+        }
+
+        @media (max-width: 1023px) and (not (height: 100dvh)) {
+          .oddix-main-panel {
+            height: 100vh;
+            min-height: 100vh;
+          }
+        }
       `}</style>
 
       <div className="flex h-full w-full overflow-hidden">
@@ -778,7 +796,7 @@ export default function OddixChatPage() {
           </div>
         </aside>
 
-        <section className="@container/main oddix-premium-bg relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--oddix-bg)]">
+        <section className="@container/main oddix-main-panel oddix-premium-bg relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--oddix-bg)]">
           <header className="sticky top-0 z-20 flex h-[var(--header-height)] shrink-0 items-center justify-between bg-[rgba(11,15,20,.86)] px-2 border-b border-[var(--oddix-border)] backdrop-blur-xl lg:px-3">
             <div className="flex min-w-0 items-center gap-1.5">
               <button
@@ -845,8 +863,8 @@ export default function OddixChatPage() {
             className="oddix-scroll relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden scroll-pt-[var(--header-height)] [scrollbar-gutter:stable]"
           >
             {!hasConversation ? (
-              <div className="flex min-h-full flex-1 flex-col">
-                <div className="mx-auto flex w-full max-w-[var(--thread-content-max-width)] flex-1 flex-col items-center justify-center px-[var(--thread-content-margin)] pb-4 pt-8 text-center sm:min-h-[calc(42svh-var(--header-height))]">
+              <div className="flex h-full min-h-0 flex-1 flex-col">
+                <div className="mx-auto flex w-full max-w-[var(--thread-content-max-width)] flex-1 flex-col items-center justify-center px-[var(--thread-content-margin)] pb-4 pt-8 text-center">
                   <motion.div
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
