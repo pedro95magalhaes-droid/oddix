@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 
 type Suggestion = {
   icon: string;
@@ -127,19 +128,22 @@ export default function OddixChatPage() {
           </div>
 
           <div className="space-y-2">
-            {history.map((item) => (
-              <button
+            {history.map((item, index) => (
+              <motion.button
                 key={item.title}
+                initial={{ opacity: 0, x: -16 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.07 }}
                 className="w-full rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left transition hover:border-emerald-400/30 hover:bg-emerald-500/10"
               >
                 <div className="text-sm font-black text-white/90">{item.title}</div>
                 <div className="mt-1 text-[11px] text-white/45">{item.desc}</div>
-              </button>
+              </motion.button>
             ))}
           </div>
 
           <div className="mt-auto rounded-2xl border border-emerald-400/20 bg-black/45 p-4">
-            <div className="text-xs font-black text-emerald-300">Oddix Chat V7.6.1</div>
+            <div className="text-xs font-black text-emerald-300">Oddix Chat V7.6.2</div>
             <p className="mt-2 text-[11px] leading-relaxed text-white/55">
               IA com research, agents avançados e análise inteligente para apostas.
             </p>
@@ -173,7 +177,7 @@ export default function OddixChatPage() {
             </button>
 
             <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/15 px-3 py-1 text-xs font-black text-emerald-300 shadow-[0_0_22px_rgba(34,197,94,.16)]">
-              CHAT V7.6.1
+              CHAT V7.6.2
             </span>
           </div>
 
@@ -193,7 +197,12 @@ export default function OddixChatPage() {
         </header>
 
         <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col items-center px-5 pb-8 pt-[4vh] text-center">
-          <div className="mb-6 flex flex-col items-center">
+          <motion.div
+            initial={{ opacity: 0, y: -28 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="mb-6 flex flex-col items-center"
+          >
             <img
               src="/images/oddix-logo-banner.png"
               alt="Oddix"
@@ -204,9 +213,30 @@ export default function OddixChatPage() {
             <p className="-mt-1 text-sm text-white/68 md:text-base">
               Seu assistente inteligente para análise de futebol, odds e apostas.
             </p>
-          </div>
+          </motion.div>
 
-          <div className="mb-6 w-full max-w-5xl rounded-3xl border border-emerald-400/25 bg-black/45 p-5 text-left shadow-[0_20px_80px_rgba(0,0,0,.45),0_0_42px_rgba(34,197,94,.10)] backdrop-blur-2xl">
+          <motion.div
+            initial={{ opacity: 0, y: 22 }}
+            animate={{
+              opacity: 1,
+              y: 0,
+              boxShadow: [
+                '0 0 16px rgba(34,197,94,.10)',
+                '0 0 42px rgba(34,197,94,.28)',
+                '0 0 16px rgba(34,197,94,.10)',
+              ],
+            }}
+            transition={{
+              opacity: { duration: 0.7, delay: 0.1 },
+              y: { duration: 0.7, delay: 0.1 },
+              boxShadow: {
+                duration: 3,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              },
+            }}
+            className="mb-6 w-full max-w-5xl rounded-3xl border border-emerald-400/25 bg-black/45 p-5 text-left shadow-[0_20px_80px_rgba(0,0,0,.45),0_0_42px_rgba(34,197,94,.10)] backdrop-blur-2xl"
+          >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">
@@ -243,9 +273,12 @@ export default function OddixChatPage() {
                 <div className="mt-1 text-sm font-black">19 Agents ativos</div>
               </div>
             </div>
-          </div>
+          </motion.div>
 
-          <form
+          <motion.form
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.18 }}
             onSubmit={(e) => e.preventDefault()}
             className="flex w-full max-w-5xl items-center gap-3 rounded-full border border-emerald-400/25 bg-[#0d141d]/88 px-5 py-4 shadow-[0_30px_100px_rgba(0,0,0,.65),0_0_45px_rgba(34,197,94,.15)] backdrop-blur-3xl transition focus-within:border-emerald-400/60 md:px-7 md:py-5"
           >
@@ -274,15 +307,18 @@ export default function OddixChatPage() {
             >
               ✨ Modo IA
             </button>
-          </form>
+          </motion.form>
 
           <div className="mt-7 w-full max-w-5xl">
             <p className="mb-4 text-sm text-white/65">Sugestões rápidas</p>
 
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {suggestions.map((item) => (
-                <button
+              {suggestions.map((item, index) => (
+                <motion.button
                   key={item.label}
+                  initial={{ opacity: 0, y: 22 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.24 + index * 0.06 }}
                   onClick={() => handleSuggestion(item.prompt)}
                   className="group rounded-2xl border border-white/10 bg-black/35 p-3 text-left shadow-[0_14px_35px_rgba(0,0,0,.25)] backdrop-blur-xl transition hover:-translate-y-1 hover:border-emerald-400/40 hover:bg-emerald-500/10"
                 >
@@ -291,38 +327,38 @@ export default function OddixChatPage() {
                   <div className="mt-1 line-clamp-2 text-[11px] text-white/45 group-hover:text-white/65">
                     {item.prompt}
                   </div>
-                </button>
+                </motion.button>
               ))}
             </div>
           </div>
 
           <div className="mt-6 grid w-full max-w-5xl grid-cols-1 gap-3 md:grid-cols-4">
-            <div className="rounded-3xl border border-emerald-400/20 bg-black/40 p-4 text-left backdrop-blur-xl">
-              <div className="text-xl">🔥</div>
-              <div className="mt-2 text-sm font-black">Top Pick</div>
-              <p className="mt-1 text-[11px] text-white/50">Melhor entrada do dia com score Oddix.</p>
-            </div>
-
-            <div className="rounded-3xl border border-emerald-400/20 bg-black/40 p-4 text-left backdrop-blur-xl">
-              <div className="text-xl">⚡</div>
-              <div className="mt-2 text-sm font-black">Ao Vivo</div>
-              <p className="mt-1 text-[11px] text-white/50">Pressão, momento e leitura em tempo real.</p>
-            </div>
-
-            <div className="rounded-3xl border border-emerald-400/20 bg-black/40 p-4 text-left backdrop-blur-xl">
-              <div className="text-xl">📈</div>
-              <div className="mt-2 text-sm font-black">Mercado</div>
-              <p className="mt-1 text-[11px] text-white/50">Movimento de odds e value bets.</p>
-            </div>
-
-            <div className="rounded-3xl border border-emerald-400/20 bg-black/40 p-4 text-left backdrop-blur-xl">
-              <div className="text-xl">🧠</div>
-              <div className="mt-2 text-sm font-black">Agents</div>
-              <p className="mt-1 text-[11px] text-white/50">Research, estatísticas, notícias e decisão final.</p>
-            </div>
+            {[
+              ['🔥', 'Top Pick', 'Melhor entrada do dia com score Oddix.'],
+              ['⚡', 'Ao Vivo', 'Pressão, momento e leitura em tempo real.'],
+              ['📈', 'Mercado', 'Movimento de odds e value bets.'],
+              ['🧠', 'Agents', 'Research, estatísticas, notícias e decisão final.'],
+            ].map((item, index) => (
+              <motion.div
+                key={item[1]}
+                initial={{ opacity: 0, y: 22 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.55 + index * 0.08 }}
+                className="rounded-3xl border border-emerald-400/20 bg-black/40 p-4 text-left backdrop-blur-xl"
+              >
+                <div className="text-xl">{item[0]}</div>
+                <div className="mt-2 text-sm font-black">{item[1]}</div>
+                <p className="mt-1 text-[11px] text-white/50">{item[2]}</p>
+              </motion.div>
+            ))}
           </div>
 
-          <div className="mt-8 w-full max-w-6xl rounded-2xl border border-white/10 bg-black/58 px-5 py-4 text-center text-sm text-white/65 shadow-[0_20px_80px_rgba(0,0,0,.55)] backdrop-blur-xl">
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.8 }}
+            className="mt-8 w-full max-w-6xl rounded-2xl border border-white/10 bg-black/58 px-5 py-4 text-center text-sm text-white/65 shadow-[0_20px_80px_rgba(0,0,0,.55)] backdrop-blur-xl"
+          >
             <div className="flex flex-col items-center justify-center gap-2 md:flex-row">
               <span className="text-emerald-400">🛡️</span>
               <span>
@@ -334,7 +370,7 @@ export default function OddixChatPage() {
               Jogue com responsabilidade.{' '}
               <span className="font-black text-emerald-400">+18</span>
             </p>
-          </div>
+          </motion.div>
         </div>
       </section>
     </main>
