@@ -30,6 +30,23 @@ type OddixApiResponse = {
   result?: string;
 };
 
+type ChatHistoryMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  isFavorite?: boolean;
+  createdAt?: string;
+};
+
+type ChatSession = {
+  id: string;
+  title?: string | null;
+  isPinned?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  messages?: ChatHistoryMessage[];
+};
+
 export default function OddixChatPage() {
   const [message, setMessage] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -38,13 +55,19 @@ export default function OddixChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [apiConnected, setApiConnected] = useState(false);
   const [apiStatus, setApiStatus] = useState('verificando');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   const apiBase = process.env.NEXT_PUBLIC_ODDIX_API_URL;
+  const cleanApiBase = apiBase?.replace(/\/$/, '') ?? '';
+  const historyApi = cleanApiBase ? `${cleanApiBase}/chat-history` : '';
   const hasConversation = messages.length > 0;
   const showSidebarLabels = sidebarOpen || mobileSidebarOpen;
+  const userId = 'demo-user';
 
   const suggestions: Suggestion[] = [
     {
@@ -89,7 +112,7 @@ export default function OddixChatPage() {
     },
   ];
 
-  const history: HistoryItem[] = [
+  const fallbackHistory: HistoryItem[] = [
     {
       id: 'top-picks',
       title: 'Top Picks de hoje',
@@ -136,6 +159,12 @@ export default function OddixChatPage() {
     setApiConnected(true);
     setApiStatus('api configurada');
   }, [apiBase]);
+
+  useEffect(() => {
+    if (!historyApi) return;
+    loadSessions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyApi]);
 
   useEffect(() => {
     if (!chatScrollRef.current) return;
@@ -231,13 +260,140 @@ export default function OddixChatPage() {
     return `🧠 **Análise Oddix iniciada**\n\nEntendi sua pergunta:\n\n**${prompt}**\n\nPara uma análise profissional, vou avaliar:\n\n• momento das equipes;\n• estatísticas recentes;\n• mando de campo;\n• notícias e desfalques;\n• tendência de mercado;\n• valor da odd;\n• risco da entrada;\n• confiança final.\n\n✅ Me envie um jogo específico, por exemplo:\n**Flamengo x Palmeiras**\n\nOu pergunte:\n**quanto ganho com R$20 na odd 1.85?**`;
   }
 
+  async function loadSessions() {
+    if (!historyApi) return;
+
+    try {
+      setHistoryLoading(true);
+
+      const response = await fetch(`${historyApi}/sessions`, {
+        headers: {
+          'x-user-id': userId,
+        },
+      });
+
+      if (!response.ok) return;
+
+      const data = (await response.json()) as ChatSession[];
+      setChatSessions(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.warn('Falha ao carregar sessões:', error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function createSession(title = 'Nova conversa') {
+    if (!historyApi) return null;
+
+    try {
+      const response = await fetch(`${historyApi}/sessions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+        },
+        body: JSON.stringify({ title }),
+      });
+
+      if (!response.ok) return null;
+
+      const data = (await response.json()) as ChatSession;
+      setSessionId(data.id);
+      await loadSessions();
+
+      return data;
+    } catch (error) {
+      console.warn('Falha ao criar sessão:', error);
+      return null;
+    }
+  }
+
+  async function openSession(id: string) {
+    if (!historyApi) return;
+
+    try {
+      setHistoryLoading(true);
+      closeMobileSidebar();
+
+      const response = await fetch(`${historyApi}/sessions/${id}`, {
+        headers: {
+          'x-user-id': userId,
+        },
+      });
+
+      if (!response.ok) return;
+
+      const data = (await response.json()) as ChatSession;
+      const loadedMessages = (data.messages ?? []).map((item) => ({
+        id: item.id,
+        role: item.role,
+        content: item.content,
+      }));
+
+      setSessionId(data.id);
+      setMessages(loadedMessages);
+    } catch (error) {
+      console.warn('Falha ao abrir sessão:', error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function saveMessage(currentSessionId: string, role: 'user' | 'assistant', content: string) {
+    if (!historyApi || !currentSessionId || !content.trim()) return null;
+
+    try {
+      const response = await fetch(`${historyApi}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+        },
+        body: JSON.stringify({
+          sessionId: currentSessionId,
+          role,
+          content,
+        }),
+      });
+
+      if (!response.ok) return null;
+
+      return (await response.json()) as ChatHistoryMessage;
+    } catch (error) {
+      console.warn('Falha ao salvar mensagem:', error);
+      return null;
+    }
+  }
+
+  async function deleteSession(id: string) {
+    if (!historyApi) return;
+
+    try {
+      await fetch(`${historyApi}/sessions/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-id': userId,
+        },
+      });
+
+      if (sessionId === id) {
+        setSessionId(null);
+        setMessages([]);
+      }
+
+      await loadSessions();
+    } catch (error) {
+      console.warn('Falha ao excluir sessão:', error);
+    }
+  }
+
   async function callOddixApi(prompt: string) {
     if (!apiBase) {
       console.warn('NEXT_PUBLIC_ODDIX_API_URL não configurada.');
       return null;
     }
 
-    const cleanApiBase = apiBase.replace(/\/$/, '');
     const endpoint = `${cleanApiBase}/chat-football/message`;
 
     try {
@@ -250,7 +406,8 @@ export default function OddixChatPage() {
           messages,
           context: {
             source: 'oddix-web-chat',
-            version: 'V10-oddix-premium-layout',
+            version: 'V12.1-chat-history-persistent',
+            sessionId,
           },
         }),
       });
@@ -283,6 +440,13 @@ export default function OddixChatPage() {
     const text = (customText ?? message).trim();
     if (!text || isThinking) return;
 
+    let currentSessionId = sessionId;
+
+    if (!currentSessionId) {
+      const newSession = await createSession(text.slice(0, 60) || 'Nova conversa');
+      currentSessionId = newSession?.id ?? null;
+    }
+
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -294,15 +458,26 @@ export default function OddixChatPage() {
     setIsThinking(true);
     closeMobileSidebar();
 
+    if (currentSessionId) {
+      await saveMessage(currentSessionId, 'user', text);
+    }
+
     const apiAnswer = await callOddixApi(text);
+    const finalAnswer = apiAnswer || buildSmartFallback(text);
 
     const assistantMessage: ChatMessage = {
       id: `assistant-${Date.now()}`,
       role: 'assistant',
-      content: apiAnswer || buildSmartFallback(text),
+      content: finalAnswer,
     };
 
     setMessages((current) => [...current, assistantMessage]);
+
+    if (currentSessionId) {
+      await saveMessage(currentSessionId, 'assistant', finalAnswer);
+      await loadSessions();
+    }
+
     setIsThinking(false);
   }
 
@@ -319,11 +494,23 @@ export default function OddixChatPage() {
   }
 
   function handleNewConversation() {
+    setSessionId(null);
     setMessages([]);
     setMessage('');
     setIsThinking(false);
     closeMobileSidebar();
     window.setTimeout(() => textareaRef.current?.focus(), 60);
+  }
+
+  function getSessionTitle(item: ChatSession) {
+    return item.title?.trim() || item.messages?.[0]?.content?.slice(0, 44) || 'Nova conversa';
+  }
+
+  function getSessionDesc(item: ChatSession) {
+    const lastMessage = item.messages?.[0];
+    if (lastMessage?.content) return lastMessage.content.slice(0, 54);
+    if (item.updatedAt) return new Date(item.updatedAt).toLocaleString('pt-BR');
+    return 'Histórico Oddix';
   }
 
   return (
@@ -503,30 +690,72 @@ export default function OddixChatPage() {
 
             <div className="oddix-scroll min-h-0 flex-1 overflow-y-auto px-2 py-2">
               {showSidebarLabels && (
-                <div className="mb-2 px-3 text-xs font-medium text-white/45">Recentes</div>
+                <div className="mb-2 flex items-center justify-between px-3 text-xs font-medium text-white/45">
+                  <span>Recentes</span>
+                  {historyLoading && <span className="text-emerald-300/70">...</span>}
+                </div>
               )}
 
               <div className="space-y-1">
-                {history.map((item, index) => (
-                  <motion.button
-                    key={item.id}
-                    type="button"
-                    onClick={() => sendMessage(item.prompt)}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.035 }}
-                    className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-white/82 hover:bg-white/10"
-                    title={item.title}
-                  >
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400/80" />
-                    {showSidebarLabels && (
-                      <span className="oddix-sidebar-label min-w-0 flex-1">
-                        <span className="block truncate">{item.title}</span>
-                        <span className="mt-0.5 block truncate text-xs text-white/38">{item.desc}</span>
-                      </span>
-                    )}
-                  </motion.button>
-                ))}
+                {chatSessions.length > 0
+                  ? chatSessions.map((item, index) => (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.025 }}
+                        className={[
+                          'group flex w-full items-center rounded-xl text-left text-sm hover:bg-white/10',
+                          sessionId === item.id ? 'bg-emerald-500/10 text-emerald-100' : 'text-white/82',
+                        ].join(' ')}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => openSession(item.id)}
+                          className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left"
+                          title={getSessionTitle(item)}
+                        >
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400/80" />
+                          {showSidebarLabels && (
+                            <span className="oddix-sidebar-label min-w-0 flex-1">
+                              <span className="block truncate">{getSessionTitle(item)}</span>
+                              <span className="mt-0.5 block truncate text-xs text-white/38">{getSessionDesc(item)}</span>
+                            </span>
+                          )}
+                        </button>
+
+                        {showSidebarLabels && (
+                          <button
+                            type="button"
+                            onClick={() => deleteSession(item.id)}
+                            className="mr-1 hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/35 hover:bg-red-500/10 hover:text-red-300 group-hover:flex"
+                            aria-label="Excluir conversa"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </motion.div>
+                    ))
+                  : fallbackHistory.map((item, index) => (
+                      <motion.button
+                        key={item.id}
+                        type="button"
+                        onClick={() => sendMessage(item.prompt)}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.035 }}
+                        className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-white/82 hover:bg-white/10"
+                        title={item.title}
+                      >
+                        <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400/80" />
+                        {showSidebarLabels && (
+                          <span className="oddix-sidebar-label min-w-0 flex-1">
+                            <span className="block truncate">{item.title}</span>
+                            <span className="mt-0.5 block truncate text-xs text-white/38">{item.desc}</span>
+                          </span>
+                        )}
+                      </motion.button>
+                    ))}
               </div>
             </div>
 
@@ -584,7 +813,7 @@ export default function OddixChatPage() {
               <div className="ml-1 flex min-w-0 items-center gap-2 rounded-xl px-2 py-1.5 text-[15px] font-semibold text-white/92 hover:bg-white/5">
                 <span className="truncate">Oddix Chat</span>
                 <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                  V10
+                  V12.1
                 </span>
               </div>
             </div>
@@ -636,7 +865,7 @@ export default function OddixChatPage() {
 
                     <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em]">
                       <span className="oddix-premium-chip rounded-full px-3 py-1.5">Real Stats Only</span>
-                      <span className="oddix-premium-chip rounded-full px-3 py-1.5">+18 Responsável</span>
+                      <span className="oddix-premium-chip rounded-full px-3 py-1.5">Histórico Real</span>
                       <span className="oddix-premium-chip rounded-full px-3 py-1.5">Oddix Agents</span>
                     </div>
                   </motion.div>
@@ -734,7 +963,7 @@ export default function OddixChatPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35 }}
                 onSubmit={handleSubmit}
-                className="relative min-h-[52px] rounded-[28px] transition-all duration-200 bg-[var(--oddix-surface)] px-2 py-[9px] shadow-[0_0_0_1px_rgba(16,185,129,.16),0_12px_44px_rgba(0,0,0,.42),0_0_40px_rgba(16,185,129,.08)] transition focus-within:shadow-[0_0_0_1px_rgba(16,185,129,.36),0_14px_52px_rgba(0,0,0,.48),0_0_48px_rgba(16,185,129,.14)]"
+                className="relative min-h-[52px] rounded-[28px] bg-[var(--oddix-surface)] px-2 py-[9px] shadow-[0_0_0_1px_rgba(16,185,129,.16),0_12px_44px_rgba(0,0,0,.42),0_0_40px_rgba(16,185,129,.08)] transition-all duration-200 focus-within:shadow-[0_0_0_1px_rgba(16,185,129,.36),0_14px_52px_rgba(0,0,0,.48),0_0_48px_rgba(16,185,129,.14)]"
               >
                 <div className="flex items-end gap-2">
                   <button
