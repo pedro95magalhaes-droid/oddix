@@ -37,7 +37,6 @@ export default function OddixChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   const hasConversation = messages.length > 0;
@@ -190,19 +189,13 @@ Você está continuando a conversa anterior.
 Último contexto identificado:
 **${lastContext || 'nenhum jogo específico encontrado ainda'}**
 
-Para seguir com precisão, posso trabalhar em cima disso:
-
+Posso seguir com:
 • análise mais conservadora;
 • análise mais agressiva;
 • melhor mercado;
 • risco da entrada;
 • cálculo de retorno;
-• alternativa de múltipla.
-
-Digite, por exemplo:
-**"me dê uma opção mais segura"**
-ou
-**"quanto ganho com R$20?"**`;
+• alternativa de múltipla.`;
     }
 
     if (lower.includes('múltipla') || lower.includes('multipla')) {
@@ -210,21 +203,18 @@ ou
 
 Estratégia ideal para múltipla:
 
-1. **Evitar odds muito altas**
-2. **Priorizar mercados protegidos**
-3. **Usar jogos com estatística real**
-4. **Não misturar muitos riscos**
-5. **Evitar jogo sem informação confiável**
+1. Evitar odds muito altas
+2. Priorizar mercados protegidos
+3. Usar jogos com estatística real
+4. Não misturar muitos riscos
+5. Evitar jogo sem informação confiável
 
 Modelo seguro:
 • Dupla chance
 • Over 0.5 gols
 • Over 1.5 gols
 • Time marca 1+ gol
-• Handicap +1.5
-
-Para montar com jogos reais, envie os jogos ou peça:
-**"monte uma múltipla para hoje"**`;
+• Handicap +1.5`;
     }
 
     if (lower.includes('top pick') || lower.includes('melhores palpites') || lower.includes('palpites')) {
@@ -242,10 +232,7 @@ Para um Top Pick profissional, a IA avalia:
 • risco x confiança.
 
 ✅ Regra Oddix:
-**sem dados reais suficientes = sem entrada**
-
-Me envie um jogo específico ou peça:
-**"mostrar jogos de hoje"**`;
+**sem dados reais suficientes = sem entrada**`;
     }
 
     if (lower.includes('mercado') || lower.includes('odds') || lower.includes('value')) {
@@ -261,9 +248,7 @@ A leitura do mercado considera:
 • valor escondido;
 • risco de armadilha.
 
-💎 Uma value bet acontece quando a probabilidade real parece maior que a probabilidade indicada pela odd.
-
-Envie o jogo e a odd atual para análise completa.`;
+💎 Uma value bet acontece quando a probabilidade real parece maior que a probabilidade indicada pela odd.`;
     }
 
     if (lower.includes('lesões') || lower.includes('desfalques')) {
@@ -280,9 +265,7 @@ O impacto é medido por:
 • notícias recentes.
 
 Um atacante titular fora muda mercado de gols.
-Um zagueiro titular fora pode aumentar chance de BTTS/Over.
-
-Me diga o time ou jogo para analisar.`;
+Um zagueiro titular fora pode aumentar chance de BTTS/Over.`;
     }
 
     if (lower.includes('notícia') || lower.includes('noticias')) {
@@ -296,9 +279,7 @@ Resumo focado em apostas:
 • clima interno;
 • declarações de treinador;
 • calendário e desgaste;
-• impacto nas odds.
-
-Me diga o jogo ou time para buscar o impacto real.`;
+• impacto nas odds.`;
     }
 
     if (lower.includes('ao vivo') || lower.includes('live')) {
@@ -319,9 +300,7 @@ Mercados possíveis:
 • próximo gol;
 • over gols;
 • escanteios;
-• dupla chance live.
-
-Envie o jogo ao vivo para leitura completa.`;
+• dupla chance live.`;
     }
 
     return `🧠 **Análise Oddix iniciada**
@@ -372,7 +351,7 @@ Ou pergunte:
             messages,
             context: {
               source: 'oddix-web-chat',
-              version: 'V7.6.5',
+              version: 'V7.6.6',
             },
           }),
         });
@@ -440,7 +419,7 @@ Ou pergunte:
   }
 
   return (
-    <main className="relative h-screen overflow-hidden bg-[#02070d] text-white">
+    <main className="relative h-[100dvh] overflow-hidden bg-[#02070d] text-white">
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/images/oddix-chat-bg.png')" }}
@@ -450,19 +429,38 @@ Ou pergunte:
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,197,94,.22),transparent_58%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(2,7,13,.12),rgba(2,7,13,.35)_50%,rgba(2,7,13,.92))]" />
 
+      {sidebarOpen && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-20 bg-black/45 md:hidden"
+          aria-label="Fechar menu"
+        />
+      )}
+
       <aside
         className={[
-          'fixed left-0 top-0 z-30 h-screen w-[260px] border-r border-white/10 bg-black/62 backdrop-blur-2xl transition-transform duration-300',
+          'fixed left-0 top-0 z-30 h-[100dvh] w-[260px] border-r border-white/10 bg-black/70 backdrop-blur-2xl transition-transform duration-300 md:bg-black/62',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         ].join(' ')}
       >
         <div className="flex h-full flex-col p-4">
-          <img
-            src="/images/oddix-logo.png"
-            alt="Oddix"
-            className="mb-6 h-7 w-fit object-contain"
-            draggable={false}
-          />
+          <div className="mb-6 flex items-center justify-between">
+            <img
+              src="/images/oddix-logo.png"
+              alt="Oddix"
+              className="h-7 w-fit object-contain"
+              draggable={false}
+            />
+
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70 hover:bg-white/10 md:hidden"
+            >
+              ✕
+            </button>
+          </div>
 
           <button
             type="button"
@@ -494,9 +492,9 @@ Ou pergunte:
           </div>
 
           <div className="mt-auto rounded-2xl border border-emerald-400/20 bg-black/45 p-4">
-            <div className="text-xs font-black text-emerald-300">Oddix Chat V7.6.5</div>
+            <div className="text-xs font-black text-emerald-300">Oddix Chat V7.6.6</div>
             <p className="mt-2 text-[11px] leading-relaxed text-white/55">
-              Layout corrigido, scroll profissional e inteligência melhorada.
+              Mobile responsivo, scroll corrigido e fallback inteligente.
             </p>
           </div>
         </div>
@@ -504,12 +502,12 @@ Ou pergunte:
 
       <section
         className={[
-          'relative z-10 flex h-screen flex-col transition-all duration-300',
+          'relative z-10 flex h-[100dvh] flex-col transition-all duration-300',
           sidebarOpen ? 'md:pl-[260px]' : 'pl-0',
         ].join(' ')}
       >
-        <header className="flex h-[76px] shrink-0 items-center justify-between px-5 md:px-8">
-          <div className="flex items-center gap-3">
+        <header className="flex h-[64px] shrink-0 items-center justify-between px-3 md:h-[76px] md:px-8">
+          <div className="flex items-center gap-2 md:gap-3">
             <button
               type="button"
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -518,12 +516,12 @@ Ou pergunte:
               ☰
             </button>
 
-            <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/15 px-3 py-1 text-xs font-black text-emerald-300">
-              CHAT V7.6.5
+            <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black text-emerald-300 md:px-3 md:text-xs">
+              CHAT V7.6.6
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
@@ -532,26 +530,26 @@ Ou pergunte:
               ↺ Histórico
             </button>
 
-            <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-300">
+            <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-[10px] font-black text-emerald-300 md:px-4 md:text-xs">
               ● IA online
             </div>
           </div>
         </header>
 
-        <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col items-center px-5 pb-5">
+        <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col items-center px-3 pb-3 md:px-5 md:pb-5">
           {!hasConversation && (
-            <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center">
+            <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-y-auto py-2 md:py-4">
               <motion.img
                 src="/images/oddix-logo-banner.png"
                 alt="Oddix"
                 initial={{ opacity: 0, y: -24 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.7 }}
-                className="w-[560px] max-w-[92vw] object-contain drop-shadow-[0_0_50px_rgba(34,197,94,.28)]"
+                className="w-[420px] max-w-[88vw] object-contain drop-shadow-[0_0_50px_rgba(34,197,94,.28)] md:w-[560px]"
                 draggable={false}
               />
 
-              <p className="mt-2 text-sm text-white/68 md:text-base">
+              <p className="mt-2 max-w-[90vw] text-center text-xs text-white/68 md:text-base">
                 Seu assistente inteligente para análise de futebol, odds e apostas.
               </p>
 
@@ -575,38 +573,38 @@ Ou pergunte:
                     ease: 'easeInOut',
                   },
                 }}
-                className="mt-6 w-full max-w-5xl rounded-3xl border border-emerald-400/25 bg-black/45 p-5 text-left backdrop-blur-2xl"
+                className="mt-4 w-full max-w-5xl rounded-2xl border border-emerald-400/25 bg-black/45 p-3 text-left backdrop-blur-2xl md:mt-6 md:rounded-3xl md:p-5"
               >
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300 md:text-xs">
                       Destaque principal
                     </div>
-                    <h2 className="mt-1 text-xl font-black text-white md:text-2xl">
+                    <h2 className="mt-1 text-lg font-black text-white md:text-2xl">
                       🔥 Top Pick do Dia
                     </h2>
                   </div>
 
-                  <span className="rounded-full border border-emerald-400/25 bg-emerald-500/15 px-4 py-2 text-xs font-black text-emerald-300">
+                  <span className="rounded-full border border-emerald-400/25 bg-emerald-500/15 px-3 py-2 text-[10px] font-black text-emerald-300 md:px-4 md:text-xs">
                     Score Oddix 88%
                   </span>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
                   {['Análise automática', 'Melhor entrada', 'Risco controlado', '19 Agents ativos'].map(
                     (item) => (
                       <div
                         key={item}
-                        className="rounded-2xl border border-white/10 bg-white/[0.04] p-3"
+                        className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 md:p-3"
                       >
-                        <div className="text-sm font-black">{item}</div>
+                        <div className="text-[11px] font-black md:text-sm">{item}</div>
                       </div>
                     ),
                   )}
                 </div>
               </motion.div>
 
-              <div className="mt-6 grid w-full max-w-5xl grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="mt-4 grid w-full max-w-5xl grid-cols-1 gap-2 sm:grid-cols-2 md:mt-6 md:grid-cols-4 md:gap-3">
                 {suggestions.map((item, index) => (
                   <motion.button
                     key={item.label}
@@ -617,7 +615,7 @@ Ou pergunte:
                     transition={{ delay: 0.2 + index * 0.05 }}
                     className="rounded-2xl border border-white/10 bg-black/35 p-3 text-left backdrop-blur-xl hover:border-emerald-400/40 hover:bg-emerald-500/10"
                   >
-                    <div className="mb-2 text-xl">{item.icon}</div>
+                    <div className="mb-1 text-lg md:mb-2 md:text-xl">{item.icon}</div>
                     <div className="text-sm font-black text-white/90">{item.label}</div>
                     <div className="mt-1 line-clamp-2 text-[11px] text-white/45">
                       {item.prompt}
@@ -626,7 +624,7 @@ Ou pergunte:
                 ))}
               </div>
 
-              <div className="mt-5 grid w-full max-w-5xl grid-cols-1 gap-3 md:grid-cols-4">
+              <div className="mt-4 grid w-full max-w-5xl grid-cols-1 gap-2 sm:grid-cols-2 md:mt-5 md:grid-cols-4 md:gap-3">
                 {quickCards.map((item, index) => (
                   <motion.button
                     key={item[1]}
@@ -635,10 +633,10 @@ Ou pergunte:
                     initial={{ opacity: 0, y: 18 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.45 + index * 0.06 }}
-                    className="rounded-3xl border border-emerald-400/20 bg-black/40 p-4 text-left backdrop-blur-xl hover:bg-emerald-500/10"
+                    className="rounded-2xl border border-emerald-400/20 bg-black/40 p-3 text-left backdrop-blur-xl hover:bg-emerald-500/10 md:rounded-3xl md:p-4"
                   >
-                    <div className="text-xl">{item[0]}</div>
-                    <div className="mt-2 text-sm font-black">{item[1]}</div>
+                    <div className="text-lg md:text-xl">{item[0]}</div>
+                    <div className="mt-1 text-sm font-black md:mt-2">{item[1]}</div>
                     <p className="mt-1 text-[11px] text-white/50">{item[2]}</p>
                   </motion.button>
                 ))}
@@ -649,7 +647,7 @@ Ou pergunte:
           {hasConversation && (
             <div
               ref={chatScrollRef}
-              className="flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-4 overflow-y-auto rounded-3xl border border-white/10 bg-black/42 p-4 text-left backdrop-blur-2xl"
+              className="flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-3 overflow-y-auto rounded-2xl border border-white/10 bg-black/42 p-3 text-left backdrop-blur-2xl md:gap-4 md:rounded-3xl md:p-4"
             >
               {messages.map((item) => (
                 <motion.div
@@ -657,13 +655,13 @@ Ou pergunte:
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   className={[
-                    'max-w-[88%] rounded-3xl px-5 py-4 text-sm leading-relaxed md:text-base',
+                    'max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed md:max-w-[88%] md:rounded-3xl md:px-5 md:py-4 md:text-base',
                     item.role === 'user'
                       ? 'ml-auto bg-emerald-500/20 text-white'
                       : 'mr-auto border border-white/10 bg-white/[0.06] text-white/85',
                   ].join(' ')}
                 >
-                  <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-emerald-300">
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300 md:text-xs">
                     {item.role === 'user' ? 'Você' : 'Oddix IA'}
                   </div>
                   <div className="whitespace-pre-line">{item.content}</div>
@@ -674,13 +672,11 @@ Ou pergunte:
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="mr-auto rounded-3xl border border-white/10 bg-white/[0.06] px-5 py-4 text-sm text-white/70"
+                  className="mr-auto rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/70 md:rounded-3xl md:px-5 md:py-4"
                 >
                   <span className="text-emerald-300">Oddix IA</span> analisando...
                 </motion.div>
               )}
-
-              <div ref={messagesEndRef} />
             </div>
           )}
 
@@ -689,12 +685,12 @@ Ou pergunte:
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.15 }}
             onSubmit={handleSubmit}
-            className="mt-4 flex w-full max-w-5xl shrink-0 items-center gap-3 rounded-full border border-emerald-400/30 bg-[#0d141d]/92 px-5 py-4 shadow-[0_30px_100px_rgba(0,0,0,.65),0_0_45px_rgba(34,197,94,.15)] backdrop-blur-3xl focus-within:border-emerald-400/60 md:px-7"
+            className="mt-3 flex w-full max-w-5xl shrink-0 items-center gap-2 rounded-2xl border border-emerald-400/30 bg-[#0d141d]/92 px-3 py-3 shadow-[0_30px_100px_rgba(0,0,0,.65),0_0_45px_rgba(34,197,94,.15)] backdrop-blur-3xl focus-within:border-emerald-400/60 md:mt-4 md:gap-3 md:rounded-full md:px-7 md:py-4"
           >
             <button
               type="button"
               onClick={handleNewConversation}
-              className="text-2xl text-white/80 hover:text-emerald-300"
+              className="text-xl text-white/80 hover:text-emerald-300 md:text-2xl"
               title="Nova conversa"
             >
               +
@@ -704,7 +700,7 @@ Ou pergunte:
               ref={inputRef}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Pergunte sobre jogos, odds, estatísticas, múltiplas..."
+              placeholder="Pergunte sobre jogos, odds, estatísticas..."
               className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/42 md:text-base"
             />
 
@@ -719,13 +715,13 @@ Ou pergunte:
             <button
               type="submit"
               disabled={isThinking}
-              className="rounded-full bg-emerald-500/20 px-4 py-3 text-xs font-black text-emerald-300 hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50 md:px-6"
+              className="rounded-full bg-emerald-500/20 px-3 py-2.5 text-[10px] font-black text-emerald-300 hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50 md:px-6 md:py-3 md:text-xs"
             >
-              {isThinking ? 'Analisando...' : '✨ Modo IA'}
+              {isThinking ? 'Analisando...' : '✨ IA'}
             </button>
           </motion.form>
 
-          <div className="mt-3 w-full max-w-5xl rounded-2xl border border-white/10 bg-black/50 px-5 py-3 text-center text-xs text-white/60 backdrop-blur-xl">
+          <div className="mt-2 w-full max-w-5xl rounded-2xl border border-white/10 bg-black/50 px-4 py-2 text-center text-[10px] text-white/60 backdrop-blur-xl md:mt-3 md:px-5 md:py-3 md:text-xs">
             🛡️ Oddix Chat pode cometer erros. Confirme as informações antes de apostar.
             <span className="ml-1 font-black text-emerald-400">+18</span>
           </div>
