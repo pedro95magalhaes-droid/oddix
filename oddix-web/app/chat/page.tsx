@@ -35,10 +35,13 @@ export default function OddixChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isThinking, setIsThinking] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [apiConnected, setApiConnected] = useState(false);
+  const [apiStatus, setApiStatus] = useState('verificando');
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
+  const apiBase = process.env.NEXT_PUBLIC_ODDIX_API_URL;
   const hasConversation = messages.length > 0;
 
   const suggestions: Suggestion[] = [
@@ -120,6 +123,19 @@ export default function OddixChatPage() {
     ],
     [],
   );
+
+  useEffect(() => {
+    console.log('ODDIX API URL:', apiBase);
+
+    if (!apiBase) {
+      setApiConnected(false);
+      setApiStatus('sem env');
+      return;
+    }
+
+    setApiConnected(true);
+    setApiStatus('api configurada');
+  }, [apiBase]);
 
   useEffect(() => {
     if (!chatScrollRef.current) return;
@@ -328,18 +344,23 @@ Ou pergunte:
   }
 
   async function callOddixApi(prompt: string) {
-    const apiBase = process.env.NEXT_PUBLIC_ODDIX_API_URL;
+    if (!apiBase) {
+      console.warn('NEXT_PUBLIC_ODDIX_API_URL não configurada.');
+      return null;
+    }
 
-    if (!apiBase) return null;
+    const cleanApiBase = apiBase.replace(/\/$/, '');
 
     const endpoints = [
-      `${apiBase}/chat-football`,
-      `${apiBase}/chat-football/message`,
-      `${apiBase}/chat-football/ask`,
+      `${cleanApiBase}/chat-football`,
+      `${cleanApiBase}/chat-football/message`,
+      `${cleanApiBase}/chat-football/ask`,
     ];
 
     for (const endpoint of endpoints) {
       try {
+        console.log('Tentando endpoint Oddix:', endpoint);
+
         const response = await fetch(endpoint, {
           method: 'POST',
           headers: {
@@ -351,10 +372,12 @@ Ou pergunte:
             messages,
             context: {
               source: 'oddix-web-chat',
-              version: 'V7.6.6',
+              version: 'V7.6.7',
             },
           }),
         });
+
+        console.log('Status Oddix API:', endpoint, response.status);
 
         if (!response.ok) continue;
 
@@ -367,12 +390,17 @@ Ou pergunte:
           data.text ||
           data.result;
 
-        if (answer) return answer;
-      } catch {
-        continue;
+        if (answer) {
+          setApiConnected(true);
+          setApiStatus('api online');
+          return answer;
+        }
+      } catch (error) {
+        console.warn('Falha no endpoint Oddix:', endpoint, error);
       }
     }
 
+    setApiStatus('api sem resposta');
     return null;
   }
 
@@ -492,9 +520,9 @@ Ou pergunte:
           </div>
 
           <div className="mt-auto rounded-2xl border border-emerald-400/20 bg-black/45 p-4">
-            <div className="text-xs font-black text-emerald-300">Oddix Chat V7.6.6</div>
+            <div className="text-xs font-black text-emerald-300">Oddix Chat V7.6.7</div>
             <p className="mt-2 text-[11px] leading-relaxed text-white/55">
-              Mobile responsivo, scroll corrigido e fallback inteligente.
+              Debug de API ativo. Status: {apiStatus}
             </p>
           </div>
         </div>
@@ -517,7 +545,7 @@ Ou pergunte:
             </button>
 
             <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black text-emerald-300 md:px-3 md:text-xs">
-              CHAT V7.6.6
+              CHAT V7.6.7
             </span>
           </div>
 
@@ -530,8 +558,15 @@ Ou pergunte:
               ↺ Histórico
             </button>
 
-            <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-[10px] font-black text-emerald-300 md:px-4 md:text-xs">
-              ● IA online
+            <div
+              className={[
+                'rounded-full border px-3 py-2 text-[10px] font-black md:px-4 md:text-xs',
+                apiConnected
+                  ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-300'
+                  : 'border-yellow-400/20 bg-yellow-500/10 text-yellow-300',
+              ].join(' ')}
+            >
+              {apiConnected ? '● API configurada' : '● API offline'}
             </div>
           </div>
         </header>
