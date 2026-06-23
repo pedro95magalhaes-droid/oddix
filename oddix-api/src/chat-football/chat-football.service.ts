@@ -108,7 +108,7 @@ export class ChatFootballService {
       this.isGlobalConversationFollowUp(message, history, memory);
 
     if (this.dataOrchestrator) {
-      const orchestrated = await this.dataOrchestrator.answer(message);
+      const orchestrated = await this.dataOrchestrator.answer(message, sessionId);
 
       if (orchestrated.handled) {
         return this.rememberAndReturn(
