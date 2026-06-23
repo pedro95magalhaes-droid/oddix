@@ -53,9 +53,18 @@ export class ChatFootballService {
 
   async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
     const message = this.readMessage(payload);
-    const parsedIntent = await this.intentParser?.parse(message);
     const sessionId = payload?.sessionId || payload?.conversationId || payload?.chatId || 'anonymous';
-    const brainDecision = await this.brainService?.think(message, sessionId);
+
+    let parsedIntent: any = null;
+    let brainDecision: OddixBrainDecision | undefined;
+
+    if (message.trim()) {
+      if (this.brainService) {
+        brainDecision = await this.brainService.think(message, sessionId);
+      } else if (this.intentParser) {
+        parsedIntent = await this.intentParser.parse(message);
+      }
+    }
 
     if (!message.trim()) {
       const history = this.readHistory(payload);
@@ -66,8 +75,9 @@ export class ChatFootballService {
     }
 
     const shouldUseGlobalAi =
-      brainDecision?.shouldUseGlobalAiDirect ||
-      (parsedIntent?.intent === 'GENERAL' && this.globalAi);
+      (brainDecision?.shouldUseGlobalAiDirect ||
+        (parsedIntent?.intent === 'GENERAL' && this.globalAi)) &&
+      !this.isOddixFootballQuestion(message);
 
     if (shouldUseGlobalAi && this.globalAi) {
       const response = await this.globalAi.answer(message);
@@ -195,7 +205,11 @@ export class ChatFootballService {
   ): Promise<ChatFootballResponse | null> {
     if (!brainDecision) return null;
 
-    if (brainDecision.intent === 'GENERAL' && this.globalAi) {
+    if (
+      brainDecision.intent === 'GENERAL' &&
+      this.globalAi &&
+      !this.isOddixFootballQuestion(message)
+    ) {
       const response = await this.globalAi.answer(message);
 
       return {
@@ -1449,8 +1463,34 @@ ${officialEntry}`;
     suggestions?: string[];
     data?: Record<string, any>;
   }): Promise<ChatFootballResponse> {
-    if (this.responseBuilder) return this.responseBuilder.buildHumanAnswer(input);
-    return this.direct(input.intent, input.baseAnswer, input.memory, input.profile, input.data || {});
+    const useHumanizer =
+      String(process.env.ODDIX_HUMANIZER_ENABLED || 'false').toLowerCase() === 'true';
+
+    if (useHumanizer && this.responseBuilder) {
+      return this.responseBuilder.buildHumanAnswer(input);
+    }
+
+    if (this.responseBuilder) {
+      return this.responseBuilder.buildDirect({
+        intent: input.intent,
+        answer: input.baseAnswer,
+        memory: input.memory,
+        profile: input.profile,
+        data: input.data || {},
+        suggestions: input.suggestions,
+      });
+    }
+
+    return this.direct(
+      input.intent,
+      input.baseAnswer,
+      input.memory,
+      input.profile,
+      {
+        ...(input.data || {}),
+        suggestions: input.suggestions,
+      },
+    );
   }
 
   private noContext(intent: ChatIntent, memory: ConversationMemory, profile: UserBetProfile): ChatFootballResponse {
