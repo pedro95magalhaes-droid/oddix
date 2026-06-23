@@ -53,7 +53,19 @@ export class ChatFootballService {
 
   async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
     const message = this.readMessage(payload);
-    const sessionId = payload?.sessionId || payload?.conversationId || payload?.chatId || 'anonymous';
+    const sessionId =
+      payload?.sessionId ||
+      payload?.conversationId ||
+      payload?.chatId ||
+      'anonymous';
+
+    const history = this.readHistory(payload);
+    const memory =
+      this.memoryService?.buildMemory(payload, history) ||
+      this.buildMemoryFallback(history);
+    const profile =
+      this.memoryService?.buildProfile(payload, memory) ||
+      this.buildProfileFallback(payload);
 
     let parsedIntent: any = null;
     let brainDecision: OddixBrainDecision | undefined;
@@ -67,11 +79,12 @@ export class ChatFootballService {
     }
 
     if (!message.trim()) {
-      const history = this.readHistory(payload);
-      const memory = this.memoryService?.buildMemory(payload, history) || this.buildMemoryFallback(history);
-      const profile = this.memoryService?.buildProfile(payload, memory) || this.buildProfileFallback(payload);
-
-      return this.direct('ASK_RECOMMENDATION', this.buildWelcomeText(), memory, profile);
+      return this.direct(
+        'ASK_RECOMMENDATION',
+        this.buildWelcomeText(),
+        memory,
+        profile,
+      );
     }
 
     const shouldUseGlobalAi =
@@ -80,7 +93,9 @@ export class ChatFootballService {
       !this.isOddixFootballQuestion(message);
 
     if (shouldUseGlobalAi && this.globalAi) {
-      const response = await this.globalAi.answer(message);
+      const response = await this.globalAi.answer(
+        this.buildGlobalContextQuestion(message, history, memory),
+      );
 
       return {
         success: true,
@@ -92,12 +107,12 @@ export class ChatFootballService {
             '🏆 Top Picks',
             '🔥 Monte uma múltipla',
           ],
+          memory,
+          profile,
         },
       } as ChatFootballResponse;
     }
-    const history = this.readHistory(payload);
-    const memory = this.memoryService?.buildMemory(payload, history) || this.buildMemoryFallback(history);
-    const profile = this.memoryService?.buildProfile(payload, memory) || this.buildProfileFallback(payload);
+
     const brain = this.buildBrain(message, history, memory);
     if (brainDecision?.intent && brainDecision.intent !== 'GENERAL') {
       brain.intent = this.mapBrainIntentToChatIntent(brainDecision.intent);
@@ -205,12 +220,10 @@ export class ChatFootballService {
   ): Promise<ChatFootballResponse | null> {
     if (!brainDecision) return null;
 
-    if (
-      brainDecision.intent === 'GENERAL' &&
-      this.globalAi &&
-      !this.isOddixFootballQuestion(message)
-    ) {
-      const response = await this.globalAi.answer(message);
+    if (brainDecision.intent === 'GENERAL' && this.globalAi) {
+      const response = await this.globalAi.answer(
+        this.buildGlobalContextQuestion(message, [], memory),
+      );
 
       return {
         success: true,
@@ -732,6 +745,71 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
     }
 
     return 'status identificado, mas ainda preciso validar estatísticas e odds antes de qualquer entrada.';
+  }
+
+
+
+  private buildGlobalContextQuestion(
+    message: string,
+    history: ChatHistoryMessage[],
+    memory: ConversationMemory,
+  ) {
+    const compactHistory = this.compactHistoryForGlobal(history);
+    const lastContext = {
+      lastIntent: memory?.lastIntent || null,
+      lastTeam: memory?.lastTeam || null,
+      lastMatch: memory?.lastMatch || null,
+      lastTicket: memory?.lastTicket
+        ? {
+            oddTotal: memory.lastTicket.oddTotal,
+            confidence: memory.lastTicket.confidence,
+            status: memory.lastTicket.status,
+          }
+        : null,
+    };
+
+    if (
+      !compactHistory &&
+      !lastContext.lastIntent &&
+      !lastContext.lastTeam &&
+      !lastContext.lastMatch &&
+      !lastContext.lastTicket
+    ) {
+      return message;
+    }
+
+    return `Contexto da conversa Oddix:
+${compactHistory || 'Sem histórico textual disponível.'}
+
+Memória estruturada:
+${JSON.stringify(lastContext, null, 2)}
+
+Pergunta atual do usuário:
+${message}
+
+Responda à pergunta atual considerando o contexto anterior quando ela for curta, ambígua ou de continuação.`;
+  }
+
+  private compactHistoryForGlobal(history: ChatHistoryMessage[]) {
+    if (!Array.isArray(history) || !history.length) return '';
+
+    return history
+      .slice(-8)
+      .map((item: any) => {
+        const role = item?.role || item?.type || item?.sender || 'message';
+        const content =
+          item?.content ||
+          item?.message ||
+          item?.text ||
+          item?.answer ||
+          '';
+
+        if (!content) return null;
+
+        return `${role}: ${String(content).slice(0, 500)}`;
+      })
+      .filter(Boolean)
+      .join('\n');
   }
 
 
@@ -1463,34 +1541,8 @@ ${officialEntry}`;
     suggestions?: string[];
     data?: Record<string, any>;
   }): Promise<ChatFootballResponse> {
-    const useHumanizer =
-      String(process.env.ODDIX_HUMANIZER_ENABLED || 'false').toLowerCase() === 'true';
-
-    if (useHumanizer && this.responseBuilder) {
-      return this.responseBuilder.buildHumanAnswer(input);
-    }
-
-    if (this.responseBuilder) {
-      return this.responseBuilder.buildDirect({
-        intent: input.intent,
-        answer: input.baseAnswer,
-        memory: input.memory,
-        profile: input.profile,
-        data: input.data || {},
-        suggestions: input.suggestions,
-      });
-    }
-
-    return this.direct(
-      input.intent,
-      input.baseAnswer,
-      input.memory,
-      input.profile,
-      {
-        ...(input.data || {}),
-        suggestions: input.suggestions,
-      },
-    );
+    if (this.responseBuilder) return this.responseBuilder.buildHumanAnswer(input);
+    return this.direct(input.intent, input.baseAnswer, input.memory, input.profile, input.data || {});
   }
 
   private noContext(intent: ChatIntent, memory: ConversationMemory, profile: UserBetProfile): ChatFootballResponse {

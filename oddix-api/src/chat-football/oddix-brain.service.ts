@@ -172,6 +172,16 @@ export class OddixBrainService {
       'presta',
       'bom pra entrar',
       'tem entrada',
+      'quem jogou',
+      'quem fez gol',
+      'quem marcou',
+      'quando foi',
+      'onde foi',
+      'e depois',
+      'me fala mais',
+      'quem perdeu',
+      'quem participou',
+      'qual foi o placar',
     ]);
 
     if (asksBankroll) {
@@ -198,8 +208,13 @@ export class OddixBrainService {
       intent = 'EXPLAIN';
       reference = context.lastMatch ? 'lastMatch' : context.lastTicket ? 'lastTicket' : 'none';
     } else if (asksFollowUp) {
-      intent = 'FOLLOW_UP';
-      reference = context.lastMatch ? 'lastMatch' : 'none';
+      if (context.lastMatch || context.lastTicket) {
+        intent = 'FOLLOW_UP';
+        reference = context.lastMatch ? 'lastMatch' : 'lastTicket';
+      } else {
+        intent = 'GENERAL';
+        reference = 'none';
+      }
     } else if (entities.team) {
       intent = 'TEAM';
       reference = 'lastTeam';
