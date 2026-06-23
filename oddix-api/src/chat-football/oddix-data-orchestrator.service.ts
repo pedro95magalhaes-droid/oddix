@@ -753,7 +753,15 @@ ${userMessage}`,
 
     if (typeof service.getFlashScoreRichContext === 'function') {
       const rich = await service.getFlashScoreRichContext(fixtureId, fixture);
-      return this.enrichRichContext(rich, fixture);
+      const fixtureOdds = this.extractFixtureOdds(fixture);
+      return this.enrichRichContext(
+        {
+          ...(rich || {}),
+          fixture: rich?.fixture || fixture,
+          odds: rich?.odds || fixtureOdds || null,
+        },
+        fixture,
+      );
     }
 
     if (typeof service.getStatistics === 'function') {
@@ -838,17 +846,54 @@ ${userMessage}`,
     const homeQuery = this.normalize(this.cleanTeamName(homeQueryRaw));
     const awayQuery = this.normalize(this.cleanTeamName(awayQueryRaw));
 
+    if (!homeQuery || !awayQuery) return null;
+
     return fixtures.find((item: any) => {
-      const home = this.normalize(item?.teams?.home?.name || item?.homeTeam || item?.home || '');
-      const away = this.normalize(item?.teams?.away?.name || item?.awayTeam || item?.away || '');
+      const home = this.normalize(this.getFixtureHomeName(item));
+      const away = this.normalize(this.getFixtureAwayName(item));
+      const combined = `${home} ${away}`.trim();
+      const reversed = `${away} ${home}`.trim();
+      const queryCombined = `${homeQuery} ${awayQuery}`.trim();
+      const queryReversed = `${awayQuery} ${homeQuery}`.trim();
 
       return (
         (home.includes(homeQuery) && away.includes(awayQuery)) ||
         (home.includes(awayQuery) && away.includes(homeQuery)) ||
         (homeQuery.includes(home) && awayQuery.includes(away)) ||
-        (homeQuery.includes(away) && awayQuery.includes(home))
+        (homeQuery.includes(away) && awayQuery.includes(home)) ||
+        combined.includes(queryCombined) ||
+        reversed.includes(queryCombined) ||
+        (queryCombined.includes(combined) && home.length >= 3 && away.length >= 3) ||
+        (queryReversed.includes(combined) && home.length >= 3 && away.length >= 3)
       );
-    });
+    }) || null;
+  }
+
+  private getFixtureHomeName(game: any) {
+    return (
+      game?.teams?.home?.name ||
+      game?.times?.home?.name ||
+      game?.times?.casa?.nome ||
+      game?.times?.casa?.name ||
+      game?.homeTeam ||
+      game?.home ||
+      game?.casa ||
+      ''
+    );
+  }
+
+  private getFixtureAwayName(game: any) {
+    return (
+      game?.teams?.away?.name ||
+      game?.times?.away?.name ||
+      game?.times?.away?.nome ||
+      game?.times?.fora?.nome ||
+      game?.times?.fora?.name ||
+      game?.awayTeam ||
+      game?.away ||
+      game?.fora ||
+      ''
+    );
   }
 
   private scoreCandidate(item: any) {
@@ -874,10 +919,10 @@ ${userMessage}`,
       score: Math.min(score, 96),
       confidenceLabel: score >= 85 ? 'alta' : score >= 75 ? 'moderada' : 'baixa',
       hasStats: !!(rich?.statistics || rich?.prematchStats),
-      hasOdds: !!rich?.odds,
+      hasOdds: !!(rich?.oddsSummary?.available || rich?.odds),
       hasH2H: !!rich?.h2h,
       hasLineups: !!rich?.lineups,
-      officialEntry: !!rich?.odds && !!(rich?.statistics || rich?.prematchStats),
+      officialEntry: !!(rich?.oddsSummary?.available || rich?.odds) && !!(rich?.statisticsSummary?.available || rich?.statistics || rich?.prematchStats),
     };
   }
 
@@ -908,14 +953,16 @@ ${userMessage}`,
         game?.fixture?.external_id ||
         game?.externalId ||
         null,
-      home: game?.teams?.home?.name || game?.homeTeam || game?.home,
-      away: game?.teams?.away?.name || game?.awayTeam || game?.away,
-      league: game?.league?.name || game?.leagueName || game?.league,
-      country: game?.league?.country || game?.country,
+      home: this.getFixtureHomeName(game),
+      away: this.getFixtureAwayName(game),
+      league: game?.league?.name || game?.liga?.nome || game?.leagueName || game?.league,
+      country: game?.league?.country || game?.liga?.país || game?.liga?.pais || game?.country,
       date: game?.fixture?.date || game?.date || game?.kickoff,
       status: game?.fixture?.status || game?.status,
-      goals: game?.goals,
-      score: game?.score,
+      goals: game?.goals || game?.gols,
+      score: game?.score || game?.placar,
+      odds: this.extractFixtureOdds(game),
+      oddsSummary: this.buildOddsSummary(this.extractFixtureOdds(game)),
       provider: game?.provider,
     };
   }
@@ -945,7 +992,9 @@ ${userMessage}`,
     const normalizedStats = this.normalizeRichStatistics(rich.statistics);
     const statisticsSummary = this.buildStatisticsSummary(normalizedStats);
     const pressureSummary = this.buildPressureSummary(statisticsSummary, rich.fixture || fixture);
-    const oddsSummary = this.buildOddsSummary(rich.odds || (rich.fixture || fixture)?.odds);
+    const fixtureOdds = this.extractFixtureOdds(rich.fixture || fixture);
+    const resolvedOdds = rich.odds || fixtureOdds || null;
+    const oddsSummary = this.buildOddsSummary(resolvedOdds);
 
     return {
       ...rich,
@@ -953,6 +1002,7 @@ ${userMessage}`,
       statistics: normalizedStats || rich.statistics || null,
       statisticsSummary,
       pressureSummary,
+      odds: resolvedOdds,
       oddsSummary,
       ok: !!(rich.ok || statisticsSummary.available || oddsSummary.available || rich.h2h || rich.lineups || rich.prematchStats?.available),
     };
@@ -1064,28 +1114,95 @@ ${userMessage}`,
     };
   }
 
+  private extractFixtureOdds(fixture: any) {
+    if (!fixture) return null;
+
+    return (
+      this.readLoose(fixture, ['odds']) ||
+      this.readLoose(fixture, ['odd']) ||
+      this.readLoose(fixture, ['cotacoes']) ||
+      this.readLoose(fixture, ['cotações']) ||
+      this.readLoose(fixture, ['matchOdds']) ||
+      this.readLoose(fixture, ['prematchOdds']) ||
+      null
+    );
+  }
+
+  private readLoose(obj: any, keys: string[]) {
+    if (!obj || typeof obj !== 'object') return undefined;
+
+    for (const key of keys) {
+      if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') return obj[key];
+    }
+
+    const normalizedTargets = new Set(
+      keys.map((key) =>
+        String(key)
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]/g, ''),
+      ),
+    );
+
+    for (const [rawKey, value] of Object.entries(obj)) {
+      const normalizedKey = String(rawKey)
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '');
+
+      if (normalizedTargets.has(normalizedKey) && value !== undefined && value !== null && value !== '') {
+        return value;
+      }
+    }
+
+    return undefined;
+  }
+
   private buildOddsSummary(odds: any) {
     const options = this.extractOddsOptions(odds);
     if (!options.length) return { available: false, source: 'none', market: null, options: [], reading: 'Odds não validadas.' };
-    return { available: true, source: odds?.source || odds?.bookmaker || 'football-provider', market: odds?.market || odds?.marketName || '1X2', bookmaker: odds?.bookmaker || odds?.source || null, options, reading: 'Odds validadas por provider/fonte integrada.' };
+
+    return {
+      available: true,
+      source: this.readLoose(odds, ['source', 'fonte', 'provider']) || this.readLoose(odds, ['bookmaker', 'casa de apostas']) || 'football-provider',
+      market: this.readLoose(odds, ['market', 'marketName', 'mercado']) || '1X2',
+      bookmaker: this.readLoose(odds, ['bookmaker', 'casa de apostas']) || this.readLoose(odds, ['source', 'fonte']) || null,
+      options,
+      reading: 'Odds validadas por provider/fonte integrada.',
+    };
   }
 
   private extractOddsOptions(input: any): Array<{ name: string; odd: number }> {
     if (!input) return [];
-    const direct = Array.isArray(input?.options) ? input.options : Array.isArray(input) ? input : [];
-    const normalized = direct
-      .map((item: any) => ({ name: String(item?.name || item?.label || item?.selection || item?.market || '').trim(), odd: this.toOddNumber(item?.odd ?? item?.odds ?? item?.value ?? item?.price) }))
-      .filter((item: any) => item.name && Number(item.odd) > 1);
-    if (normalized.length) return normalized.slice(0, 12);
+
+    const directCandidates = [
+      this.readLoose(input, ['options', 'opções', 'opcoes', 'selections', 'outcomes']),
+      Array.isArray(input) ? input : null,
+    ];
+
+    for (const direct of directCandidates) {
+      if (!Array.isArray(direct)) continue;
+
+      const normalized = direct
+        .map((item: any) => ({
+          name: String(this.readLoose(item, ['name', 'nome', 'label', 'selection', 'market', 'mercado']) || '').trim(),
+          odd: this.toOddNumber(this.readLoose(item, ['odd', 'odds', 'value', 'price', 'cotacao', 'cotação'])),
+        }))
+        .filter((item: any) => item.name && Number(item.odd) > 1);
+
+      if (normalized.length) return normalized.slice(0, 12);
+    }
 
     const fallback: Array<{ name: string; odd: number }> = [];
     const add = (name: string, value: any) => { const odd = this.toOddNumber(value); if (odd && odd > 1) fallback.push({ name, odd }); };
-    add('1', input?.home || input?.homeWin || input?.['1']);
-    add('X', input?.draw || input?.x || input?.X);
-    add('2', input?.away || input?.awayWin || input?.['2']);
-    add('Over 1.5', input?.over15 || input?.over_1_5);
-    add('Over 2.5', input?.over25 || input?.over_2_5);
-    add('BTTS', input?.btts || input?.bothTeamsScore);
+    add('1', this.readLoose(input, ['home', 'homeWin', 'casa', 'mandante', '1']));
+    add('X', this.readLoose(input, ['draw', 'empate', 'x', 'X']));
+    add('2', this.readLoose(input, ['away', 'awayWin', 'fora', 'visitante', '2']));
+    add('Over 1.5', this.readLoose(input, ['over15', 'over_1_5', 'over 1.5']));
+    add('Over 2.5', this.readLoose(input, ['over25', 'over_2_5', 'over 2.5']));
+    add('BTTS', this.readLoose(input, ['btts', 'bothTeamsScore', 'ambas marcam']));
     return fallback.slice(0, 12);
   }
 

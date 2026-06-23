@@ -2185,13 +2185,17 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
     const away = rich.fixture?.teams?.away?.name || 'Visitante';
 
     if (!stats?.available) {
+      const oddsLine = odds?.available
+        ? `✅ Odds validadas (${odds.market || '1X2'}): ${odds.options.map((item: any) => `${item.name} ${item.odd}`).join(' | ')}`
+        : '⚠️ Odds pendentes';
+
       return `🧠 Contexto real:
 ⚠️ Estatísticas ao vivo pendentes
-${odds?.available ? '✅ Odds validadas' : '⚠️ Odds pendentes'}
+${oddsLine}
 ${rich.h2h ? '✅ H2H' : '⚠️ H2H pendente'}
 ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}
 
-Leitura: sem posse, finalizações, escanteios ou ataques perigosos validados. Não liberar entrada oficial baseada em pressão.`;
+Leitura: sem posse, finalizações, escanteios ou ataques perigosos validados. Não liberar entrada oficial baseada em pressão. Se houver odds validadas, use apenas como cotação observada, não como entrada oficial.`;
     }
 
     const fmt = (value: any, suffix = '') => value !== null && value !== undefined ? `${value}${suffix}` : '—';
@@ -2215,17 +2219,54 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
     const homeQuery = this.normalizeTeamSearch(this.cleanMatchTeamName(homeQueryRaw));
     const awayQuery = this.normalizeTeamSearch(this.cleanMatchTeamName(awayQueryRaw));
 
+    if (!homeQuery || !awayQuery) return null;
+
     return fixtures.find((item: any) => {
-      const home = this.normalizeTeamSearch(item?.teams?.home?.name);
-      const away = this.normalizeTeamSearch(item?.teams?.away?.name);
+      const home = this.normalizeTeamSearch(this.getFixtureHomeName(item));
+      const away = this.normalizeTeamSearch(this.getFixtureAwayName(item));
+      const combined = `${home} ${away}`.trim();
+      const reversed = `${away} ${home}`.trim();
+      const queryCombined = `${homeQuery} ${awayQuery}`.trim();
+      const queryReversed = `${awayQuery} ${homeQuery}`.trim();
 
       return (
         (home.includes(homeQuery) && away.includes(awayQuery)) ||
         (home.includes(awayQuery) && away.includes(homeQuery)) ||
         (homeQuery.includes(home) && awayQuery.includes(away)) ||
-        (homeQuery.includes(away) && awayQuery.includes(home))
+        (homeQuery.includes(away) && awayQuery.includes(home)) ||
+        (combined.includes(queryCombined)) ||
+        (reversed.includes(queryCombined)) ||
+        (queryCombined.includes(combined) && home.length >= 3 && away.length >= 3) ||
+        (queryReversed.includes(combined) && home.length >= 3 && away.length >= 3)
       );
-    });
+    }) || null;
+  }
+
+  private getFixtureHomeName(game: any) {
+    return (
+      game?.teams?.home?.name ||
+      game?.times?.home?.name ||
+      game?.times?.casa?.nome ||
+      game?.times?.casa?.name ||
+      game?.homeTeam ||
+      game?.home ||
+      game?.casa ||
+      ''
+    );
+  }
+
+  private getFixtureAwayName(game: any) {
+    return (
+      game?.teams?.away?.name ||
+      game?.times?.away?.name ||
+      game?.times?.away?.nome ||
+      game?.times?.fora?.nome ||
+      game?.times?.fora?.name ||
+      game?.awayTeam ||
+      game?.away ||
+      game?.fora ||
+      ''
+    );
   }
 
   private async listRealGames(intent: ChatIntent, memory: ConversationMemory, profile: UserBetProfile): Promise<ChatFootballResponse> {
