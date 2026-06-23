@@ -127,7 +127,15 @@ Se for conhecimento geral, responda normalmente.`,
     message: string,
     decision?: OddixBrainDecision,
   ): Promise<OddixDataOrchestratorResponse> {
-    const fixtures = await this.getTodayFixtures();
+    let fixtures = await this.getTodayFixtures();
+
+    if (this.asksForCup(message)) {
+      const cupFixtures = fixtures.filter((game) => this.isCupCompetition(game));
+
+      if (cupFixtures.length) {
+        fixtures = cupFixtures;
+      }
+    }
 
     if (!fixtures.length) {
       return {
@@ -152,9 +160,9 @@ Se for conhecimento geral, responda normalmente.`,
       message,
       context,
       `Liste os jogos encontrados usando apenas os dados fornecidos.
-Se a pergunta mencionar Copa, destaque apenas jogos de competições com Copa/World Cup/FIFA no nome quando existirem.
+Se a pergunta mencionar Copa/Mundial/FIFA, liste apenas jogos de competições com Copa/World Cup/FIFA/Mundial/Club World Cup quando existirem.
 Não invente partidas.
-Se não houver Copa nos dados, diga que a base retornou outros jogos, mas não confirmou jogos de Copa.`,
+Se não houver Copa nos dados filtrados, diga que a base não confirmou jogos de Copa/Mundial hoje.`,
     );
 
     return {
@@ -446,21 +454,35 @@ ${userMessage}`,
     const service: any = this.footballService as any;
 
     const methods = [
-      () => service.getFixtures?.(today),
-      () => service.getTodayFixtures?.(),
-      () => service.getTodayMatches?.(),
-      () => service.getMatchesByDate?.(today),
+      { name: 'getFixtures', call: () => service.getFixtures?.(today) },
+      { name: 'getTodayFixtures', call: () => service.getTodayFixtures?.() },
+      { name: 'getTodayMatches', call: () => service.getTodayMatches?.() },
+      { name: 'getMatchesByDate', call: () => service.getMatchesByDate?.(today) },
+      { name: 'getFlashScoreToday', call: () => service.getFlashScoreToday?.() },
+      { name: 'getFlashScoreFixtures', call: () => service.getFlashScoreFixtures?.(today) },
+      { name: 'getFlashScoreMatches', call: () => service.getFlashScoreMatches?.(today) },
+      { name: 'getAllTodayFixtures', call: () => service.getAllTodayFixtures?.() },
     ];
+
+    const allFixtures: any[] = [];
 
     for (const method of methods) {
       try {
-        const response = await method();
+        const response = await method.call();
         const fixtures = this.extractFixtureArray(response);
-        if (fixtures.length) return this.uniqueFixtures(fixtures).slice(0, 80);
-      } catch {}
+
+        if (fixtures.length) {
+          this.logger.log(`[ODDIX_ORCHESTRATOR] ${method.name} retornou ${fixtures.length} jogos`);
+          allFixtures.push(...fixtures);
+        }
+      } catch (error: any) {
+        this.logger.warn(
+          `[ODDIX_ORCHESTRATOR] fonte ${method.name} falhou: ${error?.message || error}`,
+        );
+      }
     }
 
-    return [];
+    return this.sortFixtures(this.uniqueFixtures(allFixtures)).slice(0, 300);
   }
 
   private async getLiveFixtures() {
@@ -712,6 +734,57 @@ ${userMessage}`,
       prematchStats: rich?.prematchStats || null,
       errors: rich?.errors || [],
     };
+  }
+
+  private asksForCup(message: string) {
+    const text = this.normalize(message);
+
+    return this.hasAny(text, [
+      'copa',
+      'mundial',
+      'world cup',
+      'club world cup',
+      'fifa',
+      'copa do mundo',
+      'mundial de clubes',
+    ]);
+  }
+
+  private isCupCompetition(game: any) {
+    const simple = this.simplifyFixture(game);
+    const league = this.normalize(simple.league || '');
+    const country = this.normalize(simple.country || '');
+
+    const haystack = `${league} ${country}`;
+
+    return [
+      'world cup',
+      'fifa world cup',
+      'club world cup',
+      'fifa club world cup',
+      'copa do mundo',
+      'mundial de clubes',
+      'fifa',
+      'world',
+      'cup',
+    ].some((term) => haystack.includes(this.normalize(term)));
+  }
+
+  private sortFixtures(fixtures: any[]) {
+    return fixtures.sort((a, b) => {
+      const aSimple = this.simplifyFixture(a);
+      const bSimple = this.simplifyFixture(b);
+
+      const aCup = this.isCupCompetition(a) ? 1 : 0;
+      const bCup = this.isCupCompetition(b) ? 1 : 0;
+
+      if (aCup !== bCup) return bCup - aCup;
+
+      const aDate = new Date(aSimple.date || 0).getTime();
+      const bDate = new Date(bSimple.date || 0).getTime();
+
+      return aDate - bDate;
+    });
   }
 
   private formatFixturesList(fixtures: any[], title: string) {
