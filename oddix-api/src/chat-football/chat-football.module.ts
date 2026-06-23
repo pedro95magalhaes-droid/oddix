@@ -1,20 +1,44 @@
 import { Module } from '@nestjs/common';
-import { ChatFootballService } from './chat-football.service';
-import { OddixBrainService } from './oddix-brain.service';
-import { OddixGlobalAiService } from './oddix-global-ai.service';
 import { FootballModule } from '../football/football.module';
+import { ChatFootballController } from './chat-football.controller';
+import { ChatFootballService } from './chat-football.service';
+import { FootballResearchService } from './football-research.service';
+import { FootballAgentsService } from './football-agents.service';
+import { OddixMemoryService } from './oddix-memory.service';
+import { OddixResponseBuilderService } from './oddix-response-builder.service';
+import { OddixRouterService } from './oddix-router.service';
+import { OddixGlobalAiService } from './oddix-global-ai.service';
+import { OddixIntentParserService } from './oddix-intent-parser.service';
+import { OddixBrainService } from './oddix-brain.service';
+import { OddixEntityExtractorService } from './oddix-entity-extractor.service';
+import { OddixContextMemoryService } from './oddix-context-memory.service';
+import { OddixLlmService } from './oddix-llm.service';
+import { OddixDataOrchestratorService } from './oddix-data-orchestrator.service';
 
 @Module({
   imports: [FootballModule],
+  controllers: [ChatFootballController],
   providers: [
     ChatFootballService,
-    OddixBrainService,
+    FootballResearchService,
+    FootballAgentsService,
+    OddixMemoryService,
+    OddixResponseBuilderService,
+    OddixRouterService,
     OddixGlobalAiService,
+    OddixIntentParserService,
+    OddixBrainService,
+    OddixEntityExtractorService,
+    OddixContextMemoryService,
+    OddixLlmService,
+    OddixDataOrchestratorService,
   ],
   exports: [
     ChatFootballService,
     OddixBrainService,
     OddixGlobalAiService,
+    OddixLlmService,
+    OddixDataOrchestratorService,
   ],
 })
 export class ChatFootballModule {}
