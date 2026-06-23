@@ -567,23 +567,13 @@ export class FootballService {
         "BT",
         "P",
         "PEN_LIVE",
-        "SUSP",
-        "SUSPENDED",
-        "PST",
-        "POSTPONED",
-        "DELAYED",
-        "ABD",
       ].includes(s) ||
       l.includes("live") ||
       l.includes("in play") ||
       l.includes("1st half") ||
       l.includes("2nd half") ||
       l.includes("halftime") ||
-      l.includes("half-time") ||
-      l.includes("suspended") ||
-      l.includes("postponed") ||
-      l.includes("delayed") ||
-      l.includes("abandoned")
+      l.includes("half-time")
     );
   }
 
@@ -1907,6 +1897,12 @@ export class FootballService {
         item?.fixture?.external_id ||
         item?.fixture?.match_id ||
         item?.fixture?.matchId ||
+        item?.fixture?.eventId ||
+        item?.externalId ||
+        item?.external_id ||
+        item?.matchId ||
+        item?.match_id ||
+        item?.eventId ||
         item?.flashScoreRaw?.match_id ||
         item?.flashScoreRaw?.id ||
         item?.flashScoreRaw?.eventId ||
