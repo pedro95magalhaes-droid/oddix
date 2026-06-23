@@ -1341,7 +1341,7 @@ Responda à pergunta atual considerando o contexto anterior quando ela for curta
       0;
 
     const statsSummary = this.buildStatsSummary(stats, richContext);
-    const oddsSummary = this.buildOddsSummary(fixture, richContext);
+    const oddsSummary = this.buildFixtureOddsSummary(fixture, richContext);
     const newsSummary = this.buildNewsSummary(research);
     const engineSummary = this.extractEngineSummary(agentsRaw);
 
@@ -1411,10 +1411,11 @@ ${officialEntry}`;
     };
   }
 
-  private buildOddsSummary(fixture: any, richContext?: FlashScoreRichContext | null) {
+  private buildFixtureOddsSummary(fixture: any, richContext?: FlashScoreRichContext | null) {
     const odds =
-      fixture?.odds ||
+      this.extractFixtureOdds(fixture) ||
       richContext?.odds ||
+      this.extractFixtureOdds(richContext?.fixture) ||
       richContext?.prematchStats?.odds ||
       null;
 
@@ -1809,10 +1810,17 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
         };
       }
 
+      const resolvedFixture = rich.fixture || fixture;
+      const resolvedOdds =
+        rich.odds ||
+        this.extractFixtureOdds(resolvedFixture) ||
+        this.extractFixtureOdds(fixture) ||
+        null;
+
       const normalizedStats = this.normalizeRichStatistics(rich.statistics);
       const statisticsSummary = this.buildStatisticsSummary(normalizedStats);
-      const pressureSummary = this.buildPressureSummary(statisticsSummary, rich.fixture || fixture);
-      const oddsSummary = this.buildOddsSummary(rich.odds || (rich.fixture || fixture)?.odds);
+      const pressureSummary = this.buildPressureSummary(statisticsSummary, resolvedFixture);
+      const oddsSummary = this.buildOddsSummary(resolvedOdds);
 
       return {
         ...rich,
@@ -1824,13 +1832,13 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
           rich.lineups ||
           rich.prematchStats?.available
         ),
-        fixture: rich.fixture || fixture,
+        fixture: resolvedFixture,
         fixtureId: rich.fixtureId || fixtureId,
         statistics: normalizedStats || rich.statistics || null,
         statisticsSummary,
         pressureSummary,
         oddsSummary,
-        odds: rich.odds || (rich.fixture || fixture)?.odds || null,
+        odds: resolvedOdds,
         errors: rich.errors || [],
       };
     } catch (error: any) {
@@ -2057,6 +2065,52 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
     };
   }
 
+  private extractFixtureOdds(fixture: any) {
+    if (!fixture) return null;
+
+    return (
+      this.readLoose(fixture, ['odds']) ||
+      this.readLoose(fixture, ['odd']) ||
+      this.readLoose(fixture, ['cotacoes']) ||
+      this.readLoose(fixture, ['cotações']) ||
+      this.readLoose(fixture, ['matchOdds']) ||
+      this.readLoose(fixture, ['prematchOdds']) ||
+      null
+    );
+  }
+
+  private readLoose(obj: any, keys: string[]) {
+    if (!obj || typeof obj !== 'object') return undefined;
+
+    for (const key of keys) {
+      if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') return obj[key];
+    }
+
+    const normalizedTargets = new Set(
+      keys.map((key) =>
+        String(key)
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]/g, ''),
+      ),
+    );
+
+    for (const [rawKey, value] of Object.entries(obj)) {
+      const normalizedKey = String(rawKey)
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '');
+
+      if (normalizedTargets.has(normalizedKey) && value !== undefined && value !== null && value !== '') {
+        return value;
+      }
+    }
+
+    return undefined;
+  }
+
   private buildOddsSummary(odds: any) {
     const options = this.extractOddsOptions(odds);
 
@@ -2064,9 +2118,9 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
 
     return {
       available: true,
-      source: odds?.source || odds?.bookmaker || 'football-provider',
-      market: odds?.market || odds?.marketName || '1X2',
-      bookmaker: odds?.bookmaker || odds?.source || null,
+      source: this.readLoose(odds, ['source', 'fonte', 'provider']) || this.readLoose(odds, ['bookmaker', 'casa de apostas']) || 'football-provider',
+      market: this.readLoose(odds, ['market', 'marketName', 'mercado']) || '1X2',
+      bookmaker: this.readLoose(odds, ['bookmaker', 'casa de apostas']) || this.readLoose(odds, ['source', 'fonte']) || null,
       options,
       reading: 'Odds validadas por provider/fonte integrada.',
     };
@@ -2075,16 +2129,27 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
   private extractOddsOptions(input: any): Array<{ name: string; odd: number }> {
     if (!input) return [];
 
-    const direct = Array.isArray(input?.options) ? input.options : Array.isArray(input) ? input : [];
+    const directCandidates = [
+      this.readLoose(input, ['options', 'opções', 'opcoes', 'selections', 'outcomes']),
+      Array.isArray(input) ? input : null,
+    ];
 
-    const normalized = direct
-      .map((item: any) => ({
-        name: String(item?.name || item?.label || item?.selection || item?.market || '').trim(),
-        odd: this.toOddNumber(item?.odd ?? item?.odds ?? item?.value ?? item?.price),
-      }))
-      .filter((item: any) => item.name && Number(item.odd) > 1);
+    for (const direct of directCandidates) {
+      if (!Array.isArray(direct)) continue;
 
-    if (normalized.length) return normalized.slice(0, 12);
+      const normalized = direct
+        .map((item: any) => ({
+          name: String(
+            this.readLoose(item, ['name', 'nome', 'label', 'selection', 'market', 'mercado']) || '',
+          ).trim(),
+          odd: this.toOddNumber(
+            this.readLoose(item, ['odd', 'odds', 'value', 'price', 'cotacao', 'cotação']),
+          ),
+        }))
+        .filter((item: any) => item.name && Number(item.odd) > 1);
+
+      if (normalized.length) return normalized.slice(0, 12);
+    }
 
     const fallback: Array<{ name: string; odd: number }> = [];
     const add = (name: string, value: any) => {
@@ -2092,12 +2157,12 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
       if (odd && odd > 1) fallback.push({ name, odd });
     };
 
-    add('1', input?.home || input?.homeWin || input?.['1']);
-    add('X', input?.draw || input?.x || input?.X);
-    add('2', input?.away || input?.awayWin || input?.['2']);
-    add('Over 1.5', input?.over15 || input?.over_1_5);
-    add('Over 2.5', input?.over25 || input?.over_2_5);
-    add('BTTS', input?.btts || input?.bothTeamsScore);
+    add('1', this.readLoose(input, ['home', 'homeWin', 'casa', 'mandante', '1']));
+    add('X', this.readLoose(input, ['draw', 'empate', 'x', 'X']));
+    add('2', this.readLoose(input, ['away', 'awayWin', 'fora', 'visitante', '2']));
+    add('Over 1.5', this.readLoose(input, ['over15', 'over_1_5', 'over 1.5']));
+    add('Over 2.5', this.readLoose(input, ['over25', 'over_2_5', 'over 2.5']));
+    add('BTTS', this.readLoose(input, ['btts', 'bothTeamsScore', 'ambas marcam']));
 
     return fallback.slice(0, 12);
   }
@@ -2114,7 +2179,7 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
 
     const stats = rich.statisticsSummary || this.buildStatisticsSummary(this.normalizeRichStatistics(rich.statistics));
     const pressure = rich.pressureSummary || this.buildPressureSummary(stats, rich.fixture);
-    const odds = rich.oddsSummary || this.buildOddsSummary(rich.odds || rich.fixture?.odds);
+    const odds = rich.oddsSummary || this.buildOddsSummary(rich.odds || this.extractFixtureOdds(rich.fixture));
 
     const home = rich.fixture?.teams?.home?.name || 'Mandante';
     const away = rich.fixture?.teams?.away?.name || 'Visitante';
