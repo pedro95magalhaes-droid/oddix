@@ -957,16 +957,34 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
       this.memoryService?.remember({ sessionId: 'anonymous' }, updatedMemory);
 
       const statusText = hasRealContext
-        ? 'Tenho contexto real suficiente para análise inicial. Ainda valido odds/estatísticas antes de entrada oficial.'
-        : 'Encontrei a partida, mas ainda falta contexto real completo para liberar entrada.';
+        ? 'Contexto real encontrado. A análise pode ser feita, mas entrada oficial ainda depende de odds e confirmação estatística.'
+        : 'Partida encontrada, mas ainda falta contexto real completo para liberar entrada oficial.';
+
+      const premiumAnalysis = await this.buildPremiumMatchAnalysis(
+        enrichedMatch,
+        richContext,
+        stats,
+        research,
+        agents,
+        statusText,
+        hasRealContext,
+      );
 
       return this.human({
         intent,
         userMessage: originalQuestion || message,
-        baseAnswer: `⚽ ${updatedMemory.lastMatch?.label}\n\n${this.buildRichContextSummary(richContext)}\n\n${agents}\n\n${statusText}`,
+        baseAnswer: premiumAnalysis,
         memory: updatedMemory,
         profile,
-        facts: { fixture: enrichedMatch, statistics: stats, richContext, research },
+        facts: {
+          fixture: enrichedMatch,
+          statistics: stats,
+          richContext,
+          research,
+          agentsRaw: agents,
+          statusText,
+          hasRealContext,
+        },
         data: {
           waitingForData: !hasRealContext,
           fixture: enrichedMatch,
@@ -982,6 +1000,290 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
       });
     }
   }
+
+
+  private async buildPremiumMatchAnalysis(
+    fixture: any,
+    richContext: FlashScoreRichContext | null,
+    stats: any,
+    research: ResearchResult | null,
+    agentsRaw: string,
+    statusText: string,
+    hasRealContext: boolean,
+  ): Promise<string> {
+    const home = fixture?.teams?.home?.name || 'Casa';
+    const away = fixture?.teams?.away?.name || 'Fora';
+    const league = fixture?.league?.name || 'Liga não informada';
+    const country = fixture?.league?.country || '';
+    const statusShort = String(fixture?.fixture?.status?.short || 'NS').toUpperCase();
+    const elapsed = fixture?.fixture?.status?.elapsed;
+    const clock =
+      elapsed !== null && elapsed !== undefined
+        ? `${elapsed}'`
+        : statusShort === 'NS'
+          ? 'Pré-jogo'
+          : statusShort;
+
+    const homeGoals =
+      fixture?.goals?.home ??
+      fixture?.score?.fulltime?.home ??
+      0;
+    const awayGoals =
+      fixture?.goals?.away ??
+      fixture?.score?.fulltime?.away ??
+      0;
+
+    const statsSummary = this.buildStatsSummary(stats, richContext);
+    const oddsSummary = this.buildOddsSummary(fixture, richContext);
+    const newsSummary = this.buildNewsSummary(research);
+    const engineSummary = this.extractEngineSummary(agentsRaw);
+
+    const officialEntry =
+      hasRealContext && oddsSummary.hasOdds
+        ? 'Ainda assim, só libero entrada oficial se o mercado tiver preço justo e risco aceitável.'
+        : 'Sem odds reais completas e validação final, não libero entrada oficial.';
+
+    return `⚽ **${home} x ${away}**
+
+🏆 ${league}${country ? ` — ${country}` : ''}
+⏱️ Status: ${clock}
+📊 Placar: ${homeGoals} x ${awayGoals}
+
+📌 **Contexto FlashScore**
+${this.buildRichContextSummary(richContext)}
+
+📈 **Leitura da partida**
+${this.describeMatchScenario(fixture, richContext, stats)}
+${statusText}
+
+📊 **Dados reais disponíveis**
+${statsSummary.text}
+
+💹 **Odds e mercado**
+${oddsSummary.text}
+
+📰 **Notícias / contexto externo**
+${newsSummary}
+
+🎯 **Mercados para monitorar**
+${this.suggestMarketsFromContext(fixture, richContext, stats).map((item) => `• ${item}`).join('\n')}
+
+⚠️ **Risco Oddix**
+${this.buildRiskReading(hasRealContext, oddsSummary.hasOdds, statsSummary.hasStats)}
+
+🧠 **Conclusão Oddix**
+${engineSummary}
+${officialEntry}`;
+  }
+
+  private buildStatsSummary(stats: any, richContext?: FlashScoreRichContext | null) {
+    const source = stats || richContext?.statistics || richContext?.prematchStats || null;
+    const available =
+      !!source &&
+      source?.simulated !== true &&
+      (
+        source?.available === true ||
+        source?.realStatsAvailable === true ||
+        Array.isArray(source?.statistics) ||
+        Array.isArray(source?.data) ||
+        Object.keys(source || {}).length > 0
+      );
+
+    if (!available) {
+      return {
+        hasStats: false,
+        text: '⚠️ Estatísticas completas ainda não confirmadas. Vou tratar como cenário de observação, não como entrada validada.',
+      };
+    }
+
+    const compact = this.compactObjectForText(source, 8);
+
+    return {
+      hasStats: true,
+      text: `✅ Estatísticas reais recebidas.\n${compact ? `Resumo técnico: ${compact}` : 'Os dados foram recebidos, mas estão em formato bruto.'}`,
+    };
+  }
+
+  private buildOddsSummary(fixture: any, richContext?: FlashScoreRichContext | null) {
+    const odds =
+      fixture?.odds ||
+      richContext?.odds ||
+      richContext?.prematchStats?.odds ||
+      null;
+
+    const options =
+      Array.isArray(odds?.options)
+        ? odds.options
+        : [
+            { name: '1', odd: odds?.home },
+            { name: 'X', odd: odds?.draw },
+            { name: '2', odd: odds?.away },
+          ].filter((item: any) => Number(item.odd) > 1);
+
+    if (!odds || !options?.length) {
+      return {
+        hasOdds: false,
+        text: '⚠️ Odds reais ainda não detectadas. Sem preço de mercado, não existe entrada oficial.',
+      };
+    }
+
+    const text = options
+      .slice(0, 6)
+      .map((item: any) => {
+        const name = item?.name || item?.selection || item?.label || 'Mercado';
+        const odd = Number(item?.odd || item?.odds || item?.value || 0);
+        return Number.isFinite(odd) && odd > 1 ? `${name}: ${odd.toFixed(2)}` : null;
+      })
+      .filter(Boolean)
+      .join(' • ');
+
+    return {
+      hasOdds: true,
+      text: `✅ Odds reais detectadas${text ? `: ${text}` : '.'}`,
+    };
+  }
+
+  private buildNewsSummary(research: ResearchResult | null) {
+    if (!research) return 'Sem pesquisa externa relevante no momento.';
+    if (!research.enabled) return research.summary || 'Pesquisa externa indisponível.';
+    if (!research.items?.length) return research.summary || 'Nenhuma notícia relevante encontrada agora.';
+
+    return research.items
+      .slice(0, 3)
+      .map((item) => `• ${item.title}${item.source ? ` — ${item.source}` : ''}`)
+      .join('\n');
+  }
+
+  private suggestMarketsFromContext(fixture: any, richContext: FlashScoreRichContext | null, stats: any) {
+    const status = String(fixture?.fixture?.status?.short || '').toUpperCase();
+    const elapsed = Number(fixture?.fixture?.status?.elapsed || 0);
+    const totalGoals =
+      Number(fixture?.goals?.home ?? fixture?.score?.fulltime?.home ?? 0) +
+      Number(fixture?.goals?.away ?? fixture?.score?.fulltime?.away ?? 0);
+
+    const markets: string[] = [];
+
+    if (status === 'NS') {
+      markets.push('Over 1.5 gols se as estatísticas pré-jogo confirmarem volume ofensivo');
+      markets.push('Dupla chance para reduzir variância');
+      markets.push('Ambas marcam apenas se H2H/formas sustentarem');
+    } else {
+      if (totalGoals >= 2) markets.push('Over ao vivo apenas se a pressão continuar e a odd tiver valor');
+      if (elapsed >= 45) markets.push('Mercado de próximo gol com cautela');
+      markets.push('Escanteios ao vivo se houver pressão lateral e volume ofensivo');
+      markets.push('Evitar entrada se odds estiverem esmagadas pelo placar');
+    }
+
+    if (richContext?.lineups) markets.push('Player Props se escalações e função tática estiverem confirmadas');
+    if (!stats && !richContext?.statistics) markets.push('Aguardar estatísticas reais antes de qualquer entrada oficial');
+
+    return markets.slice(0, 5);
+  }
+
+  private describeMatchScenario(fixture: any, richContext: FlashScoreRichContext | null, stats: any) {
+    const status = String(fixture?.fixture?.status?.short || '').toUpperCase();
+    const elapsed = Number(fixture?.fixture?.status?.elapsed || 0);
+    const home = fixture?.teams?.home?.name || 'mandante';
+    const away = fixture?.teams?.away?.name || 'visitante';
+    const homeGoals = Number(fixture?.goals?.home ?? fixture?.score?.fulltime?.home ?? 0);
+    const awayGoals = Number(fixture?.goals?.away ?? fixture?.score?.fulltime?.away ?? 0);
+
+    if (status === 'SUSP' || status === 'SUSPENDED') {
+      return 'A partida está suspensa. Nesse cenário, qualquer entrada ao vivo fica bloqueada até confirmação de retorno.';
+    }
+
+    if (status === 'PST' || status === 'POSTPONED') {
+      return 'A partida está adiada. Não há leitura ao vivo válida enquanto o jogo não for retomado.';
+    }
+
+    if (status === 'NS') {
+      return 'Cenário pré-jogo. A leitura depende de escalações, odds, H2H e estatísticas recentes.';
+    }
+
+    if (homeGoals > awayGoals) {
+      return `${home} está em vantagem no placar. A leitura principal é entender se o time mantém controle ou se ${away} aumentou pressão para buscar reação.`;
+    }
+
+    if (awayGoals > homeGoals) {
+      return `${away} está em vantagem no placar. A leitura principal é medir se ${home} tem volume real para reagir ou se o jogo está controlado pelo visitante.`;
+    }
+
+    if (elapsed > 0) {
+      return `Jogo em andamento e empatado. A prioridade é medir pressão, finalizações, posse ofensiva e movimento de odds antes de qualquer entrada.`;
+    }
+
+    return 'Ainda não há cenário consolidado. Preciso de dados reais para transformar em leitura profissional.';
+  }
+
+  private buildRiskReading(hasRealContext: boolean, hasOdds: boolean, hasStats: boolean) {
+    if (!hasRealContext) {
+      return 'ALTO — faltam dados reais completos. A Oddix não recomenda entrada oficial.';
+    }
+
+    if (!hasOdds && !hasStats) {
+      return 'ALTO — sem odds e sem estatísticas confirmadas.';
+    }
+
+    if (!hasOdds) {
+      return 'MÉDIO/ALTO — existem dados de jogo, mas sem preço de mercado não dá para validar valor.';
+    }
+
+    if (!hasStats) {
+      return 'MÉDIO/ALTO — há odds, mas faltam estatísticas para confirmar pressão e tendência.';
+    }
+
+    return 'MÉDIO — existem dados reais, mas a entrada depende do preço e do momento exato do jogo.';
+  }
+
+  private extractEngineSummary(agentsRaw: string) {
+    const text = String(agentsRaw || '');
+
+    const confidenceMatch =
+      text.match(/Confian[cç]a(?: consolidada)?:?\s*(\d+)%/i) ||
+      text.match(/ConfidenceEngineAgent:[\s\S]*?(\d+)%/i);
+
+    const scoreMatch = text.match(/Score:\s*(\d+)\/100/i);
+    const riskMatch = text.match(/Risco:?\s*([A-ZÀ-ÿ]+)/i);
+
+    const confidence = confidenceMatch?.[1] ? Number(confidenceMatch[1]) : null;
+    const score = scoreMatch?.[1] ? Number(scoreMatch[1]) : null;
+    const risk = riskMatch?.[1] || null;
+
+    if (confidence || score || risk) {
+      return `Motor Oddix: ${score ? `score ${score}/100` : 'score em validação'}${confidence ? `, confiança ${confidence}%` : ''}${risk ? `, risco ${risk}` : ''}.`;
+    }
+
+    return 'Motor Oddix em modo de validação: vou priorizar dados reais, odds confirmadas e segurança antes de sugerir qualquer entrada.';
+  }
+
+  private compactObjectForText(input: any, maxItems = 8) {
+    if (!input || typeof input !== 'object') return '';
+
+    const entries: string[] = [];
+
+    const walk = (obj: any, prefix = '', depth = 0) => {
+      if (!obj || typeof obj !== 'object' || depth > 2 || entries.length >= maxItems) return;
+
+      for (const [key, value] of Object.entries(obj)) {
+        if (entries.length >= maxItems) break;
+        if (value === null || value === undefined || value === '') continue;
+
+        const label = prefix ? `${prefix}.${key}` : key;
+
+        if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
+          const stringValue = String(value);
+          if (stringValue.length <= 40) entries.push(`${label}: ${stringValue}`);
+        } else if (typeof value === 'object' && !Array.isArray(value)) {
+          walk(value, label, depth + 1);
+        }
+      }
+    };
+
+    walk(input);
+
+    return entries.join(' • ');
+  }
+
 
   private async buildTeamOverview(teamName: string, memory: ConversationMemory, profile: UserBetProfile): Promise<ChatFootballResponse | null> {
     if (!this.footballService) return this.direct('ANALYZE', 'Módulo de futebol indisponível no momento.', memory, profile, { waitingForData: true });
@@ -1216,12 +1518,12 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
   }
 
   private findMatch(fixtures: any[], homeQueryRaw: string, awayQueryRaw: string) {
-    const homeQuery = this.normalize(homeQueryRaw);
-    const awayQuery = this.normalize(awayQueryRaw);
+    const homeQuery = this.normalizeTeamSearch(this.cleanMatchTeamName(homeQueryRaw));
+    const awayQuery = this.normalizeTeamSearch(this.cleanMatchTeamName(awayQueryRaw));
 
     return fixtures.find((item: any) => {
-      const home = this.normalize(item?.teams?.home?.name);
-      const away = this.normalize(item?.teams?.away?.name);
+      const home = this.normalizeTeamSearch(item?.teams?.home?.name);
+      const away = this.normalizeTeamSearch(item?.teams?.away?.name);
 
       return (
         (home.includes(homeQuery) && away.includes(awayQuery)) ||
@@ -1420,8 +1722,35 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
     return [];
   }
 
+
+  private sanitizeMatchQuery(message: string) {
+    return String(message || '')
+      .replace(/\b\d+\s*x\s*\d+\b/gi, ' x ')
+      .replace(/\b\d+\s*-\s*\d+\b/gi, ' x ')
+      .replace(/\b\d+\s*:\s*\d+\b/gi, ' x ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private cleanMatchTeamName(value: any) {
+    return String(value || '')
+      .replace(/\b\d+\b/g, '')
+      .replace(/\bplacar\b/gi, '')
+      .replace(/\bao vivo\b/gi, '')
+      .replace(/\blive\b/gi, '')
+      .replace(/\bhoje\b/gi, '')
+      .replace(/\bagora\b/gi, '')
+      .replace(/\bminuto\b/gi, '')
+      .replace(/\btempo\b/gi, '')
+      .replace(/[?!.]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   private extractTeams(message: string) {
-    const cleaned = String(message || '')
+    const sanitized = this.sanitizeMatchQuery(message);
+
+    const cleaned = sanitized
       .replace(/analisa/gi, '')
       .replace(/analisar/gi, '')
       .replace(/analise/gi, '')
@@ -1433,7 +1762,12 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
       const normalized = cleaned.toLowerCase();
       if (normalized.includes(separator)) {
         const parts = normalized.split(separator);
-        if (parts[0]?.trim() && parts[1]?.trim()) return { home: parts[0].trim(), away: parts[1].trim() };
+        if (parts[0]?.trim() && parts[1]?.trim()) {
+          return {
+            home: this.cleanMatchTeamName(parts[0]),
+            away: this.cleanMatchTeamName(parts[1]),
+          };
+        }
       }
     }
 
