@@ -87,10 +87,16 @@ export class ChatFootballService {
       );
     }
 
+    const isGlobalFollowUp =
+      this.isGlobalConversationFollowUp(message, history, memory);
+
     const shouldUseGlobalAi =
-      (brainDecision?.shouldUseGlobalAiDirect ||
-        (parsedIntent?.intent === 'GENERAL' && this.globalAi)) &&
-      !this.isOddixFootballQuestion(message);
+      isGlobalFollowUp ||
+      (
+        (brainDecision?.shouldUseGlobalAiDirect ||
+          (parsedIntent?.intent === 'GENERAL' && this.globalAi)) &&
+        !this.isOddixFootballQuestion(message)
+      );
 
     if (shouldUseGlobalAi && this.globalAi) {
       const response = await this.globalAi.answer(
@@ -747,6 +753,59 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
     return 'status identificado, mas ainda preciso validar estatísticas e odds antes de qualquer entrada.';
   }
 
+
+
+
+  private isGlobalConversationFollowUp(
+    message: string,
+    history: ChatHistoryMessage[],
+    memory: ConversationMemory,
+  ) {
+    const text = this.clean(message);
+
+    const globalFollowUpTerms = [
+      'quem jogou',
+      'quem fez gol',
+      'quem fez os gols',
+      'de quem foi os gols',
+      'quem marcou',
+      'quando foi',
+      'onde foi',
+      'qual foi o placar',
+      'quanto foi',
+      'e depois',
+      'me fala mais',
+      'me explica melhor',
+      'quem perdeu',
+      'quem participou',
+      'final foi contra quem',
+    ];
+
+    if (!globalFollowUpTerms.some((term) => text.includes(this.clean(term)))) {
+      return false;
+    }
+
+    const lastMessages = Array.isArray(history) ? history.slice(-6) : [];
+    const lastText = lastMessages
+      .map((item: any) => String(item?.content || item?.message || item?.text || item?.answer || ''))
+      .join(' ')
+      .toLowerCase();
+
+    const globalContextTerms = [
+      'copa do mundo de 2002',
+      'copa do mundo',
+      'mundial',
+      'história',
+      'historia',
+      'quem ganhou',
+      'quem venceu',
+    ];
+
+    return (
+      memory?.lastIntent === 'GENERAL' ||
+      globalContextTerms.some((term) => lastText.includes(this.clean(term)))
+    );
+  }
 
 
   private buildGlobalContextQuestion(

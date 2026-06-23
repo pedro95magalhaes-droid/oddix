@@ -184,6 +184,30 @@ export class OddixBrainService {
       'qual foi o placar',
     ]);
 
+    const asksGlobalKnowledgeFollowUp =
+      this.hasAny(text, [
+        'quem jogou',
+        'quem fez gol',
+        'quem fez os gols',
+        'de quem foi os gols',
+        'quem marcou',
+        'quando foi',
+        'onde foi',
+        'qual foi o placar',
+        'quanto foi',
+        'e depois',
+        'me fala mais',
+        'me explica melhor',
+        'quem perdeu',
+        'quem participou',
+        'final foi contra quem',
+      ]) &&
+      !hasMatch &&
+      !asksLiveStatus &&
+      !asksBankroll &&
+      !asksMultiple &&
+      !asksTopPicks;
+
     if (asksBankroll) {
       intent = 'BANKROLL';
       reference = context.lastTicket ? 'lastTicket' : 'none';
@@ -207,6 +231,9 @@ export class OddixBrainService {
     } else if (asksExplain) {
       intent = 'EXPLAIN';
       reference = context.lastMatch ? 'lastMatch' : context.lastTicket ? 'lastTicket' : 'none';
+    } else if (asksGlobalKnowledgeFollowUp) {
+      intent = 'GENERAL';
+      reference = 'none';
     } else if (asksFollowUp) {
       if (context.lastMatch || context.lastTicket) {
         intent = 'FOLLOW_UP';
