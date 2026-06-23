@@ -8,6 +8,7 @@ import { OddixRouterService } from './oddix-router.service';
 import { OddixGlobalAiService } from './oddix-global-ai.service';
 import { OddixIntentParserService } from './oddix-intent-parser.service';
 import { OddixBrainService, OddixBrainDecision } from './oddix-brain.service';
+import { OddixDataOrchestratorService } from './oddix-data-orchestrator.service';
 import type {
   BetCalc,
   ChatFootballRequest,
@@ -39,6 +40,16 @@ type FlashScoreRichContext = {
 export class ChatFootballService {
   private readonly logger = new Logger(ChatFootballService.name);
 
+  private static readonly backendConversationStore = new Map<
+    string,
+    ChatHistoryMessage[]
+  >();
+
+  private readonly backendConversationLimit = Number(
+    process.env.ODDIX_BACKEND_MEMORY_LIMIT || 12,
+  );
+
+
   constructor(
     @Optional() private readonly footballService?: FootballService,
     @Optional() private readonly researchService?: FootballResearchService,
@@ -49,6 +60,7 @@ export class ChatFootballService {
     @Optional() private readonly globalAi?: OddixGlobalAiService,
     @Optional() private readonly intentParser?: OddixIntentParserService,
     @Optional() private readonly brainService?: OddixBrainService,
+    @Optional() private readonly dataOrchestrator?: OddixDataOrchestratorService,
   ) {}
 
   async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
@@ -59,7 +71,8 @@ export class ChatFootballService {
       payload?.chatId ||
       'anonymous';
 
-    const history = this.readHistory(payload);
+    const incomingHistory = this.readHistory(payload);
+    const history = this.mergeBackendHistory(sessionId, incomingHistory);
     const memory =
       this.memoryService?.buildMemory(payload, history) ||
       this.buildMemoryFallback(history);
@@ -79,16 +92,42 @@ export class ChatFootballService {
     }
 
     if (!message.trim()) {
-      return this.direct(
-        'ASK_RECOMMENDATION',
-        this.buildWelcomeText(),
-        memory,
-        profile,
+      return this.rememberAndReturn(
+        sessionId,
+        message,
+        this.direct(
+          'ASK_RECOMMENDATION',
+          this.buildWelcomeText(),
+          memory,
+          profile,
+        ),
       );
     }
 
     const isGlobalFollowUp =
       this.isGlobalConversationFollowUp(message, history, memory);
+
+    if (this.dataOrchestrator) {
+      const orchestrated = await this.dataOrchestrator.answer(message);
+
+      if (orchestrated.handled) {
+        return this.rememberAndReturn(
+          sessionId,
+          message,
+          {
+            success: true,
+            intent: brainDecision?.intent === 'GENERAL' ? 'ANALYZE' : this.mapBrainIntentToChatIntent(brainDecision?.intent || 'GENERAL'),
+            answer: orchestrated.answer,
+            data: {
+              ...(orchestrated.data || {}),
+              suggestions: orchestrated.suggestions || this.defaultSuggestions('ANALYZE'),
+              memory,
+              profile,
+            },
+          } as ChatFootballResponse,
+        );
+      }
+    }
 
     const shouldUseGlobalAi =
       isGlobalFollowUp ||
@@ -103,20 +142,24 @@ export class ChatFootballService {
         this.buildGlobalContextQuestion(message, history, memory),
       );
 
-      return {
-        success: true,
-        intent: 'GENERAL',
-        answer: response.answer,
-        data: {
-          suggestions: response.suggestions || [
-            '⚽ Mostrar jogos de hoje',
-            '🏆 Top Picks',
-            '🔥 Monte uma múltipla',
-          ],
-          memory,
-          profile,
-        },
-      } as ChatFootballResponse;
+      return this.rememberAndReturn(
+        sessionId,
+        message,
+        {
+          success: true,
+          intent: 'GENERAL',
+          answer: response.answer,
+          data: {
+            suggestions: response.suggestions || [
+              '⚽ Mostrar jogos de hoje',
+              '🏆 Top Picks',
+              '🔥 Monte uma múltipla',
+            ],
+            memory,
+            profile,
+          },
+        } as ChatFootballResponse,
+      );
     }
 
     const brain = this.buildBrain(message, history, memory);
@@ -155,7 +198,7 @@ export class ChatFootballService {
       sessionId,
     );
 
-    if (brainRoute) return brainRoute;
+    if (brainRoute) return this.rememberAndReturn(sessionId, message, brainRoute);
 
     const calc = this.extractBetCalculation(message, lastTicket);
     if (calc) return this.buildBetCalculatorResponse(calc, message, memory, profile);
@@ -212,7 +255,7 @@ export class ChatFootballService {
     if (brain.intent === 'SIMPLE') return this.buildSimpleBetResponse(memory, profile);
     if (brain.intent === 'BANKROLL') return this.explainBankroll(message, lastTicket, memory, profile);
 
-    return this.direct('GENERAL', this.buildFallbackText(message, memory), memory, profile);
+    return this.rememberAndReturn(sessionId, message, this.direct('GENERAL', this.buildFallbackText(message, memory), memory, profile));
   }
 
 
@@ -754,6 +797,67 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
   }
 
 
+
+
+
+  private mergeBackendHistory(
+    sessionId: string,
+    incomingHistory: ChatHistoryMessage[],
+  ): ChatHistoryMessage[] {
+    const backendHistory =
+      ChatFootballService.backendConversationStore.get(sessionId) || [];
+
+    const merged = [...backendHistory, ...(incomingHistory || [])];
+
+    const seen = new Set<string>();
+    const deduped = merged.filter((item: any) => {
+      const role = item?.role || item?.type || item?.sender || 'message';
+      const content =
+        item?.content ||
+        item?.message ||
+        item?.text ||
+        item?.answer ||
+        '';
+
+      const key = `${role}:${String(content).slice(0, 160)}`;
+      if (!content || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    return deduped.slice(-this.backendConversationLimit);
+  }
+
+  private rememberBackendMessage(
+    sessionId: string,
+    role: 'user' | 'assistant',
+    content: string,
+  ) {
+    if (!sessionId || !content?.trim()) return;
+
+    const current =
+      ChatFootballService.backendConversationStore.get(sessionId) || [];
+
+    const next = [
+      ...current,
+      {
+        role,
+        content: String(content).slice(0, 3000),
+      } as any,
+    ].slice(-this.backendConversationLimit);
+
+    ChatFootballService.backendConversationStore.set(sessionId, next);
+  }
+
+  private rememberAndReturn(
+    sessionId: string,
+    userMessage: string,
+    response: ChatFootballResponse,
+  ): ChatFootballResponse {
+    this.rememberBackendMessage(sessionId, 'user', userMessage);
+    this.rememberBackendMessage(sessionId, 'assistant', response?.answer || '');
+    return response;
+  }
 
 
   private isGlobalConversationFollowUp(
