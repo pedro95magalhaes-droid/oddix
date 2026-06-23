@@ -9,6 +9,7 @@ import { OddixResponseBuilderService } from './oddix-response-builder.service';
 import { OddixRouterService } from './oddix-router.service';
 import { OddixGlobalAiService } from './oddix-global-ai.service';
 import { OddixIntentParserService } from './oddix-intent-parser.service';
+import { OddixIntentService } from './oddix-intent.service';
 import { OddixBrainService } from './oddix-brain.service';
 import { OddixEntityExtractorService } from './oddix-entity-extractor.service';
 import { OddixContextMemoryService } from './oddix-context-memory.service';
@@ -27,6 +28,7 @@ import { OddixDataOrchestratorService } from './oddix-data-orchestrator.service'
     OddixRouterService,
     OddixGlobalAiService,
     OddixIntentParserService,
+    OddixIntentService,
     OddixBrainService,
     OddixEntityExtractorService,
     OddixContextMemoryService,
@@ -35,8 +37,17 @@ import { OddixDataOrchestratorService } from './oddix-data-orchestrator.service'
   ],
   exports: [
     ChatFootballService,
-    OddixBrainService,
+    FootballResearchService,
+    FootballAgentsService,
+    OddixMemoryService,
+    OddixResponseBuilderService,
+    OddixRouterService,
     OddixGlobalAiService,
+    OddixIntentParserService,
+    OddixIntentService,
+    OddixBrainService,
+    OddixEntityExtractorService,
+    OddixContextMemoryService,
     OddixLlmService,
     OddixDataOrchestratorService,
   ],
