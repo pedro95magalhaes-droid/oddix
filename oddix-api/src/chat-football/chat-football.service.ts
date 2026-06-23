@@ -1,4 +1,4 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { FootballService } from '../football/football.service';
 import { FootballResearchService, ResearchResult } from './football-research.service';
 import { FootballAgentsService } from './football-agents.service';
@@ -37,6 +37,8 @@ type FlashScoreRichContext = {
 
 @Injectable()
 export class ChatFootballService {
+  private readonly logger = new Logger(ChatFootballService.name);
+
   constructor(
     @Optional() private readonly footballService?: FootballService,
     @Optional() private readonly researchService?: FootballResearchService,
@@ -926,6 +928,53 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
         richContext?.h2h?.available === true;
 
       const enrichedMatch = richContext?.fixture || match;
+
+      this.logger.log(
+        JSON.stringify(
+          {
+            tag: 'ODDIX_MATCH_IDS',
+            fixtureId: enrichedMatch?.fixture?.id,
+            externalId: enrichedMatch?.fixture?.externalId,
+            external_id: enrichedMatch?.fixture?.external_id,
+            matchId: enrichedMatch?.fixture?.matchId,
+            match_id: enrichedMatch?.fixture?.match_id,
+            eventId: enrichedMatch?.fixture?.eventId,
+            status: enrichedMatch?.fixture?.status,
+            provider: enrichedMatch?.provider,
+            league: enrichedMatch?.league?.name,
+            home: enrichedMatch?.teams?.home?.name,
+            away: enrichedMatch?.teams?.away?.name,
+          },
+          null,
+          2,
+        ),
+      );
+
+      this.logger.log(
+        JSON.stringify(
+          {
+            tag: 'ODDIX_RICH_CONTEXT_STATUS',
+            ok: richContext?.ok,
+            source: richContext?.source,
+            fixtureId: richContext?.fixtureId,
+            flashScoreExternalId: richContext?.flashScoreExternalId,
+            hasStats: !!richContext?.statistics,
+            hasOdds: !!richContext?.odds,
+            hasH2H: !!richContext?.h2h,
+            hasLineups: !!richContext?.lineups,
+            hasPrematchStats: !!richContext?.prematchStats,
+            statsKeys: Object.keys(richContext?.statistics || {}),
+            oddsKeys: Object.keys(richContext?.odds || {}),
+            h2hType: Array.isArray(richContext?.h2h) ? 'array' : typeof richContext?.h2h,
+            h2hLength: Array.isArray(richContext?.h2h) ? richContext?.h2h.length : null,
+            lineupsType: Array.isArray(richContext?.lineups) ? 'array' : typeof richContext?.lineups,
+            lineupsLength: Array.isArray(richContext?.lineups) ? richContext?.lineups.length : null,
+            errors: richContext?.errors || [],
+          },
+          null,
+          2,
+        ),
+      );
 
       const agentContext: any = {
         homeTeam: enrichedMatch?.teams?.home?.name || teams.home,
