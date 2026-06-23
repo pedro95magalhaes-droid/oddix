@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import {
   OddixEntityExtractorService,
   OddixEntities,
@@ -7,9 +7,11 @@ import {
   OddixContextMemoryService,
   OddixConversationContext,
 } from './oddix-context-memory.service';
+import { OddixLlmService } from './oddix-llm.service';
 
 export type OddixBrainIntent =
   | 'GENERAL'
+  | 'TODAY_GAMES'
   | 'TOP_PICKS'
   | 'MATCH_ANALYSIS'
   | 'LIVE'
@@ -38,7 +40,17 @@ export type OddixBrainDecision = {
   shouldUseGlobalAiDirect: boolean;
   shouldHumanizeWithGemini: boolean;
   safetyNotes: string[];
-  source: 'local';
+  source: 'llm' | 'local';
+};
+
+type LlmBrainJson = {
+  intent?: OddixBrainIntent;
+  confidence?: number;
+  riskMode?: OddixBrainRiskMode;
+  reference?: OddixBrainDecision['reference'];
+  userWants?: string;
+  needsCurrentFootballData?: boolean;
+  isGeneralQuestion?: boolean;
 };
 
 @Injectable()
@@ -48,14 +60,18 @@ export class OddixBrainService {
   constructor(
     private readonly entityExtractor: OddixEntityExtractorService,
     private readonly contextMemory: OddixContextMemoryService,
+    @Optional() private readonly llmService?: OddixLlmService,
   ) {
-    this.logger.log('Oddix Brain iniciado em modo local. Gemini removido definitivamente do Brain.');
+    this.logger.log('Oddix Brain V13 iniciado: DeepSeek primeiro, fallback local seguro.');
   }
 
   async think(userMessage: string, sessionId = 'anonymous'): Promise<OddixBrainDecision> {
     const message = String(userMessage || '').trim();
     const context = this.contextMemory.get(sessionId);
-    const decision = this.localThink(message, context);
+
+    const localDecision = this.localThink(message, context);
+    const llmDecision = await this.llmThink(message, context, localDecision).catch(() => null);
+    const decision = llmDecision || localDecision;
 
     this.contextMemory.remember(sessionId, {
       lastIntent: decision.intent,
@@ -75,6 +91,113 @@ export class OddixBrainService {
     return decision;
   }
 
+  private async llmThink(
+    message: string,
+    context: OddixConversationContext,
+    localDecision: OddixBrainDecision,
+  ): Promise<OddixBrainDecision | null> {
+    if (!this.llmService?.isEnabled()) return null;
+
+    const response = await this.llmService.completeJson<LlmBrainJson>([
+      {
+        role: 'system',
+        content: `Você é o cérebro de roteamento do Oddix Chat V13.
+
+Responda somente JSON válido, sem markdown.
+
+Intents disponíveis:
+GENERAL, TODAY_GAMES, TOP_PICKS, MATCH_ANALYSIS, LIVE, MULTIPLE, BANKROLL, NEWS, TEAM, PLAYER, VIRTUAL, VALUE_BETS, EXPLAIN, FOLLOW_UP.
+
+Regras:
+- Perguntas gerais de conhecimento => GENERAL.
+- "quais jogos hoje", "jogos da copa hoje" => TODAY_GAMES.
+- "melhor entrada", "maior confiança", "o que apostar", "aposta segura" => TOP_PICKS.
+- "Portugal x Uzbequistão", "Flamengo vs Palmeiras", "time contra time" => MATCH_ANALYSIS.
+- "ao vivo", "placar", "quanto tá" => LIVE.
+- "múltipla", "bilhete", "combinada" => MULTIPLE.
+- "quanto ganho", "retorno", "lucro", "stake" => BANKROLL.
+- Continuações como "vale a pena?", "e uma segura?", "presta?" depois de jogo/bilhete => FOLLOW_UP.
+- Nunca invente dados. Só classifique a intenção.
+
+JSON:
+{
+  "intent": "TOP_PICKS",
+  "confidence": 0.92,
+  "riskMode": "safe|balanced|aggressive",
+  "reference": "lastMatch|lastTicket|lastTeam|none",
+  "userWants": "frase curta",
+  "needsCurrentFootballData": true,
+  "isGeneralQuestion": false
+}`,
+      },
+      {
+        role: 'user',
+        content: JSON.stringify(
+          {
+            message,
+            localIntent: localDecision.intent,
+            localEntities: localDecision.entities,
+            conversationContext: {
+              lastIntent: context.lastIntent,
+              lastUserMessage: context.lastUserMessage,
+              lastTeam: context.lastTeam,
+              lastMatch: context.lastMatch,
+              hasLastTicket: !!context.lastTicket,
+            },
+          },
+          null,
+          2,
+        ),
+      },
+    ]);
+
+    if (!response?.intent) return null;
+
+    const allowed: OddixBrainIntent[] = [
+      'GENERAL',
+      'TODAY_GAMES',
+      'TOP_PICKS',
+      'MATCH_ANALYSIS',
+      'LIVE',
+      'MULTIPLE',
+      'BANKROLL',
+      'NEWS',
+      'TEAM',
+      'PLAYER',
+      'VIRTUAL',
+      'VALUE_BETS',
+      'EXPLAIN',
+      'FOLLOW_UP',
+    ];
+
+    const intent = allowed.includes(response.intent) ? response.intent : localDecision.intent;
+    const entities = localDecision.entities;
+    const riskMode = response.riskMode || localDecision.riskMode;
+    const reference = response.reference || localDecision.reference || 'none';
+    const shouldUseGlobalAiDirect = intent === 'GENERAL';
+    const shouldUseOddixEngine = !shouldUseGlobalAiDirect;
+
+    return {
+      intent,
+      userMessage: message,
+      normalizedQuestion: this.normalize(message),
+      confidence: Number(response.confidence || localDecision.confidence || 0.84),
+      riskMode,
+      entities,
+      reference,
+      userWants: response.userWants || this.describeIntent(intent, entities, reference),
+      shouldUseOddixEngine,
+      shouldUseGlobalAiDirect,
+      shouldHumanizeWithGemini: false,
+      safetyNotes: [
+        'Oddix Brain V13 usa DeepSeek para entender intenção quando disponível.',
+        'Perguntas atuais de futebol devem buscar FootballService/FlashScore antes da resposta final.',
+        'Sem dados reais/odds reais = sem entrada oficial.',
+      ],
+      source: 'llm',
+    };
+  }
+
   private localThink(message: string, context: OddixConversationContext): OddixBrainDecision {
     const entities = this.entityExtractor.extract(message);
     const text = this.normalize(message);
@@ -84,39 +207,33 @@ export class OddixBrainService {
 
     const hasMatch = !!entities.homeTeam && !!entities.awayTeam;
 
-    const asksLiveStatus =
-      this.hasAny(text, [
-        'ao vivo',
-        'live',
-        'como ta',
-        'como esta',
-        'quanto ta',
-        'placar',
-        'resultado',
-        'quem ta ganhando',
-        'quem esta ganhando',
-        'jogo da selecao',
-        'selecao da',
-        'quantos jogos tem ao vivo',
-        'quantos jogos ao vivo',
-        'jogos ao vivo',
-        'mostrar jogos ao vivo',
-        'mostra jogos ao vivo',
-        'quais jogos ao vivo',
-      ]);
+    const asksLiveStatus = this.hasAny(text, [
+      'ao vivo',
+      'live',
+      'como ta',
+      'como esta',
+      'quanto ta',
+      'placar',
+      'resultado',
+      'quem ta ganhando',
+      'jogos ao vivo',
+      'mostrar jogos ao vivo',
+      'quais jogos ao vivo',
+    ]);
+
+    const asksTodayGames = this.hasAny(text, [
+      'jogos de hoje',
+      'partidas de hoje',
+      'quais jogos',
+      'copa hoje',
+      'jogos da copa',
+      'copa do mundo hoje',
+      'tem jogo hoje',
+    ]);
 
     const asksBankroll =
       !!entities.stake ||
-      this.hasAny(text, [
-        'quanto ganho',
-        'quanto retorna',
-        'retorno',
-        'lucro',
-        'banca',
-        'stake',
-        'gestao',
-        'gestão',
-      ]);
+      this.hasAny(text, ['quanto ganho', 'quanto retorna', 'retorno', 'lucro', 'banca', 'stake', 'gestao', 'gestão']);
 
     const asksMultiple = this.hasAny(text, ['multipla', 'múltipla', 'bilhete', 'combinada']);
 
@@ -127,6 +244,12 @@ export class OddixBrainService {
       'melhor palpite',
       'melhores entradas',
       'melhor entrada',
+      'maior confianca',
+      'maior confiança',
+      'mais confiavel',
+      'mais confiável',
+      'entrada segura',
+      'aposta segura',
       'palpites de hoje',
       'entrada de hoje',
       'qual melhor aposta',
@@ -134,32 +257,15 @@ export class OddixBrainService {
       'o que apostar',
       'tem algo bom',
       'tem jogo bom',
-      'me indica uma entrada',
-      'me recomenda uma aposta',
+      'me indica',
+      'me recomenda',
     ]);
 
-    const asksNews = this.hasAny(text, ['noticia', 'noticias', 'news']);
+    const asksNews = this.hasAny(text, ['noticia', 'noticias', 'news', 'lesao', 'lesão', 'desfalque']);
     const asksVirtual = text.includes('virtual');
     const asksValue = this.hasAny(text, ['value', 'valor de mercado', 'mercado de valor', 'odd justa']);
-    const asksPlayer = this.hasAny(text, [
-      'jogador',
-      'player',
-      'player props',
-      'chute',
-      'finalizacao',
-      'finalização',
-      'marca gol',
-    ]);
-
-    const asksExplain = this.hasAny(text, [
-      'explica',
-      'explique',
-      'por que',
-      'porque',
-      'entender',
-      'me explica',
-    ]);
-
+    const asksPlayer = this.hasAny(text, ['jogador', 'player', 'player props', 'chute', 'finalizacao', 'finalização', 'marca gol']);
+    const asksExplain = this.hasAny(text, ['explica', 'explique', 'por que', 'porque', 'entender', 'me explica']);
     const asksFollowUp = this.hasAny(text, [
       'esse jogo',
       'essa partida',
@@ -172,41 +278,10 @@ export class OddixBrainService {
       'presta',
       'bom pra entrar',
       'tem entrada',
-      'quem jogou',
-      'quem fez gol',
-      'quem marcou',
-      'quando foi',
-      'onde foi',
-      'e depois',
-      'me fala mais',
-      'quem perdeu',
-      'quem participou',
-      'qual foi o placar',
+      'e uma segura',
+      'uma segura',
+      'mais seguro',
     ]);
-
-    const asksGlobalKnowledgeFollowUp =
-      this.hasAny(text, [
-        'quem jogou',
-        'quem fez gol',
-        'quem fez os gols',
-        'de quem foi os gols',
-        'quem marcou',
-        'quando foi',
-        'onde foi',
-        'qual foi o placar',
-        'quanto foi',
-        'e depois',
-        'me fala mais',
-        'me explica melhor',
-        'quem perdeu',
-        'quem participou',
-        'final foi contra quem',
-      ]) &&
-      !hasMatch &&
-      !asksLiveStatus &&
-      !asksBankroll &&
-      !asksMultiple &&
-      !asksTopPicks;
 
     if (asksBankroll) {
       intent = 'BANKROLL';
@@ -216,6 +291,8 @@ export class OddixBrainService {
       reference = context.lastMatch ? 'lastMatch' : 'none';
     } else if (hasMatch) {
       intent = 'MATCH_ANALYSIS';
+    } else if (asksTodayGames) {
+      intent = 'TODAY_GAMES';
     } else if (asksMultiple) {
       intent = 'MULTIPLE';
     } else if (asksTopPicks) {
@@ -231,16 +308,10 @@ export class OddixBrainService {
     } else if (asksExplain) {
       intent = 'EXPLAIN';
       reference = context.lastMatch ? 'lastMatch' : context.lastTicket ? 'lastTicket' : 'none';
-    } else if (asksGlobalKnowledgeFollowUp) {
-      intent = 'GENERAL';
-      reference = 'none';
     } else if (asksFollowUp) {
       if (context.lastMatch || context.lastTicket) {
         intent = 'FOLLOW_UP';
         reference = context.lastMatch ? 'lastMatch' : 'lastTicket';
-      } else {
-        intent = 'GENERAL';
-        reference = 'none';
       }
     } else if (entities.team) {
       intent = 'TEAM';
@@ -264,7 +335,7 @@ export class OddixBrainService {
       shouldUseGlobalAiDirect,
       shouldHumanizeWithGemini: false,
       safetyNotes: [
-        'Oddix Brain usa parser local, sem Gemini.',
+        'Oddix Brain V13 fallback local ativo.',
         'Perguntas de futebol/apostas passam pelo Oddix Engine.',
         'Perguntas gerais podem ser respondidas pelo OddixLlmService configurado com DeepSeek.',
         'Sem dados reais/odds reais = sem entrada oficial.',
@@ -274,10 +345,12 @@ export class OddixBrainService {
   }
 
   private estimateConfidence(intent: OddixBrainIntent, entities: OddixEntities, text: string) {
-    if (intent === 'GENERAL') return 0.62;
+    if (intent === 'GENERAL') return 0.72;
     if (intent === 'MATCH_ANALYSIS' && entities.homeTeam && entities.awayTeam) return 0.95;
     if (intent === 'LIVE' && (entities.team || entities.homeTeam || entities.awayTeam)) return 0.93;
     if (intent === 'LIVE' && text.includes('jogos ao vivo')) return 0.9;
+    if (intent === 'TODAY_GAMES') return 0.91;
+    if (intent === 'TOP_PICKS') return 0.9;
     if (intent === 'BANKROLL' && entities.stake) return 0.93;
     if (intent === 'FOLLOW_UP') return 0.82;
     if (intent === 'TEAM' && entities.team) return 0.86;
@@ -289,24 +362,15 @@ export class OddixBrainService {
     entities: OddixEntities,
     reference?: OddixBrainDecision['reference'],
   ) {
-    if (intent === 'LIVE') {
-      if (entities.team) return `saber status ao vivo de ${entities.team}`;
-      if (entities.homeTeam && entities.awayTeam) {
-        return `saber status ao vivo de ${entities.homeTeam} x ${entities.awayTeam}`;
-      }
-      return 'listar ou acompanhar jogos ao vivo';
-    }
-
+    if (intent === 'TODAY_GAMES') return 'listar jogos reais de hoje';
+    if (intent === 'LIVE') return 'listar ou acompanhar jogos ao vivo';
     if (intent === 'MATCH_ANALYSIS') {
-      if (entities.homeTeam && entities.awayTeam) {
-        return `analisar ${entities.homeTeam} x ${entities.awayTeam}`;
-      }
+      if (entities.homeTeam && entities.awayTeam) return `analisar ${entities.homeTeam} x ${entities.awayTeam}`;
       return 'analisar confronto';
     }
-
     if (intent === 'MULTIPLE') return 'montar múltipla';
     if (intent === 'BANKROLL') return 'calcular retorno, lucro ou gestão de banca';
-    if (intent === 'TOP_PICKS') return 'encontrar melhores entradas';
+    if (intent === 'TOP_PICKS') return 'encontrar melhores entradas com maior confiança';
     if (intent === 'TEAM') return `analisar equipe ${entities.team || ''}`.trim();
     if (intent === 'PLAYER') return 'avaliar jogador ou player props';
     if (intent === 'NEWS') return 'buscar notícias relevantes';
@@ -314,42 +378,23 @@ export class OddixBrainService {
     if (intent === 'VIRTUAL') return 'avaliar futebol virtual';
     if (intent === 'EXPLAIN') return `explicar contexto ${reference || ''}`.trim();
     if (intent === 'FOLLOW_UP') return `continuar contexto ${reference || ''}`.trim();
-
     return 'responder pergunta geral';
   }
 
   private detectRiskMode(text: string): OddixBrainRiskMode {
-    if (
-      this.hasAny(text, [
-        'segura',
-        'seguro',
-        'conservadora',
-        'conservador',
-        'baixo risco',
-        'sem risco',
-      ])
-    ) {
+    if (this.hasAny(text, ['segura', 'seguro', 'conservadora', 'conservador', 'baixo risco', 'sem risco'])) {
       return 'safe';
     }
 
-    if (
-      this.hasAny(text, [
-        'agressiva',
-        'agressivo',
-        'odd maior',
-        'alto risco',
-        'arriscar',
-        'risco alto',
-      ])
-    ) {
+    if (this.hasAny(text, ['agressiva', 'agressivo', 'alto risco', 'odd alta', 'mais retorno'])) {
       return 'aggressive';
     }
 
     return 'balanced';
   }
 
-  private hasAny(text: string, keywords: string[]) {
-    return keywords.some((keyword) => text.includes(this.normalize(keyword)));
+  private hasAny(text: string, terms: string[]) {
+    return terms.some((term) => text.includes(this.normalize(term)));
   }
 
   private normalize(value: string) {
@@ -357,7 +402,7 @@ export class OddixBrainService {
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/[^\w\s]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   }
