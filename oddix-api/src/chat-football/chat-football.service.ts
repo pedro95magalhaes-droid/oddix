@@ -1143,7 +1143,7 @@ Responda à pergunta atual considerando o contexto anterior quando ela for curta
     if (!teams) return null;
 
     try {
-      const fixtures = await this.getFixturesWindow(3, 7);
+      const fixtures = await this.getMatchSearchFixtures(3, 7);
       const research = await this.researchMatchSafe(teams.home, teams.away);
       const match = this.findMatch(fixtures, teams.home, teams.away);
 
@@ -1775,6 +1775,41 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
     });
   }
 
+
+  private async getMatchSearchFixtures(daysBack = 3, daysForward = 7): Promise<any[]> {
+    const windowFixtures = await this.getFixturesWindow(daysBack, daysForward);
+    const service: any = this.footballService as any;
+    const liveFixtures: any[] = [];
+    const liveMethods = [
+      () => service?.getLiveFixturesFromFlashScore?.(),
+      () => service?.getLiveFixtures?.(),
+      () => service?.getLiveMatches?.(),
+      () => service?.getLive?.(),
+    ];
+
+    for (const method of liveMethods) {
+      try {
+        const response = await method();
+        liveFixtures.push(...this.extractFixtureArray(response));
+      } catch {
+        // ignora fonte live indisponível
+      }
+    }
+
+    const seen = new Set<string>();
+    return [...liveFixtures, ...windowFixtures].filter((game: any) => {
+      const id = String(
+        game?.fixture?.id ||
+          game?.fixture?.externalId ||
+          game?.fixture?.external_id ||
+          `${this.getFixtureHomeName(game)}-${this.getFixtureAwayName(game)}-${game?.fixture?.date || ''}`,
+      );
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }
+
   private async getFlashScoreRichContextSafe(fixtureId: string, fixture: any): Promise<FlashScoreRichContext | null> {
     if (!fixtureId || !this.footballService) return null;
 
@@ -2234,10 +2269,14 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
         (home.includes(awayQuery) && away.includes(homeQuery)) ||
         (homeQuery.includes(home) && awayQuery.includes(away)) ||
         (homeQuery.includes(away) && awayQuery.includes(home)) ||
-        (combined.includes(queryCombined)) ||
-        (reversed.includes(queryCombined)) ||
-        (queryCombined.includes(combined) && home.length >= 3 && away.length >= 3) ||
-        (queryReversed.includes(combined) && home.length >= 3 && away.length >= 3)
+        combined.includes(queryCombined) ||
+        reversed.includes(queryCombined) ||
+        queryCombined.includes(combined) ||
+        queryCombined.includes(reversed) ||
+        queryReversed.includes(combined) ||
+        queryReversed.includes(reversed) ||
+        (queryCombined.includes(home) && queryCombined.includes(away) && home.length >= 3 && away.length >= 3) ||
+        (queryReversed.includes(home) && queryReversed.includes(away) && home.length >= 3 && away.length >= 3)
       );
     }) || null;
   }
@@ -2460,9 +2499,11 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
 
   private sanitizeMatchQuery(message: string) {
     return String(message || '')
+      .replace(/[–—]/g, ' ')
       .replace(/\b\d+\s*x\s*\d+\b/gi, ' x ')
       .replace(/\b\d+\s*-\s*\d+\b/gi, ' x ')
       .replace(/\b\d+\s*:\s*\d+\b/gi, ' x ')
+      .replace(/\b\d+\b/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -2493,7 +2534,7 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
       .replace(/player props/gi, '')
       .trim();
 
-    for (const separator of [' x ', ' vs ', ' versus ', ' contra ']) {
+    for (const separator of [' x ', ' vs ', ' v ', ' versus ', ' contra ']) {
       const normalized = cleaned.toLowerCase();
       if (normalized.includes(separator)) {
         const parts = normalized.split(separator);

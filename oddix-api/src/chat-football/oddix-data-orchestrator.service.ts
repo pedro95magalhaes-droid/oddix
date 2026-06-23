@@ -398,7 +398,7 @@ Sem inventar odds, estatísticas ou mercados oficiais.`,
     decision?: OddixBrainDecision,
   ): Promise<OddixDataOrchestratorResponse> {
     const research = await this.runResearch(message, decision, `${homeQuery} x ${awayQuery}`);
-    const fixtures = await this.getFixturesWindow(3, 7);
+    const fixtures = await this.getMatchSearchFixtures(3, 7);
     const match = this.findMatch(fixtures, homeQuery, awayQuery);
 
     if (!match) {
@@ -417,9 +417,9 @@ Sem inventar odds, estatísticas ou mercados oficiais.`,
           decision,
         },
         suggestions: [
-          'Mostrar jogos de hoje',
           'Mostrar jogos ao vivo',
-          'Top Picks de hoje',
+          'Mostrar jogos de hoje',
+          `Tentar ${homeQuery} x ${awayQuery} novamente`,
         ],
       };
     }
@@ -734,6 +734,14 @@ ${userMessage}`,
     return this.uniqueFixtures(all);
   }
 
+
+  private async getMatchSearchFixtures(daysBack = 3, daysForward = 7) {
+    const windowFixtures = await this.getFixturesWindow(daysBack, daysForward);
+    const liveFixtures = await this.getLiveFixtures().catch(() => []);
+
+    return this.uniqueFixtures([...liveFixtures, ...windowFixtures]);
+  }
+
   private async enrichFixtures(fixtures: any[]) {
     const enriched: any[] = [];
 
@@ -819,15 +827,18 @@ ${userMessage}`,
     }
 
     const sanitized = String(message || '')
+      .replace(/[–—]/g, ' ')
       .replace(/\b\d+\s*x\s*\d+\b/gi, ' x ')
       .replace(/\b\d+\s*-\s*\d+\b/gi, ' x ')
       .replace(/\b\d+\s*:\s*\d+\b/gi, ' x ')
+      .replace(/\b\d+\b/g, ' ')
       .replace(/analisa|analisar|analise|análise/gi, '')
+      .replace(/\s+/g, ' ')
       .trim();
 
     const normalizedOriginal = sanitized.toLowerCase();
 
-    for (const separator of [' x ', ' vs ', ' versus ', ' contra ']) {
+    for (const separator of [' x ', ' vs ', ' v ', ' versus ', ' contra ']) {
       if (normalizedOriginal.includes(separator)) {
         const parts = normalizedOriginal.split(separator);
         if (parts[0]?.trim() && parts[1]?.trim()) {
@@ -863,8 +874,12 @@ ${userMessage}`,
         (homeQuery.includes(away) && awayQuery.includes(home)) ||
         combined.includes(queryCombined) ||
         reversed.includes(queryCombined) ||
-        (queryCombined.includes(combined) && home.length >= 3 && away.length >= 3) ||
-        (queryReversed.includes(combined) && home.length >= 3 && away.length >= 3)
+        queryCombined.includes(combined) ||
+        queryCombined.includes(reversed) ||
+        queryReversed.includes(combined) ||
+        queryReversed.includes(reversed) ||
+        (queryCombined.includes(home) && queryCombined.includes(away) && home.length >= 3 && away.length >= 3) ||
+        (queryReversed.includes(home) && queryReversed.includes(away) && home.length >= 3 && away.length >= 3)
       );
     }) || null;
   }
