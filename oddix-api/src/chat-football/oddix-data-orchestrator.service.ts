@@ -1,12 +1,8 @@
-import { Injectable, Logger, Optional } from "@nestjs/common";
-import { FootballService } from "../football/football.service";
-import {
-  FootballResearchService,
-  ResearchResult,
-  WebOddsResult,
-} from "./football-research.service";
-import { OddixLlmService, OddixLlmMessage } from "./oddix-llm.service";
-import { OddixBrainService, OddixBrainDecision } from "./oddix-brain.service";
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { FootballService } from '../football/football.service';
+import { FootballResearchService, ResearchResult } from './football-research.service';
+import { OddixLlmService, OddixLlmMessage } from './oddix-llm.service';
+import { OddixBrainService, OddixBrainDecision } from './oddix-brain.service';
 
 export type OddixDataOrchestratorResponse = {
   handled: boolean;
@@ -26,16 +22,13 @@ export class OddixDataOrchestratorService {
     @Optional() private readonly brainService?: OddixBrainService,
   ) {}
 
-  async answer(
-    message: string,
-    sessionId = "anonymous",
-  ): Promise<OddixDataOrchestratorResponse> {
+  async answer(message: string, sessionId = 'anonymous'): Promise<OddixDataOrchestratorResponse> {
     const decision =
       (await this.brainService?.think(message, sessionId).catch(() => null)) ||
       this.localDecision(message);
 
     try {
-      if (decision.intent === "GENERAL") {
+      if (decision.intent === 'GENERAL') {
         if (this.shouldResearch(decision, message)) {
           return this.answerGeneralFootball(message, decision);
         }
@@ -43,77 +36,57 @@ export class OddixDataOrchestratorService {
         return this.answerGeneral(message);
       }
 
-      if (decision.intent === "LIVE") {
+      if (decision.intent === 'LIVE') {
         return this.answerLiveGames(message, decision);
       }
 
-      if (decision.intent === "TODAY_GAMES") {
+      if (decision.intent === 'TODAY_GAMES') {
         return this.answerTodayGames(message, decision);
       }
 
-      if (decision.intent === "TOP_PICKS") {
+      if (decision.intent === 'TOP_PICKS') {
         return this.answerTopPicks(message, decision);
       }
 
-      if (decision.intent === "MATCH_ANALYSIS") {
+      if (decision.intent === 'MATCH_ANALYSIS') {
         const teams = this.extractTeams(message, decision);
-        if (teams)
-          return this.answerMatchQuestion(
-            message,
-            teams.home,
-            teams.away,
-            decision,
-          );
+        if (teams) return this.answerMatchQuestion(message, teams.home, teams.away, decision);
         return this.answerTodayGames(message, decision);
       }
 
-      if (decision.intent === "MULTIPLE") {
+      if (decision.intent === 'MULTIPLE') {
         return this.answerMultiple(message, decision);
       }
 
-      if (decision.intent === "FOLLOW_UP") {
+      if (decision.intent === 'FOLLOW_UP') {
         return this.answerFollowUp(message, decision);
       }
 
-      if (
-        [
-          "TEAM",
-          "NEWS",
-          "PLAYER",
-          "VALUE_BETS",
-          "VIRTUAL",
-          "EXPLAIN",
-          "BANKROLL",
-        ].includes(decision.intent)
-      ) {
+      if (['TEAM', 'NEWS', 'PLAYER', 'VALUE_BETS', 'VIRTUAL', 'EXPLAIN', 'BANKROLL'].includes(decision.intent)) {
         return this.answerGeneralFootball(message, decision);
       }
 
       return this.answerGeneral(message);
     } catch (error: any) {
-      this.logger.warn(
-        `[ODDIX_ORCHESTRATOR] falhou: ${error?.message || error}`,
-      );
+      this.logger.warn(`[ODDIX_ORCHESTRATOR] falhou: ${error?.message || error}`);
 
       return {
         handled: true,
         answer:
-          "⚠️ Tentei buscar dados reais agora, mas não consegui validar a base Oddix neste momento. Não vou inventar jogos, odds ou estatísticas.",
+          '⚠️ Tentei buscar dados reais agora, mas não consegui validar a base Oddix neste momento. Não vou inventar jogos, odds ou estatísticas.',
         data: {
           waitingForData: true,
-          error: error?.message || "orchestrator_failed",
+          error: error?.message || 'orchestrator_failed',
           decision,
         },
       };
     }
   }
 
-  private async answerGeneral(
-    message: string,
-  ): Promise<OddixDataOrchestratorResponse> {
+  private async answerGeneral(message: string): Promise<OddixDataOrchestratorResponse> {
     const answer = await this.humanizeWithDeepSeek(
       message,
-      "Pergunta geral, sem necessidade obrigatória de dados atuais de futebol.",
+      'Pergunta geral, sem necessidade obrigatória de dados atuais de futebol.',
       `Responda como um assistente inteligente e natural.
 Se a pergunta for sobre apostas ou jogos atuais, avise que precisa consultar a base Oddix.
 Se for conhecimento geral, responda normalmente.`,
@@ -123,7 +96,7 @@ Se for conhecimento geral, responda normalmente.`,
       handled: true,
       answer:
         answer ||
-        "Posso te ajudar com futebol, apostas, análise de jogos, múltiplas, gestão de banca ou perguntas gerais. Me diga o que você quer analisar.",
+        'Posso te ajudar com futebol, apostas, análise de jogos, múltiplas, gestão de banca ou perguntas gerais. Me diga o que você quer analisar.',
       data: { general: true },
     };
   }
@@ -138,10 +111,8 @@ Se for conhecimento geral, responda normalmente.`,
       {
         decision,
         research,
-        todayFixtures: fixtures
-          .slice(0, 20)
-          .map((fixture) => this.simplifyFixture(fixture)),
-        rule: "Use primeiro a pesquisa web quando a pergunta pedir informação factual atual. Use os jogos das APIs somente se forem relevantes. Se faltar dado, diga claramente.",
+        todayFixtures: fixtures.slice(0, 20).map((fixture) => this.simplifyFixture(fixture)),
+        rule: 'Use primeiro a pesquisa web quando a pergunta pedir informação factual atual. Use os jogos das APIs somente se forem relevantes. Se faltar dado, diga claramente.',
       },
       null,
       2,
@@ -150,14 +121,12 @@ Se for conhecimento geral, responda normalmente.`,
     const answer = await this.humanizeWithDeepSeek(
       message,
       context,
-      "Responda de forma natural, como ChatGPT. Para informação factual atual, use a pesquisa web e/ou APIs fornecidas. Não invente dado fora do contexto.",
+      'Responda de forma natural, como ChatGPT. Para informação factual atual, use a pesquisa web e/ou APIs fornecidas. Não invente dado fora do contexto.',
     );
 
     return {
       handled: true,
-      answer:
-        answer ||
-        "Não consegui montar uma resposta completa com dados reais agora.",
+      answer: answer || 'Não consegui montar uma resposta completa com dados reais agora.',
       data: { decision, research, fixtures },
     };
   }
@@ -170,9 +139,7 @@ Se for conhecimento geral, responda normalmente.`,
     let fixtures = await this.getTodayFixtures();
 
     if (this.asksForCup(message)) {
-      const cupFixtures = fixtures.filter((game) =>
-        this.isCupCompetition(game),
-      );
+      const cupFixtures = fixtures.filter((game) => this.isCupCompetition(game));
 
       if (cupFixtures.length) {
         fixtures = cupFixtures;
@@ -180,18 +147,13 @@ Se for conhecimento geral, responda normalmente.`,
     }
 
     if (!fixtures.length) {
-      const researchAnswer = await this.answerFromResearchOnly(
-        message,
-        research,
-        decision,
-        "jogos de hoje",
-      );
+      const researchAnswer = await this.answerFromResearchOnly(message, research, decision, 'jogos de hoje');
       if (researchAnswer) return researchAnswer;
 
       return {
         handled: true,
         answer:
-          "⚽ Não encontrei jogos reais confirmados na base Oddix nem consegui validar pela pesquisa em tempo real agora. Não vou inventar partidas.",
+          '⚽ Não encontrei jogos reais confirmados na base Oddix nem consegui validar pela pesquisa em tempo real agora. Não vou inventar partidas.',
         data: {
           waitingForData: true,
           fixtures: [],
@@ -199,19 +161,14 @@ Se for conhecimento geral, responda normalmente.`,
           decision,
         },
         suggestions: [
-          "Mostrar jogos ao vivo",
-          "Top Picks de hoje",
-          "Analisar um jogo específico",
+          'Mostrar jogos ao vivo',
+          'Top Picks de hoje',
+          'Analisar um jogo específico',
         ],
       };
     }
 
-    const context = this.buildFixturesContext(
-      fixtures,
-      "jogos de hoje",
-      decision,
-      research,
-    );
+    const context = this.buildFixturesContext(fixtures, 'jogos de hoje', decision, research);
     const answer = await this.humanizeWithDeepSeek(
       message,
       context,
@@ -223,20 +180,15 @@ Se não houver Copa nos dados filtrados, diga que a base não confirmou jogos de
 
     return {
       handled: true,
-      answer:
-        answer ||
-        this.formatFixturesList(
-          fixtures,
-          "⚽ Jogos encontrados hoje na base Oddix",
-        ),
+      answer: answer || this.formatFixturesList(fixtures, '⚽ Jogos encontrados hoje na base Oddix'),
       data: {
         fixtures,
         research,
         decision,
       },
       suggestions: fixtures.slice(0, 4).map((game: any) => {
-        const home = game?.teams?.home?.name || game?.homeTeam || "Casa";
-        const away = game?.teams?.away?.name || game?.awayTeam || "Fora";
+        const home = game?.teams?.home?.name || game?.homeTeam || 'Casa';
+        const away = game?.teams?.away?.name || game?.awayTeam || 'Fora';
         return `Analise ${home} x ${away}`;
       }),
     };
@@ -250,18 +202,13 @@ Se não houver Copa nos dados filtrados, diga que a base não confirmou jogos de
     const fixtures = await this.getLiveFixtures();
 
     if (!fixtures.length) {
-      const researchAnswer = await this.answerFromResearchOnly(
-        message,
-        research,
-        decision,
-        "jogos ao vivo",
-      );
+      const researchAnswer = await this.answerFromResearchOnly(message, research, decision, 'jogos ao vivo');
       if (researchAnswer) return researchAnswer;
 
       return {
         handled: true,
         answer:
-          "⚡ Não encontrei jogos ao vivo/ativos na base Oddix nem consegui validar pela pesquisa em tempo real agora. Não vou inventar placar.",
+          '⚡ Não encontrei jogos ao vivo/ativos na base Oddix nem consegui validar pela pesquisa em tempo real agora. Não vou inventar placar.',
         data: {
           waitingForData: true,
           fixtures: [],
@@ -269,41 +216,52 @@ Se não houver Copa nos dados filtrados, diga que a base não confirmou jogos de
           decision,
         },
         suggestions: [
-          "Mostrar jogos de hoje",
-          "Top Picks de hoje",
-          "Analisar um jogo específico",
+          'Mostrar jogos de hoje',
+          'Top Picks de hoje',
+          'Analisar um jogo específico',
         ],
       };
     }
 
-    const context = this.buildFixturesContext(
-      fixtures,
-      "jogos ao vivo",
-      decision,
-      research,
+    const enriched = await this.enrichFixtures(fixtures.slice(0, 12));
+    const context = JSON.stringify(
+      {
+        pergunta: message,
+        decision,
+        research,
+        liveFixtures: fixtures.slice(0, 25).map((game: any) => this.simplifyFixture(game)),
+        richLiveContext: enriched.map((item: any) => ({
+          fixture: this.simplifyFixture(item.fixture),
+          rich: this.simplifyRichContext(item.rich),
+        })),
+        rule:
+          'Para jogos ao vivo, use pressão, posse, finalizações, escanteios, ataques perigosos e odds somente se estiverem em richLiveContext. Se não estiverem, diga claramente que não foram validados. Não invente estatísticas.',
+      },
+      null,
+      2,
     );
     const answer = await this.humanizeWithDeepSeek(
       message,
       context,
-      "Liste os jogos ao vivo encontrados usando apenas os dados fornecidos. Inclua placar, minuto/status e competição quando disponível. Não invente partidas.",
+      `Responda como analista live profissional da Oddix.
+Se houver statisticsSummary/pressureSummary, destaque pressão, posse, finalizações, chutes no gol, escanteios e ataques perigosos.
+Se houver oddsSummary, cite as odds validadas.
+Se não houver dados ricos, liste apenas placar/minuto/competição e diga que não há entrada oficial.
+Nunca invente posse, escanteios, finalizações, odds ou pressão.`,
     );
 
     return {
       handled: true,
-      answer:
-        answer ||
-        this.formatFixturesList(
-          fixtures,
-          "⚡ Jogos ao vivo/ativos na base Oddix",
-        ),
+      answer: answer || this.formatFixturesList(fixtures, '⚡ Jogos ao vivo/ativos na base Oddix'),
       data: {
         fixtures,
+        enriched,
         research,
         decision,
       },
       suggestions: fixtures.slice(0, 4).map((game: any) => {
-        const home = game?.teams?.home?.name || game?.homeTeam || "Casa";
-        const away = game?.teams?.away?.name || game?.awayTeam || "Fora";
+        const home = game?.teams?.home?.name || game?.homeTeam || 'Casa';
+        const away = game?.teams?.away?.name || game?.awayTeam || 'Fora';
         return `Como está ${home} x ${away}?`;
       }),
     };
@@ -320,15 +278,13 @@ Se não houver Copa nos dados filtrados, diga que a base não confirmou jogos de
       return {
         handled: true,
         answer:
-          "🎯 Não encontrei jogos suficientes na base Oddix para escolher uma entrada de confiança hoje.\n\nSem jogo real, odds e estatísticas mínimas, não vou inventar aposta.",
+          '🎯 Não encontrei jogos suficientes na base Oddix para escolher uma entrada de confiança hoje.\n\nSem jogo real, odds e estatísticas mínimas, não vou inventar aposta.',
         data: { waitingForData: true, fixtures: [], research, decision },
       };
     }
 
     const enriched = await this.enrichFixtures(fixtures.slice(0, 10));
-    const candidates = enriched
-      .map((item) => this.scoreCandidate(item))
-      .sort((a, b) => b.score - a.score);
+    const candidates = enriched.map((item) => this.scoreCandidate(item)).sort((a, b) => b.score - a.score);
 
     const context = JSON.stringify(
       {
@@ -336,7 +292,8 @@ Se não houver Copa nos dados filtrados, diga que a base não confirmou jogos de
         decision,
         research,
         candidates: candidates.slice(0, 8),
-        rule: "Escolha a melhor entrada apenas se houver dados suficientes. Sem odds reais ou estatísticas completas, deixe como observação, não como entrada oficial.",
+        rule:
+          'Escolha a melhor entrada apenas se houver dados suficientes. Sem odds reais ou estatísticas completas, deixe como observação, não como entrada oficial.',
       },
       null,
       2,
@@ -360,11 +317,7 @@ Não invente odd. Não invente estatística. Se faltar dado, diga "observação,
       handled: true,
       answer: answer || this.localTopPick(candidates),
       data: { fixtures, research, candidates, decision },
-      suggestions: [
-        "Monte uma múltipla segura",
-        "Quero uma opção mais agressiva",
-        "Quanto ganho com R$50?",
-      ],
+      suggestions: ['Monte uma múltipla segura', 'Quero uma opção mais agressiva', 'Quanto ganho com R$50?'],
     };
   }
 
@@ -375,9 +328,7 @@ Não invente odd. Não invente estatística. Se faltar dado, diga "observação,
     const research = await this.runResearch(message, decision);
     const fixtures = await this.getTodayFixtures();
     const enriched = await this.enrichFixtures(fixtures.slice(0, 12));
-    const candidates = enriched
-      .map((item) => this.scoreCandidate(item))
-      .sort((a, b) => b.score - a.score);
+    const candidates = enriched.map((item) => this.scoreCandidate(item)).sort((a, b) => b.score - a.score);
 
     const context = JSON.stringify(
       {
@@ -385,7 +336,8 @@ Não invente odd. Não invente estatística. Se faltar dado, diga "observação,
         decision,
         research,
         candidates: candidates.slice(0, 10),
-        rule: "Monte múltipla somente com jogos reais fornecidos. Se faltar odds reais, apresente como sugestão observada sem entrada oficial.",
+        rule:
+          'Monte múltipla somente com jogos reais fornecidos. Se faltar odds reais, apresente como sugestão observada sem entrada oficial.',
       },
       null,
       2,
@@ -420,7 +372,7 @@ Sem inventar odds, estatísticas ou mercados oficiais.`,
       {
         pergunta: message,
         decision,
-        rule: "É uma continuação de conversa. Use o contexto salvo pelo Brain quando houver. Se faltar contexto, peça o jogo novamente.",
+        rule: 'É uma continuação de conversa. Use o contexto salvo pelo Brain quando houver. Se faltar contexto, peça o jogo novamente.',
       },
       null,
       2,
@@ -429,14 +381,12 @@ Sem inventar odds, estatísticas ou mercados oficiais.`,
     const answer = await this.humanizeWithDeepSeek(
       message,
       context,
-      "Responda como continuação natural. Se a pergunta depender de jogo anterior e ele não estiver nos dados, peça o confronto novamente.",
+      'Responda como continuação natural. Se a pergunta depender de jogo anterior e ele não estiver nos dados, peça o confronto novamente.',
     );
 
     return {
       handled: true,
-      answer:
-        answer ||
-        "Me manda novamente o jogo ou bilhete para eu continuar a análise com segurança.",
+      answer: answer || 'Me manda novamente o jogo ou bilhete para eu continuar a análise com segurança.',
       data: { decision },
     };
   }
@@ -447,26 +397,18 @@ Sem inventar odds, estatísticas ou mercados oficiais.`,
     awayQuery: string,
     decision?: OddixBrainDecision,
   ): Promise<OddixDataOrchestratorResponse> {
-    const research = await this.runResearch(
-      message,
-      decision,
-      `${homeQuery} x ${awayQuery}`,
-    );
+    const research = await this.runResearch(message, decision, `${homeQuery} x ${awayQuery}`);
     const fixtures = await this.getFixturesWindow(3, 7);
     const match = this.findMatch(fixtures, homeQuery, awayQuery);
 
     if (!match) {
-      const researchAnswer = await this.answerFromResearchOnly(
-        message,
-        research,
-        decision,
-        `${homeQuery} x ${awayQuery}`,
-      );
+      const researchAnswer = await this.answerFromResearchOnly(message, research, decision, `${homeQuery} x ${awayQuery}`);
       if (researchAnswer) return researchAnswer;
 
       return {
         handled: true,
-        answer: `⚽ Procurei ${homeQuery} x ${awayQuery} na base Oddix e na pesquisa em tempo real, mas não consegui confirmar dados suficientes.\n\nSem partida real, odds e estatísticas, não libero análise nem entrada oficial.`,
+        answer:
+          `⚽ Procurei ${homeQuery} x ${awayQuery} na base Oddix e na pesquisa em tempo real, mas não consegui confirmar dados suficientes.\n\nSem partida real, odds e estatísticas, não libero análise nem entrada oficial.`,
         data: {
           waitingForData: true,
           homeQuery,
@@ -475,21 +417,15 @@ Sem inventar odds, estatísticas ou mercados oficiais.`,
           decision,
         },
         suggestions: [
-          "Mostrar jogos de hoje",
-          "Mostrar jogos ao vivo",
-          "Top Picks de hoje",
+          'Mostrar jogos de hoje',
+          'Mostrar jogos ao vivo',
+          'Top Picks de hoje',
         ],
       };
     }
 
-    const fixtureId = String(match?.fixture?.id || match?.id || "");
+    const fixtureId = String(match?.fixture?.id || match?.id || '');
     const richContext = await this.getRichContext(fixtureId, match);
-    const webOdds = await this.getWebOddsFallback(
-      homeQuery,
-      awayQuery,
-      richContext,
-      research,
-    );
 
     const context = JSON.stringify(
       {
@@ -497,10 +433,9 @@ Sem inventar odds, estatísticas ou mercados oficiais.`,
         decision,
         jogo: this.simplifyFixture(match),
         research,
-        webOdds,
         contextoRico: this.simplifyRichContext(richContext),
         regra:
-          "Use dados reais da API e, quando odds da API faltarem, use webOdds somente se found=true. Se odds não existirem em API nem webOdds, bloqueie entrada oficial. Nunca invente mercado ou odd.",
+          'Use apenas estes dados reais. Se odds, estatísticas, H2H ou escalações estiverem ausentes, diga que não há entrada oficial.',
       },
       null,
       2,
@@ -518,25 +453,24 @@ Formato:
 ⚠️ Riscos
 🧠 Conclusão Oddix
 
-Nunca invente odds, estatísticas, escalações ou resultado. Se faltar odd real em API e webOdds, bloqueie entrada oficial. Se usar webOdds, avise para confirmar a cotação na casa de apostas.`,
+Nunca invente odds, estatísticas, escalações ou resultado. Se faltar dado real, bloqueie entrada oficial.`,
     );
 
     return {
       handled: true,
-      answer: answer || this.localMatchAnalysis(match, richContext, webOdds),
+      answer: answer || this.localMatchAnalysis(match, richContext),
       data: {
         fixture: match,
         richContext,
         research,
-        webOdds,
-        waitingForData: !richContext?.ok && !webOdds?.found,
+        waitingForData: !richContext?.ok,
         decision,
       },
       suggestions: [
-        "Esse jogo presta?",
-        "Me dá uma opção segura",
-        "Monte uma múltipla",
-        "Quanto ganho com R$50?",
+        'Esse jogo presta?',
+        'Me dá uma opção segura',
+        'Monte uma múltipla',
+        'Quanto ganho com R$50?',
       ],
     };
   }
@@ -559,55 +493,52 @@ Nunca invente odds, estatísticas, escalações ou resultado. Se faltar odd real
         enabled: true,
         query,
         items: [],
-        summary: `Pesquisa em tempo real falhou: ${error?.message || "erro desconhecido"}`,
+        summary: `Pesquisa em tempo real falhou: ${error?.message || 'erro desconhecido'}`,
       };
     }
   }
 
-  private shouldResearch(
-    decision: OddixBrainDecision | undefined,
-    message: string,
-  ) {
-    const intent = decision?.intent || "GENERAL";
+  private shouldResearch(decision: OddixBrainDecision | undefined, message: string) {
+    const intent = decision?.intent || 'GENERAL';
     const text = this.normalize(message);
 
     const researchIntents = new Set([
-      "TODAY_GAMES",
-      "LIVE",
-      "NEWS",
-      "TEAM",
-      "PLAYER",
-      "MATCH_ANALYSIS",
-      "TOP_PICKS",
-      "MULTIPLE",
-      "VALUE_BETS",
-      "FOLLOW_UP",
+      'TODAY_GAMES',
+      'LIVE',
+      'NEWS',
+      'TEAM',
+      'PLAYER',
+      'MATCH_ANALYSIS',
+      'TOP_PICKS',
+      'MULTIPLE',
+      'VALUE_BETS',
+      'FOLLOW_UP',
     ]);
 
     if (researchIntents.has(intent)) return true;
 
     return this.hasAny(text, [
-      "hoje",
-      "agora",
-      "ao vivo",
-      "jogos",
-      "classificacao",
-      "classificação",
-      "tabela",
-      "escalação",
-      "escalacao",
-      "noticia",
-      "notícia",
-      "lesao",
-      "lesão",
-      "desfalque",
-      "copa",
-      "mundial",
-      "world cup",
-      "fifa",
-      "resultado",
-      "proximo jogo",
-      "próximo jogo",
+      'hoje',
+      'agora',
+      'ao vivo',
+      'jogos',
+      'classificacao',
+      'classificação',
+      'tabela',
+      'escalação',
+      'escalacao',
+      'noticia',
+      'notícia',
+      'lesao',
+      'lesão',
+      'desfalque',
+      'copa',
+      'mundial',
+      'world cup',
+      'fifa',
+      'resultado',
+      'proximo jogo',
+      'próximo jogo',
     ]);
   }
 
@@ -617,29 +548,23 @@ Nunca invente odds, estatísticas, escalações ou resultado. Se faltar odd real
     forcedQuery?: string,
   ) {
     const base = this.cleanResearchQuery(forcedQuery || message);
-    const intent = decision?.intent || "GENERAL";
+    const intent = decision?.intent || 'GENERAL';
 
-    if (intent === "TODAY_GAMES")
-      return `${base} futebol jogos hoje calendário partidas oficiais`;
-    if (intent === "LIVE") return `${base} futebol ao vivo placar agora status`;
-    if (intent === "NEWS")
-      return `${base} futebol notícias escalações lesões desfalques hoje`;
-    if (intent === "TEAM")
-      return `${base} futebol próximos jogos classificação notícias elenco`;
-    if (intent === "PLAYER")
-      return `${base} jogador futebol notícias escalação estatísticas`;
-    if (intent === "MATCH_ANALYSIS")
-      return `${base} futebol escalações estatísticas odds notícias`;
-    if (intent === "TOP_PICKS" || intent === "MULTIPLE")
-      return `${base} futebol jogos hoje odds estatísticas calendário`;
+    if (intent === 'TODAY_GAMES') return `${base} futebol jogos hoje calendário partidas oficiais`;
+    if (intent === 'LIVE') return `${base} futebol ao vivo placar agora status`;
+    if (intent === 'NEWS') return `${base} futebol notícias escalações lesões desfalques hoje`;
+    if (intent === 'TEAM') return `${base} futebol próximos jogos classificação notícias elenco`;
+    if (intent === 'PLAYER') return `${base} jogador futebol notícias escalação estatísticas`;
+    if (intent === 'MATCH_ANALYSIS') return `${base} futebol escalações estatísticas odds notícias`;
+    if (intent === 'TOP_PICKS' || intent === 'MULTIPLE') return `${base} futebol jogos hoje odds estatísticas calendário`;
 
     return `${base} futebol notícias jogos hoje`;
   }
 
   private cleanResearchQuery(value: string) {
-    return String(value || "")
-      .replace(/[\n\r\t]+/g, " ")
-      .replace(/\s+/g, " ")
+    return String(value || '')
+      .replace(/[\n\r\t]+/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 180);
   }
@@ -657,7 +582,8 @@ Nunca invente odds, estatísticas, escalações ou resultado. Se faltar odd real
         label,
         decision,
         research,
-        rule: "A API de futebol não retornou dados, mas a pesquisa web retornou fontes. Use somente títulos, descrições e fontes abaixo. Não crie placares, odds, escalações ou horários que não estejam explícitos.",
+        rule:
+          'A API de futebol não retornou dados, mas a pesquisa web retornou fontes. Use somente títulos, descrições e fontes abaixo. Não crie placares, odds, escalações ou horários que não estejam explícitos.',
       },
       null,
       2,
@@ -688,28 +614,24 @@ ${research.summary}
         decision,
       },
       suggestions: [
-        "Mostrar jogos de hoje",
-        "Ver jogos ao vivo",
-        "Analisar um jogo específico",
+        'Mostrar jogos de hoje',
+        'Ver jogos ao vivo',
+        'Analisar um jogo específico',
       ],
     };
   }
 
-  private async humanizeWithDeepSeek(
-    userMessage: string,
-    realContext: string,
-    instruction: string,
-  ) {
+  private async humanizeWithDeepSeek(userMessage: string, realContext: string, instruction: string) {
     if (!this.llmService?.isEnabled()) return null;
 
     const messages: OddixLlmMessage[] = [
       {
-        role: "system",
+        role: 'system',
         content:
-          "Você é a IA Oddix Chat V13. Responda em português do Brasil, natural, direto e inteligente. Nunca invente dados atuais. Para futebol, use somente dados reais fornecidos pela pesquisa web e pelas APIs do backend. Se faltar dado, diga claramente.",
+          'Você é a IA Oddix Chat V13. Responda em português do Brasil, natural, direto e inteligente. Nunca invente dados atuais. Para futebol, use somente dados reais fornecidos pela pesquisa web e pelas APIs do backend. Se faltar dado, diga claramente.',
       },
       {
-        role: "user",
+        role: 'user',
         content: `${instruction}
 
 Dados reais/contexto do backend:
@@ -730,29 +652,14 @@ ${userMessage}`,
     const service: any = this.footballService as any;
 
     const methods = [
-      { name: "getFixtures", call: () => service.getFixtures?.(today) },
-      { name: "getTodayFixtures", call: () => service.getTodayFixtures?.() },
-      { name: "getTodayMatches", call: () => service.getTodayMatches?.() },
-      {
-        name: "getMatchesByDate",
-        call: () => service.getMatchesByDate?.(today),
-      },
-      {
-        name: "getFlashScoreToday",
-        call: () => service.getFlashScoreToday?.(),
-      },
-      {
-        name: "getFlashScoreFixtures",
-        call: () => service.getFlashScoreFixtures?.(today),
-      },
-      {
-        name: "getFlashScoreMatches",
-        call: () => service.getFlashScoreMatches?.(today),
-      },
-      {
-        name: "getAllTodayFixtures",
-        call: () => service.getAllTodayFixtures?.(),
-      },
+      { name: 'getFixtures', call: () => service.getFixtures?.(today) },
+      { name: 'getTodayFixtures', call: () => service.getTodayFixtures?.() },
+      { name: 'getTodayMatches', call: () => service.getTodayMatches?.() },
+      { name: 'getMatchesByDate', call: () => service.getMatchesByDate?.(today) },
+      { name: 'getFlashScoreToday', call: () => service.getFlashScoreToday?.() },
+      { name: 'getFlashScoreFixtures', call: () => service.getFlashScoreFixtures?.(today) },
+      { name: 'getFlashScoreMatches', call: () => service.getFlashScoreMatches?.(today) },
+      { name: 'getAllTodayFixtures', call: () => service.getAllTodayFixtures?.() },
     ];
 
     const allFixtures: any[] = [];
@@ -763,9 +670,7 @@ ${userMessage}`,
         const fixtures = this.extractFixtureArray(response);
 
         if (fixtures.length) {
-          this.logger.log(
-            `[ODDIX_ORCHESTRATOR] ${method.name} retornou ${fixtures.length} jogos`,
-          );
+          this.logger.log(`[ODDIX_ORCHESTRATOR] ${method.name} retornou ${fixtures.length} jogos`);
           allFixtures.push(...fixtures);
         }
       } catch (error: any) {
@@ -818,7 +723,7 @@ ${userMessage}`,
     for (const date of dates) {
       try {
         const response =
-          typeof (this.footballService as any).getFixtures === "function"
+          typeof (this.footballService as any).getFixtures === 'function'
             ? await (this.footballService as any).getFixtures(date)
             : null;
 
@@ -833,18 +738,9 @@ ${userMessage}`,
     const enriched: any[] = [];
 
     for (const fixture of fixtures) {
-      const id = String(fixture?.fixture?.id || fixture?.id || "");
-      const rich = id
-        ? await this.getRichContext(id, fixture).catch(() => null)
-        : null;
-      const simple = this.simplifyFixture(fixture);
-      const webOdds = await this.getWebOddsFallback(
-        simple.home,
-        simple.away,
-        rich,
-        null,
-      );
-      enriched.push({ fixture, rich, webOdds });
+      const id = String(fixture?.fixture?.id || fixture?.id || '');
+      const rich = id ? await this.getRichContext(id, fixture).catch(() => null) : null;
+      enriched.push({ fixture, rich });
     }
 
     return enriched;
@@ -855,141 +751,58 @@ ${userMessage}`,
 
     const service: any = this.footballService as any;
 
-    if (typeof service.getFlashScoreRichContext === "function") {
-      const externalId =
-        fixture?.fixture?.externalId ||
-        fixture?.fixture?.external_id ||
-        fixture?.fixture?.matchId ||
-        fixture?.fixture?.match_id ||
-        fixture?.externalId ||
-        null;
-
-      return service.getFlashScoreRichContext(fixtureId, externalId);
+    if (typeof service.getFlashScoreRichContext === 'function') {
+      const rich = await service.getFlashScoreRichContext(fixtureId, fixture);
+      return this.enrichRichContext(rich, fixture);
     }
 
-    if (typeof service.getStatistics === "function") {
-      const statistics = await service
-        .getStatistics(fixtureId)
-        .catch(() => null);
+    if (typeof service.getStatistics === 'function') {
+      const statistics = await service.getStatistics(fixtureId).catch(() => null);
 
-      return {
-        ok: !!statistics,
+      return this.enrichRichContext(
+        {
+          ok: !!statistics,
+          fixture,
+          fixtureId,
+          statistics,
+          odds: fixture?.odds || null,
+          h2h: null,
+          lineups: null,
+        },
         fixture,
-        fixtureId,
-        statistics,
-        odds: fixture?.odds || null,
-        h2h: null,
-        lineups: null,
-      };
+      );
     }
 
     return null;
-  }
-
-  private async getWebOddsFallback(
-    home?: string,
-    away?: string,
-    richContext?: any,
-    existingResearch?: ResearchResult | null,
-  ): Promise<WebOddsResult | null> {
-    if (!home || !away || !this.researchService) return null;
-
-    const apiHasOdds = !!richContext?.odds || !!richContext?.fixture?.odds;
-    if (apiHasOdds) {
-      return {
-        found: false,
-        source: "none",
-        query: `${home} x ${away}`,
-        markets: {},
-        evidence: [],
-        warning:
-          "Odds já disponíveis pela API principal; fallback web não foi usado.",
-      };
-    }
-
-    try {
-      if (typeof (this.researchService as any).researchOdds === "function") {
-        return await (this.researchService as any).researchOdds(home, away);
-      }
-
-      if (existingResearch?.items?.length) {
-        return {
-          found: false,
-          source: "none",
-          query: existingResearch.query,
-          markets: {},
-          evidence: [],
-          warning: "Research service sem extrator de odds ativo.",
-        };
-      }
-    } catch (error: any) {
-      this.logger.warn(`[ODDIX_WEB_ODDS] falhou: ${error?.message || error}`);
-    }
-
-    return null;
-  }
-
-  private hasValidatedOdds(rich: any, webOdds?: WebOddsResult | null) {
-    return !!rich?.odds || !!webOdds?.found;
-  }
-
-  private formatWebOddsSummary(webOdds?: WebOddsResult | null) {
-    if (!webOdds?.found) return "Odds web: não encontrada.";
-
-    const markets = Object.entries(webOdds.markets || {})
-      .map(([key, value]) => `${key}: ${value}`)
-      .join(" | ");
-
-    return `Odds web: ${markets || "mercado não identificado"} | Fonte: ${webOdds.bookmaker || "pesquisa web"}`;
   }
 
   private localDecision(message: string): OddixBrainDecision {
     const text = this.normalize(message);
-    let intent: any = "GENERAL";
+    let intent: any = 'GENERAL';
 
-    if (
-      this.hasAny(text, [
-        "jogos de hoje",
-        "quais jogos",
-        "copa hoje",
-        "jogos da copa",
-      ])
-    )
-      intent = "TODAY_GAMES";
-    if (this.hasAny(text, ["ao vivo", "live", "placar"])) intent = "LIVE";
-    if (
-      this.hasAny(text, [
-        "melhor entrada",
-        "maior confianca",
-        "maior confiança",
-        "top pick",
-        "o que apostar",
-      ])
-    )
-      intent = "TOP_PICKS";
-    if (this.extractTeams(message, null)) intent = "MATCH_ANALYSIS";
+    if (this.hasAny(text, ['jogos de hoje', 'quais jogos', 'copa hoje', 'jogos da copa'])) intent = 'TODAY_GAMES';
+    if (this.hasAny(text, ['ao vivo', 'live', 'placar'])) intent = 'LIVE';
+    if (this.hasAny(text, ['melhor entrada', 'maior confianca', 'maior confiança', 'top pick', 'o que apostar'])) intent = 'TOP_PICKS';
+    if (this.extractTeams(message, null)) intent = 'MATCH_ANALYSIS';
 
     return {
       intent,
       userMessage: message,
       normalizedQuestion: text,
       confidence: 0.75,
-      riskMode: "balanced",
+      riskMode: 'balanced',
       entities: {} as any,
-      reference: "none",
+      reference: 'none',
       userWants: intent,
-      shouldUseOddixEngine: intent !== "GENERAL",
-      shouldUseGlobalAiDirect: intent === "GENERAL",
+      shouldUseOddixEngine: intent !== 'GENERAL',
+      shouldUseGlobalAiDirect: intent === 'GENERAL',
       shouldHumanizeWithGemini: false,
-      safetyNotes: ["Fallback local do orquestrador."],
-      source: "local",
+      safetyNotes: ['Fallback local do orquestrador.'],
+      source: 'local',
     };
   }
 
-  private extractTeams(
-    message: string,
-    decision?: OddixBrainDecision | null,
-  ): { home: string; away: string } | null {
+  private extractTeams(message: string, decision?: OddixBrainDecision | null): { home: string; away: string } | null {
     if (decision?.entities?.homeTeam && decision?.entities?.awayTeam) {
       return {
         home: this.cleanTeamName(decision.entities.homeTeam),
@@ -997,16 +810,16 @@ ${userMessage}`,
       };
     }
 
-    const sanitized = String(message || "")
-      .replace(/\b\d+\s*x\s*\d+\b/gi, " x ")
-      .replace(/\b\d+\s*-\s*\d+\b/gi, " x ")
-      .replace(/\b\d+\s*:\s*\d+\b/gi, " x ")
-      .replace(/analisa|analisar|analise|análise/gi, "")
+    const sanitized = String(message || '')
+      .replace(/\b\d+\s*x\s*\d+\b/gi, ' x ')
+      .replace(/\b\d+\s*-\s*\d+\b/gi, ' x ')
+      .replace(/\b\d+\s*:\s*\d+\b/gi, ' x ')
+      .replace(/analisa|analisar|analise|análise/gi, '')
       .trim();
 
     const normalizedOriginal = sanitized.toLowerCase();
 
-    for (const separator of [" x ", " vs ", " versus ", " contra "]) {
+    for (const separator of [' x ', ' vs ', ' versus ', ' contra ']) {
       if (normalizedOriginal.includes(separator)) {
         const parts = normalizedOriginal.split(separator);
         if (parts[0]?.trim() && parts[1]?.trim()) {
@@ -1021,21 +834,13 @@ ${userMessage}`,
     return null;
   }
 
-  private findMatch(
-    fixtures: any[],
-    homeQueryRaw: string,
-    awayQueryRaw: string,
-  ) {
+  private findMatch(fixtures: any[], homeQueryRaw: string, awayQueryRaw: string) {
     const homeQuery = this.normalize(this.cleanTeamName(homeQueryRaw));
     const awayQuery = this.normalize(this.cleanTeamName(awayQueryRaw));
 
     return fixtures.find((item: any) => {
-      const home = this.normalize(
-        item?.teams?.home?.name || item?.homeTeam || item?.home || "",
-      );
-      const away = this.normalize(
-        item?.teams?.away?.name || item?.awayTeam || item?.away || "",
-      );
+      const home = this.normalize(item?.teams?.home?.name || item?.homeTeam || item?.home || '');
+      const away = this.normalize(item?.teams?.away?.name || item?.awayTeam || item?.away || '');
 
       return (
         (home.includes(homeQuery) && away.includes(awayQuery)) ||
@@ -1049,19 +854,17 @@ ${userMessage}`,
   private scoreCandidate(item: any) {
     const fixture = item.fixture;
     const rich = item.rich;
-    const webOdds: WebOddsResult | null = item.webOdds || null;
     const simple = this.simplifyFixture(fixture);
 
     let score = 60;
     if (rich?.ok) score += 10;
     if (rich?.statistics || rich?.prematchStats) score += 10;
     if (rich?.odds) score += 10;
-    else if (webOdds?.found) score += 7;
     if (rich?.h2h) score += 5;
     if (rich?.lineups) score += 5;
 
-    const status = simple.status?.short || simple.status?.long || "";
-    if (String(status).toUpperCase() === "NS") score += 3;
+    const status = simple.status?.short || simple.status?.long || '';
+    if (String(status).toUpperCase() === 'NS') score += 3;
 
     return {
       game: `${simple.home} x ${simple.away}`,
@@ -1069,17 +872,12 @@ ${userMessage}`,
       date: simple.date,
       status: simple.status,
       score: Math.min(score, 96),
-      confidenceLabel:
-        score >= 85 ? "alta" : score >= 75 ? "moderada" : "baixa",
+      confidenceLabel: score >= 85 ? 'alta' : score >= 75 ? 'moderada' : 'baixa',
       hasStats: !!(rich?.statistics || rich?.prematchStats),
-      hasOdds: this.hasValidatedOdds(rich, webOdds),
-      oddsSource: rich?.odds ? "api" : webOdds?.found ? "web-research" : "none",
-      webOdds: webOdds || null,
+      hasOdds: !!rich?.odds,
       hasH2H: !!rich?.h2h,
       hasLineups: !!rich?.lineups,
-      officialEntry:
-        this.hasValidatedOdds(rich, webOdds) &&
-        !!(rich?.statistics || rich?.prematchStats),
+      officialEntry: !!rich?.odds && !!(rich?.statistics || rich?.prematchStats),
     };
   }
 
@@ -1095,9 +893,7 @@ ${userMessage}`,
         decision,
         research,
         total: fixtures.length,
-        fixtures: fixtures
-          .slice(0, 30)
-          .map((game: any) => this.simplifyFixture(game)),
+        fixtures: fixtures.slice(0, 30).map((game: any) => this.simplifyFixture(game)),
       },
       null,
       2,
@@ -1130,47 +926,207 @@ ${userMessage}`,
     return {
       ok: rich?.ok,
       source: rich?.source,
-      hasStatistics: !!rich?.statistics,
+      hasStatistics: !!rich?.statisticsSummary?.available || !!rich?.statistics,
       hasPrematchStats: !!rich?.prematchStats,
-      hasOdds: !!rich?.odds,
+      hasOdds: !!rich?.oddsSummary?.available || !!rich?.odds,
       hasH2H: !!rich?.h2h,
       hasLineups: !!rich?.lineups,
+      statisticsSummary: rich?.statisticsSummary || this.buildStatisticsSummary(this.normalizeRichStatistics(rich?.statistics)),
+      pressureSummary: rich?.pressureSummary || null,
+      oddsSummary: rich?.oddsSummary || null,
       prematchStats: rich?.prematchStats || null,
       errors: rich?.errors || [],
     };
+  }
+
+  private enrichRichContext(rich: any, fixture: any) {
+    if (!rich) return null;
+
+    const normalizedStats = this.normalizeRichStatistics(rich.statistics);
+    const statisticsSummary = this.buildStatisticsSummary(normalizedStats);
+    const pressureSummary = this.buildPressureSummary(statisticsSummary, rich.fixture || fixture);
+    const oddsSummary = this.buildOddsSummary(rich.odds || (rich.fixture || fixture)?.odds);
+
+    return {
+      ...rich,
+      fixture: rich.fixture || fixture,
+      statistics: normalizedStats || rich.statistics || null,
+      statisticsSummary,
+      pressureSummary,
+      oddsSummary,
+      ok: !!(rich.ok || statisticsSummary.available || oddsSummary.available || rich.h2h || rich.lineups || rich.prematchStats?.available),
+    };
+  }
+
+  private normalizeRichStatistics(statistics: any) {
+    if (!statistics) return null;
+    if (statistics?.data?.available || Array.isArray(statistics?.data?.teams)) return statistics.data;
+    if (statistics?.available !== undefined || Array.isArray(statistics?.teams)) return statistics;
+    if (statistics?.ok && statistics?.data) return statistics.data;
+    return statistics;
+  }
+
+  private emptyStatisticsSummary() {
+    return {
+      available: false,
+      source: 'none',
+      home: { possession: null, totalShots: null, shotsOnGoal: null, corners: null, attacks: null, dangerousAttacks: null },
+      away: { possession: null, totalShots: null, shotsOnGoal: null, corners: null, attacks: null, dangerousAttacks: null },
+      rawAvailableStats: [],
+    };
+  }
+
+  private buildStatisticsSummary(statistics: any) {
+    const summary = this.emptyStatisticsSummary();
+    if (!statistics) return summary;
+
+    const teams = Array.isArray(statistics?.teams) ? statistics.teams : Array.isArray(statistics?.response) ? statistics.response : [];
+    const homeRows = this.extractStatisticRows(teams?.[0]);
+    const awayRows = this.extractStatisticRows(teams?.[1]);
+
+    const read = (rows: any[], names: string[]) => {
+      for (const row of rows) {
+        const type = this.normalizeStatLabel(row?.type || row?.name || row?.label || row?.key);
+        if (!names.some((name) => type.includes(name))) continue;
+        const value = this.toStatNumber(row?.value ?? row?.display ?? row?.stat);
+        if (value !== null && value !== undefined) return value;
+      }
+      return null;
+    };
+
+    summary.home.possession = read(homeRows, ['ball possession', 'possession', 'posse']);
+    summary.away.possession = read(awayRows, ['ball possession', 'possession', 'posse']);
+    summary.home.totalShots = read(homeRows, ['total shots', 'shots', 'finalizacoes']);
+    summary.away.totalShots = read(awayRows, ['total shots', 'shots', 'finalizacoes']);
+    summary.home.shotsOnGoal = read(homeRows, ['shots on goal', 'shots on target', 'chutes no gol']);
+    summary.away.shotsOnGoal = read(awayRows, ['shots on goal', 'shots on target', 'chutes no gol']);
+    summary.home.corners = read(homeRows, ['corner kicks', 'corners', 'escanteios']);
+    summary.away.corners = read(awayRows, ['corner kicks', 'corners', 'escanteios']);
+    summary.home.attacks = read(homeRows, ['attacks', 'ataques']);
+    summary.away.attacks = read(awayRows, ['attacks', 'ataques']);
+    summary.home.dangerousAttacks = read(homeRows, ['dangerous attacks', 'ataques perigosos']);
+    summary.away.dangerousAttacks = read(awayRows, ['dangerous attacks', 'ataques perigosos']);
+
+    summary.available = [
+      summary.home.possession, summary.away.possession, summary.home.totalShots, summary.away.totalShots,
+      summary.home.shotsOnGoal, summary.away.shotsOnGoal, summary.home.corners, summary.away.corners,
+      summary.home.attacks, summary.away.attacks, summary.home.dangerousAttacks, summary.away.dangerousAttacks,
+    ].some((value) => value !== null && value !== undefined);
+
+    summary.source = statistics?.source || 'flashscore';
+    summary.rawAvailableStats = [...homeRows, ...awayRows].map((row: any) => row?.type || row?.name || row?.label || row?.key).filter(Boolean).slice(0, 20);
+    return summary;
+  }
+
+  private extractStatisticRows(teamStats: any): any[] {
+    if (!teamStats) return [];
+    if (Array.isArray(teamStats)) return teamStats;
+    if (Array.isArray(teamStats?.statistics)) return teamStats.statistics;
+    if (Array.isArray(teamStats?.stats)) return teamStats.stats;
+    if (Array.isArray(teamStats?.items)) return teamStats.items;
+    if (Array.isArray(teamStats?.rows)) return teamStats.rows;
+    return [];
+  }
+
+  private normalizeStatLabel(value: any) {
+    return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  private toStatNumber(value: any): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    const parsed = Number(String(value).replace(',', '.').replace('%', '').replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private buildPressureSummary(statisticsSummary: any, fixture: any) {
+    if (!statisticsSummary?.available) {
+      return { available: false, leader: null, homeScore: 0, awayScore: 0, homeLevel: 'BAIXA', awayLevel: 'BAIXA', reading: 'Sem estatísticas reais suficientes para medir pressão.' };
+    }
+
+    const score = (team: any) => Number(((Number(team.possession || 0) * 0.25) + (Number(team.totalShots || 0) * 3) + (Number(team.shotsOnGoal || 0) * 7) + (Number(team.corners || 0) * 4) + (Number(team.attacks || 0) * 0.15) + (Number(team.dangerousAttacks || 0) * 0.45)).toFixed(1));
+    const homeScore = score(statisticsSummary.home || {});
+    const awayScore = score(statisticsSummary.away || {});
+    const homeName = fixture?.teams?.home?.name || 'Mandante';
+    const awayName = fixture?.teams?.away?.name || 'Visitante';
+    const diff = Math.abs(homeScore - awayScore);
+    const leader = diff < 8 ? 'equilibrado' : homeScore > awayScore ? homeName : awayName;
+    const level = (value: number) => value >= 85 ? 'MUITO ALTA' : value >= 65 ? 'ALTA' : value >= 42 ? 'MÉDIA' : 'BAIXA';
+
+    return {
+      available: true,
+      leader,
+      homeScore,
+      awayScore,
+      homeLevel: level(homeScore),
+      awayLevel: level(awayScore),
+      reading: leader === 'equilibrado' ? 'Jogo equilibrado em pressão pelos dados disponíveis.' : `${leader} tem maior pressão pelos dados ao vivo.`,
+    };
+  }
+
+  private buildOddsSummary(odds: any) {
+    const options = this.extractOddsOptions(odds);
+    if (!options.length) return { available: false, source: 'none', market: null, options: [], reading: 'Odds não validadas.' };
+    return { available: true, source: odds?.source || odds?.bookmaker || 'football-provider', market: odds?.market || odds?.marketName || '1X2', bookmaker: odds?.bookmaker || odds?.source || null, options, reading: 'Odds validadas por provider/fonte integrada.' };
+  }
+
+  private extractOddsOptions(input: any): Array<{ name: string; odd: number }> {
+    if (!input) return [];
+    const direct = Array.isArray(input?.options) ? input.options : Array.isArray(input) ? input : [];
+    const normalized = direct
+      .map((item: any) => ({ name: String(item?.name || item?.label || item?.selection || item?.market || '').trim(), odd: this.toOddNumber(item?.odd ?? item?.odds ?? item?.value ?? item?.price) }))
+      .filter((item: any) => item.name && Number(item.odd) > 1);
+    if (normalized.length) return normalized.slice(0, 12);
+
+    const fallback: Array<{ name: string; odd: number }> = [];
+    const add = (name: string, value: any) => { const odd = this.toOddNumber(value); if (odd && odd > 1) fallback.push({ name, odd }); };
+    add('1', input?.home || input?.homeWin || input?.['1']);
+    add('X', input?.draw || input?.x || input?.X);
+    add('2', input?.away || input?.awayWin || input?.['2']);
+    add('Over 1.5', input?.over15 || input?.over_1_5);
+    add('Over 2.5', input?.over25 || input?.over_2_5);
+    add('BTTS', input?.btts || input?.bothTeamsScore);
+    return fallback.slice(0, 12);
+  }
+
+  private toOddNumber(value: any): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return Number.isFinite(value) && value > 1 ? Number(value.toFixed(2)) : null;
+    const parsed = Number(String(value).replace(',', '.').replace(/[^0-9.]/g, ''));
+    return Number.isFinite(parsed) && parsed > 1 ? Number(parsed.toFixed(2)) : null;
   }
 
   private asksForCup(message: string) {
     const text = this.normalize(message);
 
     return this.hasAny(text, [
-      "copa",
-      "mundial",
-      "world cup",
-      "club world cup",
-      "fifa",
-      "copa do mundo",
-      "mundial de clubes",
+      'copa',
+      'mundial',
+      'world cup',
+      'club world cup',
+      'fifa',
+      'copa do mundo',
+      'mundial de clubes',
     ]);
   }
 
   private isCupCompetition(game: any) {
     const simple = this.simplifyFixture(game);
-    const league = this.normalize(simple.league || "");
-    const country = this.normalize(simple.country || "");
+    const league = this.normalize(simple.league || '');
+    const country = this.normalize(simple.country || '');
 
     const haystack = `${league} ${country}`;
 
     return [
-      "world cup",
-      "fifa world cup",
-      "club world cup",
-      "fifa club world cup",
-      "copa do mundo",
-      "mundial de clubes",
-      "fifa",
-      "world",
-      "cup",
+      'world cup',
+      'fifa world cup',
+      'club world cup',
+      'fifa club world cup',
+      'copa do mundo',
+      'mundial de clubes',
+      'fifa',
+      'world',
+      'cup',
     ].some((term) => haystack.includes(this.normalize(term)));
   }
 
@@ -1194,64 +1150,56 @@ ${userMessage}`,
   private formatFixturesList(fixtures: any[], title: string) {
     const lines = fixtures.slice(0, 18).map((game: any, index: number) => {
       const simple = this.simplifyFixture(game);
-      const home = simple.home || "Casa";
-      const away = simple.away || "Fora";
-      const league = simple.league || "Liga não informada";
-      const status = simple.status?.elapsed
-        ? `${simple.status.elapsed}'`
-        : simple.status?.short || "NS";
+      const home = simple.home || 'Casa';
+      const away = simple.away || 'Fora';
+      const league = simple.league || 'Liga não informada';
+      const status = simple.status?.elapsed ? `${simple.status.elapsed}'` : simple.status?.short || 'NS';
       const homeGoals = simple.goals?.home ?? 0;
       const awayGoals = simple.goals?.away ?? 0;
 
       return `${index + 1}. ${home} ${homeGoals} x ${awayGoals} ${away} (${status})\n   🏆 ${league}`;
     });
 
-    return `${title}:\n\n${lines.join("\n\n")}`;
+    return `${title}:\n\n${lines.join('\n\n')}`;
   }
 
   private localTopPick(candidates: any[]) {
     const top = candidates[0];
 
     if (!top) {
-      return "🎯 Não encontrei jogos suficientes para apontar a melhor entrada hoje.";
+      return '🎯 Não encontrei jogos suficientes para apontar a melhor entrada hoje.';
     }
 
     return `🏆 Melhor oportunidade observada
 
 ⚽ ${top.game}
-🏆 ${top.league || "Liga não informada"}
+🏆 ${top.league || 'Liga não informada'}
 📊 Confiança Oddix: ${top.score}%
-🎯 Status: ${top.officialEntry ? "Entrada oficial possível" : "Observação, sem entrada oficial"}
+🎯 Status: ${top.officialEntry ? 'Entrada oficial possível' : 'Observação, sem entrada oficial'}
 
-${top.webOdds?.found ? `🌐 ${this.formatWebOddsSummary(top.webOdds)}\n⚠️ Odd encontrada via pesquisa web: confirme na casa antes de apostar.` : "⚠️ Sem odds reais e estatísticas completas, eu não cravo aposta oficial."}`;
+⚠️ Sem odds reais e estatísticas completas, eu não cravo aposta oficial.`;
   }
 
   private localMultiple(candidates: any[]) {
     const picks = candidates.slice(0, 3);
 
     if (!picks.length) {
-      return "🎫 Não encontrei jogos suficientes para montar múltipla hoje.";
+      return '🎫 Não encontrei jogos suficientes para montar múltipla hoje.';
     }
 
     return `🎫 Múltipla Oddix observada
 
-${picks.map((pick, index) => `${index + 1}. ${pick.game}\n   Confiança: ${pick.score}% | ${pick.officialEntry ? "dados mínimos OK" : "dados pendentes"} | Odds: ${pick.oddsSource || "none"}`).join("\n\n")}
+${picks.map((pick, index) => `${index + 1}. ${pick.game}\n   Confiança: ${pick.score}% | ${pick.officialEntry ? 'dados mínimos OK' : 'dados pendentes'}`).join('\n\n')}
 
 ⚠️ Sem odds reais completas, trate como pré-lista de observação, não como entrada oficial.`;
   }
 
-  private localMatchAnalysis(
-    match: any,
-    richContext: any,
-    webOdds?: WebOddsResult | null,
-  ) {
+  private localMatchAnalysis(match: any, richContext: any) {
     const simple = this.simplifyFixture(match);
-    const home = simple.home || "Casa";
-    const away = simple.away || "Fora";
-    const league = simple.league || "Liga não informada";
-    const status = simple.status?.elapsed
-      ? `${simple.status.elapsed}'`
-      : simple.status?.short || "NS";
+    const home = simple.home || 'Casa';
+    const away = simple.away || 'Fora';
+    const league = simple.league || 'Liga não informada';
+    const status = simple.status?.elapsed ? `${simple.status.elapsed}'` : simple.status?.short || 'NS';
     const homeGoals = simple.goals?.home ?? 0;
     const awayGoals = simple.goals?.away ?? 0;
 
@@ -1262,20 +1210,13 @@ ${picks.map((pick, index) => `${index + 1}. ${pick.game}\n   Confiança: ${pick.
 📊 Placar: ${homeGoals} x ${awayGoals}
 
 📌 Contexto real:
-${richContext?.statistics || richContext?.prematchStats ? "✅ Estatísticas disponíveis" : "⚠️ Estatísticas pendentes"}
-${richContext?.odds ? "✅ Odds disponíveis via API" : webOdds?.found ? "🌐 Odds encontradas via pesquisa web" : "⚠️ Odds pendentes"}
-${richContext?.h2h ? "✅ H2H disponível" : "⚠️ H2H pendente"}
-${richContext?.lineups ? "✅ Escalações disponíveis" : "⚠️ Escalações pendentes"}
-${
-  webOdds?.found
-    ? `
-🌐 ${this.formatWebOddsSummary(webOdds)}
-⚠️ Confirme a cotação na casa antes de apostar.`
-    : ""
-}
+${richContext?.statistics || richContext?.prematchStats ? '✅ Estatísticas disponíveis' : '⚠️ Estatísticas pendentes'}
+${richContext?.odds ? '✅ Odds disponíveis' : '⚠️ Odds pendentes'}
+${richContext?.h2h ? '✅ H2H disponível' : '⚠️ H2H pendente'}
+${richContext?.lineups ? '✅ Escalações disponíveis' : '⚠️ Escalações pendentes'}
 
 🧠 Conclusão Oddix:
-${this.hasValidatedOdds(richContext, webOdds) ? "Existe odd validada por API ou pesquisa web, mas a entrada oficial ainda depende de estatísticas reais suficientes." : "Sem odds reais em API ou web, não libero entrada oficial."}`;
+Sem odds reais e estatísticas completas, não libero entrada oficial.`;
   }
 
   private extractFixtureArray(response: any) {
@@ -1294,9 +1235,7 @@ ${this.hasValidatedOdds(richContext, webOdds) ? "Existe odd validada por API ou 
 
     return fixtures.filter((game: any) => {
       const simple = this.simplifyFixture(game);
-      const id = String(
-        simple.id || `${simple.home}-${simple.away}-${simple.date}`,
-      );
+      const id = String(simple.id || `${simple.home}-${simple.away}-${simple.date}`);
 
       if (!simple.home || !simple.away) return false;
       if (seen.has(id)) return false;
@@ -1307,14 +1246,14 @@ ${this.hasValidatedOdds(richContext, webOdds) ? "Existe odd validada por API ou 
   }
 
   private cleanTeamName(value: string) {
-    return String(value || "")
-      .replace(/\b\d+\b/g, "")
-      .replace(/\bao vivo\b/gi, "")
-      .replace(/\blive\b/gi, "")
-      .replace(/\bhoje\b/gi, "")
-      .replace(/\bagora\b/gi, "")
-      .replace(/[?!.]+$/g, "")
-      .replace(/\s+/g, " ")
+    return String(value || '')
+      .replace(/\b\d+\b/g, '')
+      .replace(/\bao vivo\b/gi, '')
+      .replace(/\blive\b/gi, '')
+      .replace(/\bhoje\b/gi, '')
+      .replace(/\bagora\b/gi, '')
+      .replace(/[?!.]+$/g, '')
+      .replace(/\s+/g, ' ')
       .trim();
   }
 
@@ -1323,12 +1262,12 @@ ${this.hasValidatedOdds(richContext, webOdds) ? "Existe odd validada por API ou 
   }
 
   private normalize(value: string) {
-    return String(value || "")
+    return String(value || '')
       .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9\s]/g, " ")
-      .replace(/\s+/g, " ")
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
   }
 }

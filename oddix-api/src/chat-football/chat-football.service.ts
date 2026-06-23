@@ -28,7 +28,10 @@ type FlashScoreRichContext = {
   fixtureId?: string;
   flashScoreExternalId?: string | null;
   statistics?: any;
+  statisticsSummary?: any;
+  pressureSummary?: any;
   odds?: any;
+  oddsSummary?: any;
   h2h?: any;
   lineups?: any;
   prematchStats?: any;
@@ -1777,29 +1780,58 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
     const service: any = this.footballService as any;
 
     try {
+      let rich: FlashScoreRichContext | null = null;
+
       if (typeof service.getFlashScoreRichContext === 'function') {
-        return await service.getFlashScoreRichContext(fixtureId);
+        rich = await service.getFlashScoreRichContext(fixtureId, fixture);
       }
 
-      const statistics = typeof service.getStatistics === 'function' ? await service.getStatistics(fixtureId) : null;
+      if (!rich) {
+        const statistics = typeof service.getStatistics === 'function' ? await service.getStatistics(fixtureId) : null;
+
+        rich = {
+          ok: !!(
+            statistics?.available ||
+            statistics?.ok ||
+            statistics?.success ||
+            statistics?.data?.available ||
+            fixture?.odds
+          ),
+          source: 'football-service',
+          fixture,
+          fixtureId,
+          statistics,
+          odds: fixture?.odds || null,
+          h2h: null,
+          lineups: null,
+          prematchStats: null,
+          errors: [],
+        };
+      }
+
+      const normalizedStats = this.normalizeRichStatistics(rich.statistics);
+      const statisticsSummary = this.buildStatisticsSummary(normalizedStats);
+      const pressureSummary = this.buildPressureSummary(statisticsSummary, rich.fixture || fixture);
+      const oddsSummary = this.buildOddsSummary(rich.odds || (rich.fixture || fixture)?.odds);
 
       return {
+        ...rich,
         ok: !!(
-          statistics?.available ||
-          statistics?.ok ||
-          statistics?.success ||
-          statistics?.data?.available ||
-          fixture?.odds
+          rich.ok ||
+          statisticsSummary.available ||
+          oddsSummary.available ||
+          rich.h2h ||
+          rich.lineups ||
+          rich.prematchStats?.available
         ),
-        source: 'football-service',
-        fixture,
-        fixtureId,
-        statistics,
-        odds: fixture?.odds || null,
-        h2h: null,
-        lineups: null,
-        prematchStats: null,
-        errors: [],
+        fixture: rich.fixture || fixture,
+        fixtureId: rich.fixtureId || fixtureId,
+        statistics: normalizedStats || rich.statistics || null,
+        statisticsSummary,
+        pressureSummary,
+        oddsSummary,
+        odds: rich.odds || (rich.fixture || fixture)?.odds || null,
+        errors: rich.errors || [],
       };
     } catch (error: any) {
       return {
@@ -1807,16 +1839,309 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
         source: 'football-service',
         fixture,
         fixtureId,
+        statisticsSummary: this.emptyStatisticsSummary(),
+        pressureSummary: this.emptyPressureSummary(),
+        oddsSummary: this.emptyOddsSummary(),
         errors: [error?.message || 'Falha ao montar contexto rico'],
       };
     }
   }
 
+  private normalizeRichStatistics(statistics: any) {
+    if (!statistics) return null;
+
+    if (statistics?.data?.available || Array.isArray(statistics?.data?.teams)) {
+      return statistics.data;
+    }
+
+    if (statistics?.available !== undefined || Array.isArray(statistics?.teams)) {
+      return statistics;
+    }
+
+    if (statistics?.ok && statistics?.data) return statistics.data;
+
+    return statistics;
+  }
+
+  private emptyStatisticsSummary() {
+    return {
+      available: false,
+      source: 'none',
+      home: {
+        possession: null,
+        totalShots: null,
+        shotsOnGoal: null,
+        corners: null,
+        attacks: null,
+        dangerousAttacks: null,
+      },
+      away: {
+        possession: null,
+        totalShots: null,
+        shotsOnGoal: null,
+        corners: null,
+        attacks: null,
+        dangerousAttacks: null,
+      },
+      rawAvailableStats: [],
+    };
+  }
+
+  private emptyPressureSummary() {
+    return {
+      available: false,
+      leader: null,
+      homeScore: 0,
+      awayScore: 0,
+      homeLevel: 'BAIXA',
+      awayLevel: 'BAIXA',
+      reading: 'Sem estatísticas reais suficientes para medir pressão.',
+    };
+  }
+
+  private emptyOddsSummary() {
+    return {
+      available: false,
+      source: 'none',
+      market: null,
+      options: [],
+      reading: 'Odds não validadas.',
+    };
+  }
+
+  private buildStatisticsSummary(statistics: any) {
+    const summary = this.emptyStatisticsSummary();
+
+    if (!statistics) return summary;
+
+    const teams = Array.isArray(statistics?.teams)
+      ? statistics.teams
+      : Array.isArray(statistics?.response)
+        ? statistics.response
+        : [];
+
+    const homeRows = this.extractStatisticRows(teams?.[0]);
+    const awayRows = this.extractStatisticRows(teams?.[1]);
+
+    const read = (rows: any[], names: string[]) => {
+      for (const row of rows) {
+        const type = this.normalizeStatLabel(row?.type || row?.name || row?.label || row?.key);
+        if (!names.some((name) => type.includes(name))) continue;
+        const value = this.toStatNumber(row?.value ?? row?.display ?? row?.stat);
+        if (value !== null && value !== undefined) return value;
+      }
+      return null;
+    };
+
+    summary.home.possession = read(homeRows, ['ball possession', 'possession', 'posse']);
+    summary.away.possession = read(awayRows, ['ball possession', 'possession', 'posse']);
+
+    summary.home.totalShots = read(homeRows, ['total shots', 'shots', 'finalizacoes', 'finalizacoes totais']);
+    summary.away.totalShots = read(awayRows, ['total shots', 'shots', 'finalizacoes', 'finalizacoes totais']);
+
+    summary.home.shotsOnGoal = read(homeRows, ['shots on goal', 'shots on target', 'chutes no gol']);
+    summary.away.shotsOnGoal = read(awayRows, ['shots on goal', 'shots on target', 'chutes no gol']);
+
+    summary.home.corners = read(homeRows, ['corner kicks', 'corners', 'escanteios']);
+    summary.away.corners = read(awayRows, ['corner kicks', 'corners', 'escanteios']);
+
+    summary.home.attacks = read(homeRows, ['attacks', 'ataques']);
+    summary.away.attacks = read(awayRows, ['attacks', 'ataques']);
+
+    summary.home.dangerousAttacks = read(homeRows, ['dangerous attacks', 'ataques perigosos']);
+    summary.away.dangerousAttacks = read(awayRows, ['dangerous attacks', 'ataques perigosos']);
+
+    summary.available = [
+      summary.home.possession,
+      summary.away.possession,
+      summary.home.totalShots,
+      summary.away.totalShots,
+      summary.home.shotsOnGoal,
+      summary.away.shotsOnGoal,
+      summary.home.corners,
+      summary.away.corners,
+      summary.home.attacks,
+      summary.away.attacks,
+      summary.home.dangerousAttacks,
+      summary.away.dangerousAttacks,
+    ].some((value) => value !== null && value !== undefined);
+
+    summary.source = statistics?.source || 'flashscore';
+    summary.rawAvailableStats = [...homeRows, ...awayRows]
+      .map((row: any) => row?.type || row?.name || row?.label || row?.key)
+      .filter(Boolean)
+      .slice(0, 20);
+
+    return summary;
+  }
+
+  private extractStatisticRows(teamStats: any): any[] {
+    if (!teamStats) return [];
+    if (Array.isArray(teamStats)) return teamStats;
+    if (Array.isArray(teamStats?.statistics)) return teamStats.statistics;
+    if (Array.isArray(teamStats?.stats)) return teamStats.stats;
+    if (Array.isArray(teamStats?.items)) return teamStats.items;
+    if (Array.isArray(teamStats?.rows)) return teamStats.rows;
+    return [];
+  }
+
+  private normalizeStatLabel(value: any) {
+    return String(value || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private toStatNumber(value: any): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+
+    const raw = String(value).replace(',', '.');
+    const parsed = Number(raw.replace('%', '').replace(/[^0-9.-]/g, ''));
+
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private buildPressureSummary(statisticsSummary: any, fixture: any) {
+    if (!statisticsSummary?.available) return this.emptyPressureSummary();
+
+    const home = statisticsSummary.home || {};
+    const away = statisticsSummary.away || {};
+
+    const score = (team: any) => {
+      const possession = Number(team.possession || 0);
+      const shots = Number(team.totalShots || 0);
+      const onGoal = Number(team.shotsOnGoal || 0);
+      const corners = Number(team.corners || 0);
+      const attacks = Number(team.attacks || 0);
+      const dangerous = Number(team.dangerousAttacks || 0);
+
+      return Number((
+        possession * 0.25 +
+        shots * 3 +
+        onGoal * 7 +
+        corners * 4 +
+        attacks * 0.15 +
+        dangerous * 0.45
+      ).toFixed(1));
+    };
+
+    const homeScore = score(home);
+    const awayScore = score(away);
+    const homeName = fixture?.teams?.home?.name || 'Mandante';
+    const awayName = fixture?.teams?.away?.name || 'Visitante';
+    const diff = Math.abs(homeScore - awayScore);
+    const leader = diff < 8 ? 'equilibrado' : homeScore > awayScore ? homeName : awayName;
+
+    const level = (value: number) => {
+      if (value >= 85) return 'MUITO ALTA';
+      if (value >= 65) return 'ALTA';
+      if (value >= 42) return 'MÉDIA';
+      return 'BAIXA';
+    };
+
+    return {
+      available: true,
+      leader,
+      homeScore,
+      awayScore,
+      homeLevel: level(homeScore),
+      awayLevel: level(awayScore),
+      reading:
+        leader === 'equilibrado'
+          ? 'Jogo equilibrado em pressão pelos dados disponíveis.'
+          : `${leader} tem maior pressão pelos dados ao vivo.`,
+    };
+  }
+
+  private buildOddsSummary(odds: any) {
+    const options = this.extractOddsOptions(odds);
+
+    if (!options.length) return this.emptyOddsSummary();
+
+    return {
+      available: true,
+      source: odds?.source || odds?.bookmaker || 'football-provider',
+      market: odds?.market || odds?.marketName || '1X2',
+      bookmaker: odds?.bookmaker || odds?.source || null,
+      options,
+      reading: 'Odds validadas por provider/fonte integrada.',
+    };
+  }
+
+  private extractOddsOptions(input: any): Array<{ name: string; odd: number }> {
+    if (!input) return [];
+
+    const direct = Array.isArray(input?.options) ? input.options : Array.isArray(input) ? input : [];
+
+    const normalized = direct
+      .map((item: any) => ({
+        name: String(item?.name || item?.label || item?.selection || item?.market || '').trim(),
+        odd: this.toOddNumber(item?.odd ?? item?.odds ?? item?.value ?? item?.price),
+      }))
+      .filter((item: any) => item.name && Number(item.odd) > 1);
+
+    if (normalized.length) return normalized.slice(0, 12);
+
+    const fallback: Array<{ name: string; odd: number }> = [];
+    const add = (name: string, value: any) => {
+      const odd = this.toOddNumber(value);
+      if (odd && odd > 1) fallback.push({ name, odd });
+    };
+
+    add('1', input?.home || input?.homeWin || input?.['1']);
+    add('X', input?.draw || input?.x || input?.X);
+    add('2', input?.away || input?.awayWin || input?.['2']);
+    add('Over 1.5', input?.over15 || input?.over_1_5);
+    add('Over 2.5', input?.over25 || input?.over_2_5);
+    add('BTTS', input?.btts || input?.bothTeamsScore);
+
+    return fallback.slice(0, 12);
+  }
+
+  private toOddNumber(value: any): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return Number.isFinite(value) && value > 1 ? Number(value.toFixed(2)) : null;
+    const parsed = Number(String(value).replace(',', '.').replace(/[^0-9.]/g, ''));
+    return Number.isFinite(parsed) && parsed > 1 ? Number(parsed.toFixed(2)) : null;
+  }
+
   private buildRichContextSummary(rich?: FlashScoreRichContext | null) {
     if (!rich) return '🧠 Contexto rico: ainda não disponível.';
-    return `🧠 Contexto real:
-${rich.statistics ? '✅ Estatísticas' : '⚠️ Estatísticas pendentes'}
-${rich.odds ? '✅ Odds' : '⚠️ Odds pendentes'}
+
+    const stats = rich.statisticsSummary || this.buildStatisticsSummary(this.normalizeRichStatistics(rich.statistics));
+    const pressure = rich.pressureSummary || this.buildPressureSummary(stats, rich.fixture);
+    const odds = rich.oddsSummary || this.buildOddsSummary(rich.odds || rich.fixture?.odds);
+
+    const home = rich.fixture?.teams?.home?.name || 'Mandante';
+    const away = rich.fixture?.teams?.away?.name || 'Visitante';
+
+    if (!stats?.available) {
+      return `🧠 Contexto real:
+⚠️ Estatísticas ao vivo pendentes
+${odds?.available ? '✅ Odds validadas' : '⚠️ Odds pendentes'}
+${rich.h2h ? '✅ H2H' : '⚠️ H2H pendente'}
+${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}
+
+Leitura: sem posse, finalizações, escanteios ou ataques perigosos validados. Não liberar entrada oficial baseada em pressão.`;
+    }
+
+    const fmt = (value: any, suffix = '') => value !== null && value !== undefined ? `${value}${suffix}` : '—';
+    const oddsLine = odds?.available
+      ? `✅ Odds: ${odds.options.map((item: any) => `${item.name} ${item.odd}`).join(' | ')}`
+      : '⚠️ Odds pendentes';
+
+    return `🧠 Contexto real validado:
+📊 Posse: ${home} ${fmt(stats.home.possession, '%')} x ${fmt(stats.away.possession, '%')} ${away}
+🎯 Finalizações: ${fmt(stats.home.totalShots)} x ${fmt(stats.away.totalShots)}
+🥅 Chutes no gol: ${fmt(stats.home.shotsOnGoal)} x ${fmt(stats.away.shotsOnGoal)}
+🚩 Escanteios: ${fmt(stats.home.corners)} x ${fmt(stats.away.corners)}
+🔥 Ataques perigosos: ${fmt(stats.home.dangerousAttacks)} x ${fmt(stats.away.dangerousAttacks)}
+⚡ Pressão: ${pressure.reading} (${home}: ${pressure.homeLevel} / ${away}: ${pressure.awayLevel})
+${oddsLine}
 ${rich.h2h ? '✅ H2H' : '⚠️ H2H pendente'}
 ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
   }
