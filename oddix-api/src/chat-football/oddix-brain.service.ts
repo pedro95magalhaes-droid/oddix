@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { GoogleGenAI } from '@google/genai';
 import { OddixEntityExtractorService, OddixEntities } from './oddix-entity-extractor.service';
 import { OddixContextMemoryService, OddixConversationContext } from './oddix-context-memory.service';
@@ -64,7 +64,6 @@ export class OddixBrainService {
     private readonly contextMemory: OddixContextMemoryService,
   ) {
     const apiKey = process.env.GEMINI_API_KEY;
-
     this.ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
     if (!apiKey) {
@@ -72,10 +71,7 @@ export class OddixBrainService {
     }
   }
 
-  async think(
-    userMessage: string,
-    sessionId = 'anonymous',
-  ): Promise<OddixBrainDecision> {
+  async think(userMessage: string, sessionId = 'anonymous'): Promise<OddixBrainDecision> {
     const message = String(userMessage || '').trim();
     const context = this.contextMemory.get(sessionId);
     const localDecision = this.localThink(message, context);
@@ -94,9 +90,7 @@ export class OddixBrainService {
       const raw = response.text || '';
       const json = this.safeParseJson(raw);
 
-      if (!json) {
-        return localDecision;
-      }
+      if (!json) return localDecision;
 
       const decision = this.normalizeGeminiDecision(message, context, json, localDecision);
 
@@ -129,7 +123,7 @@ Você é o Oddix Brain, o cérebro de interpretação da Oddix IA.
 Sua tarefa é entender QUALQUER mensagem do usuário e retornar SOMENTE JSON válido.
 
 A Oddix é um assistente de futebol e apostas.
-Você NÃO deve criar apostas, odds ou estatísticas.
+Você NÃO cria apostas, odds ou estatísticas.
 Você apenas entende intenção e entidades para o Oddix Engine executar.
 
 CONTEXTO DA CONVERSA:
@@ -150,22 +144,18 @@ INTENTS:
 - EXPLAIN: explicar análise, risco, mercado ou bilhete.
 - FOLLOW_UP: continuações como "e agora?", "esse jogo presta?", "continua", usando contexto.
 
-RISK MODES:
-- safe
-- balanced
-- aggressive
-
 REGRAS IMPORTANTES:
 1. "como tá o jogo da frança?" = LIVE, team "France".
-2. "quanto tá o brasil?" = LIVE, team "Brazil".
-3. "fortaleza e ceará hoje" = MATCH_ANALYSIS, homeTeam "Fortaleza", awayTeam "Ceará".
-4. "esse jogo presta?" = MATCH_ANALYSIS ou LIVE usando reference "lastMatch".
-5. "e se eu colocar 50?" = BANKROLL, stake 50, reference "lastTicket".
-6. "crie uma legenda" = GENERAL.
-7. "quem descobriu o Brasil?" = GENERAL.
-8. Se for futebol/apostas, shouldUseOddixEngine = true.
-9. Se for geral, shouldUseGlobalAiDirect = true.
-10. Sempre responda JSON puro, sem markdown.
+2. "como está o jogo da seleção da frança?" = LIVE, team "France".
+3. "quanto tá o brasil?" = LIVE, team "Brazil".
+4. "fortaleza e ceará hoje" = MATCH_ANALYSIS, homeTeam "Fortaleza", awayTeam "Ceará".
+5. "esse jogo presta?" = MATCH_ANALYSIS ou LIVE usando reference "lastMatch".
+6. "e se eu colocar 50?" = BANKROLL, stake 50, reference "lastTicket".
+7. "crie uma legenda" = GENERAL.
+8. "quem descobriu o Brasil?" = GENERAL.
+9. Se for futebol/apostas, shouldUseOddixEngine = true.
+10. Se for geral, shouldUseGlobalAiDirect = true.
+11. Se mencionar jogo, placar, seleção, time, odds ou aposta, NÃO classifique como GENERAL.
 
 FORMATO:
 {
@@ -212,13 +202,8 @@ ${message}
     });
 
     const confidence = this.safeNumber(json.confidence);
-    const shouldUseGlobalAiDirect =
-      json.shouldUseGlobalAiDirect === true || intent === 'GENERAL';
-
-    const shouldUseOddixEngine =
-      json.shouldUseOddixEngine === true ||
-      !shouldUseGlobalAiDirect;
-
+    const shouldUseGlobalAiDirect = json.shouldUseGlobalAiDirect === true || intent === 'GENERAL';
+    const shouldUseOddixEngine = json.shouldUseOddixEngine === true || !shouldUseGlobalAiDirect;
     const reference = this.normalizeReference(json.reference, context, intent);
 
     return {
@@ -249,10 +234,7 @@ ${message}
     let intent: OddixBrainIntent = 'GENERAL';
     let reference: OddixBrainDecision['reference'] = 'none';
 
-    if (entities.stake || text.includes('quanto ganho') || text.includes('retorno') || text.includes('lucro')) {
-      intent = 'BANKROLL';
-      reference = context.lastTicket ? 'lastTicket' : 'none';
-    } else if (
+    const asksLiveStatus =
       text.includes('ao vivo') ||
       text.includes('live') ||
       text.includes('como ta') ||
@@ -260,8 +242,16 @@ ${message}
       text.includes('quanto ta') ||
       text.includes('placar') ||
       text.includes('quem ta ganhando') ||
-      text.includes('quem esta ganhando')
-    ) {
+      text.includes('quem esta ganhando') ||
+      text.includes('jogo da selecao') ||
+      text.includes('jogo da seleção') ||
+      text.includes('selecao da') ||
+      text.includes('seleção da');
+
+    if (entities.stake || text.includes('quanto ganho') || text.includes('retorno') || text.includes('lucro')) {
+      intent = 'BANKROLL';
+      reference = context.lastTicket ? 'lastTicket' : 'none';
+    } else if (asksLiveStatus) {
       intent = 'LIVE';
     } else if (entities.homeTeam && entities.awayTeam) {
       intent = 'MATCH_ANALYSIS';
@@ -292,7 +282,7 @@ ${message}
       intent,
       userMessage: message,
       normalizedQuestion: text,
-      confidence: intent === 'GENERAL' ? 0.65 : 0.78,
+      confidence: intent === 'GENERAL' ? 0.65 : 0.85,
       riskMode,
       entities,
       reference,
@@ -300,10 +290,7 @@ ${message}
       shouldUseOddixEngine,
       shouldUseGlobalAiDirect,
       shouldHumanizeWithGemini: shouldUseOddixEngine,
-      safetyNotes: [
-        'Fallback local usado.',
-        'Oddix Engine mantém regra de dados reais.',
-      ],
+      safetyNotes: ['Fallback local usado.', 'Oddix Engine mantém regra de dados reais.'],
       source: 'local',
     };
   }
@@ -388,7 +375,6 @@ ${message}
       return JSON.parse(raw);
     } catch {
       const match = raw.match(/\{[\s\S]*\}/);
-
       if (!match?.[0]) return null;
 
       try {

@@ -25,7 +25,9 @@ export class OddixEntityExtractorService {
     return {
       ...base,
       ...Object.fromEntries(
-        Object.entries(overrides).filter(([, value]) => value !== undefined && value !== null && value !== ''),
+        Object.entries(overrides).filter(
+          ([, value]) => value !== undefined && value !== null && value !== '',
+        ),
       ),
     };
   }
@@ -42,6 +44,7 @@ export class OddixEntityExtractorService {
       .replace(/como está/gi, '')
       .replace(/hoje/gi, '')
       .replace(/agora/gi, '')
+      .replace(/player props/gi, '')
       .trim();
 
     const normalized = cleaned.toLowerCase();
@@ -70,9 +73,10 @@ export class OddixEntityExtractorService {
   }
 
   private extractSingleTeam(message: string): string | undefined {
-    const text = this.normalize(message);
+    const raw = String(message || '');
+    const text = this.normalize(raw);
 
-    const aliases: Record<string, string> = {
+    const directAliases: Record<string, string> = {
       franca: 'France',
       frança: 'France',
       france: 'France',
@@ -88,6 +92,8 @@ export class OddixEntityExtractorService {
       germany: 'Germany',
       italia: 'Italy',
       italy: 'Italy',
+      iraque: 'Iraq',
+      iraq: 'Iraq',
       flamengo: 'Flamengo',
       palmeiras: 'Palmeiras',
       fortaleza: 'Fortaleza',
@@ -100,26 +106,45 @@ export class OddixEntityExtractorService {
       fluminense: 'Fluminense',
       cruzeiro: 'Cruzeiro',
       gremio: 'Grêmio',
+      grêmio: 'Grêmio',
       internacional: 'Internacional',
     };
 
-    for (const [alias, canonical] of Object.entries(aliases)) {
+    const selectionPatterns = [
+      /sele[cç][aã]o\s+d[ao]\s+([a-zA-ZÀ-ÿ .'-]{3,})/i,
+      /jogo\s+d[ao]\s+sele[cç][aã]o\s+d[ao]\s+([a-zA-ZÀ-ÿ .'-]{3,})/i,
+      /jogo\s+d[ao]\s+([a-zA-ZÀ-ÿ .'-]{3,})/i,
+      /partida\s+d[ao]\s+([a-zA-ZÀ-ÿ .'-]{3,})/i,
+      /quanto\s+t[aá]\s+[ao]?\s*([a-zA-ZÀ-ÿ .'-]{3,})/i,
+      /placar\s+d[ao]\s+([a-zA-ZÀ-ÿ .'-]{3,})/i,
+      /como\s+est[aá]\s+[ao]?\s*jogo\s+d[ao]\s+([a-zA-ZÀ-ÿ .'-]{3,})/i,
+      /como\s+t[aá]\s+[ao]?\s*jogo\s+d[ao]\s+([a-zA-ZÀ-ÿ .'-]{3,})/i,
+    ];
+
+    for (const pattern of selectionPatterns) {
+      const match = raw.match(pattern);
+      if (match?.[1]) {
+        const cleaned = this.cleanTeamText(match[1]);
+        const normalized = this.normalize(cleaned);
+        return directAliases[normalized] || this.titleCase(cleaned);
+      }
+    }
+
+    for (const [alias, canonical] of Object.entries(directAliases)) {
       if (text.includes(this.normalize(alias))) return canonical;
     }
 
-    const patterns = [
-      /jogo d[ao] ([a-zA-ZÀ-ÿ .'-]{3,})/i,
-      /partida d[ao] ([a-zA-ZÀ-ÿ .'-]{3,})/i,
-      /quanto ta [ao]? ?([a-zA-ZÀ-ÿ .'-]{3,})/i,
-      /placar d[ao] ([a-zA-ZÀ-ÿ .'-]{3,})/i,
-    ];
-
-    for (const pattern of patterns) {
-      const match = String(message || '').match(pattern);
-      if (match?.[1]) return this.titleCase(match[1].trim());
-    }
-
     return undefined;
+  }
+
+  private cleanTeamText(value: string) {
+    return String(value || '')
+      .replace(/\bhoje\b/gi, '')
+      .replace(/\bagora\b/gi, '')
+      .replace(/\bao vivo\b/gi, '')
+      .replace(/\bnesse momento\b/gi, '')
+      .replace(/[?!.]+$/g, '')
+      .trim();
   }
 
   private extractMarket(message: string): string | undefined {

@@ -62,7 +62,7 @@ ${message}
       };
     } catch (error: any) {
       this.logger.error(
-        `Falha ao consultar Gemini: ${error?.message || error}`,
+        `[ODDIX GLOBAL AI] ${error?.response?.data || error?.message || error}`,
       );
 
       return {
@@ -143,6 +143,8 @@ Agora reescreva a resposta final para o usuário.
       'odds',
       'time',
       'times',
+      'seleção',
+      'selecao',
       'palpite',
       'palpites',
       'entrada',
@@ -154,6 +156,9 @@ Agora reescreva a resposta final para o usuário.
       'bilhete',
       'ao vivo',
       'live',
+      'placar',
+      'quanto ta',
+      'quanto tá',
       'virtual',
       'over',
       'under',
@@ -171,6 +176,15 @@ Agora reescreva a resposta final para o usuário.
       'finalizacao',
       'finalização',
       'player props',
+      'franca',
+      'frança',
+      'france',
+      'brasil',
+      'brazil',
+      'argentina',
+      'portugal',
+      'espanha',
+      'spain',
       'flamengo',
       'palmeiras',
       'fortaleza',
@@ -187,33 +201,9 @@ Agora reescreva a resposta final para o usuário.
       'gremio',
       'grêmio',
       'internacional',
-      'atletico',
-      'atlético',
-      'real madrid',
-      'barcelona',
-      'psg',
-      'manchester',
-      'liverpool',
-      'arsenal',
-      'chelsea',
-      'bayern',
-      'juventus',
-      'milan',
-      'brasil',
-      'argentina',
-      'espanha',
-      'portugal',
-      'franca',
-      'frança',
-      'inglaterra',
-      'alemanha',
-      'italia',
-      'itália',
     ];
 
-    return !footballWords.some((word) =>
-      text.includes(this.normalize(word)),
-    );
+    return !footballWords.some((word) => text.includes(this.normalize(word)));
   }
 
   private buildFallbackAnswer(message: string) {
