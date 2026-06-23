@@ -119,6 +119,7 @@ export class ChatFootballService {
       memory,
       profile,
       lastTicket,
+      sessionId,
     );
 
     if (brainRoute) return brainRoute;
@@ -188,6 +189,7 @@ export class ChatFootballService {
     memory: ConversationMemory,
     profile: UserBetProfile,
     lastTicket: ChatTicket | null,
+    sessionId: string,
   ): Promise<ChatFootballResponse | null> {
     if (!brainDecision) return null;
 
@@ -207,7 +209,11 @@ export class ChatFootballService {
 
     if (brainDecision.intent === 'BANKROLL') {
       const stake = brainDecision.entities.stake || this.extractMoney(message);
-      const odd = brainDecision.entities.odd || this.extractOdd(message) || lastTicket?.oddTotal || null;
+      const odd =
+        brainDecision.entities.odd ||
+        this.extractOdd(message) ||
+        lastTicket?.oddTotal ||
+        null;
 
       if (stake && odd && odd > 1) {
         return this.buildBetCalculatorResponse(
@@ -225,7 +231,7 @@ export class ChatFootballService {
     }
 
     if (brainDecision.intent === 'LIVE') {
-      return this.handleBrainLiveIntent(brainDecision, memory, profile);
+      return this.handleBrainLiveIntent(brainDecision, memory, profile, sessionId);
     }
 
     if (brainDecision.intent === 'FOLLOW_UP' && memory.lastMatch) {
@@ -253,11 +259,7 @@ export class ChatFootballService {
     }
 
     if (brainDecision.intent === 'TEAM' && brainDecision.entities.team) {
-      return this.buildTeamOverview(
-        brainDecision.entities.team,
-        memory,
-        profile,
-      );
+      return this.buildTeamOverview(brainDecision.entities.team, memory, profile);
     }
 
     return null;
@@ -267,6 +269,7 @@ export class ChatFootballService {
     brainDecision: OddixBrainDecision,
     memory: ConversationMemory,
     profile: UserBetProfile,
+    sessionId: string,
   ): Promise<ChatFootballResponse> {
     const team = this.resolveTeamAlias(
       brainDecision.entities.team ||
@@ -279,7 +282,7 @@ export class ChatFootballService {
     if (!team) {
       return this.direct(
         'LIVE',
-        '⚡ Entendi que você quer acompanhar um jogo ao vivo. Me diga qual time ou partida, por exemplo: "como tá o jogo da França?" ou "Flamengo x Palmeiras ao vivo".',
+        '⚡ Entendi que você quer acompanhar um jogo ao vivo. Me diga qual time ou partida.',
         memory,
         profile,
         {
@@ -304,14 +307,56 @@ export class ChatFootballService {
     }
 
     try {
-      const fixtures = await this.getFixturesWindow(1, 1);
+      const flashScoreLiveResponse: any =
+        typeof (this.footballService as any)?.getLiveFixturesFromFlashScore === 'function'
+          ? await (this.footballService as any).getLiveFixturesFromFlashScore()
+          : null;
+
+      const flashScoreLiveFixtures = this.extractFixtureArray(flashScoreLiveResponse);
+
+      const fallbackFixtures =
+        flashScoreLiveFixtures.length > 0
+          ? []
+          : await this.getFixturesWindow(1, 1);
+
+      const fixtures = [...flashScoreLiveFixtures, ...fallbackFixtures];
+
+      const liveStatuses = [
+        '1H',
+        '2H',
+        'HT',
+        'ET',
+        'P',
+        'LIVE',
+        'IN_PLAY',
+        'INT',
+        'SUSP',
+        'SUSPENDED',
+        'PST',
+        'POSTPONED',
+        'DELAYED',
+        'BT',
+        'ABD',
+      ];
+
       const liveCandidates = fixtures.filter((game: any) => {
         const status = String(game?.fixture?.status?.short || '').toUpperCase();
-        return ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'INT', 'SUSP', 'BT'].includes(status);
+        const statusLong = String(game?.fixture?.status?.long || '').toLowerCase();
+
+        return (
+          liveStatuses.includes(status) ||
+          statusLong.includes('live') ||
+          statusLong.includes('in play') ||
+          statusLong.includes('suspended') ||
+          statusLong.includes('postponed') ||
+          statusLong.includes('delayed')
+        );
       });
 
       const candidates = liveCandidates.length ? liveCandidates : fixtures;
-      const match = this.findTeamMatch(candidates, team) || this.findTeamMatch(fixtures, team);
+      const match =
+        this.findTeamMatch(candidates, team) ||
+        this.findTeamMatch(fixtures, team);
 
       if (!match) {
         return this.direct(
@@ -349,7 +394,7 @@ export class ChatFootballService {
         lastRichContext: richContext,
       };
 
-      this.memoryService?.remember({ sessionId: 'anonymous' }, updatedMemory);
+      this.memoryService?.remember({ sessionId }, updatedMemory);
 
       const clock =
         statusShort === 'NS'
@@ -425,11 +470,11 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
   }
 
   private findTeamMatch(fixtures: any[], teamName: string) {
-    const query = this.normalize(this.resolveTeamAlias(teamName));
+    const query = this.normalizeTeamSearch(this.resolveTeamAlias(teamName));
 
     return fixtures.find((game: any) => {
-      const home = this.normalize(game?.teams?.home?.name);
-      const away = this.normalize(game?.teams?.away?.name);
+      const home = this.normalizeTeamSearch(game?.teams?.home?.name);
+      const away = this.normalizeTeamSearch(game?.teams?.away?.name);
 
       return (
         home.includes(query) ||
@@ -440,12 +485,30 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
     });
   }
 
+  private normalizeTeamSearch(value: any) {
+    return this.normalize(value)
+      .replace(/national team/g, '')
+      .replace(/olympic/g, '')
+      .replace(/u23/g, '')
+      .replace(/u 23/g, '')
+      .replace(/sub 23/g, '')
+      .replace(/sub23/g, '')
+      .replace(/selecao/g, '')
+      .replace(/team/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   private resolveTeamAlias(value: string) {
     const key = this.normalize(value);
 
     const aliases: Record<string, string> = {
       franca: 'France',
+      frança: 'France',
       france: 'France',
+      'france national team': 'France',
+      'france olympic': 'France',
+      'france u23': 'France',
       brasil: 'Brazil',
       brazil: 'Brazil',
       argentina: 'Argentina',
@@ -460,6 +523,7 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
       italy: 'Italy',
       fortaleza: 'Fortaleza',
       ceara: 'Ceará',
+      ceará: 'Ceará',
       flamengo: 'Flamengo',
       palmeiras: 'Palmeiras',
       corinthians: 'Corinthians',
@@ -469,6 +533,7 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
       fluminense: 'Fluminense',
       cruzeiro: 'Cruzeiro',
       gremio: 'Grêmio',
+      grêmio: 'Grêmio',
       internacional: 'Internacional',
     };
 
@@ -478,7 +543,7 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
   private describeLiveStatus(statusShort: string) {
     const status = String(statusShort || '').toUpperCase();
 
-    if (['1H', '2H', 'ET', 'P', 'LIVE', 'INT'].includes(status)) {
+    if (['1H', '2H', 'ET', 'P', 'LIVE', 'INT', 'IN_PLAY'].includes(status)) {
       return 'partida em andamento. Agora eu preciso de pressão real, finalizações e odds para validar qualquer entrada.';
     }
 
@@ -486,8 +551,20 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
       return 'intervalo. Bom momento para revisar pressão, volume ofensivo e linha de gols ao vivo.';
     }
 
-    if (status === 'SUSP') {
+    if (status === 'SUSP' || status === 'SUSPENDED') {
       return 'partida suspensa. Não recomendo entrada até a confirmação de retorno do jogo.';
+    }
+
+    if (status === 'PST' || status === 'POSTPONED') {
+      return 'partida adiada. Não existe entrada ao vivo válida enquanto o jogo não retornar para a grade.';
+    }
+
+    if (status === 'DELAYED') {
+      return 'partida atrasada. Aguarde confirmação de início/retorno antes de qualquer leitura ao vivo.';
+    }
+
+    if (status === 'ABD') {
+      return 'partida interrompida/abandonada. Não recomendo qualquer entrada.';
     }
 
     if (status === 'NS') {

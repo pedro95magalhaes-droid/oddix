@@ -567,13 +567,23 @@ export class FootballService {
         "BT",
         "P",
         "PEN_LIVE",
+        "SUSP",
+        "SUSPENDED",
+        "PST",
+        "POSTPONED",
+        "DELAYED",
+        "ABD",
       ].includes(s) ||
       l.includes("live") ||
       l.includes("in play") ||
       l.includes("1st half") ||
       l.includes("2nd half") ||
       l.includes("halftime") ||
-      l.includes("half-time")
+      l.includes("half-time") ||
+      l.includes("suspended") ||
+      l.includes("postponed") ||
+      l.includes("delayed") ||
+      l.includes("abandoned")
     );
   }
 
