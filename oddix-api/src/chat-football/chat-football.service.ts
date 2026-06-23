@@ -231,6 +231,15 @@ export class ChatFootballService {
     }
 
     if (brainDecision.intent === 'LIVE') {
+      const hasTeam =
+        !!brainDecision.entities.team ||
+        !!brainDecision.entities.homeTeam ||
+        !!brainDecision.entities.awayTeam;
+
+      if (!hasTeam) {
+        return this.showLiveMatches(memory, profile, brainDecision);
+      }
+
       return this.handleBrainLiveIntent(brainDecision, memory, profile, sessionId);
     }
 
@@ -265,6 +274,150 @@ export class ChatFootballService {
     return null;
   }
 
+
+  private async showLiveMatches(
+    memory: ConversationMemory,
+    profile: UserBetProfile,
+    brainDecision?: OddixBrainDecision,
+  ): Promise<ChatFootballResponse> {
+    if (!this.footballService) {
+      return this.direct(
+        'LIVE',
+        '⚽ Entendi que você quer ver os jogos ao vivo, mas o módulo de futebol real não está disponível agora.',
+        memory,
+        profile,
+        {
+          waitingForData: true,
+          brain: brainDecision,
+        },
+      );
+    }
+
+    try {
+      const flashScoreLiveResponse: any =
+        typeof (this.footballService as any)?.getLiveFixturesFromFlashScore === 'function'
+          ? await (this.footballService as any).getLiveFixturesFromFlashScore()
+          : null;
+
+      let fixtures = this.extractFixtureArray(flashScoreLiveResponse);
+
+      if (!fixtures.length) {
+        const fallbackResponse: any =
+          typeof (this.footballService as any)?.getLiveFixtures === 'function'
+            ? await (this.footballService as any).getLiveFixtures()
+            : null;
+
+        fixtures = this.extractFixtureArray(fallbackResponse);
+      }
+
+      if (!fixtures.length) {
+        const windowFixtures = await this.getFixturesWindow(0, 0);
+        const liveStatuses = [
+          '1H',
+          '2H',
+          'HT',
+          'ET',
+          'P',
+          'LIVE',
+          'IN_PLAY',
+          'INT',
+          'SUSP',
+          'SUSPENDED',
+          'PST',
+          'POSTPONED',
+          'DELAYED',
+          'BT',
+          'ABD',
+        ];
+
+        fixtures = windowFixtures.filter((game: any) => {
+          const status = String(game?.fixture?.status?.short || '').toUpperCase();
+          const statusLong = String(game?.fixture?.status?.long || '').toLowerCase();
+
+          return (
+            liveStatuses.includes(status) ||
+            statusLong.includes('live') ||
+            statusLong.includes('in play') ||
+            statusLong.includes('suspended') ||
+            statusLong.includes('postponed') ||
+            statusLong.includes('delayed')
+          );
+        });
+      }
+
+      const cleanFixtures = fixtures
+        .filter((game: any) => game?.teams?.home?.name && game?.teams?.away?.name)
+        .slice(0, 25);
+
+      if (!cleanFixtures.length) {
+        return this.direct(
+          'LIVE',
+          '⚽ Não encontrei jogos ao vivo na base Oddix neste momento.\n\nPode ser atraso da API, pausa entre partidas ou indisponibilidade temporária do FlashScore.',
+          memory,
+          profile,
+          {
+            waitingForData: true,
+            brain: brainDecision,
+          },
+        );
+      }
+
+      const lines = cleanFixtures
+        .slice(0, 15)
+        .map((game: any, index: number) => {
+          const home = game?.teams?.home?.name || 'Casa';
+          const away = game?.teams?.away?.name || 'Fora';
+          const homeGoals =
+            game?.goals?.home ??
+            game?.score?.fulltime?.home ??
+            0;
+          const awayGoals =
+            game?.goals?.away ??
+            game?.score?.fulltime?.away ??
+            0;
+          const statusShort = String(game?.fixture?.status?.short || 'LIVE').toUpperCase();
+          const elapsed = game?.fixture?.status?.elapsed;
+          const clock =
+            elapsed !== null && elapsed !== undefined
+              ? `${elapsed}'`
+              : statusShort;
+
+          const league = game?.league?.name || 'Liga não informada';
+
+          return `${index + 1}. ${home} ${homeGoals} x ${awayGoals} ${away} (${clock})\n   🏆 ${league}`;
+        })
+        .join('\n\n');
+
+      return this.direct(
+        'LIVE',
+        `⚽ Existem ${cleanFixtures.length} jogos ao vivo/ativos na base Oddix neste momento:\n\n${lines}\n\nDigite o nome de um jogo para eu analisar com mais profundidade.`,
+        memory,
+        profile,
+        {
+          fixtures: cleanFixtures,
+          brain: brainDecision,
+          suggestions: cleanFixtures.slice(0, 4).map((game: any) => {
+            const home = game?.teams?.home?.name || 'Casa';
+            const away = game?.teams?.away?.name || 'Fora';
+            return `⚡ Como está ${home} x ${away}?`;
+          }),
+        },
+      );
+    } catch (error: any) {
+      return this.direct(
+        'LIVE',
+        `⚠️ Não consegui consultar os jogos ao vivo agora.\n\nMotivo: ${error?.message || 'falha ao consultar FlashScore Live'}`,
+        memory,
+        profile,
+        {
+          waitingForData: true,
+          brain: brainDecision,
+        },
+      );
+    }
+  }
+
+
   private async handleBrainLiveIntent(
     brainDecision: OddixBrainDecision,
     memory: ConversationMemory,
@@ -280,16 +433,7 @@ export class ChatFootballService {
     );
 
     if (!team) {
-      return this.direct(
-        'LIVE',
-        '⚡ Entendi que você quer acompanhar um jogo ao vivo. Me diga qual time ou partida.',
-        memory,
-        profile,
-        {
-          waitingForData: true,
-          brain: brainDecision,
-        },
-      );
+      return this.showLiveMatches(memory, profile, brainDecision);
     }
 
     if (!this.footballService) {
