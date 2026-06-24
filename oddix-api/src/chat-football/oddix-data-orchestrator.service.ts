@@ -157,6 +157,25 @@ export class OddixDataOrchestratorService {
     );
   }
 
+  private flashScoreFallbackStatus() {
+    const diagnostics: any = this.flashScoreService?.getDiagnostics?.() || null;
+    const attempts = Array.isArray(diagnostics?.lastAttempts) ? diagnostics.lastAttempts : [];
+    const errorText = attempts
+      .map((attempt: any) => attempt?.error || '')
+      .filter(Boolean)
+      .join(' | ');
+    const quota = !!diagnostics?.quotaBlocked || /quota|too many requests|rate.?limit|daily.*request|429|exceeded/i.test(errorText);
+
+    return {
+      diagnostics,
+      quota,
+      unavailable: quota || attempts.some((attempt: any) => attempt?.ok === false),
+      reason: quota
+        ? 'A FlashScore está conectada, mas a cota/limite do provider foi atingida. Acionei fallback web/cache e não vou inventar dados.'
+        : 'A FlashScore não confirmou dados agora. Acionei fallback web/cache e não vou inventar dados.',
+    };
+  }
+
   private async answerFlashScoreDiagnostic(): Promise<OddixDataOrchestratorResponse> {
     const diagnostics: any = this.flashScoreService?.getDiagnostics?.() || {
       enabled: false,
@@ -325,15 +344,23 @@ Se for conhecimento geral, responda normalmente.`,
       const researchAnswer = await this.answerFromResearchOnly(message, research, decision, 'jogos de hoje');
       if (researchAnswer) return researchAnswer;
 
+      const flashScoreStatus = this.flashScoreFallbackStatus();
+
       return {
         handled: true,
         answer:
-          '⚽ Não encontrei jogos reais confirmados na base Oddix nem consegui validar pela pesquisa em tempo real agora. Não vou inventar partidas.',
+          `⚽ Não encontrei jogos reais confirmados agora.
+
+${flashScoreStatus.reason}
+
+Também tentei validar pela pesquisa web em tempo real, mas não encontrei dados suficientes para listar partidas com segurança. Não vou inventar partidas.`,
         data: {
           waitingForData: true,
           fixtures: [],
           research,
           decision,
+          flashScoreDiagnostics: flashScoreStatus.diagnostics,
+          flashScoreQuota: flashScoreStatus.quota,
         },
         suggestions: [
           'Mostrar jogos ao vivo',
@@ -378,20 +405,25 @@ Não invente partidas. Se a pergunta mencionar Copa/Mundial/FIFA, liste apenas j
       const researchAnswer = await this.answerFromResearchOnly(message, research, decision, 'jogos ao vivo');
       if (researchAnswer) return researchAnswer;
 
-      const flashScoreDiagnostics = this.flashScoreService?.getDiagnostics?.() || null;
+      const flashScoreStatus = this.flashScoreFallbackStatus();
 
       return {
         handled: true,
         answer:
-          `⚡ Não encontrei jogos ao vivo/ativos na base Oddix agora. Isso indica que a FlashScore não retornou jogos no backend de produção ou que a chave/endpoint não está configurado corretamente. Não vou inventar placar.
+          `⚡ Não encontrei jogos ao vivo/ativos confirmados agora.
 
-Digite \`diagnóstico flashscore\` para eu mostrar o status técnico da conexão.`,
+${flashScoreStatus.reason}
+
+Também tentei a pesquisa web em tempo real, mas ela não confirmou uma lista confiável de jogos ao vivo. Não vou inventar placar.
+
+Digite \`diagnóstico flashscore\` para ver o status técnico da conexão.`,
         data: {
           waitingForData: true,
           fixtures: [],
           research,
           decision,
-          flashScoreDiagnostics,
+          flashScoreDiagnostics: flashScoreStatus.diagnostics,
+          flashScoreQuota: flashScoreStatus.quota,
         },
         suggestions: [
           'Mostrar jogos de hoje',
@@ -894,10 +926,19 @@ Nunca invente odds, estatísticas, escalações ou resultado. Se faltar dado rea
     try {
       if (this.researchAgent) {
         const agentResult = await this.researchAgent.research(message, query);
-        if (agentResult) return agentResult;
+        if (agentResult?.items?.length) return agentResult;
+
+        // V21.4: se o agente existe mas retornou vazio/falha parcial, tenta o provider web direto
+        // antes de desistir. Isso é essencial quando FlashScore está sem cota.
+        if (!this.researchService) return agentResult;
       }
 
-      return await this.researchService!.search(query);
+      if (this.researchService?.searchEverything) {
+        const direct = await this.researchService.searchEverything(query, 'br');
+        if (direct?.items?.length) return direct;
+      }
+
+      return await this.researchService!.search(query, 'br');
     } catch (error: any) {
       this.logger.warn(`[ODDIX_RESEARCH] falhou: ${error?.message || error}`);
       return {

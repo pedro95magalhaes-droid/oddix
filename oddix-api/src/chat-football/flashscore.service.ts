@@ -11,6 +11,8 @@ type ProviderResult<T> = {
 export class FlashScoreService {
   private readonly baseURL = process.env.FLASHSCORE_API_BASE_URL || 'https://flashscore4.p.rapidapi.com';
   private readonly memoryCache = new Map<string, { expiresAt: number; data: any }>();
+  private quotaBlockedUntil = 0;
+  private quotaBlockedReason = '';
   private readonly lastAttempts: Array<{ path: string; ok: boolean; error?: string; at: string }> = [];
 
   isEnabled() {
@@ -42,6 +44,9 @@ export class FlashScoreService {
       host: this.getHost(),
       timezone: this.getTimezone(),
       geoIpCode: process.env.FLASHSCORE_GEO_IP_CODE || 'BR',
+      quotaBlocked: this.isQuotaBlocked(),
+      quotaBlockedUntil: this.quotaBlockedUntil ? new Date(this.quotaBlockedUntil).toISOString() : null,
+      quotaBlockedReason: this.quotaBlockedReason || null,
       livePaths: this.configuredPaths('FLASHSCORE_LIVE_PATHS', [
         process.env.FLASHSCORE_LIVE_PATH || '',
         '/api/flashscore/v2/matches/live',
@@ -117,7 +122,38 @@ export class FlashScoreService {
           .filter(Boolean)
       : [];
 
-    return Array.from(new Set([...fromEnv, ...fallback].filter(Boolean)));
+    // V21.4 quota-safe: se o usuário definiu paths no .env, respeita somente esses paths.
+    // Antes o serviço anexava vários fallbacks automaticamente. Quando um endpoint correto
+    // batia quota, ele continuava testando endpoints inválidos e gastava chamadas à toa.
+    if (fromEnv.length) return Array.from(new Set(fromEnv));
+
+    const useFallbacks = String(process.env.FLASHSCORE_USE_FALLBACK_PATHS || 'false').toLowerCase() === 'true';
+    const safeFallback = fallback.filter((path) => path.includes('/api/flashscore/v2/'));
+
+    return Array.from(new Set((useFallbacks ? fallback : safeFallback).filter(Boolean)));
+  }
+
+  private isQuotaError(error: any) {
+    const text = typeof error === 'string' ? error : this.safeError(error);
+    return /quota|too many requests|rate.?limit|daily.*request|429|exceeded/i.test(text || '');
+  }
+
+  private quotaCooldownMs() {
+    return Number(process.env.FLASHSCORE_QUOTA_COOLDOWN_MS || 1000 * 60 * 60 * 6);
+  }
+
+  private markQuotaBlocked(error: any) {
+    this.quotaBlockedUntil = Date.now() + this.quotaCooldownMs();
+    this.quotaBlockedReason = this.safeError(error);
+  }
+
+  private isQuotaBlocked() {
+    return this.quotaBlockedUntil > Date.now();
+  }
+
+  private quotaBlockedMessage() {
+    const until = this.quotaBlockedUntil ? new Date(this.quotaBlockedUntil).toISOString() : 'indefinido';
+    return `FlashScore temporariamente bloqueada por cota/limite até ${until}. Motivo: ${this.quotaBlockedReason || 'quota exceeded'}`;
   }
 
   private hasMatchPayload(data: any) {
@@ -202,6 +238,12 @@ export class FlashScoreService {
       }
     }
 
+    if (this.isQuotaBlocked()) {
+      const error = this.quotaBlockedMessage();
+      this.rememberAttempt(path, false, error);
+      return { ok: false, data: null, error };
+    }
+
     try {
       const response = await axios.get(`${this.baseURL}${path}`, {
         timeout: this.timeoutMs(),
@@ -224,6 +266,9 @@ export class FlashScoreService {
       return { ok: true, data: response.data, error: null };
     } catch (error: any) {
       const finalError = error?.response?.data?.message || error?.response?.data || error?.message || 'Erro na FlashScore';
+      if (this.isQuotaError(finalError) || error?.response?.status === 429) {
+        this.markQuotaBlocked(finalError);
+      }
       this.rememberAttempt(path, false, finalError);
       return {
         ok: false,
@@ -601,11 +646,6 @@ export class FlashScoreService {
     const paths = this.configuredPaths('FLASHSCORE_LIVE_PATHS', [
       process.env.FLASHSCORE_LIVE_PATH || '',
       '/api/flashscore/v2/matches/live',
-      '/api/flashscore/v1/matches/live',
-      '/api/flashscore/matches/live',
-      '/matches/live',
-      '/api/matches/live',
-      '/football/live',
     ]);
 
     const errors: string[] = [];
@@ -615,7 +655,11 @@ export class FlashScoreService {
       const response = await this.request(path, params);
 
       if (!response.ok || !response.data) {
-        errors.push(`${path}: ${String(response.error || 'sem resposta')}`);
+        const errorText = String(response.error || 'sem resposta');
+        errors.push(`${path}: ${errorText}`);
+        if (this.isQuotaError(errorText)) {
+          return { ok: false, data: [], error: errors.slice(0, 3).join(' | ') };
+        }
         continue;
       }
 
@@ -647,11 +691,6 @@ export class FlashScoreService {
     const paths = this.configuredPaths('FLASHSCORE_FIXTURES_PATHS', [
       process.env.FLASHSCORE_FIXTURES_PATH || '',
       '/api/flashscore/v2/matches/list-by-date',
-      '/api/flashscore/v1/matches/list-by-date',
-      '/api/flashscore/matches/list-by-date',
-      '/matches/list-by-date',
-      '/api/matches/list-by-date',
-      '/football/matches/list-by-date',
     ]);
 
     const errors: string[] = [];
@@ -662,7 +701,11 @@ export class FlashScoreService {
         const response = await this.request(path, params);
 
         if (!response.ok || !response.data) {
-          errors.push(`${path}: ${String(response.error || 'sem resposta')}`);
+          const errorText = String(response.error || 'sem resposta');
+          errors.push(`${path}: ${errorText}`);
+          if (this.isQuotaError(errorText)) {
+            return { ok: false, data: [], error: errors.slice(0, 3).join(' | ') };
+          }
           continue;
         }
 
