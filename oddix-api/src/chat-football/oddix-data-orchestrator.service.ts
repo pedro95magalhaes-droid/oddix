@@ -948,6 +948,36 @@ ${userMessage}`,
     };
   }
 
+  private stripContextualQuestionTerms(value: string) {
+    return String(value || '')
+      .replace(/[?!.]+/g, ' ')
+      .replace(/\bvale\s+entrar\b/gi, ' ')
+      .replace(/\bvale\s+a\s+pena\b/gi, ' ')
+      .replace(/\bposso\s+entrar\b/gi, ' ')
+      .replace(/\bentraria\b/gi, ' ')
+      .replace(/\bqual\s+mercado\b/gi, ' ')
+      .replace(/\bque\s+mercado\b/gi, ' ')
+      .replace(/\bquais\s+s[aã]o\s+as\s+odds\b/gi, ' ')
+      .replace(/\bquais\s+odds\b/gi, ' ')
+      .replace(/\bqual\s+odd\b/gi, ' ')
+      .replace(/\bo\s+que\s+voc[eê]\s+faria\b/gi, ' ')
+      .replace(/\bo\s+que\s+voce\s+faria\b/gi, ' ')
+      .replace(/\bo\s+que\s+faria\b/gi, ' ')
+      .replace(/\bquem\s+est[aá]\s+melhor\b/gi, ' ')
+      .replace(/\bquem\s+ta\s+melhor\b/gi, ' ')
+      .replace(/\bquem\s+t[aá]\s+melhor\b/gi, ' ')
+      .replace(/\bpr[oó]ximo\s+gol\b/gi, ' ')
+      .replace(/\bproximo\s+gol\b/gi, ' ')
+      .replace(/\btem\s+entrada\b/gi, ' ')
+      .replace(/\bme\s+d[aá]\s+uma\s+entrada\b/gi, ' ')
+      .replace(/\bnesse\s+jogo\b/gi, ' ')
+      .replace(/\bdesse\s+jogo\b/gi, ' ')
+      .replace(/\bnessa\s+partida\b/gi, ' ')
+      .replace(/\bdesse\s+confronto\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   private extractTeams(message: string, decision?: OddixBrainDecision | null): { home: string; away: string } | null {
     if (decision?.entities?.homeTeam && decision?.entities?.awayTeam) {
       return {
@@ -956,7 +986,7 @@ ${userMessage}`,
       };
     }
 
-    const sanitized = String(message || '')
+    const sanitized = this.stripContextualQuestionTerms(String(message || ''))
       .replace(/[–—]/g, ' ')
       .replace(/\b\d+\s*x\s*\d+\b/gi, ' x ')
       .replace(/\b\d+\s*-\s*\d+\b/gi, ' x ')
