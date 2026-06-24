@@ -1906,7 +1906,27 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
     return statistics;
   }
 
-  private emptyStatisticsSummary() {
+  private emptyStatisticsSummary(): {
+    available: boolean;
+    source: string;
+    home: {
+      possession: number | null;
+      totalShots: number | null;
+      shotsOnGoal: number | null;
+      corners: number | null;
+      attacks: number | null;
+      dangerousAttacks: number | null;
+    };
+    away: {
+      possession: number | null;
+      totalShots: number | null;
+      shotsOnGoal: number | null;
+      corners: number | null;
+      attacks: number | null;
+      dangerousAttacks: number | null;
+    };
+    rawAvailableStats: string[];
+  } {
     return {
       available: false,
       source: 'none',
@@ -2172,16 +2192,20 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
     for (const direct of directCandidates) {
       if (!Array.isArray(direct)) continue;
 
-      const normalized = direct
-        .map((item: any) => ({
-          name: String(
+      const normalized: Array<{ name: string; odd: number }> = direct
+        .map((item: any) => {
+          const name = String(
             this.readLoose(item, ['name', 'nome', 'label', 'selection', 'market', 'mercado']) || '',
-          ).trim(),
-          odd: this.toOddNumber(
+          ).trim();
+          const odd = this.toOddNumber(
             this.readLoose(item, ['odd', 'odds', 'value', 'price', 'cotacao', 'cotação']),
-          ),
-        }))
-        .filter((item: any) => item.name && Number(item.odd) > 1);
+          );
+
+          return { name, odd };
+        })
+        .filter((item: { name: string; odd: number | null }): item is { name: string; odd: number } => {
+          return !!item.name && typeof item.odd === 'number' && Number.isFinite(item.odd) && item.odd > 1;
+        });
 
       if (normalized.length) return normalized.slice(0, 12);
     }
