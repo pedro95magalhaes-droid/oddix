@@ -2322,9 +2322,9 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
       croatia: ['croacia', 'hrvatska'],
       hrvatska: ['croacia', 'croatia'],
       panama: ['panama'],
-      estados unidos: ['usa', 'united states', 'united states of america'],
+      'estados unidos': ['usa', 'united states', 'united states of america'],
       usa: ['estados unidos', 'united states', 'united states of america'],
-      estados unidos da america: ['usa', 'united states'],
+      'estados unidos da america': ['usa', 'united states'],
       inglaterra: ['england'],
       england: ['inglaterra'],
       alemanha: ['germany'],
@@ -2335,8 +2335,8 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
       spain: ['espanha'],
       japao: ['japan'],
       japan: ['japao'],
-      coreia do sul: ['south korea', 'korea republic'],
-      south korea: ['coreia do sul', 'korea republic'],
+      'coreia do sul': ['south korea', 'korea republic'],
+      'south korea': ['coreia do sul', 'korea republic'],
     };
 
     for (const alias of aliasMap[base] || []) {
