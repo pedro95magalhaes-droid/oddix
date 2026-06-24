@@ -1,6 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { FootballService } from '../football/football.service';
-import { FootballResearchService, ResearchResult } from './football-research.service';
+import { FootballResearchService, ResearchItem, ResearchResult } from './football-research.service';
 import { OddixLlmService, OddixLlmMessage } from './oddix-llm.service';
 import { OddixBrainService, OddixBrainDecision } from './oddix-brain.service';
 import { OddixQueryCleanerService } from './oddix-query-cleaner.service';
@@ -309,6 +309,20 @@ Se for conhecimento geral, responda normalmente.`,
     // O resolver valida a data de hoje, faz multi-search e remove partidas futuras/passadas.
     if (wantsCup && this.worldCupResolver) {
       const resolved = await this.worldCupResolver.resolveToday(message);
+
+      if (!resolved.fixtures.length) {
+        const strongWebFallback = await this.buildStrongWebFixtureFallback(message, decision, 'cup_today');
+        if (strongWebFallback.fixtures.length) {
+          return this.answerFromWebFixtureFallback(
+            message,
+            decision,
+            strongWebFallback,
+            '🏆 Jogos da Copa/Mundial encontrados pela web',
+            'jogos de Copa/Mundial hoje',
+          );
+        }
+      }
+
       return {
         handled: true,
         answer: resolved.answer,
@@ -341,6 +355,17 @@ Se for conhecimento geral, responda normalmente.`,
     }
 
     if (!fixtures.length) {
+      const strongWebFallback = await this.buildStrongWebFixtureFallback(message, decision, wantsCup ? 'cup_today' : 'today');
+      if (strongWebFallback.fixtures.length) {
+        return this.answerFromWebFixtureFallback(
+          message,
+          decision,
+          strongWebFallback,
+          wantsCup ? '🏆 Jogos da Copa/Mundial encontrados pela web' : '⚽ Jogos de hoje encontrados pela web',
+          wantsCup ? 'jogos de Copa/Mundial hoje' : 'jogos de hoje',
+        );
+      }
+
       const researchAnswer = await this.answerFromResearchOnly(message, research, decision, 'jogos de hoje');
       if (researchAnswer) return researchAnswer;
 
@@ -402,6 +427,17 @@ Não invente partidas. Se a pergunta mencionar Copa/Mundial/FIFA, liste apenas j
     const fixtures = await this.getLiveFixtures();
 
     if (!fixtures.length) {
+      const strongWebFallback = await this.buildStrongWebFixtureFallback(message, decision, 'live');
+      if (strongWebFallback.fixtures.length) {
+        return this.answerFromWebFixtureFallback(
+          message,
+          decision,
+          strongWebFallback,
+          '⚡ Jogos ao vivo encontrados pela web',
+          'jogos ao vivo',
+        );
+      }
+
       const researchAnswer = await this.answerFromResearchOnly(message, research, decision, 'jogos ao vivo');
       if (researchAnswer) return researchAnswer;
 
@@ -1095,6 +1131,447 @@ ${research.summary}
         'Analisar um jogo específico',
       ],
     };
+  }
+
+
+  private async buildStrongWebFixtureFallback(
+    message: string,
+    decision: OddixBrainDecision | undefined,
+    kind: 'live' | 'today' | 'cup_today',
+  ): Promise<{ fixtures: any[]; research: ResearchResult | null; queries: string[]; items: ResearchItem[] }> {
+    const queries = this.buildStrongWebFallbackQueries(kind, message);
+    const results: ResearchResult[] = [];
+
+    for (const query of queries) {
+      const result = await this.directWebSearch(message, query).catch((error: any) => ({
+        enabled: true,
+        query,
+        items: [],
+        summary: `Falha na pesquisa web forte: ${error?.message || error}`,
+        error: error?.message || String(error),
+      }) as any);
+
+      if (result) results.push(result as ResearchResult);
+
+      const mergedEarly = this.mergeResearchResults(results, queries);
+      const earlyFixtures = this.extractFixturesFromResearchItems(mergedEarly.items || [], kind);
+      if (earlyFixtures.length >= (kind === 'live' ? 4 : 8)) {
+        return {
+          fixtures: earlyFixtures,
+          research: mergedEarly,
+          queries,
+          items: mergedEarly.items || [],
+        };
+      }
+    }
+
+    const merged = this.mergeResearchResults(results, queries);
+    return {
+      fixtures: this.extractFixturesFromResearchItems(merged.items || [], kind),
+      research: merged,
+      queries,
+      items: merged.items || [],
+    };
+  }
+
+  private buildStrongWebFallbackQueries(kind: 'live' | 'today' | 'cup_today', message: string) {
+    const today = this.todayIso('America/Sao_Paulo');
+    const baseMessage = this.cleanResearchQuery(message);
+
+    const liveQueries = [
+      `football live scores now ${today}`,
+      `soccer live scores today ${today}`,
+      `ESPN soccer live scores today ${today}`,
+      `SofaScore football live today ${today}`,
+      `FlashScore football live scores today ${today}`,
+      `365Scores football live today ${today}`,
+      `FIFA Club World Cup live scores today ${today}`,
+      `placar futebol ao vivo agora ${today}`,
+      baseMessage,
+    ];
+
+    const cupQueries = [
+      `FIFA Club World Cup fixtures ${today}`,
+      `FIFA Club World Cup matches today ${today}`,
+      `Club World Cup games today ${today}`,
+      `FIFA World Cup 2026 matches today ${today}`,
+      `ESPN FIFA Club World Cup schedule ${today}`,
+      `SofaScore Club World Cup fixtures ${today}`,
+      `FlashScore Club World Cup fixtures ${today}`,
+      `365Scores Club World Cup fixtures ${today}`,
+      `jogos da Copa do Mundo hoje ${today}`,
+      baseMessage,
+    ];
+
+    const todayQueries = [
+      `football matches today ${today}`,
+      `soccer fixtures today ${today}`,
+      `ESPN soccer schedule today ${today}`,
+      `SofaScore football matches today ${today}`,
+      `FlashScore football fixtures today ${today}`,
+      `365Scores football matches today ${today}`,
+      `jogos de futebol hoje ${today}`,
+      baseMessage,
+    ];
+
+    const selected = kind === 'live' ? liveQueries : kind === 'cup_today' ? cupQueries : todayQueries;
+    return Array.from(new Set(selected.map((query) => String(query || '').replace(/\s+/g, ' ').trim()).filter(Boolean))).slice(0, 10);
+  }
+
+  private async directWebSearch(message: string, query: string): Promise<ResearchResult | null> {
+    if (!this.researchService && !this.researchAgent) return null;
+
+    try {
+      if (this.researchService?.searchEverything) {
+        const result = await this.researchService.searchEverything(query, 'br');
+        if (result?.items?.length) return result;
+        if ((result as any)?.error && !this.researchAgent) return result;
+      }
+
+      if (this.researchAgent) {
+        const agentResult = await this.researchAgent.research(message, query);
+        if (agentResult?.items?.length) return agentResult;
+      }
+
+      if (this.researchService?.search) {
+        return await this.researchService.search(query, 'br');
+      }
+    } catch (error: any) {
+      this.logger.warn(`[ODDIX_STRONG_WEB_FALLBACK] query="${query}" falhou: ${error?.message || error}`);
+      return {
+        enabled: true,
+        query,
+        items: [],
+        summary: `Pesquisa web fallback falhou para "${query}": ${error?.message || 'erro desconhecido'}`,
+      } as ResearchResult;
+    }
+
+    return null;
+  }
+
+  private mergeResearchResults(results: Array<ResearchResult | null>, queries: string[]): ResearchResult {
+    const items: ResearchItem[] = [];
+    const errors: string[] = [];
+    let enabled = false;
+    let provider = 'strong-web-fallback';
+
+    for (const result of results) {
+      if (!result) continue;
+      enabled = enabled || !!result.enabled;
+      provider = (result as any)?.provider || provider;
+      if ((result as any)?.error) errors.push(String((result as any).error));
+      if ((result as any)?.partialFailures?.length) errors.push(...(result as any).partialFailures);
+      if (Array.isArray(result.items)) items.push(...result.items);
+    }
+
+    const unique = this.uniqueResearchItems(items).slice(0, 80);
+    return {
+      enabled,
+      query: queries[0] || '',
+      items: unique,
+      provider,
+      summary: unique.length
+        ? this.buildResearchItemsSummary(unique)
+        : errors.length
+          ? `Pesquisa web fallback acionada, mas sem item útil. Falhas: ${errors.slice(0, 4).join(' | ')}`
+          : 'Pesquisa web fallback acionada, mas não retornou itens úteis.',
+      queries,
+      partialFailures: errors.slice(0, 8),
+    } as any;
+  }
+
+  private uniqueResearchItems(items: ResearchItem[]) {
+    const seen = new Set<string>();
+    return (items || []).filter((item: any) => {
+      const text = this.researchItemTextForFallback(item);
+      const key = `${item?.url || ''}:${item?.title || ''}:${text.slice(0, 160)}`.toLowerCase();
+      if (!text || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  private buildResearchItemsSummary(items: ResearchItem[]) {
+    return (items || [])
+      .slice(0, 12)
+      .map((item: any) => {
+        const source = item?.source ? ` — ${item.source}` : '';
+        const url = item?.url ? `\n  URL: ${item.url}` : '';
+        const text = this.researchItemTextForFallback({
+          description: item?.description,
+          snippet: item?.snippet,
+          content: item?.content,
+          body: item?.body,
+          text: item?.text,
+          summary: item?.summary,
+        } as any).replace(/\s+/g, ' ').slice(0, 360);
+        return `• ${item?.title || 'Resultado web'}${source}${text ? `\n  ${text}` : ''}${url}`;
+      })
+      .join('\n');
+  }
+
+  private extractFixturesFromResearchItems(items: ResearchItem[], kind: 'live' | 'today' | 'cup_today') {
+    const fixtures: any[] = [];
+    const today = this.todayIso('America/Sao_Paulo');
+
+    for (const item of items || []) {
+      const text = this.researchItemTextForFallback(item);
+      if (!this.isWebItemCompatibleForFixtures(item, text, kind, today)) continue;
+
+      const pairs = this.extractFixturePairsFromText(text);
+      for (const pair of pairs) {
+        if (!this.isValidWebFixturePair(pair.home, pair.away, text, kind)) continue;
+        fixtures.push(this.webPairToFixture(pair.home, pair.away, item, text, kind, today));
+      }
+    }
+
+    return this.sortFixturesByLivePriority(this.uniqueFixtures(fixtures)).slice(0, kind === 'live' ? 20 : 40);
+  }
+
+  private isWebItemCompatibleForFixtures(item: any, text: string, kind: 'live' | 'today' | 'cup_today', today: string) {
+    const normalized = this.normalize(`${text} ${item?.url || ''}`);
+    const hasDateSignal = normalized.includes(this.normalize(today)) || this.hasAny(normalized, ['today', 'hoje', 'agora', 'ao vivo', 'live']);
+
+    if (kind === 'cup_today') {
+      if (!this.hasAny(normalized, ['world cup', 'club world cup', 'fifa', 'copa do mundo', 'mundial'])) return false;
+      return hasDateSignal || this.hasReliableFootballSource(item);
+    }
+
+    if (kind === 'live') {
+      if (!this.hasAny(normalized, ['live', 'ao vivo', 'placar', 'score', 'scores', 'tempo real', 'match center'])) return false;
+      return this.hasReliableFootballSource(item) || hasDateSignal;
+    }
+
+    return hasDateSignal || this.hasReliableFootballSource(item);
+  }
+
+  private hasReliableFootballSource(item: any) {
+    const source = this.normalize(`${item?.source || ''} ${item?.url || ''} ${item?.title || ''}`);
+    return this.hasAny(source, ['flashscore', 'sofascore', 'espn', 'fifa', '365scores', 'livescore', 'fotmob', 'onefootball', 'ge globo', 'cbf']);
+  }
+
+  private researchItemTextForFallback(item: any): string {
+    return [
+      item?.title,
+      item?.description,
+      item?.snippet,
+      item?.content,
+      item?.body,
+      item?.text,
+      item?.summary,
+      item?.url,
+    ]
+      .filter(Boolean)
+      .map((value) => String(value).trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  private extractFixturePairsFromText(text: string) {
+    const pairs: Array<{ home: string; away: string }> = [];
+    const compact = String(text || '')
+      .replace(/[|•]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const team = `[A-ZÀ-Ý0-9][A-Za-zÀ-ÿ0-9 .'’&()/-]{1,55}?`;
+    const patterns = [
+      new RegExp(`\\b(${team})\\s+(?:vs\\.?|versus|v\\.?)\\s+(${team})(?=\\s|$|[-–—,;:()])`, 'gi'),
+      new RegExp(`\\b(${team})\\s+x\\s+(${team})(?=\\s|$|[-–—,;:()])`, 'gi'),
+      new RegExp(`\\b(${team})\\s+contra\\s+(${team})(?=\\s|$|[-–—,;:()])`, 'gi'),
+    ];
+
+    for (const pattern of patterns) {
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(compact)) !== null) {
+        const home = this.cleanWebTeamName(match[1]);
+        const away = this.cleanWebTeamName(match[2]);
+        pairs.push({ home, away });
+      }
+    }
+
+    return pairs;
+  }
+
+  private cleanWebTeamName(value: string) {
+    return String(value || '')
+      .replace(/\b(today|tomorrow|yesterday|fixtures?|schedule|matches?|live|scores?|results?|standings|odds|prediction|preview|highlights|watch|stream|jogos?|partidas?|placar|ao vivo|hoje|agora)\b/gi, '')
+      .replace(/^[\s:;,.\-–—|]+|[\s:;,.\-–—|]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private isValidWebFixturePair(home: string, away: string, text: string, kind: 'live' | 'today' | 'cup_today') {
+    if (!home || !away) return false;
+    if (home.length < 2 || away.length < 2) return false;
+    if (home.length > 55 || away.length > 55) return false;
+    if (this.normalize(home) === this.normalize(away)) return false;
+
+    const bad = [
+      'club world cup',
+      'fifa world cup',
+      'world cup',
+      'copa do mundo',
+      'mundial',
+      'fixtures',
+      'schedule',
+      'matches',
+      'results',
+      'standings',
+      'live scores',
+      'football',
+      'soccer',
+      'today',
+      'hoje',
+    ];
+    const h = this.normalize(home);
+    const a = this.normalize(away);
+    if (bad.includes(h) || bad.includes(a)) return false;
+    if (bad.some((term) => h.startsWith(term + ' ') || a.startsWith(term + ' '))) return false;
+
+    const normalizedText = this.normalize(text);
+    if (kind === 'cup_today' && !this.hasAny(normalizedText, ['world cup', 'club world cup', 'fifa', 'copa do mundo', 'mundial'])) return false;
+    return true;
+  }
+
+  private webPairToFixture(home: string, away: string, item: any, text: string, kind: 'live' | 'today' | 'cup_today', today: string) {
+    const confidence = this.webFixtureConfidence(item, text, kind);
+    const statusShort = kind === 'live' ? 'WEB-LIVE' : 'WEB';
+    return {
+      provider: 'web-fallback',
+      source: 'web-fallback',
+      fixture: {
+        id: `web-${this.normalize(`${home}-${away}-${today}`).replace(/\s+/g, '-')}`,
+        date: today,
+        timestamp: Math.floor(Date.now() / 1000),
+        status: {
+          short: statusShort,
+          long: kind === 'live' ? 'Indício web de jogo ao vivo' : 'Indício web de jogo de hoje',
+          elapsed: null,
+        },
+      },
+      league: {
+        name: this.inferWebCompetition(text, item?.url, kind),
+        country: 'Web',
+      },
+      teams: {
+        home: { name: home },
+        away: { name: away },
+      },
+      goals: {
+        home: null,
+        away: null,
+      },
+      webFallback: {
+        confidence,
+        title: item?.title || null,
+        source: item?.source || this.webSourceFromUrl(item?.url),
+        url: item?.url || null,
+        kind,
+      },
+    };
+  }
+
+  private inferWebCompetition(text: string, url: string | undefined, kind: 'live' | 'today' | 'cup_today') {
+    const normalized = this.normalize(`${text} ${url || ''}`);
+    if (this.hasAny(normalized, ['club world cup', 'fifa club world cup', 'mundial de clubes'])) return 'FIFA Club World Cup';
+    if (this.hasAny(normalized, ['fifa world cup', 'world cup', 'copa do mundo'])) return 'FIFA World Cup';
+    if (kind === 'cup_today') return 'Copa/Mundial';
+    return kind === 'live' ? 'Futebol ao vivo — web fallback' : 'Futebol — web fallback';
+  }
+
+  private webFixtureConfidence(item: any, text: string, kind: 'live' | 'today' | 'cup_today') {
+    const normalized = this.normalize(`${text} ${item?.url || ''}`);
+    let score = 58;
+    if (this.hasReliableFootballSource(item)) score += 12;
+    if (this.hasAny(normalized, ['today', 'hoje', this.todayIso('America/Sao_Paulo')])) score += 8;
+    if (kind === 'live' && this.hasAny(normalized, ['live', 'ao vivo', 'placar', 'score'])) score += 10;
+    if (kind === 'cup_today' && this.hasAny(normalized, ['world cup', 'club world cup', 'fifa', 'copa do mundo', 'mundial'])) score += 10;
+    if ((item as any)?.content || (item as any)?.body || (item as any)?.text || (item as any)?.snippet) score += 5;
+    return Math.min(score, 88);
+  }
+
+  private webSourceFromUrl(url: string | undefined) {
+    try {
+      return url ? new URL(url).hostname.replace(/^www\./, '') : 'web';
+    } catch {
+      return 'web';
+    }
+  }
+
+  private async answerFromWebFixtureFallback(
+    message: string,
+    decision: OddixBrainDecision | undefined,
+    fallback: { fixtures: any[]; research: ResearchResult | null; queries: string[]; items: ResearchItem[] },
+    title: string,
+    label: string,
+  ): Promise<OddixDataOrchestratorResponse> {
+    const flashScoreStatus = this.flashScoreFallbackStatus();
+    const context = JSON.stringify(
+      {
+        pergunta: message,
+        label,
+        decision,
+        flashScore: {
+          quota: flashScoreStatus.quota,
+          reason: flashScoreStatus.reason,
+        },
+        webQueries: fallback.queries,
+        webFixtures: fallback.fixtures.map((game) => this.simplifyFixture(game)),
+        research: fallback.research,
+        rule:
+          'A FlashScore/API principal não confirmou dados, mas o fallback web encontrou confrontos explícitos. Use apenas estes confrontos. Não invente placar, odds, estatísticas ou escalação. Informe fonte web e confiança média.',
+      },
+      null,
+      2,
+    );
+
+    const answer = await this.humanizeWithDeepSeek(
+      message,
+      context,
+      `Responda com transparência: a FlashScore/base principal não retornou dados ou está em limite, então a resposta veio de fallback web.
+Liste os jogos/confrontos encontrados, com fonte quando existir.
+Não crie placar, odds, horário, estatística ou entrada oficial se não estiver explícito nos dados.
+Finalize dizendo que a confiança é média e que a Oddix não inventou dados.`,
+    );
+
+    return {
+      handled: true,
+      answer: answer || this.formatWebFixtureFallback(fallback.fixtures, title, flashScoreStatus.reason),
+      data: {
+        waitingForData: false,
+        webFallback: true,
+        fixtures: fallback.fixtures,
+        research: fallback.research,
+        queries: fallback.queries,
+        decision,
+        flashScoreDiagnostics: flashScoreStatus.diagnostics,
+        flashScoreQuota: flashScoreStatus.quota,
+      },
+      suggestions: fallback.fixtures.slice(0, 4).map((game: any) => {
+        const simple = this.simplifyFixture(game);
+        return `Analise ${simple.home} x ${simple.away}`;
+      }),
+    };
+  }
+
+  private formatWebFixtureFallback(fixtures: any[], title: string, flashScoreReason: string) {
+    const lines = fixtures.slice(0, 20).map((game: any) => {
+      const simple = this.simplifyFixture(game);
+      const web = game?.webFallback || {};
+      const source = web.source || this.webSourceFromUrl(web.url) || 'web';
+      const confidence = web.confidence ? ` | confiança ${web.confidence}%` : '';
+      return `• ${simple.home} x ${simple.away} — ${simple.league || 'Futebol'} — fonte: ${source}${confidence}`;
+    });
+
+    return `${title}
+
+${flashScoreReason}
+
+Encontrei estes confrontos por fallback web:
+
+${lines.join('\n')}
+
+⚠️ Fonte: pesquisa web/cache. Confiança média. Sem placar, odds, estatísticas ou escalações oficiais validadas pela FlashScore neste momento.`;
   }
 
   private async humanizeWithDeepSeek(userMessage: string, realContext: string, instruction: string) {
