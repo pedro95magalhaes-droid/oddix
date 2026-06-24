@@ -625,7 +625,7 @@ Nunca invente odds, estatísticas, escalações ou resultado. Se faltar dado rea
     }
 
     if (cleanedQuery?.intentHint === 'TODAY_CUP_GAMES') {
-      return 'FIFA World Cup Club World Cup jogos hoje futebol fixtures today FlashScore ESPN';
+      return `FIFA Club World Cup fixtures ${this.todayIso()} Club World Cup matches today FlashScore ESPN SofaScore`;
     }
 
     if (intent === 'TODAY_GAMES') return `${base} futebol jogos hoje calendário partidas oficiais`;
@@ -706,7 +706,7 @@ ${research.summary}
       {
         role: 'system',
         content:
-          'Você é a IA Oddix Chat V13. Responda em português do Brasil, natural, direto e inteligente. Nunca invente dados atuais. Para futebol, use somente dados reais fornecidos pela pesquisa web e pelas APIs do backend. Se faltar dado, diga claramente.',
+          'Você é a IA Oddix Chat V19, com raciocínio de futebol em nível premium. Responda em português do Brasil, natural, direto e inteligente. Nunca invente dados atuais. Para futebol, use somente dados reais fornecidos pela pesquisa web e pelas APIs do backend. Diferencie dado confirmado, indício e ausência de dado. Se faltar dado, diga claramente.',
       },
       {
         role: 'user',
@@ -726,7 +726,7 @@ ${userMessage}`,
   private async getTodayFixtures() {
     if (!this.footballService) return [];
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = this.todayIso();
     const service: any = this.footballService as any;
 
     const methods = [
@@ -788,11 +788,11 @@ ${userMessage}`,
     if (!this.footballService) return [];
 
     const dates: string[] = [];
-    const now = new Date();
+    const now = new Date(`${this.todayIso()}T12:00:00Z`);
 
     for (let i = -daysBack; i <= daysForward; i += 1) {
       const date = new Date(now);
-      date.setDate(now.getDate() + i);
+      date.setUTCDate(now.getUTCDate() + i);
       dates.push(date.toISOString().slice(0, 10));
     }
 
@@ -1692,11 +1692,19 @@ ${userMessage}`,
 
     return this.hasAny(text, [
       'copa',
+      'copa hoje',
+      'jogos da copa',
       'mundial',
+      'mundial hoje',
+      'jogos do mundial',
       'world cup',
+      'world cup today',
       'club world cup',
+      'fifa club world cup',
+      'fifa world cup',
       'fifa',
       'copa do mundo',
+      'copa do mundo de clubes',
       'mundial de clubes',
     ]);
   }
@@ -1714,10 +1722,14 @@ ${userMessage}`,
       'club world cup',
       'fifa club world cup',
       'copa do mundo',
+      'copa do mundo de clubes',
+      'mundial',
       'mundial de clubes',
-      'fifa',
-      'world',
-      'cup',
+      'club wc',
+      'cwc',
+      'fifa cwc',
+      'world championship',
+      'club championship',
     ].some((term) => haystack.includes(this.normalize(term)));
   }
 
@@ -1739,7 +1751,7 @@ ${userMessage}`,
   }
 
   private formatFixturesList(fixtures: any[], title: string) {
-    const lines = fixtures.slice(0, 18).map((game: any, index: number) => {
+    const lines = fixtures.slice(0, 60).map((game: any, index: number) => {
       const simple = this.simplifyFixture(game);
       const home = simple.home || 'Casa';
       const away = simple.away || 'Fora';
@@ -1834,6 +1846,22 @@ Sem odds reais e estatísticas completas, não libero entrada oficial.`;
       seen.add(id);
       return true;
     });
+  }
+
+  private todayIso(timeZone = process.env.ODDIX_TIMEZONE || 'America/Sao_Paulo') {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+
+    if (!year || !month || !day) return new Date().toISOString().slice(0, 10);
+    return `${year}-${month}-${day}`;
   }
 
   private cleanTeamName(value: string) {

@@ -405,11 +405,16 @@ export default function OddixChatPage() {
         body: JSON.stringify({
           message: prompt,
           question: prompt,
+          sessionId: sessionId || 'oddix-web-session',
+          conversationId: sessionId || 'oddix-web-session',
+          chatId: sessionId || 'oddix-web-session',
           messages,
+          history: messages,
+          version: 'v17',
           context: {
             source: 'oddix-web-chat',
-            version: 'V12.1-chat-history-persistent',
-            sessionId,
+            version: 'V17-worldcup-resolver',
+            sessionId: sessionId || 'oddix-web-session',
           },
         }),
       });
@@ -847,7 +852,7 @@ export default function OddixChatPage() {
                   priority
                 />
                 <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                  V12.1
+                  V17
                 </span>
               </div>
             </div>

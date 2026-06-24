@@ -81,6 +81,7 @@ Não explique nada.
 
 INTENTS PERMITIDOS:
 - GENERAL: pergunta geral fora de futebol/apostas.
+- TODAY_GAMES: lista de jogos/partidas de hoje, incluindo Copa/Mundial/World Cup/Club World Cup.
 - TOP_PICKS: melhores palpites, maior confiança, entradas do dia.
 - MATCH_ANALYSIS: análise de jogo específico.
 - MULTIPLE: múltipla, combinada, bilhete.
@@ -89,6 +90,9 @@ INTENTS PERMITIDOS:
 - TEAM: pergunta sobre time/seleção.
 - PLAYER: jogador, player props, chute, finalização, gol.
 - BANKROLL: cálculo de retorno, lucro, banca, stake.
+- VALUE_BETS: odds de valor, odd justa, mercado de valor.
+- VIRTUAL: futebol virtual.
+- EXPLAIN: explicação de conceito, mercado ou análise anterior.
 
 RISK MODES:
 - safe
@@ -111,6 +115,8 @@ REGRAS:
 - "esse jogo", "essa partida", "continua" deve manter intenção MATCH_ANALYSIS quando parecer continuação.
 - Perguntas como "quem descobriu o Brasil?" são GENERAL.
 - Apostas, odds, múltiplas, futebol virtual e times são domínio Oddix, não GENERAL.
+- Perguntas como "quais jogos da copa tem hoje", "jogos do mundial hoje", "club world cup hoje" devem virar TODAY_GAMES.
+- Se a mensagem pedir todos os jogos de hoje, não transforme em MATCH_ANALYSIS sem dois times claros.
 
 FORMATO:
 {
@@ -197,7 +203,11 @@ ${message}
 
     let intent = fallbackIntent;
 
-    if (teams?.home && teams?.away) {
+    if (this.looksLikeTodayGamesQuestion(message)) {
+      intent = 'TODAY_GAMES';
+    }
+
+    if (teams?.home && teams?.away && intent !== 'TODAY_GAMES') {
       intent = 'MATCH_ANALYSIS';
     }
 
@@ -210,6 +220,24 @@ ${message}
       originalMessage: message,
       source,
     };
+  }
+
+  private looksLikeTodayGamesQuestion(message: string): boolean {
+    const text = this.normalize(message);
+    return [
+      'quais jogos',
+      'jogos de hoje',
+      'partidas de hoje',
+      'jogos da copa',
+      'copa hoje',
+      'mundial hoje',
+      'jogos do mundial',
+      'club world cup',
+      'world cup today',
+      'fifa club world cup',
+      'copa do mundo',
+      'mundial de clubes',
+    ].some((term) => text.includes(this.normalize(term)));
   }
 
   private safeParseJson(raw: string): GeminiIntentPayload | null {
@@ -235,6 +263,10 @@ ${message}
 
     const map: Record<string, OddixIntent> = {
       GENERAL: 'GENERAL',
+      TODAY_GAMES: 'TODAY_GAMES',
+      TODAY: 'TODAY_GAMES',
+      GAMES_TODAY: 'TODAY_GAMES',
+      FIXTURES: 'TODAY_GAMES',
       TOP_PICKS: 'TOP_PICKS',
       TOP_PICK: 'TOP_PICKS',
       MATCH_ANALYSIS: 'MATCH_ANALYSIS',
@@ -250,6 +282,10 @@ ${message}
       PLAYER: 'PLAYER',
       PLAYER_PROPS: 'PLAYER',
       BANKROLL: 'BANKROLL',
+      VALUE_BETS: 'VALUE_BETS',
+      VALUE: 'VALUE_BETS',
+      VIRTUAL: 'VIRTUAL',
+      EXPLAIN: 'EXPLAIN',
     };
 
     return map[intent] || null;

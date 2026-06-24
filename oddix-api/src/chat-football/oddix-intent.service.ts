@@ -21,11 +21,33 @@ export class OddixIntentService {
   detect(message: string): OddixIntent {
     const text = this.normalize(message);
 
-    if (this.hasAny(text, ['ao vivo', 'live', 'em andamento', 'placar agora', 'quanto ta', 'quanto está'])) {
+    if (this.hasAny(text, ['ao vivo', 'live', 'em andamento', 'placar agora', 'quanto ta', 'quanto esta', 'jogos live'])) {
       return 'LIVE';
     }
 
-    if (this.hasAny(text, ['jogos de hoje', 'partidas de hoje', 'quais jogos', 'copa hoje', 'jogos da copa', 'tem jogo hoje'])) {
+    if (this.hasAny(text, [
+      'jogos de hoje',
+      'partidas de hoje',
+      'quais jogos',
+      'lista jogos',
+      'listar jogos',
+      'mostrar jogos',
+      'tem jogo hoje',
+      'copa hoje',
+      'jogos da copa',
+      'jogo da copa',
+      'jogos do mundial',
+      'mundial hoje',
+      'mundial de clubes',
+      'copa do mundo',
+      'copa do mundo de clubes',
+      'world cup today',
+      'club world cup',
+      'fifa club world cup',
+      'fifa world cup',
+      'club wc',
+      'cwc hoje',
+    ])) {
       return 'TODAY_GAMES';
     }
 
@@ -51,7 +73,7 @@ export class OddixIntentService {
       return 'TOP_PICKS';
     }
 
-    if (this.hasAny(text, ['multipla', 'múltipla', 'bilhete', 'combinada'])) {
+    if (this.hasAny(text, ['multipla', 'bilhete', 'combinada', 'acumulada'])) {
       return 'MULTIPLE';
     }
 
@@ -59,15 +81,15 @@ export class OddixIntentService {
       return 'BANKROLL';
     }
 
-    if (this.hasAny(text, ['noticia', 'notícias', 'noticias', 'news', 'lesao', 'lesão', 'desfalque'])) {
+    if (this.hasAny(text, ['noticia', 'noticias', 'news', 'lesao', 'lesao', 'desfalque', 'escalação', 'escalacao'])) {
       return 'NEWS';
     }
 
-    if (this.hasAny(text, ['player props', 'jogador', 'chute', 'finalizacao', 'finalização', 'marca gol'])) {
+    if (this.hasAny(text, ['player props', 'jogador', 'chute', 'finalizacao', 'marca gol', 'cartao', 'cartão'])) {
       return 'PLAYER';
     }
 
-    if (this.hasAny(text, ['value', 'valor de mercado', 'odd justa', 'mercado de valor'])) {
+    if (this.hasAny(text, ['value', 'valor de mercado', 'odd justa', 'mercado de valor', 'odd com valor'])) {
       return 'VALUE_BETS';
     }
 
@@ -79,7 +101,7 @@ export class OddixIntentService {
       return 'MATCH_ANALYSIS';
     }
 
-    if (this.hasAny(text, ['esse jogo', 'essa partida', 'isso', 'vale a pena', 'presta', 'tem entrada', 'e agora', 'continua'])) {
+    if (this.hasAny(text, ['esse jogo', 'essa partida', 'isso', 'vale a pena', 'presta', 'tem entrada', 'e agora', 'continua', 'continue', 'mais detalhes'])) {
       return 'FOLLOW_UP';
     }
 
@@ -94,6 +116,7 @@ export class OddixIntentService {
     return (
       text.includes(' x ') ||
       text.includes(' vs ') ||
+      text.includes(' v ') ||
       text.includes(' versus ') ||
       text.includes(' contra ')
     );
@@ -108,7 +131,7 @@ export class OddixIntentService {
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^\w\s]/g, ' ')
+      .replace(/[^a-z0-9\s]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   }

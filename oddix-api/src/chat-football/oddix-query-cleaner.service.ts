@@ -21,6 +21,8 @@ export type OddixCleanedQuery = {
 
 @Injectable()
 export class OddixQueryCleanerService {
+  private readonly timeZone = process.env.ODDIX_TIMEZONE || 'America/Sao_Paulo';
+
   analyze(message: string): OddixCleanedQuery {
     const original = String(message || '').trim();
     const normalized = this.normalize(original);
@@ -76,8 +78,6 @@ export class OddixQueryCleanerService {
       /\bcomo\s+foi\s+o\s+jogo\b/gi,
       /\bcomo\s+foi\b/gi,
       /\bjogo\s+entre\b/gi,
-      /\bjogo\s+do\b/gi,
-      /\bjogo\s+da\b/gi,
       /\banalise\b/gi,
       /\banálise\b/gi,
       /\banalisa\b/gi,
@@ -92,9 +92,8 @@ export class OddixQueryCleanerService {
 
     text = this.stripContextualTerms(text);
 
-    // Em perguntas de resultado, o usuário costuma escrever "Colombia e Congo".
-    // Aqui o "e" entre dois blocos de palavras vira separador de confronto.
-    if (intentHint === 'MATCH_RESULT' || !this.hasExplicitSeparator(text)) {
+    // Não transformar "copa e mundial" em confronto.
+    if (intentHint === 'MATCH_RESULT' || (intentHint === 'MATCH_ANALYSIS' && !this.hasExplicitSeparator(text))) {
       text = text.replace(/\s+e\s+/gi, ' x ');
     }
 
@@ -145,10 +144,11 @@ export class OddixQueryCleanerService {
       if (!normalized.includes(separator)) continue;
       const parts = normalized.split(separator);
       if (parts[0]?.trim() && parts[1]?.trim()) {
-        return {
-          home: this.cleanTeamName(parts[0]),
-          away: this.cleanTeamName(parts.slice(1).join(separator)),
-        };
+        const home = this.cleanTeamName(parts[0]);
+        const away = this.cleanTeamName(parts.slice(1).join(separator));
+        if (this.isValidTeamName(home) && this.isValidTeamName(away)) {
+          return { home, away };
+        }
       }
     }
 
@@ -157,7 +157,7 @@ export class OddixQueryCleanerService {
 
   cleanTeamName(value: string): string {
     return String(value || '')
-      .replace(/\b(the|fc|cf|sc)\b/gi, ' ')
+      .replace(/\b(the)\b/gi, ' ')
       .replace(/\bselecao\b/gi, ' ')
       .replace(/\bseleção\b/gi, ' ')
       .replace(/\bfutebol\b/gi, ' ')
@@ -174,16 +174,33 @@ export class OddixQueryCleanerService {
       return 'MATCH_RESULT';
     }
 
-    if (this.hasAny(normalized, ['jogos da copa', 'jogo da copa', 'tem copa', 'copa hoje', 'mundial hoje', 'world cup today', 'club world cup'])) {
+    if (this.hasAny(normalized, [
+      'jogos da copa',
+      'jogo da copa',
+      'quais jogos da copa',
+      'tem copa',
+      'copa hoje',
+      'copa do mundo hoje',
+      'copa do mundo de clubes',
+      'mundial hoje',
+      'jogos do mundial',
+      'mundial de clubes',
+      'world cup today',
+      'club world cup',
+      'fifa club world cup',
+      'fifa world cup',
+      'club wc',
+      'cwc hoje',
+    ])) {
       return 'TODAY_CUP_GAMES';
     }
 
-    if (this.hasAny(normalized, ['jogos de hoje', 'quais jogos', 'analise os jogos', 'mostrar jogos'])) {
+    if (this.hasAny(normalized, ['jogos de hoje', 'quais jogos', 'analise os jogos', 'mostrar jogos', 'lista jogos', 'listar jogos', 'partidas de hoje'])) {
       return 'TODAY_GAMES';
     }
 
-    if (this.hasAny(normalized, ['ao vivo', 'live', 'em andamento'])) return 'LIVE';
-    if (this.hasAny(normalized, ['noticia', 'noticias', 'news', 'escalação', 'escalacao', 'desfalque'])) return 'NEWS';
+    if (this.hasAny(normalized, ['ao vivo', 'live', 'em andamento', 'placar agora', 'quanto ta', 'quanto esta'])) return 'LIVE';
+    if (this.hasAny(normalized, ['noticia', 'noticias', 'news', 'escalação', 'escalacao', 'desfalque', 'lesao', 'lesão'])) return 'NEWS';
     if (this.hasExplicitSeparator(normalized)) return 'MATCH_ANALYSIS';
 
     return 'GENERAL';
@@ -191,6 +208,10 @@ export class OddixQueryCleanerService {
 
   private buildResearchQueries(original: string, intentHint: OddixQueryIntentHint, teams: { home: string; away: string } | null): string[] {
     const cleanOriginal = String(original || '').replace(/\s+/g, ' ').trim();
+    const todayIso = this.todayIso();
+    const todayPt = this.todayHuman(todayIso);
+    const englishDate = this.monthDayEnglish(todayIso);
+    const year = todayIso.slice(0, 4);
 
     if (intentHint === 'MATCH_RESULT' && teams) {
       const awayVariants = this.expandTeamVariants(teams.away);
@@ -208,26 +229,33 @@ export class OddixQueryCleanerService {
       queries.push(`site:espn.com ${teams.home} ${teams.away} score`);
       queries.push(`site:fifa.com ${teams.home} ${teams.away}`);
 
-      return Array.from(new Set(queries)).slice(0, 10);
+      return Array.from(new Set(queries)).slice(0, 12);
     }
 
     if (intentHint === 'TODAY_CUP_GAMES') {
-      const today = new Date();
-      const iso = today.toISOString().slice(0, 10);
-      const year = iso.slice(0, 4);
-      const englishDate = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-      const ptDate = today.toLocaleDateString('pt-BR');
-
       return [
-        `FIFA World Cup fixtures today ${iso} football`,
-        `FIFA World Cup matches ${englishDate} ${year} schedule`,
-        `FIFA Club World Cup ${englishDate} ${year} fixtures`,
-        `Club World Cup matches today ${iso} football`,
-        `World Cup football fixtures ${iso} FlashScore`,
-        `ESPN World Cup fixtures ${iso}`,
-        `Sofascore World Cup matches today ${iso}`,
-        `jogos da Copa do Mundo hoje ${ptDate} futebol`,
-        `jogos Mundial de Clubes hoje ${ptDate} futebol`,
+        `FIFA Club World Cup fixtures ${todayIso}`,
+        `FIFA Club World Cup matches today ${todayIso}`,
+        `FIFA Club World Cup ${englishDate} ${year} schedule`,
+        `Club World Cup games today ${todayIso}`,
+        `Club World Cup live matches today`,
+        `FlashScore Club World Cup fixtures ${todayIso}`,
+        `SofaScore Club World Cup fixtures ${todayIso}`,
+        `ESPN Club World Cup fixtures ${todayIso}`,
+        `FIFA World Cup fixtures today ${todayIso}`,
+        `World Cup football fixtures ${todayIso}`,
+        `jogos Mundial de Clubes hoje ${todayPt}`,
+        `jogos da Copa do Mundo hoje ${todayPt}`,
+        cleanOriginal,
+      ];
+    }
+
+    if (intentHint === 'TODAY_GAMES') {
+      return [
+        `${cleanOriginal} futebol jogos hoje ${todayIso}`,
+        `football fixtures today ${todayIso}`,
+        `soccer matches today ${todayIso} FlashScore`,
+        `jogos de futebol hoje ${todayPt}`,
       ];
     }
 
@@ -235,6 +263,7 @@ export class OddixQueryCleanerService {
       return [
         `${teams.home} vs ${teams.away} odds lineups news statistics`,
         `${teams.home} x ${teams.away} escalações odds notícias estatísticas`,
+        `${teams.home} ${teams.away} futebol hoje`,
       ];
     }
 
@@ -245,13 +274,31 @@ export class OddixQueryCleanerService {
     return (
       intentHint === 'MATCH_RESULT' ||
       intentHint === 'TODAY_CUP_GAMES' ||
+      intentHint === 'TODAY_GAMES' ||
+      intentHint === 'LIVE' ||
       intentHint === 'NEWS' ||
-      this.hasAny(normalized, ['hoje', 'agora', 'resultado', 'placar', 'copa', 'mundial', 'escalação', 'escalacao'])
+      this.hasAny(normalized, ['hoje', 'agora', 'resultado', 'placar', 'copa', 'mundial', 'world cup', 'fifa', 'escalação', 'escalacao'])
     );
   }
 
   private hasExplicitSeparator(text: string): boolean {
     return [' x ', ' vs ', ' v ', ' versus ', ' contra '].some((separator) => String(text || '').toLowerCase().includes(separator));
+  }
+
+  private isValidTeamName(value: string): boolean {
+    const normalized = this.normalize(value);
+    if (!value || value.length < 2 || value.length > 70) return false;
+    return ![
+      'jogos',
+      'copa',
+      'mundial',
+      'world cup',
+      'club world cup',
+      'hoje',
+      'fixtures',
+      'matches',
+      'schedule',
+    ].some((bad) => normalized === this.normalize(bad) || normalized.includes(this.normalize(bad)));
   }
 
   private expandTeamVariants(team: string): string[] {
@@ -266,9 +313,11 @@ export class OddixQueryCleanerService {
       colombia: ['Colombia', 'Colômbia'],
       croacia: ['Croatia', 'Croácia', 'Croacia'],
       panama: ['Panama', 'Panamá'],
-      estados unidos: ['USA', 'United States', 'United States of America'],
+      'estados unidos': ['USA', 'United States', 'United States of America'],
       eua: ['USA', 'United States'],
-      coreia do sul: ['South Korea', 'Korea Republic'],
+      'coreia do sul': ['South Korea', 'Korea Republic'],
+      alemanha: ['Germany', 'Alemanha'],
+      japao: ['Japan', 'Japão'],
     };
 
     for (const [key, values] of Object.entries(aliasMap)) {
@@ -278,6 +327,32 @@ export class OddixQueryCleanerService {
     }
 
     return Array.from(variants).filter(Boolean);
+  }
+
+  private todayIso(timeZone = this.timeZone): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+
+    if (!year || !month || !day) return new Date().toISOString().slice(0, 10);
+    return `${year}-${month}-${day}`;
+  }
+
+  private todayHuman(todayIso: string): string {
+    const [year, month, day] = todayIso.split('-');
+    return `${day}/${month}/${year}`;
+  }
+
+  private monthDayEnglish(todayIso: string): string {
+    const date = new Date(`${todayIso}T12:00:00Z`);
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' });
   }
 
   private hasAny(text: string, terms: string[]): boolean {
