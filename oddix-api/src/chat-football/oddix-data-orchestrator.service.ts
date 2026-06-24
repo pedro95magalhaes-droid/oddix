@@ -773,6 +773,65 @@ ${userMessage}`,
     return this.uniqueFixtures(buckets.flat());
   }
 
+  private sortFixturesByLivePriority(fixtures: any[]) {
+    return [...(fixtures || [])].sort((a: any, b: any) => {
+      const scoreA = this.fixtureLivePriorityScore(a);
+      const scoreB = this.fixtureLivePriorityScore(b);
+      if (scoreA !== scoreB) return scoreB - scoreA;
+
+      const timeA = this.fixtureTimestampSafe(a);
+      const timeB = this.fixtureTimestampSafe(b);
+      return timeB - timeA;
+    });
+  }
+
+  private fixtureLivePriorityScore(game: any) {
+    const status = String(
+      game?.fixture?.status?.short ||
+        game?.status?.short ||
+        game?.fixture?.status?.long ||
+        game?.status?.long ||
+        '',
+    ).toUpperCase();
+
+    const elapsed = Number(
+      game?.fixture?.status?.elapsed ??
+        game?.status?.elapsed ??
+        game?.fixture?.status?.minute ??
+        game?.minute ??
+        0,
+    );
+
+    const hasScore =
+      game?.goals?.home !== undefined ||
+      game?.goals?.away !== undefined ||
+      game?.score?.fulltime?.home !== undefined ||
+      game?.score?.fulltime?.away !== undefined;
+
+    const hasOdds = !!(
+      game?.odds?.options?.length ||
+      game?.odds?.opções?.length ||
+      game?.odds?.market ||
+      game?.odds?.mercado
+    );
+
+    if (['LIVE', 'IN_PLAY', '1H', '2H', 'ET', 'P', 'PEN_LIVE'].includes(status)) return 1000 + elapsed + (hasOdds ? 20 : 0);
+    if (status === 'HT' || status.includes('HALF')) return 900 + (hasOdds ? 20 : 0);
+    if (elapsed > 0 && elapsed < 130) return 800 + elapsed + (hasOdds ? 20 : 0);
+    if (['NS', 'TBD', 'SCHEDULED'].includes(status)) return 100 + (hasOdds ? 20 : 0);
+    if (['FT', 'AET', 'PEN'].includes(status)) return 50 + (hasScore ? 10 : 0);
+    return hasOdds ? 40 : 0;
+  }
+
+  private fixtureTimestampSafe(game: any) {
+    const rawTimestamp = Number(game?.fixture?.timestamp || game?.timestamp || 0);
+    if (Number.isFinite(rawTimestamp) && rawTimestamp > 0) return rawTimestamp;
+
+    const rawDate = game?.fixture?.date || game?.date || game?.startTime || game?.start_time;
+    const parsed = rawDate ? new Date(rawDate).getTime() : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
   private async enrichFixtures(fixtures: any[]) {
     const enriched: any[] = [];
 
@@ -894,7 +953,9 @@ ${userMessage}`,
 
     if (!homeAliases.length || !awayAliases.length) return null;
 
-    const candidates = this.uniqueFixtures(fixtures || []);
+    const candidates = this.sortFixturesByLivePriority(
+      this.uniqueFixtures(fixtures || []),
+    );
 
     const match = candidates.find((item: any) => {
       const fixtureHomeAliases = this.buildTeamSearchAliases(this.getFixtureHomeName(item));
