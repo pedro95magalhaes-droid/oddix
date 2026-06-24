@@ -120,6 +120,23 @@ export class OddixLlmService {
     }
   }
 
+
+  async completeStream(messages: OddixLlmMessage[]): Promise<{ answer: string | null; chunks: string[] }> {
+    const answer = await this.complete(messages);
+    const chunks = String(answer || '')
+      .split(/(\s+)/)
+      .reduce((acc: string[], part: string) => {
+        if (!part) return acc;
+        const last = acc[acc.length - 1] || '';
+        if ((last + part).length > 42) acc.push(part);
+        else if (acc.length) acc[acc.length - 1] = last + part;
+        else acc.push(part);
+        return acc;
+      }, []);
+
+    return { answer, chunks };
+  }
+
   async completeJson<T = any>(messages: OddixLlmMessage[]): Promise<T | null> {
     const text = await this.complete(messages);
     if (!text) return null;

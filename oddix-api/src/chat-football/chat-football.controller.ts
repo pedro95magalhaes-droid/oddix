@@ -1,13 +1,35 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ChatFootballService } from './chat-football.service';
+import { OddixCopilotService } from './oddix-copilot.service';
+import { StreamingService } from './streaming.service';
 import type { ChatFootballRequest } from './chat-football.types';
 
 @Controller('chat-football')
 export class ChatFootballController {
-  constructor(private readonly chatFootballService: ChatFootballService) {}
+  constructor(
+    private readonly chatFootballService: ChatFootballService,
+    private readonly copilotService: OddixCopilotService,
+    private readonly streamingService: StreamingService,
+  ) {}
 
   @Post('message')
-  handleMessage(@Body() body: ChatFootballRequest) {
-    return this.chatFootballService.handleMessage(body);
+  async handleMessage(@Body() body: ChatFootballRequest) {
+    const response = await this.chatFootballService.handleMessage(body);
+    return this.copilotService.enhanceResponse(body, response);
+  }
+
+  @Post('stream')
+  async handleStream(@Body() body: ChatFootballRequest) {
+    const response = await this.handleMessage({
+      ...body,
+      stream: true,
+    });
+
+    return this.streamingService.buildPseudoStreamResponse(response.answer, response.data || {});
+  }
+
+  @Post('v14/message')
+  async handleV14Message(@Body() body: ChatFootballRequest) {
+    return this.handleMessage(body);
   }
 }

@@ -15,6 +15,10 @@ import { OddixEntityExtractorService } from './oddix-entity-extractor.service';
 import { OddixContextMemoryService } from './oddix-context-memory.service';
 import { OddixLlmService } from './oddix-llm.service';
 import { OddixDataOrchestratorService } from './oddix-data-orchestrator.service';
+import { ConversationMemoryService } from './conversation-memory.service';
+import { StreamingService } from './streaming.service';
+import { ValueBetService } from './value-bet.service';
+import { OddixCopilotService } from './oddix-copilot.service';
 
 @Module({
   imports: [FootballModule],
@@ -34,6 +38,10 @@ import { OddixDataOrchestratorService } from './oddix-data-orchestrator.service'
     OddixContextMemoryService,
     OddixLlmService,
     OddixDataOrchestratorService,
+    ConversationMemoryService,
+    StreamingService,
+    ValueBetService,
+    OddixCopilotService,
   ],
   exports: [
     ChatFootballService,
@@ -50,6 +58,10 @@ import { OddixDataOrchestratorService } from './oddix-data-orchestrator.service'
     OddixContextMemoryService,
     OddixLlmService,
     OddixDataOrchestratorService,
+    ConversationMemoryService,
+    StreamingService,
+    ValueBetService,
+    OddixCopilotService,
   ],
 })
 export class ChatFootballModule {}

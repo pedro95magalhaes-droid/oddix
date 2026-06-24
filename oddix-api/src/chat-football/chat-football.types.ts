@@ -62,6 +62,7 @@ export interface ChatFootballResponse {
     odd?: number;
     potentialReturn?: number;
     profit?: number;
+    v14?: OddixV14Data;
     [key: string]: any;
   };
 }
@@ -99,6 +100,10 @@ export interface ConversationMemory {
   lastTicket?: ChatTicket | null;
   lastFixture?: any;
   lastRichContext?: any;
+  conversationTopic?: string | null;
+  lastRecommendation?: string | null;
+  lastAnalysis?: string | null;
+  lastFixtures?: any[];
   topicStack: string[];
 }
 
@@ -127,4 +132,51 @@ export interface BetCalc {
   odd: number;
   retorno: number;
   lucro: number;
+}
+
+
+export interface OddixV14ValueBet {
+  game: string;
+  market: string;
+  odd: number;
+  impliedProbability: number;
+  modelProbability: number | null;
+  expectedValue: number | null;
+  edge: number | null;
+  isValueBet: boolean;
+  source: string;
+  label: string;
+  warning?: string;
+}
+
+export interface OddixV14BetSlip {
+  id: string;
+  title: string;
+  type: 'simple' | 'multiple' | 'observed';
+  selections: Array<{
+    game: string;
+    market: string;
+    odd: number;
+    confidence?: number;
+    source?: string;
+    value?: OddixV14ValueBet;
+  }>;
+  totalOdd: number;
+  impliedProbability: number;
+  averageConfidence: number | null;
+  risk: 'BAIXO' | 'MEDIO' | 'MEDIO_ALTO' | 'ALTO';
+  status: 'OFICIAL' | 'OBSERVACAO' | 'NO_BET';
+  warning: string;
+}
+
+export interface OddixV14Data {
+  version: string;
+  features: string[];
+  valueBet?: OddixV14ValueBet | null;
+  betSlip?: OddixV14BetSlip | null;
+  impliedProbability?: number | null;
+  noBetReason?: string | null;
+  streamingReady?: boolean;
+  copilot?: boolean;
+  conversationMemory?: any;
 }
