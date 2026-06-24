@@ -19,6 +19,8 @@ import { ConversationMemoryService } from './conversation-memory.service';
 import { StreamingService } from './streaming.service';
 import { ValueBetService } from './value-bet.service';
 import { OddixCopilotService } from './oddix-copilot.service';
+import { OddixQueryCleanerService } from './oddix-query-cleaner.service';
+import { OddixResearchAgentService } from './oddix-research-agent.service';
 import { MatchResolverService } from './match-resolver.service';
 import { OddsCacheService } from './odds-cache.service';
 
@@ -44,6 +46,8 @@ import { OddsCacheService } from './odds-cache.service';
     StreamingService,
     ValueBetService,
     OddixCopilotService,
+    OddixQueryCleanerService,
+    OddixResearchAgentService,
     MatchResolverService,
     OddsCacheService,
   ],
@@ -66,6 +70,8 @@ import { OddsCacheService } from './odds-cache.service';
     StreamingService,
     ValueBetService,
     OddixCopilotService,
+    OddixQueryCleanerService,
+    OddixResearchAgentService,
     MatchResolverService,
     OddsCacheService,
   ],

@@ -13,6 +13,7 @@ import { ConversationMemoryService } from './conversation-memory.service';
 import { ValueBetService } from './value-bet.service';
 import { MatchResolverService } from './match-resolver.service';
 import { OddsCacheService } from './odds-cache.service';
+import { OddixQueryCleanerService } from './oddix-query-cleaner.service';
 import type {
   BetCalc,
   ChatFootballRequest,
@@ -80,6 +81,7 @@ export class ChatFootballService {
     @Optional() private readonly valueBetService?: ValueBetService,
     @Optional() private readonly matchResolver?: MatchResolverService,
     @Optional() private readonly oddsCache?: OddsCacheService,
+    @Optional() private readonly queryCleaner?: OddixQueryCleanerService,
   ) {}
 
   async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
@@ -3457,7 +3459,8 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
   }
 
   private extractTeams(message: string) {
-    const sanitized = this.sanitizeMatchQuery(message);
+    const cleanedByQueryCleaner = this.queryCleaner?.cleanFootballQuestion(String(message || '')) || String(message || '');
+    const sanitized = this.sanitizeMatchQuery(cleanedByQueryCleaner);
 
     const cleaned = this.stripContextualQuestionTerms(sanitized)
       .replace(/analisa/gi, '')
@@ -3465,6 +3468,7 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
       .replace(/analise/gi, '')
       .replace(/análise/gi, '')
       .replace(/player props/gi, '')
+      .replace(/\s+e\s+/gi, ' x ')
       .trim();
 
     for (const separator of [' x ', ' vs ', ' v ', ' versus ', ' contra ']) {

@@ -3,6 +3,8 @@ import { FootballService } from '../football/football.service';
 import { FootballResearchService, ResearchResult } from './football-research.service';
 import { OddixLlmService, OddixLlmMessage } from './oddix-llm.service';
 import { OddixBrainService, OddixBrainDecision } from './oddix-brain.service';
+import { OddixQueryCleanerService } from './oddix-query-cleaner.service';
+import { OddixResearchAgentService } from './oddix-research-agent.service';
 
 export type OddixDataOrchestratorResponse = {
   handled: boolean;
@@ -20,12 +22,29 @@ export class OddixDataOrchestratorService {
     @Optional() private readonly researchService?: FootballResearchService,
     @Optional() private readonly llmService?: OddixLlmService,
     @Optional() private readonly brainService?: OddixBrainService,
+    @Optional() private readonly queryCleaner?: OddixQueryCleanerService,
+    @Optional() private readonly researchAgent?: OddixResearchAgentService,
   ) {}
 
   async answer(message: string, sessionId = 'anonymous'): Promise<OddixDataOrchestratorResponse> {
+    const cleanedQuery = this.queryCleaner?.analyze(message) || null;
     const decision =
       (await this.brainService?.think(message, sessionId).catch(() => null)) ||
       this.localDecision(message);
+
+    if (cleanedQuery?.intentHint === 'MATCH_RESULT' && cleanedQuery.teams) {
+      (decision as any).intent = 'MATCH_ANALYSIS';
+      (decision as any).entities = {
+        ...(decision as any).entities,
+        homeTeam: cleanedQuery.teams.home,
+        awayTeam: cleanedQuery.teams.away,
+      };
+      (decision as any).normalizedQuestion = cleanedQuery.cleanMessage;
+    }
+
+    if (cleanedQuery?.intentHint === 'TODAY_CUP_GAMES') {
+      (decision as any).intent = 'TODAY_GAMES';
+    }
 
     try {
       if (decision.intent === 'GENERAL') {
@@ -49,8 +68,21 @@ export class OddixDataOrchestratorService {
       }
 
       if (decision.intent === 'MATCH_ANALYSIS') {
-        const teams = this.extractTeams(message, decision);
-        if (teams) return this.answerMatchQuestion(message, teams.home, teams.away, decision);
+        const teams =
+          this.extractTeams(message, decision) ||
+          cleanedQuery?.teams ||
+          this.queryCleaner?.extractTeams(cleanedQuery?.cleanMessage || message) ||
+          null;
+
+        if (teams) {
+          const questionForResearch =
+            cleanedQuery?.intentHint === 'MATCH_RESULT'
+              ? `${teams.home} x ${teams.away} resultado placar futebol`
+              : message;
+
+          return this.answerMatchQuestion(questionForResearch, teams.home, teams.away, decision);
+        }
+
         return this.answerTodayGames(message, decision);
       }
 
@@ -138,7 +170,8 @@ Se for conhecimento geral, responda normalmente.`,
     const research = await this.runResearch(message, decision);
     let fixtures = await this.getTodayFixtures();
 
-    if (this.asksForCup(message)) {
+    const wantsCup = this.asksForCup(message);
+    if (wantsCup) {
       const cupFixtures = fixtures.filter((game) => this.isCupCompetition(game));
 
       if (cupFixtures.length) {
@@ -175,7 +208,7 @@ Se for conhecimento geral, responda normalmente.`,
       `Liste os jogos encontrados usando apenas os dados fornecidos.
 Se a pergunta mencionar Copa/Mundial/FIFA, liste apenas jogos de competições com Copa/World Cup/FIFA/Mundial/Club World Cup quando existirem.
 Não invente partidas.
-Se não houver Copa nos dados filtrados, diga que a base não confirmou jogos de Copa/Mundial hoje.`,
+Se não houver Copa nos dados filtrados, use também a pesquisa web fornecida. Se a pesquisa web indicar jogos de Copa/Mundial, informe que vieram da pesquisa externa e destaque que a base local não confirmou todos. Não invente partidas fora do contexto.`,
     );
 
     return {
@@ -481,13 +514,20 @@ Nunca invente odds, estatísticas, escalações ou resultado. Se faltar dado rea
     decision?: OddixBrainDecision,
     forcedQuery?: string,
   ): Promise<ResearchResult | null> {
-    if (!this.researchService) return null;
-    if (!this.shouldResearch(decision, message) && !forcedQuery) return null;
+    if (!this.researchService && !this.researchAgent) return null;
+    const cleanedQuery = this.queryCleaner?.analyze(forcedQuery || message) || null;
+    const shouldForce = cleanedQuery?.shouldForceResearch || false;
+    if (!this.shouldResearch(decision, message) && !forcedQuery && !shouldForce) return null;
 
     const query = this.buildResearchQuery(message, decision, forcedQuery);
 
     try {
-      return await this.researchService.search(query);
+      if (this.researchAgent) {
+        const agentResult = await this.researchAgent.research(message, query);
+        if (agentResult) return agentResult;
+      }
+
+      return await this.researchService!.search(query);
     } catch (error: any) {
       this.logger.warn(`[ODDIX_RESEARCH] falhou: ${error?.message || error}`);
       return {
@@ -548,8 +588,20 @@ Nunca invente odds, estatísticas, escalações ou resultado. Se faltar dado rea
     decision?: OddixBrainDecision,
     forcedQuery?: string,
   ) {
-    const base = this.cleanResearchQuery(forcedQuery || message);
+    const cleanedQuery = this.queryCleaner?.analyze(forcedQuery || message) || null;
+    const teams = cleanedQuery?.teams || null;
+    const base = this.cleanResearchQuery(
+      teams ? `${teams.home} x ${teams.away}` : (cleanedQuery?.cleanMessage || forcedQuery || message),
+    );
     const intent = decision?.intent || 'GENERAL';
+
+    if (cleanedQuery?.intentHint === 'MATCH_RESULT' && teams) {
+      return `${teams.home} x ${teams.away} resultado placar futebol final score`;
+    }
+
+    if (cleanedQuery?.intentHint === 'TODAY_CUP_GAMES') {
+      return 'FIFA World Cup Club World Cup jogos hoje futebol fixtures today FlashScore ESPN';
+    }
 
     if (intent === 'TODAY_GAMES') return `${base} futebol jogos hoje calendário partidas oficiais`;
     if (intent === 'LIVE') return `${base} futebol ao vivo placar agora status`;
@@ -924,12 +976,15 @@ ${userMessage}`,
 
   private localDecision(message: string): OddixBrainDecision {
     const text = this.normalize(message);
+    const cleanedQuery = this.queryCleaner?.analyze(message) || null;
     let intent: any = 'GENERAL';
 
     if (this.hasAny(text, ['jogos de hoje', 'quais jogos', 'copa hoje', 'jogos da copa'])) intent = 'TODAY_GAMES';
+    if (cleanedQuery?.intentHint === 'TODAY_CUP_GAMES') intent = 'TODAY_GAMES';
     if (this.hasAny(text, ['ao vivo', 'live', 'placar'])) intent = 'LIVE';
+    if (cleanedQuery?.intentHint === 'MATCH_RESULT') intent = 'MATCH_ANALYSIS';
     if (this.hasAny(text, ['melhor entrada', 'maior confianca', 'maior confiança', 'top pick', 'o que apostar'])) intent = 'TOP_PICKS';
-    if (this.extractTeams(message, null)) intent = 'MATCH_ANALYSIS';
+    if (this.extractTeams(message, null) || cleanedQuery?.teams) intent = 'MATCH_ANALYSIS';
 
     return {
       intent,
@@ -986,13 +1041,15 @@ ${userMessage}`,
       };
     }
 
-    const sanitized = this.stripContextualQuestionTerms(String(message || ''))
+    const cleanedByQueryCleaner = this.queryCleaner?.cleanFootballQuestion(String(message || '')) || String(message || '');
+    const sanitized = this.stripContextualQuestionTerms(cleanedByQueryCleaner)
       .replace(/[–—]/g, ' ')
       .replace(/\b\d+\s*x\s*\d+\b/gi, ' x ')
       .replace(/\b\d+\s*-\s*\d+\b/gi, ' x ')
       .replace(/\b\d+\s*:\s*\d+\b/gi, ' x ')
       .replace(/\b\d+\b/g, ' ')
       .replace(/analisa|analisar|analise|análise/gi, '')
+      .replace(/\s+e\s+/gi, ' x ')
       .replace(/\s+/g, ' ')
       .trim();
 
