@@ -904,17 +904,39 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
     }
 
     const snapshot = this.conversationMemory?.get(sessionId);
-    const lastMatch = memory.lastMatch || snapshot?.lastMatch || null;
-    const lastFixture = memory.lastFixture || snapshot?.lastFixture || null;
-    const lastRichContext = memory.lastRichContext || snapshot?.lastRichContext || null;
+    const explicitTeams = this.extractTeams(message);
+    const explicitMatch = explicitTeams
+      ? { ...explicitTeams, label: `${explicitTeams.home} x ${explicitTeams.away}` }
+      : null;
+
+    const lastMatch = explicitMatch || memory.lastMatch || snapshot?.lastMatch || null;
+    let lastFixture = memory.lastFixture || snapshot?.lastFixture || null;
+    let lastRichContext = memory.lastRichContext || snapshot?.lastRichContext || null;
 
     if (!lastMatch && !lastFixture) return null;
 
+    // V14.2: quando a pergunta contextual também traz o jogo no texto
+    // (ex.: "Panamá x Croácia, vale entrar?"), resolvemos novamente na base
+    // para não depender de um snapshot incompleto que tenha apenas lastMatch.
+    if (lastMatch && (!lastFixture || !this.fixtureMatchesMemory(lastFixture, lastMatch))) {
+      const resolvedFixture = await this.resolveFixtureFromMatchMemory(lastMatch);
+      if (resolvedFixture) {
+        lastFixture = resolvedFixture;
+        lastRichContext = null;
+      }
+    }
+
     const fixture = lastFixture || lastRichContext?.fixture || null;
     const fixtureId = String(fixture?.fixture?.id || lastRichContext?.fixtureId || '');
-    const richContext =
-      lastRichContext ||
-      (fixtureId ? await this.getFlashScoreRichContextSafe(fixtureId, fixture) : null);
+    let richContext = lastRichContext || null;
+
+    if (fixtureId && (!richContext || !this.richContextHasReusableData(richContext))) {
+      richContext = await this.getFlashScoreRichContextSafe(fixtureId, fixture);
+    }
+
+    if (fixture && (!richContext || !richContext.oddsSummary?.available)) {
+      richContext = this.mergeFixtureOddsIntoRichContext(richContext, fixture, fixtureId);
+    }
 
     const hydratedMemory: ConversationMemory = {
       ...memory,
@@ -978,6 +1000,74 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
     const home = this.getFixtureHomeName(fixture) || 'Casa';
     const away = this.getFixtureAwayName(fixture) || 'Fora';
     return { home, away, label: `${home} x ${away}` };
+  }
+
+  private async resolveFixtureFromMatchMemory(match: any): Promise<any | null> {
+    if (!match?.home || !match?.away || !this.footballService) return null;
+
+    try {
+      const fixtures = await this.getMatchSearchFixtures(3, 7);
+      return this.findMatch(fixtures, match.home, match.away);
+    } catch (error: any) {
+      this.logger.warn(`[V14_CONTEXT] falha ao resolver fixture por memória: ${error?.message || error}`);
+      return null;
+    }
+  }
+
+  private fixtureMatchesMemory(fixture: any, match: any) {
+    if (!fixture || !match?.home || !match?.away) return false;
+    return !!this.findMatch([fixture], match.home, match.away);
+  }
+
+  private richContextHasReusableData(richContext: any) {
+    return !!(
+      richContext?.statisticsSummary?.available ||
+      richContext?.oddsSummary?.available ||
+      richContext?.statisticsProxy ||
+      richContext?.odds ||
+      richContext?.fixture
+    );
+  }
+
+  private mergeFixtureOddsIntoRichContext(
+    richContext: FlashScoreRichContext | null | undefined,
+    fixture: any,
+    fixtureId?: string,
+  ): FlashScoreRichContext {
+    const fixtureOdds = this.extractFixtureOdds(fixture);
+    const oddsSummary = this.buildOddsSummary(fixtureOdds);
+    const statisticsSummary =
+      richContext?.statisticsSummary || this.emptyStatisticsSummary();
+    const pressureSummary =
+      richContext?.pressureSummary || this.emptyPressureSummary();
+
+    return {
+      ...(richContext || {}),
+      ok: !!(richContext?.ok || oddsSummary.available || statisticsSummary.available),
+      source: richContext?.source || 'fixture-cache',
+      fixture: richContext?.fixture || fixture,
+      fixtureId: richContext?.fixtureId || fixtureId || String(fixture?.fixture?.id || ''),
+      odds: richContext?.odds || fixtureOdds || null,
+      oddsSummary: oddsSummary.available
+        ? oddsSummary
+        : richContext?.oddsSummary || this.emptyOddsSummary(),
+      statisticsSummary,
+      pressureSummary,
+      statisticsProxy:
+        richContext?.statisticsProxy ||
+        this.buildLiveProxySignal(fixture, oddsSummary.available ? oddsSummary : this.emptyOddsSummary()),
+      statsUnavailableReason:
+        richContext?.statsUnavailableReason ||
+        'Provider não entregou estatísticas oficiais para este jogo.',
+      contextQuality: statisticsSummary.available
+        ? oddsSummary.available
+          ? 'FULL'
+          : 'PARTIAL'
+        : oddsSummary.available
+          ? 'ODDS_ONLY'
+          : richContext?.contextQuality || 'BASIC',
+      errors: richContext?.errors || [],
+    };
   }
 
   private buildContextualMultipleGuardResponse(
