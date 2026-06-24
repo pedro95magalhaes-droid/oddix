@@ -1329,10 +1329,25 @@ ${userMessage}`,
 
     const aliases = new Set<string>([base]);
     const aliasMap: Record<string, string[]> = {
+      brasil: ['brazil', 'brasil selecao', 'selecao brasileira', 'seleção brasileira'],
+      brazil: ['brasil', 'brasil selecao', 'selecao brasileira', 'seleção brasileira'],
+      'selecao brasileira': ['brasil', 'brazil'],
       croacia: ['croácia', 'croatia', 'hrvatska'],
       croatia: ['croacia', 'croácia', 'hrvatska'],
       hrvatska: ['croacia', 'croatia'],
       panama: ['panamá', 'panama'],
+      canada: ['canadá'],
+      suica: ['suíça', 'switzerland'],
+      switzerland: ['suica', 'suíça'],
+      marrocos: ['morocco'],
+      morocco: ['marrocos'],
+      haiti: ['haití'],
+      escocia: ['escócia', 'scotland'],
+      scotland: ['escocia', 'escócia'],
+      qatar: ['catar'],
+      catar: ['qatar'],
+      'africa do sul': ['áfrica do sul', 'south africa'],
+      'south africa': ['africa do sul', 'áfrica do sul'],
       'estados unidos': ['usa', 'united states', 'united states of america'],
       usa: ['estados unidos', 'united states', 'united states of america'],
       'estados unidos da america': ['usa', 'united states'],
@@ -1348,6 +1363,7 @@ ${userMessage}`,
       japan: ['japao'],
       'coreia do sul': ['south korea', 'korea republic'],
       'south korea': ['coreia do sul', 'korea republic'],
+      'korea republic': ['coreia do sul', 'south korea'],
     };
 
     for (const alias of aliasMap[base] || []) {
@@ -1355,7 +1371,8 @@ ${userMessage}`,
     }
 
     for (const [key, values] of Object.entries(aliasMap)) {
-      if (values.includes(base)) aliases.add(this.normalize(key));
+      const normalizedValues = values.map((item) => this.normalize(item));
+      if (normalizedValues.includes(base)) aliases.add(this.normalize(key));
     }
 
     return Array.from(aliases).filter((item) => item.length >= 2);
@@ -1884,27 +1901,31 @@ ${userMessage}`,
   }
 
   private extractLineupTeamQuery(message: string) {
-    const text = String(message || '')
-      .replace(/qual|quais|a|o|os|as|do|da|de|para|pra|hoje|time|titular|escalação|escalacao|provavel|provável|titulares|lineup|starting xi|desfalques/gi, ' ')
-      .replace(/[?!.:,;]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (text) return text;
-
     const normalized = this.normalize(message);
     const commonTeams: Record<string, string> = {
-      brasil: 'Brasil',
+      'selecao brasileira': 'Brazil',
+      'seleção brasileira': 'Brazil',
+      brasil: 'Brazil',
       brazil: 'Brazil',
       argentina: 'Argentina',
-      franca: 'França',
+      franca: 'France',
       france: 'France',
-      espanha: 'Espanha',
+      espanha: 'Spain',
       spain: 'Spain',
-      inglaterra: 'Inglaterra',
+      inglaterra: 'England',
       england: 'England',
-      alemanha: 'Alemanha',
+      alemanha: 'Germany',
       germany: 'Germany',
+      escocia: 'Scotland',
+      scotland: 'Scotland',
+      suica: 'Switzerland',
+      switzerland: 'Switzerland',
+      marrocos: 'Morocco',
+      morocco: 'Morocco',
+      haiti: 'Haiti',
+      canada: 'Canada',
+      qatar: 'Qatar',
+      catar: 'Qatar',
       flamengo: 'Flamengo',
       palmeiras: 'Palmeiras',
       corinthians: 'Corinthians',
@@ -1913,16 +1934,28 @@ ${userMessage}`,
       fluminense: 'Fluminense',
     };
 
-    for (const [key, value] of Object.entries(commonTeams)) {
-      if (normalized.includes(key)) return value;
+    // Primeiro tenta entidades conhecidas. Isso evita o bug antigo que removia letras
+    // soltas de palavras como "Brasil" e gerava consultas quebradas tipo "br sil".
+    for (const [key, value] of Object.entries(commonTeams).sort((a, b) => b[0].length - a[0].length)) {
+      if (normalized.includes(this.normalize(key))) return value;
     }
 
-    return '';
+    const text = String(message || '')
+      .replace(/[?!.:,;]+/g, ' ')
+      .replace(/(?:qual|quais|quem|seria|sera|será|tem|vai|vai ser|e|é|a|o|os|as|do|da|dos|das|de|para|pra|hoje|agora|time|titular|escalação|escalacao|provavel|provável|provaveis|prováveis|titulares|lineup|lineups|starting|xi|desfalques|seleção|selecao)/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return this.cleanTeamName(text);
   }
 
   private findFixtureByTeam(fixtures: any[], teamQuery: string) {
     const aliases = this.buildTeamSearchAliases(teamQuery);
-    return (fixtures || []).find((game: any) => {
+    if (!aliases.length) return null;
+
+    const candidates = this.sortFixturesByLivePriority(this.uniqueFixtures(fixtures || []));
+
+    return candidates.find((game: any) => {
       const homeAliases = this.buildTeamSearchAliases(this.getFixtureHomeName(game));
       const awayAliases = this.buildTeamSearchAliases(this.getFixtureAwayName(game));
       return this.teamAliasMatch(aliases, homeAliases) || this.teamAliasMatch(aliases, awayAliases);
