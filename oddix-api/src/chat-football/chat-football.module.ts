@@ -25,6 +25,7 @@ import { MatchResolverService } from './match-resolver.service';
 import { OddsCacheService } from './odds-cache.service';
 import { OddixWorldCupResolverService } from './oddix-worldcup-resolver.service';
 import { FlashScoreService } from './flashscore.service';
+import { OddixMasterRouterService } from './oddix-master-router.service';
 
 @Module({
   imports: [FootballModule],
@@ -54,6 +55,7 @@ import { FlashScoreService } from './flashscore.service';
     OddsCacheService,
     OddixWorldCupResolverService,
     FlashScoreService,
+    OddixMasterRouterService,
   ],
   exports: [
     ChatFootballService,
@@ -80,6 +82,7 @@ import { FlashScoreService } from './flashscore.service';
     OddsCacheService,
     OddixWorldCupResolverService,
     FlashScoreService,
+    OddixMasterRouterService,
   ],
 })
 export class ChatFootballModule {}

@@ -7,6 +7,7 @@ import { OddixQueryCleanerService } from './oddix-query-cleaner.service';
 import { OddixResearchAgentService } from './oddix-research-agent.service';
 import { OddixWorldCupResolverService } from './oddix-worldcup-resolver.service';
 import { FlashScoreService } from './flashscore.service';
+import { OddixMasterRouterService, OddixMasterRoute } from './oddix-master-router.service';
 
 export type OddixDataOrchestratorResponse = {
   handled: boolean;
@@ -22,6 +23,7 @@ export class OddixDataOrchestratorService {
   constructor(
     @Optional() private readonly footballService?: FootballService,
     @Optional() private readonly flashScoreService?: FlashScoreService,
+    @Optional() private readonly masterRouter?: OddixMasterRouterService,
     @Optional() private readonly researchService?: FootballResearchService,
     @Optional() private readonly llmService?: OddixLlmService,
     @Optional() private readonly brainService?: OddixBrainService,
@@ -50,13 +52,29 @@ export class OddixDataOrchestratorService {
       (decision as any).intent = 'TODAY_GAMES';
     }
 
-    // V20: perguntas globais de futebol como escalação, prováveis titulares, desfalques
-    // e odds não devem cair no fluxo genérico. Primeiro tenta FlashScore real.
-    if (this.asksForLineup(message)) {
-      return this.answerLineupQuestion(message, decision);
-    }
+    // V21: router mestre decide antes do fluxo antigo.
+    // Ele evita que perguntas globais caiam no resolver errado e força FlashScore
+    // somente quando a pergunta realmente precisa de dados de futebol.
+    const masterRoute = this.masterRouter?.classify(message, decision, cleanedQuery) || null;
+    this.applyMasterRouteToDecision(masterRoute, decision);
 
     try {
+      if (masterRoute?.kind === 'FOOTBALL_LINEUP' || this.asksForLineup(message)) {
+        return this.answerLineupQuestion(message, decision);
+      }
+
+      if (masterRoute?.kind === 'FOOTBALL_ODDS') {
+        return this.answerOddsQuestion(message, decision, masterRoute);
+      }
+
+      if (masterRoute?.kind === 'FOOTBALL_STANDINGS' || masterRoute?.kind === 'FOOTBALL_NEWS' || masterRoute?.kind === 'FOOTBALL_TEAM' || masterRoute?.kind === 'FOOTBALL_PLAYER' || masterRoute?.kind === 'FOOTBALL_GLOBAL') {
+        return this.answerGeneralFootball(message, decision);
+      }
+
+      if (masterRoute?.kind === 'GENERAL_CHAT') {
+        return this.answerGeneral(message);
+      }
+
       if (decision.intent === 'GENERAL') {
         if (this.shouldResearch(decision, message)) {
           return this.answerGeneralFootball(message, decision);
@@ -431,6 +449,170 @@ Sem inventar odds, estatísticas ou mercados oficiais.`,
     };
   }
 
+  private applyMasterRouteToDecision(
+    masterRoute: OddixMasterRoute | null,
+    decision: OddixBrainDecision,
+  ) {
+    if (!masterRoute) return;
+
+    const intentByRoute: Partial<Record<OddixMasterRoute['kind'], string>> = {
+      FOOTBALL_TODAY_GAMES: 'TODAY_GAMES',
+      FOOTBALL_LIVE: 'LIVE',
+      FOOTBALL_MATCH_ANALYSIS: 'MATCH_ANALYSIS',
+      FOOTBALL_LINEUP: 'MATCH_ANALYSIS',
+      FOOTBALL_ODDS: 'MATCH_ANALYSIS',
+      FOOTBALL_STANDINGS: 'TEAM',
+      FOOTBALL_NEWS: 'NEWS',
+      FOOTBALL_TEAM: 'TEAM',
+      FOOTBALL_PLAYER: 'PLAYER',
+      FOOTBALL_GLOBAL: 'TEAM',
+      BETTING_TOP_PICK: 'TOP_PICKS',
+      BETTING_MULTIPLE: 'MULTIPLE',
+      BETTING_VALUE: 'VALUE_BETS',
+      GENERAL_CHAT: 'GENERAL',
+      GENERAL_RESEARCH: 'GENERAL',
+    };
+
+    const intent = intentByRoute[masterRoute.kind];
+    if (intent) (decision as any).intent = intent;
+
+    (decision as any).masterRoute = masterRoute;
+    (decision as any).entities = {
+      ...(decision as any).entities,
+      ...(masterRoute.entities?.team ? { team: masterRoute.entities.team } : {}),
+      ...(masterRoute.entities?.player ? { player: masterRoute.entities.player } : {}),
+      ...(masterRoute.entities?.homeTeam ? { homeTeam: masterRoute.entities.homeTeam } : {}),
+      ...(masterRoute.entities?.awayTeam ? { awayTeam: masterRoute.entities.awayTeam } : {}),
+      ...(masterRoute.entities?.competition ? { competition: masterRoute.entities.competition } : {}),
+    };
+    (decision as any).shouldUseOddixEngine = masterRoute.requiresFootballData;
+    (decision as any).shouldUseGlobalAiDirect = masterRoute.kind === 'GENERAL_CHAT';
+  }
+
+  private async answerOddsQuestion(
+    message: string,
+    decision?: OddixBrainDecision,
+    masterRoute?: OddixMasterRoute | null,
+  ): Promise<OddixDataOrchestratorResponse> {
+    const teams =
+      this.extractTeams(message, decision) ||
+      (masterRoute?.entities?.homeTeam && masterRoute?.entities?.awayTeam
+        ? { home: masterRoute.entities.homeTeam, away: masterRoute.entities.awayTeam }
+        : null) ||
+      this.queryCleaner?.extractTeams(message) ||
+      null;
+
+    const teamQuery = !teams
+      ? masterRoute?.entities?.team || this.extractLineupTeamQuery(message)
+      : '';
+
+    const fixtures = await this.getMatchSearchFixtures(3, 7);
+    const match = teams
+      ? this.findMatch(fixtures, teams.home, teams.away)
+      : teamQuery
+        ? this.findFixtureByTeam(fixtures, teamQuery)
+        : null;
+
+    const researchQuery = teams
+      ? `${teams.home} x ${teams.away} odds futebol`
+      : teamQuery
+        ? `${teamQuery} odds futebol hoje`
+        : 'odds futebol hoje';
+    const research = await this.runResearch(message, decision, researchQuery).catch(() => null);
+
+    if (!match) {
+      const researchAnswer = await this.answerFromResearchOnly(message, research, decision, 'odds/cotações');
+      if (researchAnswer) return researchAnswer;
+
+      return {
+        handled: true,
+        answer:
+          '🎯 Odds\n\nNão encontrei uma partida confirmada para buscar odds reais na FlashScore/base Oddix.\n\nMe envie o confronto exato, por exemplo: `odds de Scotland x Brazil`. Sem partida e sem cotação validada, não vou inventar odd.',
+        data: {
+          waitingForData: true,
+          masterRoute,
+          teams,
+          teamQuery,
+          fixtures: fixtures.slice(0, 12).map((game: any) => this.simplifyFixture(game)),
+          research,
+          decision,
+        },
+        suggestions: ['Mostrar jogos de hoje', 'Enviar confronto exato', 'Ver jogos ao vivo'],
+      };
+    }
+
+    const simple = this.simplifyFixture(match);
+    const fixtureId = String(simple.externalId || match?.fixture?.externalId || match?.fixture?.id || match?.id || '');
+    const richContext = await this.getRichContext(fixtureId, match).catch(() => null);
+    const odds = richContext?.odds || simple.odds || this.extractFixtureOdds(match);
+    const oddsSummary = this.buildOddsSummary(odds);
+
+    if (oddsSummary.available) {
+      return {
+        handled: true,
+        answer: this.formatOddsAnswer(simple, oddsSummary),
+        data: {
+          fixture: match,
+          richContext,
+          odds,
+          oddsSummary,
+          research,
+          masterRoute,
+          decision,
+        },
+        suggestions: [`Analisar ${simple.home} x ${simple.away}`, 'Montar múltipla com cautela', 'Ver escalação desse jogo'],
+      };
+    }
+
+    const context = JSON.stringify(
+      {
+        pergunta: message,
+        masterRoute,
+        jogo: simple,
+        richContext: this.simplifyRichContext(richContext),
+        research,
+        regra:
+          'Se odds não estiverem explícitas no contexto, diga que não há odds validadas. Não invente odd, casa de aposta ou mercado.',
+      },
+      null,
+      2,
+    );
+
+    const answer = await this.humanizeWithDeepSeek(
+      message,
+      context,
+      `Responda sobre odds/cotações de forma responsável.\nFormato:\n🎯 Odds\n⚽ Jogo\n📌 Situação\n⚠️ Observação\n\nNunca invente odd. Se não houver cotação real, peça o confronto ou diga que a casa ainda não abriu mercado.`,
+    );
+
+    return {
+      handled: true,
+      answer:
+        answer ||
+        `🎯 Odds\n\n⚽ ${simple.home} x ${simple.away}\n\nEncontrei a partida, mas não recebi odds reais validadas da FlashScore/base Oddix agora. Sem cotação real, não vou montar entrada oficial nem inventar mercado.`,
+      data: {
+        waitingForData: true,
+        fixture: match,
+        richContext,
+        odds: null,
+        oddsSummary,
+        research,
+        masterRoute,
+        decision,
+      },
+      suggestions: [`Analisar ${simple.home} x ${simple.away}`, 'Tentar odds novamente', 'Mostrar jogos de hoje'],
+    };
+  }
+
+  private formatOddsAnswer(simple: any, oddsSummary: any) {
+    const options = Array.isArray(oddsSummary?.options) ? oddsSummary.options : [];
+    const lines = options
+      .slice(0, 12)
+      .map((option: any) => `• ${option.name}: ${Number(option.odd).toFixed(2)}`)
+      .join('\n');
+
+    return `🎯 Odds validadas\n\n⚽ ${simple.home || 'Casa'} x ${simple.away || 'Fora'}\n🏆 ${simple.league || 'Liga não informada'}\n📌 Mercado: ${oddsSummary.market || '1X2'}\n🏦 Fonte/Casa: ${oddsSummary.bookmaker || oddsSummary.source || 'provider integrado'}\n\n${lines || 'Nenhuma seleção formatada.'}\n\n⚠️ Use como consulta de mercado. A Oddix não garante lucro e não recomenda apostar sem gestão de banca.`;
+  }
+
   private async answerLineupQuestion(
     message: string,
     decision?: OddixBrainDecision,
@@ -674,6 +856,18 @@ Nunca invente odds, estatísticas, escalações ou resultado. Se faltar dado rea
       'resultado',
       'proximo jogo',
       'próximo jogo',
+      'odds',
+      'odd',
+      'cotação',
+      'cotacao',
+      'mercado',
+      'classificação',
+      'classificacao',
+      'standings',
+      'artilharia',
+      'desfalques',
+      'prováveis titulares',
+      'provaveis titulares',
     ]);
   }
 
@@ -775,7 +969,7 @@ ${research.summary}
       {
         role: 'system',
         content:
-          'Você é a IA Oddix Chat V13. Responda em português do Brasil, natural, direto e inteligente. Nunca invente dados atuais. Para futebol, use somente dados reais fornecidos pela pesquisa web e pelas APIs do backend. Se faltar dado, diga claramente.',
+          'Você é a IA Oddix Chat V21. Responda em português do Brasil, natural, direto e inteligente. Nunca invente dados atuais. Para futebol, use somente dados reais fornecidos pela pesquisa web e pelas APIs do backend. Se faltar dado, diga claramente.',
       },
       {
         role: 'user',
