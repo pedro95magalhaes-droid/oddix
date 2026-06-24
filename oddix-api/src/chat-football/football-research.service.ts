@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger } from '@nestjs/common';
 
 export type ResearchItem = {
   position: number;
@@ -13,6 +13,10 @@ export type ResearchResult = {
   query: string;
   items: ResearchItem[];
   summary: string;
+  provider?: string;
+  cacheHit?: boolean;
+  rateLimited?: boolean;
+  error?: string;
 };
 
 export type WebOddsMarkets = {
@@ -28,7 +32,7 @@ export type WebOddsMarkets = {
 
 export type WebOddsResult = {
   found: boolean;
-  source: "web-research" | "none";
+  source: 'web-research' | 'none';
   query: string;
   bookmaker?: string;
   markets: WebOddsMarkets;
@@ -36,30 +40,65 @@ export type WebOddsResult = {
   warning: string;
 };
 
+type ResearchCacheEntry = {
+  result: ResearchResult;
+  expiresAt: number;
+};
+
+type SearchProvider = {
+  name: string;
+  host: string;
+  endpoint: string;
+  apiKey: string;
+  mode: 'google-search116' | 'google-serp10';
+};
+
 @Injectable()
 export class FootballResearchService {
   private readonly logger = new Logger(FootballResearchService.name);
 
+  private readonly cache = new Map<string, ResearchCacheEntry>();
+  private readonly cooldowns = new Map<string, number>();
+
   private get enabled() {
+    return String(process.env.ODDIX_RESEARCH_ENABLED || '').toLowerCase() === 'true';
+  }
+
+  private get primaryApiKey() {
     return (
-      String(process.env.ODDIX_RESEARCH_ENABLED || "").toLowerCase() === "true"
+      process.env.GOOGLE_SEARCH_API_KEY ||
+      process.env.RAPIDAPI_KEY ||
+      process.env.X_RAPIDAPI_KEY ||
+      ''
     );
   }
 
-  private get apiKey() {
-    return process.env.RAPIDAPI_KEY || process.env.X_RAPIDAPI_KEY || "";
+  private get primaryHost() {
+    return process.env.GOOGLE_SEARCH_HOST || 'google-search116.p.rapidapi.com';
   }
 
-  private get host() {
-    return (
-      process.env.RAPIDAPI_GOOGLE_SERP_HOST || "google-serp10.p.rapidapi.com"
-    );
+  private get primaryEndpoint() {
+    return process.env.GOOGLE_SEARCH_ENDPOINT || `https://${this.primaryHost}/search`;
   }
 
-  private get endpoint() {
-    return (
-      process.env.RAPIDAPI_GOOGLE_SERP_ENDPOINT || `https://${this.host}/search`
-    );
+  private get legacyApiKey() {
+    return process.env.RAPIDAPI_KEY || process.env.X_RAPIDAPI_KEY || this.primaryApiKey || '';
+  }
+
+  private get legacyHost() {
+    return process.env.RAPIDAPI_GOOGLE_SERP_HOST || 'google-serp10.p.rapidapi.com';
+  }
+
+  private get legacyEndpoint() {
+    return process.env.RAPIDAPI_GOOGLE_SERP_ENDPOINT || `https://${this.legacyHost}/search`;
+  }
+
+  private get cacheTtlMs() {
+    return Number(process.env.ODDIX_RESEARCH_CACHE_TTL_MS || 1000 * 60 * 30);
+  }
+
+  private get timeoutMs() {
+    return Number(process.env.ODDIX_RESEARCH_TIMEOUT_MS || 15000);
   }
 
   async researchTeam(teamName: string): Promise<ResearchResult> {
@@ -72,12 +111,12 @@ export class FootballResearchService {
     return this.search(query);
   }
 
-  async researchTodayGames(scope = "futebol"): Promise<ResearchResult> {
+  async researchTodayGames(scope = 'futebol'): Promise<ResearchResult> {
     const query = `${scope} jogos de hoje futebol calendário partidas ao vivo`;
     return this.search(query);
   }
 
-  async researchLiveGames(scope = "futebol"): Promise<ResearchResult> {
+  async researchLiveGames(scope = 'futebol'): Promise<ResearchResult> {
     const query = `${scope} futebol ao vivo placar agora jogos em andamento`;
     return this.search(query);
   }
@@ -91,51 +130,158 @@ export class FootballResearchService {
     return this.extractOddsFromResearch(research);
   }
 
-  async searchEverything(
-    query: string,
-    country = "br",
-  ): Promise<ResearchResult> {
+  async searchEverything(query: string, country = 'br'): Promise<ResearchResult> {
     return this.search(query, country);
   }
 
-  async search(query: string, country = "br"): Promise<ResearchResult> {
+  async search(query: string, country = 'br'): Promise<ResearchResult> {
     const safeQuery = this.cleanQuery(query);
+    const normalizedCountry = this.normalizeCountry(country);
+    const cacheKey = `${safeQuery.toLowerCase()}::${normalizedCountry.toLowerCase()}`;
 
-    if (!this.enabled || !this.apiKey) {
+    if (!this.enabled || !this.primaryApiKey) {
       return {
         enabled: false,
         query: safeQuery,
         items: [],
         summary:
-          "Pesquisa externa desativada. Configure ODDIX_RESEARCH_ENABLED=true e RAPIDAPI_KEY para ativar busca web em tempo real.",
+          'Pesquisa externa desativada. Configure ODDIX_RESEARCH_ENABLED=true e GOOGLE_SEARCH_API_KEY para ativar busca web em tempo real.',
+        provider: 'disabled',
       };
     }
 
-    try {
-      const url = new URL(this.endpoint);
+    const cached = this.getCached(cacheKey);
+    if (cached) return cached;
 
-      // O provider google-serp10 aceita variações de parâmetro dependendo do plano/host.
-      // Mantemos os principais para reduzir falha silenciosa.
-      url.searchParams.set("keyword", safeQuery);
-      url.searchParams.set("q", safeQuery);
-      url.searchParams.set("query", safeQuery);
-      url.searchParams.set("country", country);
-      url.searchParams.set("pais", country);
-      url.searchParams.set("palavra-chave", safeQuery);
-      url.searchParams.set("hl", "pt-BR");
-      url.searchParams.set("gl", country);
+    const providers = this.buildProviders();
+    let lastError = '';
+    let wasRateLimited = false;
+
+    for (const provider of providers) {
+      if (!provider.apiKey || !provider.host || !provider.endpoint) continue;
+
+      const cooldown = this.cooldowns.get(provider.name) || 0;
+      if (cooldown > Date.now()) {
+        lastError = `${provider.name} em cooldown por rate limit`;
+        wasRateLimited = true;
+        continue;
+      }
+
+      try {
+        const result = await this.callProvider(provider, safeQuery, normalizedCountry);
+        this.cache.set(cacheKey, {
+          result,
+          expiresAt: Date.now() + this.cacheTtlMs,
+        });
+        return result;
+      } catch (error: any) {
+        const status = Number(error?.status || error?.response?.status || 0);
+        lastError = error?.message || `falha em ${provider.name}`;
+        wasRateLimited = wasRateLimited || status === 429 || /429|too many/i.test(lastError);
+
+        this.logger.warn(`[ODDIX_RESEARCH] ${provider.name} falhou: ${lastError}`);
+
+        if (status === 429 || /429|too many/i.test(lastError)) {
+          const cooldownMs = Number(process.env.ODDIX_RESEARCH_429_COOLDOWN_MS || 1000 * 60 * 5);
+          this.cooldowns.set(provider.name, Date.now() + cooldownMs);
+        }
+      }
+    }
+
+    const failedResult: ResearchResult = {
+      enabled: true,
+      query: safeQuery,
+      items: [],
+      summary: wasRateLimited
+        ? '🔎 Pesquisa web acionada, mas o provedor retornou limite de requisições (429). Usando apenas dados locais/cache.'
+        : `🔎 Pesquisa web acionada, mas não consegui consultar notícias externas agora. Motivo: ${lastError || 'falha desconhecida'}`,
+      provider: providers.map((p) => p.name).join(' > ') || 'none',
+      rateLimited: wasRateLimited,
+      error: lastError || undefined,
+    };
+
+    this.cache.set(cacheKey, {
+      result: failedResult,
+      expiresAt: Date.now() + Math.min(this.cacheTtlMs, 1000 * 60 * 5),
+    });
+
+    return failedResult;
+  }
+
+  private buildProviders(): SearchProvider[] {
+    const providers: SearchProvider[] = [
+      {
+        name: 'google-search116',
+        host: this.primaryHost,
+        endpoint: this.primaryEndpoint,
+        apiKey: this.primaryApiKey,
+        mode: 'google-search116',
+      },
+    ];
+
+    const enableLegacyFallback =
+      String(process.env.ODDIX_RESEARCH_ENABLE_LEGACY_FALLBACK || 'true').toLowerCase() !== 'false';
+
+    if (enableLegacyFallback && this.legacyHost && this.legacyEndpoint) {
+      providers.push({
+        name: 'google-serp10-legacy',
+        host: this.legacyHost,
+        endpoint: this.legacyEndpoint,
+        apiKey: this.legacyApiKey,
+        mode: 'google-serp10',
+      });
+    }
+
+    return providers;
+  }
+
+  private async callProvider(
+    provider: SearchProvider,
+    query: string,
+    country: string,
+  ): Promise<ResearchResult> {
+    const url = new URL(provider.endpoint);
+
+    if (provider.mode === 'google-search116') {
+      url.searchParams.set('query', query);
+      url.searchParams.set('country', country.toUpperCase());
+      url.searchParams.set('gl', country.toUpperCase());
+      url.searchParams.set('hl', 'pt-BR');
+      url.searchParams.set('limit', String(Number(process.env.ODDIX_RESEARCH_LIMIT || 10)));
+    } else {
+      url.searchParams.set('keyword', query);
+      url.searchParams.set('q', query);
+      url.searchParams.set('query', query);
+      url.searchParams.set('country', country);
+      url.searchParams.set('pais', country);
+      url.searchParams.set('palavra-chave', query);
+      url.searchParams.set('hl', 'pt-BR');
+      url.searchParams.set('gl', country);
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      this.logger.log(`[ODDIX_RESEARCH] provider=${provider.name} query="${query.slice(0, 160)}"`);
 
       const response = await fetch(url.toString(), {
-        method: "GET",
+        method: 'GET',
+        signal: controller.signal,
         headers: {
-          "x-rapidapi-key": this.apiKey,
-          "x-rapidapi-host": this.host,
-          accept: "application/json",
+          'x-rapidapi-key': provider.apiKey,
+          'x-rapidapi-host': provider.host,
+          accept: 'application/json',
         },
       });
 
+      clearTimeout(timeout);
+
       if (!response.ok) {
-        throw new Error(`Research API HTTP ${response.status}`);
+        const body = await response.text().catch(() => '');
+        const error: any = new Error(`Research API HTTP ${response.status}${body ? `: ${body.slice(0, 180)}` : ''}`);
+        error.status = response.status;
+        throw error;
       }
 
       const json: any = await response.json();
@@ -145,26 +291,43 @@ export class FootballResearchService {
         .map((item: any, index: number) => this.normalizeItem(item, index))
         .filter((item: ResearchItem) => item.title && item.url)
         .filter((item: ResearchItem) => this.isUsefulFootballResult(item))
-        .slice(0, 8);
+        .slice(0, 10);
+
+      this.logger.log(`[ODDIX_RESEARCH] provider=${provider.name} results=${items.length}`);
 
       return {
         enabled: true,
-        query: safeQuery,
+        query,
         items,
         summary: this.buildSummary(items),
+        provider: provider.name,
+        rateLimited: false,
       };
     } catch (error: any) {
-      this.logger.warn(`Research falhou: ${error?.message || error}`);
-
-      return {
-        enabled: true,
-        query: safeQuery,
-        items: [],
-        summary: `Não consegui consultar notícias externas agora. Motivo: ${
-          error?.message || "falha desconhecida"
-        }`,
-      };
+      clearTimeout(timeout);
+      if (error?.name === 'AbortError') {
+        const abortError: any = new Error(`Research API timeout após ${this.timeoutMs}ms`);
+        abortError.status = 408;
+        throw abortError;
+      }
+      throw error;
     }
+  }
+
+  private getCached(cacheKey: string): ResearchResult | null {
+    const cached = this.cache.get(cacheKey);
+    if (!cached) return null;
+
+    if (cached.expiresAt <= Date.now()) {
+      this.cache.delete(cacheKey);
+      return null;
+    }
+
+    return {
+      ...cached.result,
+      cacheHit: true,
+      summary: cached.result.summary || this.buildSummary(cached.result.items || []),
+    };
   }
 
   private extractOddsFromResearch(research: ResearchResult): WebOddsResult {
@@ -174,17 +337,18 @@ export class FootballResearchService {
     for (const item of research.items || []) {
       const text = `${item.title} ${item.description}`;
       const normalized = this.normalizeForOdds(text);
-      const source = String(item.source || "").toLowerCase();
+      const source = String(item.source || '').toLowerCase();
 
       const hasOddsContext =
-        normalized.includes("odd") ||
-        normalized.includes("odds") ||
-        normalized.includes("cotacao") ||
-        normalized.includes("aposta") ||
-        normalized.includes("bet") ||
-        source.includes("odds") ||
-        source.includes("bet") ||
-        source.includes("bookmaker");
+        normalized.includes('odd') ||
+        normalized.includes('odds') ||
+        normalized.includes('cotacao') ||
+        normalized.includes('cotação') ||
+        normalized.includes('aposta') ||
+        normalized.includes('bet') ||
+        source.includes('odds') ||
+        source.includes('bet') ||
+        source.includes('bookmaker');
 
       if (!hasOddsContext) continue;
 
@@ -199,14 +363,16 @@ export class FootballResearchService {
 
     return {
       found,
-      source: found ? "web-research" : "none",
+      source: found ? 'web-research' : 'none',
       query: research.query,
       bookmaker: evidence[0]?.source,
       markets,
       evidence: evidence.slice(0, 5),
       warning: found
-        ? "Odds extraídas de pesquisa web. Confirme a cotação na casa de apostas antes de apostar."
-        : "Nenhuma odd confiável foi extraída da pesquisa web.",
+        ? 'Odds extraídas de pesquisa web. Confirme a cotação na casa de apostas antes de apostar.'
+        : research.rateLimited
+          ? 'Pesquisa web acionada, mas o provedor retornou limite de requisições. Nenhuma odd confiável foi extraída.'
+          : 'Nenhuma odd confiável foi extraída da pesquisa web.',
     };
   }
 
@@ -264,31 +430,31 @@ export class FootballResearchService {
     ]);
 
     return Object.fromEntries(
-      Object.entries(markets).filter(([, value]) => typeof value === "number"),
+      Object.entries(markets).filter(([, value]) => typeof value === 'number'),
     ) as WebOddsMarkets;
   }
 
   private parseOdd(value?: string) {
     if (!value) return undefined;
-    const odd = Number(String(value).replace(",", "."));
+    const odd = Number(String(value).replace(',', '.'));
     if (!Number.isFinite(odd)) return undefined;
     if (odd < 1.01 || odd > 15) return undefined;
     return Number(odd.toFixed(2));
   }
 
   private normalizeForOdds(value: string) {
-    return String(value || "")
+    return String(value || '')
       .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, " ")
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
       .trim();
   }
 
   private extractRawItems(json: any): any[] {
     const candidates = [
-      json?.result,
       json?.results,
+      json?.result,
       json?.organic_results,
       json?.organic,
       json?.data,
@@ -307,14 +473,14 @@ export class FootballResearchService {
   }
 
   private normalizeItem(item: any, index: number): ResearchItem {
-    const url = String(item?.url || item?.link || item?.href || "").trim();
-    const title = String(item?.title || item?.name || "").trim();
+    const url = String(item?.url || item?.link || item?.href || '').trim();
+    const title = String(item?.title || item?.name || '').trim();
     const description = String(
       item?.description ||
         item?.snippet ||
         item?.summary ||
         item?.content ||
-        "",
+        '',
     ).trim();
 
     return {
@@ -327,12 +493,12 @@ export class FootballResearchService {
   }
 
   private isUsefulFootballResult(item: ResearchItem) {
-    const haystack = `${item.title} ${item.description} ${item.source || ""}`
+    const haystack = `${item.title} ${item.description} ${item.source || ''}`
       .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
 
-    const bad = ["youtube shorts", "tiktok", "pinterest"];
+    const bad = ['youtube shorts', 'tiktok', 'pinterest'];
     if (bad.some((term) => haystack.includes(term))) return false;
 
     return true;
@@ -340,7 +506,7 @@ export class FootballResearchService {
 
   private extractSource(url: string) {
     try {
-      return new URL(url).hostname.replace(/^www\./, "");
+      return new URL(url).hostname.replace(/^www\./, '');
     } catch {
       return undefined;
     }
@@ -348,24 +514,31 @@ export class FootballResearchService {
 
   private buildSummary(items: ResearchItem[]) {
     if (!items.length) {
-      return "Não encontrei resultados relevantes na pesquisa externa.";
+      return 'Não encontrei resultados relevantes na pesquisa externa.';
     }
 
     return items
       .slice(0, 5)
       .map((item) => {
-        const source = item.source ? ` — ${item.source}` : "";
-        const description = item.description ? `\n  ${item.description}` : "";
+        const source = item.source ? ` — ${item.source}` : '';
+        const description = item.description ? `\n  ${item.description}` : '';
         return `• ${item.title}${source}${description}`;
       })
-      .join("\n");
+      .join('\n');
   }
 
   private cleanQuery(query: string) {
-    return String(query || "")
-      .replace(/[\n\r\t]+/g, " ")
-      .replace(/\s+/g, " ")
+    return String(query || '')
+      .replace(/[\n\r\t]+/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 220);
+  }
+
+  private normalizeCountry(country: string) {
+    const value = String(country || 'BR').trim();
+    if (!value) return 'BR';
+    if (value.toLowerCase() === 'br') return 'BR';
+    return value.toUpperCase();
   }
 }
