@@ -6,6 +6,7 @@ export type OddixConversationSnapshot = {
   lastAssistantMessage?: string;
   lastIntent?: string;
   lastMatch?: any;
+  lastTeam?: any;
   lastTicket?: any;
   lastFixture?: any;
   lastRichContext?: any;
@@ -13,6 +14,7 @@ export type OddixConversationSnapshot = {
   lastRecommendation?: string | null;
   lastAnalysis?: string | null;
   lastFixtures?: any[];
+  officialBetAllowed?: boolean;
   updatedAt: string;
 };
 

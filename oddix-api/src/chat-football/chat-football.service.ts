@@ -128,6 +128,26 @@ export class ChatFootballService {
       return this.rememberAndReturn(sessionId, message, contextualResponse);
     }
 
+    const directTeams = this.extractTeams(message);
+    const directMatchIntent =
+      !!directTeams &&
+      (brainDecision?.intent === 'MATCH_ANALYSIS' ||
+        this.looksLikeExplicitMatchQuestion(message));
+
+    if (directMatchIntent && directTeams) {
+      const directMatchResponse = await this.analyzeRealMatch(
+        `${directTeams.home} x ${directTeams.away}`,
+        'ANALYZE',
+        memory,
+        profile,
+        message,
+      );
+
+      if (directMatchResponse) {
+        return this.rememberAndReturn(sessionId, message, directMatchResponse);
+      }
+    }
+
     const isGlobalFollowUp =
       this.isGlobalConversationFollowUp(message, history, memory);
 
@@ -825,6 +845,24 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
 
 
 
+
+  private looksLikeExplicitMatchQuestion(message: string) {
+    const text = this.clean(message);
+    return (
+      text.includes(' x ') ||
+      text.includes(' vs ') ||
+      text.includes(' v ') ||
+      text.includes(' versus ') ||
+      text.includes(' contra ') ||
+      text.includes('analisa') ||
+      text.includes('analise') ||
+      text.includes('analisar') ||
+      text.includes('como ta') ||
+      text.includes('como está') ||
+      text.includes('como esta')
+    );
+  }
+
   private hydrateMemoryFromV14Snapshot(
     memory: ConversationMemory,
     snapshot?: any,
@@ -913,6 +951,12 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
       'proximo gol',
       'próximo gol',
       'o que fazer',
+      'o que voce faria',
+      'o que você faria',
+      'voce faria',
+      'você faria',
+      'faria nesse jogo',
+      'nesse jogo',
       'o que acha',
       'recomenda',
       'tem entrada',
@@ -1087,7 +1131,49 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
   ): ChatFootballResponse {
     this.rememberBackendMessage(sessionId, 'user', userMessage);
     this.rememberBackendMessage(sessionId, 'assistant', response?.answer || '');
+    this.rememberV14Snapshot(sessionId, userMessage, response);
     return response;
+  }
+
+  private rememberV14Snapshot(
+    sessionId: string,
+    userMessage: string,
+    response: ChatFootballResponse,
+  ) {
+    if (!this.conversationMemory || !sessionId) return;
+
+    const data: any = response?.data || {};
+    const current = this.conversationMemory.get(sessionId) || {};
+    const fixture = data.fixture || data.richContext?.fixture || data.memory?.lastFixture || current.lastFixture || null;
+    const richContext = data.richContext || data.memory?.lastRichContext || current.lastRichContext || null;
+    const ticket = data.ticket || data.memory?.lastTicket || current.lastTicket || null;
+    const extractedTeams = this.extractTeams(userMessage);
+    const fixtureMatch = this.matchFromFixture(fixture);
+    const explicitMatch = extractedTeams
+      ? { ...extractedTeams, label: `${extractedTeams.home} x ${extractedTeams.away}` }
+      : null;
+    const lastMatch =
+      data.memory?.lastMatch ||
+      fixtureMatch ||
+      explicitMatch ||
+      current.lastMatch ||
+      null;
+
+    this.conversationMemory.save(sessionId, {
+      lastIntent: response?.intent || data.memory?.lastIntent || current.lastIntent || null,
+      lastUserMessage: userMessage,
+      lastAssistantMessage: response?.answer || '',
+      lastMatch,
+      lastTeam: data.memory?.lastTeam || current.lastTeam || lastMatch?.home || null,
+      lastTicket: ticket,
+      lastFixture: fixture || current.lastFixture || null,
+      lastRichContext: richContext || current.lastRichContext || null,
+      lastAnalysis: response?.answer || current.lastAnalysis || null,
+      officialBetAllowed: !!(
+        richContext?.statisticsSummary?.available &&
+        (richContext?.oddsSummary?.available || richContext?.odds)
+      ),
+    });
   }
 
 
