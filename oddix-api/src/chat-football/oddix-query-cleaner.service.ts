@@ -193,19 +193,41 @@ export class OddixQueryCleanerService {
     const cleanOriginal = String(original || '').replace(/\s+/g, ' ').trim();
 
     if (intentHint === 'MATCH_RESULT' && teams) {
-      return [
-        `${teams.home} vs ${teams.away} football result score`,
-        `${teams.home} ${teams.away} resultado placar futebol`,
-        `${teams.home} x ${teams.away} resultado hoje`,
-      ];
+      const awayVariants = this.expandTeamVariants(teams.away);
+      const homeVariants = this.expandTeamVariants(teams.home);
+      const queries: string[] = [];
+
+      for (const home of homeVariants.slice(0, 3)) {
+        for (const away of awayVariants.slice(0, 4)) {
+          queries.push(`${home} vs ${away} football result score`);
+          queries.push(`${home} ${away} resultado placar futebol`);
+        }
+      }
+
+      queries.push(`site:flashscore.com ${teams.home} ${teams.away}`);
+      queries.push(`site:espn.com ${teams.home} ${teams.away} score`);
+      queries.push(`site:fifa.com ${teams.home} ${teams.away}`);
+
+      return Array.from(new Set(queries)).slice(0, 10);
     }
 
     if (intentHint === 'TODAY_CUP_GAMES') {
+      const today = new Date();
+      const iso = today.toISOString().slice(0, 10);
+      const year = iso.slice(0, 4);
+      const englishDate = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+      const ptDate = today.toLocaleDateString('pt-BR');
+
       return [
-        'FIFA World Cup fixtures today football',
-        'Club World Cup matches today football',
-        'World Cup football matches today FlashScore',
-        'jogos da copa hoje futebol mundial',
+        `FIFA World Cup fixtures today ${iso} football`,
+        `FIFA World Cup matches ${englishDate} ${year} schedule`,
+        `FIFA Club World Cup ${englishDate} ${year} fixtures`,
+        `Club World Cup matches today ${iso} football`,
+        `World Cup football fixtures ${iso} FlashScore`,
+        `ESPN World Cup fixtures ${iso}`,
+        `Sofascore World Cup matches today ${iso}`,
+        `jogos da Copa do Mundo hoje ${ptDate} futebol`,
+        `jogos Mundial de Clubes hoje ${ptDate} futebol`,
       ];
     }
 
@@ -230,6 +252,32 @@ export class OddixQueryCleanerService {
 
   private hasExplicitSeparator(text: string): boolean {
     return [' x ', ' vs ', ' v ', ' versus ', ' contra '].some((separator) => String(text || '').toLowerCase().includes(separator));
+  }
+
+  private expandTeamVariants(team: string): string[] {
+    const clean = this.cleanTeamName(team);
+    const normalized = this.normalize(clean);
+    const variants = new Set<string>([clean]);
+
+    const aliasMap: Record<string, string[]> = {
+      congo: ['Congo', 'DR Congo', 'Congo DR', 'Democratic Republic of Congo', 'Republic of Congo'],
+      'rd congo': ['DR Congo', 'Congo DR', 'Democratic Republic of Congo'],
+      'republica democratica do congo': ['DR Congo', 'Congo DR', 'Democratic Republic of Congo'],
+      colombia: ['Colombia', 'Colômbia'],
+      croacia: ['Croatia', 'Croácia', 'Croacia'],
+      panama: ['Panama', 'Panamá'],
+      estados unidos: ['USA', 'United States', 'United States of America'],
+      eua: ['USA', 'United States'],
+      coreia do sul: ['South Korea', 'Korea Republic'],
+    };
+
+    for (const [key, values] of Object.entries(aliasMap)) {
+      if (normalized === this.normalize(key) || normalized.includes(this.normalize(key))) {
+        values.forEach((value) => variants.add(value));
+      }
+    }
+
+    return Array.from(variants).filter(Boolean);
   }
 
   private hasAny(text: string, terms: string[]): boolean {

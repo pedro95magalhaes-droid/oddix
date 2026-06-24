@@ -5,6 +5,7 @@ import { OddixLlmService, OddixLlmMessage } from './oddix-llm.service';
 import { OddixBrainService, OddixBrainDecision } from './oddix-brain.service';
 import { OddixQueryCleanerService } from './oddix-query-cleaner.service';
 import { OddixResearchAgentService } from './oddix-research-agent.service';
+import { OddixWorldCupResolverService } from './oddix-worldcup-resolver.service';
 
 export type OddixDataOrchestratorResponse = {
   handled: boolean;
@@ -24,6 +25,7 @@ export class OddixDataOrchestratorService {
     @Optional() private readonly brainService?: OddixBrainService,
     @Optional() private readonly queryCleaner?: OddixQueryCleanerService,
     @Optional() private readonly researchAgent?: OddixResearchAgentService,
+    @Optional() private readonly worldCupResolver?: OddixWorldCupResolverService,
   ) {}
 
   async answer(message: string, sessionId = 'anonymous'): Promise<OddixDataOrchestratorResponse> {
@@ -167,16 +169,41 @@ Se for conhecimento geral, responda normalmente.`,
     message: string,
     decision?: OddixBrainDecision,
   ): Promise<OddixDataOrchestratorResponse> {
+    const wantsCup = this.asksForCup(message);
+
+    // V17: perguntas sobre Copa/Mundial não podem depender só da base local.
+    // O resolver valida a data de hoje, faz multi-search e remove partidas futuras/passadas.
+    if (wantsCup && this.worldCupResolver) {
+      const resolved = await this.worldCupResolver.resolveToday(message);
+      return {
+        handled: true,
+        answer: resolved.answer,
+        data: {
+          fixtures: resolved.fixtures,
+          localFixtures: resolved.localFixtures,
+          webFixtures: resolved.webFixtures,
+          research: {
+            items: resolved.researchItems,
+            queries: resolved.researchQueries,
+            provider: resolved.provider,
+            error: resolved.error,
+          },
+          decision,
+          v17: {
+            worldCupResolver: true,
+            todayIso: resolved.todayIso,
+            validatedDate: true,
+          },
+        },
+        suggestions: resolved.fixtures.slice(0, 4).map((game: any) => `Analise ${game.home} x ${game.away}`),
+      };
+    }
+
     const research = await this.runResearch(message, decision);
     let fixtures = await this.getTodayFixtures();
 
-    const wantsCup = this.asksForCup(message);
     if (wantsCup) {
-      const cupFixtures = fixtures.filter((game) => this.isCupCompetition(game));
-
-      if (cupFixtures.length) {
-        fixtures = cupFixtures;
-      }
+      fixtures = fixtures.filter((game) => this.isCupCompetition(game));
     }
 
     if (!fixtures.length) {
@@ -206,9 +233,7 @@ Se for conhecimento geral, responda normalmente.`,
       message,
       context,
       `Liste os jogos encontrados usando apenas os dados fornecidos.
-Se a pergunta mencionar Copa/Mundial/FIFA, liste apenas jogos de competições com Copa/World Cup/FIFA/Mundial/Club World Cup quando existirem.
-Não invente partidas.
-Se não houver Copa nos dados filtrados, use também a pesquisa web fornecida. Se a pesquisa web indicar jogos de Copa/Mundial, informe que vieram da pesquisa externa e destaque que a base local não confirmou todos. Não invente partidas fora do contexto.`,
+Não invente partidas. Se a pergunta mencionar Copa/Mundial/FIFA, liste apenas jogos de competições com Copa/World Cup/FIFA/Mundial/Club World Cup quando existirem e com data compatível.`,
     );
 
     return {
