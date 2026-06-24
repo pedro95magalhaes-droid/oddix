@@ -63,6 +63,7 @@ export interface ChatFootballResponse {
     potentialReturn?: number;
     profit?: number;
     v14?: OddixV14Data;
+    v15?: OddixV15Data;
     [key: string]: any;
   };
 }
@@ -179,4 +180,20 @@ export interface OddixV14Data {
   streamingReady?: boolean;
   copilot?: boolean;
   conversationMemory?: any;
+}
+
+
+export type OddixV15ValueBet = OddixV14ValueBet;
+export type OddixV15BetSlip = OddixV14BetSlip;
+
+export interface OddixV15Data extends OddixV14Data {
+  cache?: {
+    odds?: boolean;
+    stats?: boolean;
+    fixture?: boolean;
+  };
+  matchResolver?: {
+    enabled: boolean;
+    providerPriority: string[];
+  };
 }

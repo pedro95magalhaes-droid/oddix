@@ -28,6 +28,8 @@ export class OddixCopilotService {
         lastMatch: data.memory?.lastMatch,
         topic: data.memory?.lastMatch?.label,
         recommendation: v14.valueBet?.label,
+        valueBet: v14.valueBet,
+        betSlip: v14.betSlip,
       },
     );
 
@@ -41,6 +43,21 @@ export class OddixCopilotService {
           streamingReady: true,
           copilot: true,
         },
+        v15: {
+          ...v14,
+          conversationMemory: memory || null,
+          streamingReady: true,
+          copilot: true,
+          cache: {
+            odds: !!memory?.lastOdds,
+            stats: !!memory?.lastStats,
+            fixture: !!memory?.lastFixture,
+          },
+          matchResolver: {
+            enabled: true,
+            providerPriority: ['flashscore-live', 'flashscore-odds', 'flashscore', 'live', 'today', 'cache'],
+          },
+        },
       },
     };
   }
@@ -52,8 +69,8 @@ export class OddixCopilotService {
     const valueBet = selections[0]?.value || null;
 
     return {
-      version: 'Oddix Chat V14.1',
-      features: ['conversation-memory', 'value-bet-engine', 'bet-slip', 'streaming-ready'],
+      version: 'Oddix Chat V15.0',
+      features: ['conversation-memory', 'match-resolver', 'odds-stats-cache', 'value-bet-engine', 'bet-slip', 'streaming-ready'],
       valueBet,
       betSlip,
       impliedProbability: betSlip?.impliedProbability || valueBet?.impliedProbability || null,

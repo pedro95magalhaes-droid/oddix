@@ -19,6 +19,8 @@ import { ConversationMemoryService } from './conversation-memory.service';
 import { StreamingService } from './streaming.service';
 import { ValueBetService } from './value-bet.service';
 import { OddixCopilotService } from './oddix-copilot.service';
+import { MatchResolverService } from './match-resolver.service';
+import { OddsCacheService } from './odds-cache.service';
 
 @Module({
   imports: [FootballModule],
@@ -42,6 +44,8 @@ import { OddixCopilotService } from './oddix-copilot.service';
     StreamingService,
     ValueBetService,
     OddixCopilotService,
+    MatchResolverService,
+    OddsCacheService,
   ],
   exports: [
     ChatFootballService,
@@ -62,6 +66,8 @@ import { OddixCopilotService } from './oddix-copilot.service';
     StreamingService,
     ValueBetService,
     OddixCopilotService,
+    MatchResolverService,
+    OddsCacheService,
   ],
 })
 export class ChatFootballModule {}

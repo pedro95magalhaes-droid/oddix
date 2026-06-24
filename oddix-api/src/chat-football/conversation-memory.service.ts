@@ -15,6 +15,13 @@ export type OddixConversationSnapshot = {
   lastAnalysis?: string | null;
   lastFixtures?: any[];
   officialBetAllowed?: boolean;
+  lastFixtureId?: string | null;
+  lastStatus?: string | null;
+  lastMinute?: number | null;
+  lastOdds?: any;
+  lastStats?: any;
+  lastValueBet?: any;
+  lastBetSlip?: any;
   updatedAt: string;
 };
 
@@ -61,6 +68,13 @@ export class ConversationMemoryService {
       lastFixtures: metadata.fixtures,
       lastRecommendation: metadata.recommendation,
       lastAnalysis: assistantMessage,
+      lastFixtureId: metadata.fixture?.fixture?.id || metadata.fixture?.id || metadata.richContext?.fixtureId || undefined,
+      lastStatus: metadata.fixture?.fixture?.status?.short || metadata.fixture?.status?.short || undefined,
+      lastMinute: metadata.fixture?.fixture?.status?.elapsed ?? metadata.fixture?.status?.elapsed ?? undefined,
+      lastOdds: metadata.richContext?.oddsSummary || metadata.richContext?.odds || metadata.fixture?.odds || undefined,
+      lastStats: metadata.richContext?.statisticsSummary || metadata.richContext?.statisticsProxy || undefined,
+      lastValueBet: metadata.valueBet,
+      lastBetSlip: metadata.betSlip,
       conversationTopic: metadata.topic || metadata.lastMatch?.label || metadata.fixture?.league?.name || null,
     });
   }

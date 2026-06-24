@@ -32,4 +32,21 @@ export class ChatFootballController {
   async handleV14Message(@Body() body: ChatFootballRequest) {
     return this.handleMessage(body);
   }
+
+  @Post('v15/message')
+  async handleV15Message(@Body() body: ChatFootballRequest) {
+    return this.handleMessage({
+      ...body,
+      version: 'v15',
+    } as any);
+  }
+
+  @Post('v15/stream')
+  async handleV15Stream(@Body() body: ChatFootballRequest) {
+    return this.handleStream({
+      ...body,
+      version: 'v15',
+      stream: true,
+    } as any);
+  }
 }

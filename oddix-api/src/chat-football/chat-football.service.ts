@@ -11,6 +11,8 @@ import { OddixBrainService, OddixBrainDecision } from './oddix-brain.service';
 import { OddixDataOrchestratorService } from './oddix-data-orchestrator.service';
 import { ConversationMemoryService } from './conversation-memory.service';
 import { ValueBetService } from './value-bet.service';
+import { MatchResolverService } from './match-resolver.service';
+import { OddsCacheService } from './odds-cache.service';
 import type {
   BetCalc,
   ChatFootballRequest,
@@ -76,6 +78,8 @@ export class ChatFootballService {
     @Optional() private readonly dataOrchestrator?: OddixDataOrchestratorService,
     @Optional() private readonly conversationMemory?: ConversationMemoryService,
     @Optional() private readonly valueBetService?: ValueBetService,
+    @Optional() private readonly matchResolver?: MatchResolverService,
+    @Optional() private readonly oddsCache?: OddsCacheService,
   ) {}
 
   async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
@@ -2386,6 +2390,8 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
       for (const key of keys) {
         ChatFootballService.recentFixtureStore.set(key, { fixture, updatedAt: now });
       }
+
+      this.oddsCache?.setFixture?.(home, away, fixture);
     }
   }
 
@@ -2413,6 +2419,15 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
 
   private async getFlashScoreRichContextSafe(fixtureId: string, fixture: any): Promise<FlashScoreRichContext | null> {
     if (!fixtureId || !this.footballService) return null;
+
+    const cachedRichContext = this.oddsCache?.getRichContext?.(fixtureId);
+    if (cachedRichContext && this.richContextHasReusableData(cachedRichContext)) {
+      return {
+        ...cachedRichContext,
+        cached: true,
+        cacheSource: 'odds-cache-v15',
+      } as any;
+    }
 
     const service: any = this.footballService as any;
     const provider = String(fixture?.provider || fixture?.source || '').toLowerCase();
@@ -2505,7 +2520,7 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
         : this.buildLiveProxySignal(resolvedFixture, oddsSummary);
       const contextQuality = this.getRichContextQuality(statisticsSummary, oddsSummary, rich);
 
-      return {
+      const finalRichContext = {
         ...rich,
         ok: !!(
           rich.ok ||
@@ -2529,6 +2544,9 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
         odds: resolvedOdds,
         errors: rich.errors || [],
       };
+
+      this.oddsCache?.setRichContext?.(String(finalRichContext.fixtureId || fixtureId), finalRichContext);
+      return finalRichContext;
     } catch (error: any) {
       return {
         ok: false,
@@ -3047,6 +3065,9 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
   }
 
   private findMatch(fixtures: any[], homeQueryRaw: string, awayQueryRaw: string) {
+    const resolvedByV15 = this.matchResolver?.findBest?.(fixtures || [], homeQueryRaw, awayQueryRaw);
+    if (resolvedByV15) return resolvedByV15;
+
     const homeAliases = this.buildTeamSearchAliases(homeQueryRaw);
     const awayAliases = this.buildTeamSearchAliases(awayQueryRaw);
 
