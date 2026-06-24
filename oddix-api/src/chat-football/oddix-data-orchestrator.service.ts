@@ -1142,6 +1142,20 @@ ${research.summary}
     const queries = this.buildStrongWebFallbackQueries(kind, message);
     const results: ResearchResult[] = [];
 
+    const publicSource = await this.fetchPublicFootballSourceFixtures(kind, message).catch((error: any) => {
+      this.logger.warn(`[ODDIX_PUBLIC_FOOTBALL_FALLBACK] falhou: ${error?.message || error}`);
+      return { fixtures: [], research: null } as { fixtures: any[]; research: ResearchResult | null };
+    });
+
+    if (publicSource.fixtures.length) {
+      return {
+        fixtures: publicSource.fixtures,
+        research: publicSource.research,
+        queries,
+        items: publicSource.research?.items || [],
+      };
+    }
+
     for (const query of queries) {
       const result = await this.directWebSearch(message, query).catch((error: any) => ({
         enabled: true,
@@ -1216,6 +1230,280 @@ ${research.summary}
 
     const selected = kind === 'live' ? liveQueries : kind === 'cup_today' ? cupQueries : todayQueries;
     return Array.from(new Set(selected.map((query) => String(query || '').replace(/\s+/g, ' ').trim()).filter(Boolean))).slice(0, 10);
+  }
+
+
+  private async fetchPublicFootballSourceFixtures(
+    kind: 'live' | 'today' | 'cup_today',
+    message: string,
+  ): Promise<{ fixtures: any[]; research: ResearchResult | null }> {
+    const today = this.todayIso('America/Sao_Paulo');
+    const urls = this.buildPublicFootballSourceUrls(kind, today, message);
+    const fixtures: any[] = [];
+    const items: ResearchItem[] = [];
+    const failures: string[] = [];
+
+    for (const source of urls) {
+      try {
+        const response = await this.publicFetch(source.url, source.type);
+        const sourceFixtures =
+          source.type === 'json'
+            ? this.mapPublicFootballJsonToFixtures(response.data, source.url, kind, today)
+            : this.mapPublicFootballTextToFixtures(response.data, source.url, kind, today);
+
+        if (sourceFixtures.length) {
+          fixtures.push(...sourceFixtures);
+          items.push({
+            title: `${source.label}: ${sourceFixtures.length} jogo(s) encontrado(s)`,
+            description: sourceFixtures
+              .slice(0, 8)
+              .map((game) => {
+                const simple = this.simplifyFixture(game);
+                const score = simple.status?.short && simple.status.short !== 'NS' ? ` (${simple.status.short})` : '';
+                return `${simple.home} vs ${simple.away}${score}`;
+              })
+              .join(' | '),
+            url: source.url,
+            source: source.label,
+          } as any);
+        }
+      } catch (error: any) {
+        failures.push(`${source.label}: ${error?.message || error}`);
+      }
+
+      if (fixtures.length >= (kind === 'live' ? 8 : 18)) break;
+    }
+
+    const unique = this.sortFixturesByLivePriority(this.uniqueFixtures(fixtures)).slice(0, kind === 'live' ? 20 : 40);
+    const research: ResearchResult = {
+      enabled: true,
+      provider: 'public-football-web-fallback',
+      query: urls[0]?.url || '',
+      items,
+      summary: unique.length
+        ? `Fallback público encontrou ${unique.length} jogo(s) em fontes abertas de futebol.`
+        : failures.length
+          ? `Fallback público acionado, mas sem jogo confirmado. Falhas: ${failures.slice(0, 4).join(' | ')}`
+          : 'Fallback público acionado, mas não retornou jogos confirmados.',
+      partialFailures: failures.slice(0, 8),
+    } as any;
+
+    return { fixtures: unique, research };
+  }
+
+  private buildPublicFootballSourceUrls(kind: 'live' | 'today' | 'cup_today', todayIso: string, message: string) {
+    const compactDate = todayIso.replace(/-/g, '');
+    const urls: Array<{ label: string; url: string; type: 'json' | 'text' }> = [];
+
+    const addJson = (label: string, url: string) => urls.push({ label, url, type: 'json' });
+    const addText = (label: string, url: string) => urls.push({ label, url, type: 'text' });
+
+    const espnLeagues = kind === 'cup_today'
+      ? ['fifa.world', 'fifa.cwc', 'all']
+      : ['all', 'fifa.world', 'fifa.cwc'];
+
+    for (const league of espnLeagues) {
+      addJson(
+        `ESPN ${league}`,
+        `https://site.api.espn.com/apis/site/v2/sports/soccer/${league}/scoreboard?dates=${compactDate}&limit=200`,
+      );
+      addJson(
+        `ESPN web ${league}`,
+        `https://site.web.api.espn.com/apis/site/v2/sports/soccer/${league}/scoreboard?dates=${compactDate}&region=br&lang=pt&limit=200`,
+      );
+    }
+
+    addText('ESPN scoreboard page', `https://www.espn.com/soccer/scoreboard/_/date/${compactDate}`);
+
+    if (kind !== 'cup_today') {
+      addText('LiveScore page', 'https://www.livescore.com/en/football/live/');
+      addText('BBC football scores', `https://www.bbc.com/sport/football/scores-fixtures/${todayIso}`);
+    }
+
+    return urls.slice(0, 12);
+  }
+
+  private async publicFetch(url: string, type: 'json' | 'text') {
+    const fetchFn = (globalThis as any).fetch;
+    if (typeof fetchFn !== 'function') {
+      throw new Error('fetch global indisponível no runtime Node');
+    }
+
+    const timeoutMs = Number(process.env.ODDIX_PUBLIC_WEB_TIMEOUT_MS || 8000);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetchFn(url, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          accept: type === 'json' ? 'application/json,text/plain,*/*' : 'text/html,text/plain,*/*',
+          'user-agent': 'OddixBot/21.6 (+football fallback; contact: oddix)',
+        },
+      });
+
+      if (!response?.ok) {
+        throw new Error(`HTTP ${response?.status || 'unknown'}`);
+      }
+
+      if (type === 'json') {
+        const data = await response.json();
+        return { ok: true, data };
+      }
+
+      const data = await response.text();
+      return { ok: true, data };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private mapPublicFootballJsonToFixtures(data: any, url: string, kind: 'live' | 'today' | 'cup_today', todayIso: string) {
+    const events = this.extractPublicEvents(data);
+    const fixtures: any[] = [];
+
+    for (const event of events) {
+      const fixture = this.mapEspnEventToFixture(event, url, kind, todayIso);
+      if (!fixture) continue;
+      if (kind === 'live' && !this.isFixtureLiveLike(fixture)) continue;
+      if (kind === 'cup_today' && !this.isCupCompetition(fixture)) continue;
+      fixtures.push(fixture);
+    }
+
+    return fixtures;
+  }
+
+  private extractPublicEvents(data: any): any[] {
+    const events: any[] = [];
+    const visit = (value: any, depth = 0) => {
+      if (!value || depth > 5) return;
+      if (Array.isArray(value)) {
+        for (const item of value) visit(item, depth + 1);
+        return;
+      }
+      if (typeof value !== 'object') return;
+      if (Array.isArray(value.events)) events.push(...value.events);
+      if (Array.isArray(value.matches)) events.push(...value.matches);
+      if (Array.isArray(value.fixtures)) events.push(...value.fixtures);
+      if (Array.isArray(value.data)) events.push(...value.data);
+      for (const key of ['sports', 'leagues', 'groups']) visit(value[key], depth + 1);
+    };
+    visit(data);
+    return events;
+  }
+
+  private mapEspnEventToFixture(event: any, url: string, kind: 'live' | 'today' | 'cup_today', todayIso: string) {
+    const competition = event?.competitions?.[0] || event?.competition || event;
+    const competitors = competition?.competitors || event?.competitors || [];
+    if (!Array.isArray(competitors) || competitors.length < 2) return null;
+
+    const homeCompetitor = competitors.find((item: any) => String(item?.homeAway || '').toLowerCase() === 'home') || competitors[0];
+    const awayCompetitor = competitors.find((item: any) => String(item?.homeAway || '').toLowerCase() === 'away') || competitors[1];
+
+    const home = this.pickPublicTeamName(homeCompetitor);
+    const away = this.pickPublicTeamName(awayCompetitor);
+    if (!home || !away) return null;
+
+    const status = event?.status || competition?.status || {};
+    const statusType = status?.type || {};
+    const statusName = String(statusType?.name || statusType?.shortDetail || statusType?.description || status?.shortDetail || '').trim();
+    const state = String(statusType?.state || status?.state || '').toLowerCase();
+    const short = this.publicStatusShort(statusName, state, kind);
+    const leagueName =
+      event?.league?.name ||
+      event?.season?.name ||
+      event?.leagues?.[0]?.name ||
+      competition?.league?.name ||
+      this.inferWebCompetition(`${event?.name || ''} ${event?.shortName || ''}`, url, kind);
+
+    return {
+      provider: 'public-web-espn',
+      source: 'public-web-espn',
+      publicSourceUrl: url,
+      fixture: {
+        id: `espn-${event?.id || this.normalize(`${home}-${away}-${todayIso}`).replace(/\s+/g, '-')}`,
+        date: event?.date || competition?.date || todayIso,
+        timestamp: event?.date ? Math.floor(new Date(event.date).getTime() / 1000) : Math.floor(Date.now() / 1000),
+        status: {
+          short,
+          long: statusType?.description || statusName || (kind === 'live' ? 'Possível ao vivo' : 'Jogo de hoje'),
+          elapsed: this.publicElapsed(status),
+        },
+      },
+      league: {
+        name: leagueName || 'Futebol',
+        country: event?.league?.country || 'Web',
+      },
+      teams: {
+        home: { name: home },
+        away: { name: away },
+      },
+      goals: {
+        home: this.publicScore(homeCompetitor),
+        away: this.publicScore(awayCompetitor),
+      },
+      webFallback: {
+        confidence: kind === 'live' && state === 'in' ? 88 : 74,
+        sourceUrl: url,
+        sourceTitle: event?.name || event?.shortName || `${home} vs ${away}`,
+        kind,
+      },
+    };
+  }
+
+  private pickPublicTeamName(competitor: any) {
+    return String(
+      competitor?.team?.displayName ||
+        competitor?.team?.name ||
+        competitor?.team?.shortDisplayName ||
+        competitor?.displayName ||
+        competitor?.name ||
+        '',
+    ).trim();
+  }
+
+  private publicScore(competitor: any) {
+    const raw = competitor?.score ?? null;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  private publicElapsed(status: any) {
+    const raw = status?.period || status?.displayClock || status?.clock || status?.type?.detail || '';
+    const match = String(raw).match(/(\d{1,3})/);
+    return match ? Number(match[1]) : null;
+  }
+
+  private publicStatusShort(statusName: string, state: string, kind: 'live' | 'today' | 'cup_today') {
+    const normalized = this.normalize(`${state} ${statusName}`);
+    if (state === 'in' || this.hasAny(normalized, ['in progress', 'halftime', '1st half', '2nd half', 'live'])) return 'LIVE';
+    if (state === 'pre' || this.hasAny(normalized, ['scheduled', 'pre game', 'not started'])) return 'NS';
+    if (state === 'post' || this.hasAny(normalized, ['final', 'ended', 'full time'])) return 'FT';
+    return kind === 'live' ? 'WEB-LIVE' : 'WEB';
+  }
+
+  private isFixtureLiveLike(fixture: any) {
+    const simple = this.simplifyFixture(fixture);
+    const status = this.normalize(`${simple.status?.short || ''} ${simple.status?.long || ''}`);
+    if (this.hasAny(status, ['live', 'in progress', 'halftime', '1st half', '2nd half', 'intervalo', 'ao vivo'])) return true;
+    const elapsed = Number(simple.status?.elapsed || 0);
+    return Number.isFinite(elapsed) && elapsed > 0 && elapsed < 130;
+  }
+
+  private mapPublicFootballTextToFixtures(text: string, url: string, kind: 'live' | 'today' | 'cup_today', todayIso: string) {
+    const item = {
+      title: `Public football page ${url}`,
+      description: String(text || '').replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').slice(0, 20000),
+      url,
+      source: 'public-football-page',
+    } as any;
+
+    const haystack = this.researchItemTextForFallback(item);
+    const pairs = this.extractFixturePairsFromText(haystack);
+    return pairs
+      .filter((pair) => this.isValidWebFixturePair(pair.home, pair.away, haystack, kind))
+      .map((pair) => this.webPairToFixture(pair.home, pair.away, item, haystack, kind, todayIso));
   }
 
   private async directWebSearch(message: string, query: string): Promise<ResearchResult | null> {
