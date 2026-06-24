@@ -2275,37 +2275,106 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
   }
 
   private findMatch(fixtures: any[], homeQueryRaw: string, awayQueryRaw: string) {
-    const homeQuery = this.normalizeTeamSearch(this.cleanMatchTeamName(homeQueryRaw));
-    const awayQuery = this.normalizeTeamSearch(this.cleanMatchTeamName(awayQueryRaw));
+    const homeAliases = this.buildTeamSearchAliases(homeQueryRaw);
+    const awayAliases = this.buildTeamSearchAliases(awayQueryRaw);
 
-    if (!homeQuery || !awayQuery) return null;
+    if (!homeAliases.length || !awayAliases.length) return null;
 
     return fixtures.find((item: any) => {
-      const home = this.normalizeTeamSearch(this.getFixtureHomeName(item));
-      const away = this.normalizeTeamSearch(this.getFixtureAwayName(item));
-      const combined = `${home} ${away}`.trim();
-      const reversed = `${away} ${home}`.trim();
-      const queryCombined = `${homeQuery} ${awayQuery}`.trim();
-      const queryReversed = `${awayQuery} ${homeQuery}`.trim();
+      const fixtureHomeAliases = this.buildTeamSearchAliases(this.getFixtureHomeName(item));
+      const fixtureAwayAliases = this.buildTeamSearchAliases(this.getFixtureAwayName(item));
+
+      if (!fixtureHomeAliases.length || !fixtureAwayAliases.length) return false;
+
+      const direct =
+        this.teamAliasMatch(homeAliases, fixtureHomeAliases) &&
+        this.teamAliasMatch(awayAliases, fixtureAwayAliases);
+
+      const swapped =
+        this.teamAliasMatch(homeAliases, fixtureAwayAliases) &&
+        this.teamAliasMatch(awayAliases, fixtureHomeAliases);
+
+      if (direct || swapped) return true;
+
+      const queryCombined = `${homeAliases[0]} ${awayAliases[0]}`.trim();
+      const queryReversed = `${awayAliases[0]} ${homeAliases[0]}`.trim();
+      const fixtureCombined = `${fixtureHomeAliases[0]} ${fixtureAwayAliases[0]}`.trim();
+      const fixtureReversed = `${fixtureAwayAliases[0]} ${fixtureHomeAliases[0]}`.trim();
 
       return (
-        (home.includes(homeQuery) && away.includes(awayQuery)) ||
-        (home.includes(awayQuery) && away.includes(homeQuery)) ||
-        (homeQuery.includes(home) && awayQuery.includes(away)) ||
-        (homeQuery.includes(away) && awayQuery.includes(home)) ||
-        combined.includes(queryCombined) ||
-        reversed.includes(queryCombined) ||
-        queryCombined.includes(combined) ||
-        queryCombined.includes(reversed) ||
-        queryReversed.includes(combined) ||
-        queryReversed.includes(reversed) ||
-        (queryCombined.includes(home) && queryCombined.includes(away) && home.length >= 3 && away.length >= 3) ||
-        (queryReversed.includes(home) && queryReversed.includes(away) && home.length >= 3 && away.length >= 3)
+        fixtureCombined.includes(queryCombined) ||
+        fixtureReversed.includes(queryCombined) ||
+        queryCombined.includes(fixtureCombined) ||
+        queryCombined.includes(fixtureReversed) ||
+        queryReversed.includes(fixtureCombined) ||
+        queryReversed.includes(fixtureReversed)
       );
     }) || null;
   }
 
-  private getFixtureHomeName(game: any) {
+  private buildTeamSearchAliases(value: any): string[] {
+    const base = this.normalizeTeamSearch(this.cleanMatchTeamName(value));
+    if (!base) return [];
+
+    const aliases = new Set<string>([base]);
+    const aliasMap: Record<string, string[]> = {
+      croacia: ['croatia', 'hrvatska'],
+      croatia: ['croacia', 'hrvatska'],
+      hrvatska: ['croacia', 'croatia'],
+      panama: ['panama'],
+      estados unidos: ['usa', 'united states', 'united states of america'],
+      usa: ['estados unidos', 'united states', 'united states of america'],
+      estados unidos da america: ['usa', 'united states'],
+      inglaterra: ['england'],
+      england: ['inglaterra'],
+      alemanha: ['germany'],
+      germany: ['alemanha'],
+      franca: ['france'],
+      france: ['franca'],
+      espanha: ['spain'],
+      spain: ['espanha'],
+      japao: ['japan'],
+      japan: ['japao'],
+      coreia do sul: ['south korea', 'korea republic'],
+      south korea: ['coreia do sul', 'korea republic'],
+    };
+
+    for (const alias of aliasMap[base] || []) {
+      aliases.add(this.normalizeTeamSearch(alias));
+    }
+
+    for (const [key, values] of Object.entries(aliasMap)) {
+      if (values.includes(base)) aliases.add(this.normalizeTeamSearch(key));
+    }
+
+    return Array.from(aliases).filter((item) => item.length >= 2);
+  }
+
+  private teamAliasMatch(queryAliases: string[], fixtureAliases: string[]) {
+    return queryAliases.some((query) =>
+      fixtureAliases.some((fixture) => {
+        if (!query || !fixture) return false;
+        if (fixture === query) return true;
+        if (fixture.includes(query) && query.length >= 3) return true;
+        if (query.includes(fixture) && fixture.length >= 3) return true;
+        return this.teamTokenMatch(query, fixture);
+      }),
+    );
+  }
+
+  private teamTokenMatch(query: string, fixture: string) {
+    const queryTokens = query.split(' ').filter((token) => token.length >= 3);
+    const fixtureTokens = fixture.split(' ').filter((token) => token.length >= 3);
+    if (!queryTokens.length || !fixtureTokens.length) return false;
+
+    const hits = queryTokens.filter((token) =>
+      fixtureTokens.some((fixtureToken) => fixtureToken === token || fixtureToken.includes(token) || token.includes(fixtureToken)),
+    ).length;
+
+    return hits >= Math.min(queryTokens.length, fixtureTokens.length);
+  }
+
+    private getFixtureHomeName(game: any) {
     return (
       game?.teams?.home?.name ||
       game?.times?.home?.name ||
