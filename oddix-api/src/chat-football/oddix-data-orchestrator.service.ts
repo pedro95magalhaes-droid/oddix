@@ -33,6 +33,9 @@ export class OddixDataOrchestratorService {
   ) {}
 
   async answer(message: string, sessionId = 'anonymous'): Promise<OddixDataOrchestratorResponse> {
+    if (this.asksForFlashScoreDiagnostic(message)) {
+      return this.answerFlashScoreDiagnostic();
+    }
     const cleanedQuery = this.queryCleaner?.analyze(message) || null;
     const decision =
       (await this.brainService?.think(message, sessionId).catch(() => null)) ||
@@ -141,6 +144,92 @@ export class OddixDataOrchestratorService {
         },
       };
     }
+  }
+
+  private asksForFlashScoreDiagnostic(message: string) {
+    const text = this.normalize(message);
+    return (
+      text.includes('diagnostico flashscore') ||
+      text.includes('diagnóstico flashscore') ||
+      text.includes('debug flashscore') ||
+      text.includes('testar flashscore') ||
+      text.includes('status flashscore')
+    );
+  }
+
+  private async answerFlashScoreDiagnostic(): Promise<OddixDataOrchestratorResponse> {
+    const diagnostics: any = this.flashScoreService?.getDiagnostics?.() || {
+      enabled: false,
+      hasKey: false,
+      error: 'FlashScoreService não foi injetado no ChatFootballModule',
+    };
+
+    let liveProbe: any = null;
+    let todayProbe: any = null;
+    const today = this.todayIso('America/Sao_Paulo');
+
+    try {
+      liveProbe = await this.flashScoreService?.getLiveFixtures?.();
+    } catch (error: any) {
+      liveProbe = { ok: false, data: [], error: error?.message || String(error) };
+    }
+
+    try {
+      todayProbe = await this.flashScoreService?.getFixtures?.(today);
+    } catch (error: any) {
+      todayProbe = { ok: false, data: [], error: error?.message || String(error) };
+    }
+
+    const liveCount = Array.isArray(liveProbe?.data) ? liveProbe.data.length : 0;
+    const todayCount = Array.isArray(todayProbe?.data) ? todayProbe.data.length : 0;
+
+    const status = diagnostics?.hasKey
+      ? diagnostics?.enabled
+        ? 'FlashScore está ativa no backend.'
+        : 'FlashScore tem chave, mas está desativada por variável de ambiente.'
+      : 'FlashScore não tem chave detectada no ambiente do backend.';
+
+    return {
+      handled: true,
+      answer:
+        `🧪 Diagnóstico FlashScore
+
+${status}
+
+` +
+        `Base URL: ${diagnostics?.baseURL || 'não detectada'}
+` +
+        `Host: ${diagnostics?.host || 'não detectado'}
+` +
+        `Timezone: ${diagnostics?.timezone || 'não detectado'}
+
+` +
+        `Teste ao vivo: ${liveProbe?.ok ? 'OK' : 'FALHOU'} — ${liveCount} jogo(s).
+` +
+        `Teste jogos de hoje (${today}): ${todayProbe?.ok ? 'OK' : 'FALHOU'} — ${todayCount} jogo(s).
+
+` +
+        `Erro live: ${liveProbe?.error ? String(liveProbe.error).slice(0, 350) : 'nenhum'}
+` +
+        `Erro hoje: ${todayProbe?.error ? String(todayProbe.error).slice(0, 350) : 'nenhum'}
+
+` +
+        `Se os dois testes voltarem 0 jogos enquanto há jogo ao vivo, o problema está na chave, host/base URL ou endpoint da API FlashScore usada no deploy.`,
+      data: {
+        diagnostics,
+        liveProbe: {
+          ok: liveProbe?.ok,
+          count: liveCount,
+          error: liveProbe?.error,
+        },
+        todayProbe: {
+          ok: todayProbe?.ok,
+          count: todayCount,
+          error: todayProbe?.error,
+        },
+      },
+      suggestions: ['jogos ao vivo agora', 'quais jogos da copa tem hoje'],
+    };
   }
 
   private async answerGeneral(message: string): Promise<OddixDataOrchestratorResponse> {
@@ -289,15 +378,20 @@ Não invente partidas. Se a pergunta mencionar Copa/Mundial/FIFA, liste apenas j
       const researchAnswer = await this.answerFromResearchOnly(message, research, decision, 'jogos ao vivo');
       if (researchAnswer) return researchAnswer;
 
+      const flashScoreDiagnostics = this.flashScoreService?.getDiagnostics?.() || null;
+
       return {
         handled: true,
         answer:
-          '⚡ Não encontrei jogos ao vivo/ativos na base Oddix nem consegui validar pela pesquisa em tempo real agora. Não vou inventar placar.',
+          `⚡ Não encontrei jogos ao vivo/ativos na base Oddix agora. Isso indica que a FlashScore não retornou jogos no backend de produção ou que a chave/endpoint não está configurado corretamente. Não vou inventar placar.
+
+Digite \`diagnóstico flashscore\` para eu mostrar o status técnico da conexão.`,
         data: {
           waitingForData: true,
           fixtures: [],
           research,
           decision,
+          flashScoreDiagnostics,
         },
         suggestions: [
           'Mostrar jogos de hoje',

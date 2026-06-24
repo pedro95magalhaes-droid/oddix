@@ -11,6 +11,7 @@ type ProviderResult<T> = {
 export class FlashScoreService {
   private readonly baseURL = process.env.FLASHSCORE_API_BASE_URL || 'https://flashscore4.p.rapidapi.com';
   private readonly memoryCache = new Map<string, { expiresAt: number; data: any }>();
+  private readonly lastAttempts: Array<{ path: string; ok: boolean; error?: string; at: string }> = [];
 
   isEnabled() {
     const raw = process.env.FLASHSCORE_ENABLED;
@@ -30,6 +31,65 @@ export class FlashScoreService {
 
   getBaseUrl() {
     return this.baseURL;
+  }
+
+  getDiagnostics() {
+    return {
+      enabled: this.isEnabled(),
+      hasKey: this.hasKey(),
+      keyEnv: this.getKeyEnvName(),
+      baseURL: this.baseURL,
+      host: this.getHost(),
+      timezone: this.getTimezone(),
+      geoIpCode: process.env.FLASHSCORE_GEO_IP_CODE || 'BR',
+      livePaths: this.configuredPaths('FLASHSCORE_LIVE_PATHS', [
+        process.env.FLASHSCORE_LIVE_PATH || '',
+        '/api/flashscore/v2/matches/live',
+        '/api/flashscore/v1/matches/live',
+        '/api/flashscore/matches/live',
+        '/matches/live',
+        '/api/matches/live',
+        '/football/live',
+      ]),
+      fixturesPaths: this.configuredPaths('FLASHSCORE_FIXTURES_PATHS', [
+        process.env.FLASHSCORE_FIXTURES_PATH || '',
+        '/api/flashscore/v2/matches/list-by-date',
+        '/api/flashscore/v1/matches/list-by-date',
+        '/api/flashscore/matches/list-by-date',
+        '/matches/list-by-date',
+        '/api/matches/list-by-date',
+        '/football/matches/list-by-date',
+      ]),
+      lastAttempts: this.lastAttempts.slice(-12),
+    };
+  }
+
+  private getKeyEnvName() {
+    if (process.env.FLASHSCORE_KEY) return 'FLASHSCORE_KEY';
+    if (process.env.FLASHSCORE_API_KEY) return 'FLASHSCORE_API_KEY';
+    if (process.env.RAPIDAPI_KEY) return 'RAPIDAPI_KEY';
+    return null;
+  }
+
+  private rememberAttempt(path: string, ok: boolean, error?: any) {
+    this.lastAttempts.push({
+      path,
+      ok,
+      error: error ? this.safeError(error) : undefined,
+      at: new Date().toISOString(),
+    });
+
+    if (this.lastAttempts.length > 30) this.lastAttempts.splice(0, this.lastAttempts.length - 30);
+  }
+
+  private safeError(error: any) {
+    if (!error) return 'erro desconhecido';
+    if (typeof error === 'string') return error.slice(0, 220);
+    try {
+      return JSON.stringify(error).slice(0, 220);
+    } catch {
+      return String(error).slice(0, 220);
+    }
   }
 
   private getKey() {
@@ -120,12 +180,16 @@ export class FlashScoreService {
 
   private async request<T = any>(path: string, params: Record<string, any> = {}): Promise<ProviderResult<T | null>> {
     if (!this.isEnabled()) {
-      return { ok: false, data: null, error: 'FlashScore desativada. Defina FLASHSCORE_ENABLED=true' };
+      const error = 'FlashScore desativada ou sem chave. Configure FLASHSCORE_KEY/FLASHSCORE_API_KEY/RAPIDAPI_KEY';
+      this.rememberAttempt(path, false, error);
+      return { ok: false, data: null, error };
     }
 
     const key = this.getKey();
     if (!key) {
-      return { ok: false, data: null, error: 'FLASHSCORE_KEY não encontrada' };
+      const error = 'FLASHSCORE_KEY não encontrada';
+      this.rememberAttempt(path, false, error);
+      return { ok: false, data: null, error };
     }
 
     const ttlSeconds = this.cacheSecondsForPath(path);
@@ -156,12 +220,15 @@ export class FlashScoreService {
         });
       }
 
+      this.rememberAttempt(path, true);
       return { ok: true, data: response.data, error: null };
     } catch (error: any) {
+      const finalError = error?.response?.data?.message || error?.response?.data || error?.message || 'Erro na FlashScore';
+      this.rememberAttempt(path, false, finalError);
       return {
         ok: false,
         data: null,
-        error: error?.response?.data?.message || error?.response?.data || error?.message || 'Erro na FlashScore',
+        error: finalError,
       };
     }
   }
@@ -527,6 +594,7 @@ export class FlashScoreService {
   async getLiveFixtures(): Promise<ProviderResult<any[]>> {
     const params = {
       sport_id: 1,
+      sport: 'football',
       timezone: this.getTimezone(),
     };
 
@@ -569,11 +637,12 @@ export class FlashScoreService {
   }
 
   async getFixtures(date: string): Promise<ProviderResult<any[]>> {
-    const params = {
-      sport_id: 1,
-      date,
-      timezone: this.getTimezone(),
-    };
+    const paramVariants = [
+      { sport_id: 1, date, timezone: this.getTimezone() },
+      { sport: 'football', date, timezone: this.getTimezone() },
+      { sport_id: 1, day: date, timezone: this.getTimezone() },
+      { sport_id: 1, locale: 'pt_BR', date, timezone: this.getTimezone() },
+    ];
 
     const paths = this.configuredPaths('FLASHSCORE_FIXTURES_PATHS', [
       process.env.FLASHSCORE_FIXTURES_PATH || '',
@@ -589,21 +658,23 @@ export class FlashScoreService {
     let emptyOk = false;
 
     for (const path of paths) {
-      const response = await this.request(path, params);
+      for (const params of paramVariants) {
+        const response = await this.request(path, params);
 
-      if (!response.ok || !response.data) {
-        errors.push(`${path}: ${String(response.error || 'sem resposta')}`);
-        continue;
+        if (!response.ok || !response.data) {
+          errors.push(`${path}: ${String(response.error || 'sem resposta')}`);
+          continue;
+        }
+
+        const matches = this.flattenMatches(response.data).map((match) => this.mapMatch(match));
+
+        if (matches.length) {
+          return { ok: true, data: matches, error: null };
+        }
+
+        emptyOk = true;
+        errors.push(`${path}: sem jogos para ${date}`);
       }
-
-      const matches = this.flattenMatches(response.data).map((match) => this.mapMatch(match));
-
-      if (matches.length) {
-        return { ok: true, data: matches, error: null };
-      }
-
-      emptyOk = true;
-      errors.push(`${path}: sem jogos para ${date}`);
     }
 
     return {
