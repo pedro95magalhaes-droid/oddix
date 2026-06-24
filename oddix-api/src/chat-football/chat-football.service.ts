@@ -53,6 +53,11 @@ export class ChatFootballService {
     ChatHistoryMessage[]
   >();
 
+  private static readonly recentFixtureStore = new Map<
+    string,
+    { fixture: any; updatedAt: number }
+  >();
+
   private readonly backendConversationLimit = Number(
     process.env.ODDIX_BACKEND_MEMORY_LIMIT || 12,
   );
@@ -644,8 +649,12 @@ export class ChatFootballService {
       const elapsed = match?.fixture?.status?.elapsed;
       const homeGoals = match?.goals?.home ?? match?.score?.fulltime?.home ?? 0;
       const awayGoals = match?.goals?.away ?? match?.score?.fulltime?.away ?? 0;
+      this.rememberRecentFixtures([match]);
       const fixtureId = String(match?.fixture?.id || '');
-      const richContext = await this.getFlashScoreRichContextSafe(fixtureId, match);
+      let richContext = await this.getFlashScoreRichContextSafe(fixtureId, match);
+      if (match && (!richContext || !richContext?.oddsSummary?.available)) {
+        richContext = this.mergeFixtureOddsIntoRichContext(richContext, match, fixtureId);
+      }
 
       const updatedMemory: ConversationMemory = {
         ...memory,
@@ -1549,7 +1558,11 @@ Responda à pergunta atual considerando o contexto anterior quando ela for curta
     try {
       const fixtures = await this.getMatchSearchFixtures(3, 7);
       const research = await this.researchMatchSafe(teams.home, teams.away);
-      const match = this.findMatch(fixtures, teams.home, teams.away);
+      const memoryFixture = memory?.lastFixture && this.fixtureMatchesMemory(memory.lastFixture, teams)
+        ? memory.lastFixture
+        : null;
+      const recentFixture = this.findMatch(this.getRecentFixtureStoreItems(), teams.home, teams.away);
+      const match = memoryFixture || recentFixture || this.findMatch(fixtures, teams.home, teams.away);
 
       if (!match) {
         const discovery =
@@ -2181,37 +2194,118 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
 
 
   private async getMatchSearchFixtures(daysBack = 3, daysForward = 7): Promise<any[]> {
-    const windowFixtures = await this.getFixturesWindow(daysBack, daysForward);
     const service: any = this.footballService as any;
-    const liveFixtures: any[] = [];
-    const liveMethods = [
-      () => service?.getLiveFixturesFromFlashScore?.(),
-      () => service?.getLiveFixtures?.(),
-      () => service?.getLiveMatches?.(),
-      () => service?.getLive?.(),
-    ];
+    const buckets: any[][] = [];
 
-    for (const method of liveMethods) {
+    const safeCollect = async (label: string, fn: () => Promise<any> | any) => {
       try {
-        const response = await method();
-        liveFixtures.push(...this.extractFixtureArray(response));
-      } catch {
-        // ignora fonte live indisponível
+        const response = await fn();
+        const fixtures = this.extractFixtureArray(response);
+        if (fixtures.length) {
+          this.logger.log(`[V14_MATCH_SEARCH] ${label} retornou ${fixtures.length} jogos`);
+          buckets.push(fixtures);
+        }
+      } catch (error: any) {
+        this.logger.warn(`[V14_MATCH_SEARCH] ${label} falhou: ${error?.message || error}`);
       }
-    }
+    };
 
+    await safeCollect('live.flashscore', () => service?.getLiveFixturesFromFlashScore?.());
+    await safeCollect('live.default', () => service?.getLiveFixtures?.());
+    await safeCollect('live.matches', () => service?.getLiveMatches?.());
+    await safeCollect('live.generic', () => service?.getLive?.());
+    await safeCollect('fixtures.today.noarg', () => service?.getFixtures?.());
+    await safeCollect('today.fixtures', () => service?.getTodayFixtures?.());
+    await safeCollect('today.matches', () => service?.getTodayMatches?.());
+    await safeCollect('cache.all', () => service?.getFixturesFromCache?.());
+    await safeCollect('cache.cached', () => service?.getCachedFixtures?.());
+    await safeCollect('all.today', () => service?.getAllTodayFixtures?.());
+
+    const windowFixtures = await this.getFixturesWindow(daysBack, daysForward).catch((error: any) => {
+      this.logger.warn(`[V14_MATCH_SEARCH] window falhou: ${error?.message || error}`);
+      return [];
+    });
+    if (windowFixtures.length) buckets.push(windowFixtures);
+
+    const memoryFixtures = this.getRecentFixtureStoreItems();
+    if (memoryFixtures.length) buckets.push(memoryFixtures);
+
+    const merged = this.uniqueFixtureSearchResults(buckets.flat());
+    this.rememberRecentFixtures(merged);
+
+    this.logger.log(`[V14_MATCH_SEARCH] total=${merged.length} live/today/window/cache/memory`);
+    return merged;
+  }
+
+  private uniqueFixtureSearchResults(fixtures: any[]) {
     const seen = new Set<string>();
-    return [...liveFixtures, ...windowFixtures].filter((game: any) => {
+
+    return (fixtures || []).filter((game: any) => {
+      if (!game) return false;
+      const home = this.getFixtureHomeName(game);
+      const away = this.getFixtureAwayName(game);
+      if (!home || !away) return false;
+
       const id = String(
         game?.fixture?.id ||
           game?.fixture?.externalId ||
           game?.fixture?.external_id ||
-          `${this.getFixtureHomeName(game)}-${this.getFixtureAwayName(game)}-${game?.fixture?.date || ''}`,
+          game?.id ||
+          `${home}-${away}-${game?.fixture?.date || game?.date || ''}`,
       );
+
       if (seen.has(id)) return false;
       seen.add(id);
       return true;
     });
+  }
+
+  private rememberRecentFixtures(fixtures: any[]) {
+    const now = Date.now();
+    const maxAgeMs = Number(process.env.ODDIX_V14_RECENT_FIXTURE_TTL_MINUTES || 180) * 60 * 1000;
+
+    for (const [key, value] of ChatFootballService.recentFixtureStore.entries()) {
+      if (!value?.updatedAt || now - value.updatedAt > maxAgeMs) {
+        ChatFootballService.recentFixtureStore.delete(key);
+      }
+    }
+
+    for (const fixture of fixtures || []) {
+      const home = this.getFixtureHomeName(fixture);
+      const away = this.getFixtureAwayName(fixture);
+      if (!home || !away) continue;
+
+      const keys = [
+        this.fixtureMemoryKey(home, away),
+        this.fixtureMemoryKey(away, home),
+      ].filter(Boolean);
+
+      for (const key of keys) {
+        ChatFootballService.recentFixtureStore.set(key, { fixture, updatedAt: now });
+      }
+    }
+  }
+
+  private getRecentFixtureStoreItems() {
+    const now = Date.now();
+    const maxAgeMs = Number(process.env.ODDIX_V14_RECENT_FIXTURE_TTL_MINUTES || 180) * 60 * 1000;
+    const fixtures: any[] = [];
+
+    for (const [key, value] of ChatFootballService.recentFixtureStore.entries()) {
+      if (!value?.updatedAt || now - value.updatedAt > maxAgeMs) {
+        ChatFootballService.recentFixtureStore.delete(key);
+        continue;
+      }
+      fixtures.push(value.fixture);
+    }
+
+    return this.uniqueFixtureSearchResults(fixtures);
+  }
+
+  private fixtureMemoryKey(home: any, away: any) {
+    const h = this.buildTeamSearchAliases(home)[0] || this.normalizeTeamSearch(home);
+    const a = this.buildTeamSearchAliases(away)[0] || this.normalizeTeamSearch(away);
+    return h && a ? `${h}__${a}` : '';
   }
 
   private async getFlashScoreRichContextSafe(fixtureId: string, fixture: any): Promise<FlashScoreRichContext | null> {
@@ -2818,7 +2912,9 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
 
     if (!homeAliases.length || !awayAliases.length) return null;
 
-    return fixtures.find((item: any) => {
+    const candidates = this.uniqueFixtureSearchResults(fixtures || []);
+
+    const match = candidates.find((item: any) => {
       const fixtureHomeAliases = this.buildTeamSearchAliases(this.getFixtureHomeName(item));
       const fixtureAwayAliases = this.buildTeamSearchAliases(this.getFixtureAwayName(item));
 
@@ -2834,10 +2930,10 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
 
       if (direct || swapped) return true;
 
-      const queryCombined = `${homeAliases[0]} ${awayAliases[0]}`.trim();
-      const queryReversed = `${awayAliases[0]} ${homeAliases[0]}`.trim();
-      const fixtureCombined = `${fixtureHomeAliases[0]} ${fixtureAwayAliases[0]}`.trim();
-      const fixtureReversed = `${fixtureAwayAliases[0]} ${fixtureHomeAliases[0]}`.trim();
+      const queryCombined = `${homeAliases.join(' ')} ${awayAliases.join(' ')}`.trim();
+      const queryReversed = `${awayAliases.join(' ')} ${homeAliases.join(' ')}`.trim();
+      const fixtureCombined = `${fixtureHomeAliases.join(' ')} ${fixtureAwayAliases.join(' ')}`.trim();
+      const fixtureReversed = `${fixtureAwayAliases.join(' ')} ${fixtureHomeAliases.join(' ')}`.trim();
 
       return (
         fixtureCombined.includes(queryCombined) ||
@@ -2845,9 +2941,22 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
         queryCombined.includes(fixtureCombined) ||
         queryCombined.includes(fixtureReversed) ||
         queryReversed.includes(fixtureCombined) ||
-        queryReversed.includes(fixtureReversed)
+        queryReversed.includes(fixtureReversed) ||
+        this.teamTokenMatch(queryCombined, fixtureCombined) ||
+        this.teamTokenMatch(queryCombined, fixtureReversed)
       );
     }) || null;
+
+    if (!match) {
+      this.logger.warn(
+        `[V14_MATCH_FINDER] não encontrou ${homeQueryRaw} x ${awayQueryRaw}. candidates=${candidates.length}. sample=${candidates
+          .slice(0, 12)
+          .map((item: any) => `${this.getFixtureHomeName(item)} x ${this.getFixtureAwayName(item)}`)
+          .join(' | ')}`,
+      );
+    }
+
+    return match;
   }
 
   private buildTeamSearchAliases(value: any): string[] {
@@ -2856,10 +2965,10 @@ ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}`;
 
     const aliases = new Set<string>([base]);
     const aliasMap: Record<string, string[]> = {
-      croacia: ['croatia', 'hrvatska'],
-      croatia: ['croacia', 'hrvatska'],
+      croacia: ['croácia', 'croatia', 'hrvatska'],
+      croatia: ['croacia', 'croácia', 'hrvatska'],
       hrvatska: ['croacia', 'croatia'],
-      panama: ['panama'],
+      panama: ['panamá', 'panama'],
       'estados unidos': ['usa', 'united states', 'united states of america'],
       usa: ['estados unidos', 'united states', 'united states of america'],
       'estados unidos da america': ['usa', 'united states'],

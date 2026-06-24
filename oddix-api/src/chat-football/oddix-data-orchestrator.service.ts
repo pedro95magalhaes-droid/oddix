@@ -737,10 +737,40 @@ ${userMessage}`,
 
 
   private async getMatchSearchFixtures(daysBack = 3, daysForward = 7) {
-    const windowFixtures = await this.getFixturesWindow(daysBack, daysForward);
-    const liveFixtures = await this.getLiveFixtures().catch(() => []);
+    const service: any = this.footballService as any;
+    const buckets: any[][] = [];
 
-    return this.uniqueFixtures([...liveFixtures, ...windowFixtures]);
+    const safeCollect = async (label: string, fn: () => Promise<any> | any) => {
+      try {
+        const response = await fn();
+        const fixtures = this.extractFixtureArray(response);
+        if (fixtures.length) {
+          this.logger.log(`[ORCH_MATCH_SEARCH] ${label} retornou ${fixtures.length} jogos`);
+          buckets.push(fixtures);
+        }
+      } catch (error: any) {
+        this.logger.warn(`[ORCH_MATCH_SEARCH] ${label} falhou: ${error?.message || error}`);
+      }
+    };
+
+    await safeCollect('live.flashscore', () => service?.getLiveFixturesFromFlashScore?.());
+    await safeCollect('live.default', () => service?.getLiveFixtures?.());
+    await safeCollect('live.matches', () => service?.getLiveMatches?.());
+    await safeCollect('live.generic', () => service?.getLive?.());
+    await safeCollect('fixtures.today.noarg', () => service?.getFixtures?.());
+    await safeCollect('today.fixtures', () => service?.getTodayFixtures?.());
+    await safeCollect('today.matches', () => service?.getTodayMatches?.());
+    await safeCollect('cache.all', () => service?.getFixturesFromCache?.());
+    await safeCollect('cache.cached', () => service?.getCachedFixtures?.());
+    await safeCollect('all.today', () => service?.getAllTodayFixtures?.());
+
+    const windowFixtures = await this.getFixturesWindow(daysBack, daysForward).catch((error: any) => {
+      this.logger.warn(`[ORCH_MATCH_SEARCH] window falhou: ${error?.message || error}`);
+      return [];
+    });
+    if (windowFixtures.length) buckets.push(windowFixtures);
+
+    return this.uniqueFixtures(buckets.flat());
   }
 
   private async enrichFixtures(fixtures: any[]) {
@@ -864,7 +894,9 @@ ${userMessage}`,
 
     if (!homeAliases.length || !awayAliases.length) return null;
 
-    return fixtures.find((item: any) => {
+    const candidates = this.uniqueFixtures(fixtures || []);
+
+    const match = candidates.find((item: any) => {
       const fixtureHomeAliases = this.buildTeamSearchAliases(this.getFixtureHomeName(item));
       const fixtureAwayAliases = this.buildTeamSearchAliases(this.getFixtureAwayName(item));
 
@@ -880,10 +912,10 @@ ${userMessage}`,
 
       if (direct || swapped) return true;
 
-      const queryCombined = `${homeAliases[0]} ${awayAliases[0]}`.trim();
-      const queryReversed = `${awayAliases[0]} ${homeAliases[0]}`.trim();
-      const fixtureCombined = `${fixtureHomeAliases[0]} ${fixtureAwayAliases[0]}`.trim();
-      const fixtureReversed = `${fixtureAwayAliases[0]} ${fixtureHomeAliases[0]}`.trim();
+      const queryCombined = `${homeAliases.join(' ')} ${awayAliases.join(' ')}`.trim();
+      const queryReversed = `${awayAliases.join(' ')} ${homeAliases.join(' ')}`.trim();
+      const fixtureCombined = `${fixtureHomeAliases.join(' ')} ${fixtureAwayAliases.join(' ')}`.trim();
+      const fixtureReversed = `${fixtureAwayAliases.join(' ')} ${fixtureHomeAliases.join(' ')}`.trim();
 
       return (
         fixtureCombined.includes(queryCombined) ||
@@ -891,9 +923,22 @@ ${userMessage}`,
         queryCombined.includes(fixtureCombined) ||
         queryCombined.includes(fixtureReversed) ||
         queryReversed.includes(fixtureCombined) ||
-        queryReversed.includes(fixtureReversed)
+        queryReversed.includes(fixtureReversed) ||
+        this.teamTokenMatch(queryCombined, fixtureCombined) ||
+        this.teamTokenMatch(queryCombined, fixtureReversed)
       );
     }) || null;
+
+    if (!match) {
+      this.logger.warn(
+        `[ORCH_MATCH_FINDER] não encontrou ${homeQueryRaw} x ${awayQueryRaw}. candidates=${candidates.length}. sample=${candidates
+          .slice(0, 12)
+          .map((item: any) => `${this.getFixtureHomeName(item)} x ${this.getFixtureAwayName(item)}`)
+          .join(' | ')}`,
+      );
+    }
+
+    return match;
   }
 
   private buildTeamSearchAliases(value: any): string[] {
@@ -902,10 +947,10 @@ ${userMessage}`,
 
     const aliases = new Set<string>([base]);
     const aliasMap: Record<string, string[]> = {
-      croacia: ['croatia', 'hrvatska'],
-      croatia: ['croacia', 'hrvatska'],
+      croacia: ['croácia', 'croatia', 'hrvatska'],
+      croatia: ['croacia', 'croácia', 'hrvatska'],
       hrvatska: ['croacia', 'croatia'],
-      panama: ['panama'],
+      panama: ['panamá', 'panama'],
       'estados unidos': ['usa', 'united states', 'united states of america'],
       usa: ['estados unidos', 'united states', 'united states of america'],
       'estados unidos da america': ['usa', 'united states'],
