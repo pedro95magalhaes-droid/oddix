@@ -9,6 +9,8 @@ import { OddixGlobalAiService } from './oddix-global-ai.service';
 import { OddixIntentParserService } from './oddix-intent-parser.service';
 import { OddixBrainService, OddixBrainDecision } from './oddix-brain.service';
 import { OddixDataOrchestratorService } from './oddix-data-orchestrator.service';
+import { ConversationMemoryService } from './conversation-memory.service';
+import { ValueBetService } from './value-bet.service';
 import type {
   BetCalc,
   ChatFootballRequest,
@@ -32,6 +34,9 @@ type FlashScoreRichContext = {
   pressureSummary?: any;
   odds?: any;
   oddsSummary?: any;
+  statisticsProxy?: any;
+  statsUnavailableReason?: string | null;
+  contextQuality?: 'FULL' | 'PARTIAL' | 'ODDS_ONLY' | 'BASIC' | 'NONE';
   h2h?: any;
   lineups?: any;
   prematchStats?: any;
@@ -64,6 +69,8 @@ export class ChatFootballService {
     @Optional() private readonly intentParser?: OddixIntentParserService,
     @Optional() private readonly brainService?: OddixBrainService,
     @Optional() private readonly dataOrchestrator?: OddixDataOrchestratorService,
+    @Optional() private readonly conversationMemory?: ConversationMemoryService,
+    @Optional() private readonly valueBetService?: ValueBetService,
   ) {}
 
   async handleMessage(payload: ChatFootballRequest | any): Promise<ChatFootballResponse> {
@@ -76,9 +83,12 @@ export class ChatFootballService {
 
     const incomingHistory = this.readHistory(payload);
     const history = this.mergeBackendHistory(sessionId, incomingHistory);
-    const memory =
+    let memory =
       this.memoryService?.buildMemory(payload, history) ||
       this.buildMemoryFallback(history);
+
+    const v14Snapshot = this.conversationMemory?.get(sessionId);
+    memory = this.hydrateMemoryFromV14Snapshot(memory, v14Snapshot);
     const profile =
       this.memoryService?.buildProfile(payload, memory) ||
       this.buildProfileFallback(payload);
@@ -105,6 +115,17 @@ export class ChatFootballService {
           profile,
         ),
       );
+    }
+
+    const contextualResponse = await this.handleV14ContextualQuestion(
+      message,
+      sessionId,
+      memory,
+      profile,
+    );
+
+    if (contextualResponse) {
+      return this.rememberAndReturn(sessionId, message, contextualResponse);
     }
 
     const isGlobalFollowUp =
@@ -802,6 +823,213 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
 
 
 
+
+
+  private hydrateMemoryFromV14Snapshot(
+    memory: ConversationMemory,
+    snapshot?: any,
+  ): ConversationMemory {
+    if (!snapshot) return memory;
+
+    const snapMatch = snapshot.lastMatch
+      ? {
+          home: snapshot.lastMatch.home || snapshot.lastMatch?.teams?.home?.name || memory.lastMatch?.home || '',
+          away: snapshot.lastMatch.away || snapshot.lastMatch?.teams?.away?.name || memory.lastMatch?.away || '',
+          label:
+            snapshot.lastMatch.label ||
+            `${snapshot.lastMatch.home || snapshot.lastMatch?.teams?.home?.name || 'Casa'} x ${snapshot.lastMatch.away || snapshot.lastMatch?.teams?.away?.name || 'Fora'}`,
+        }
+      : null;
+
+    return {
+      ...memory,
+      lastIntent: (snapshot.lastIntent as ChatIntent) || memory.lastIntent,
+      lastUserMessage: snapshot.lastUserMessage || memory.lastUserMessage,
+      lastAssistantMessage: snapshot.lastAssistantMessage || memory.lastAssistantMessage,
+      lastMatch: snapMatch || memory.lastMatch || null,
+      lastTeam: snapshot.lastTeam || memory.lastTeam || null,
+      lastTicket: snapshot.lastTicket || memory.lastTicket || null,
+      lastFixture: snapshot.lastFixture || memory.lastFixture,
+      lastRichContext: snapshot.lastRichContext || memory.lastRichContext,
+      topicStack: memory.topicStack || [],
+    };
+  }
+
+  private async handleV14ContextualQuestion(
+    message: string,
+    sessionId: string,
+    memory: ConversationMemory,
+    profile: UserBetProfile,
+  ): Promise<ChatFootballResponse | null> {
+    if (!this.isV14ContextualQuestion(message) && !this.isV14ContextualMultipleRequest(message)) {
+      return null;
+    }
+
+    const snapshot = this.conversationMemory?.get(sessionId);
+    const lastMatch = memory.lastMatch || snapshot?.lastMatch || null;
+    const lastFixture = memory.lastFixture || snapshot?.lastFixture || null;
+    const lastRichContext = memory.lastRichContext || snapshot?.lastRichContext || null;
+
+    if (!lastMatch && !lastFixture) return null;
+
+    const fixture = lastFixture || lastRichContext?.fixture || null;
+    const fixtureId = String(fixture?.fixture?.id || lastRichContext?.fixtureId || '');
+    const richContext =
+      lastRichContext ||
+      (fixtureId ? await this.getFlashScoreRichContextSafe(fixtureId, fixture) : null);
+
+    const hydratedMemory: ConversationMemory = {
+      ...memory,
+      lastMatch: lastMatch || this.matchFromFixture(fixture),
+      lastFixture: fixture || memory.lastFixture,
+      lastRichContext: richContext || memory.lastRichContext,
+    };
+
+    if (this.isV14ContextualMultipleRequest(message)) {
+      return this.buildContextualMultipleGuardResponse(message, hydratedMemory, profile, richContext);
+    }
+
+    return this.buildContextualEntryDecisionResponse(message, hydratedMemory, profile, richContext);
+  }
+
+  private isV14ContextualQuestion(message: string) {
+    const text = this.clean(message);
+
+    return [
+      'vale entrar',
+      'vale a pena',
+      'entraria',
+      'posso entrar',
+      'qual mercado',
+      'que mercado',
+      'quem esta melhor',
+      'quem está melhor',
+      'quem ta melhor',
+      'quem tá melhor',
+      'e over',
+      'é over',
+      'e under',
+      'é under',
+      'proximo gol',
+      'próximo gol',
+      'o que fazer',
+      'o que acha',
+      'recomenda',
+      'tem entrada',
+      'da entrada',
+      'dá entrada',
+    ].some((term) => text.includes(this.clean(term)));
+  }
+
+  private isV14ContextualMultipleRequest(message: string) {
+    const text = this.clean(message);
+    return (
+      (text.includes('multipla') || text.includes('múltipla') || text.includes('bilhete') || text.includes('combinada')) &&
+      (text.includes('esse jogo') || text.includes('essa partida') || text.includes('desse jogo') || text.includes('para esse'))
+    );
+  }
+
+  private matchFromFixture(fixture: any): ConversationMemory['lastMatch'] {
+    if (!fixture) return null;
+    const home = this.getFixtureHomeName(fixture) || 'Casa';
+    const away = this.getFixtureAwayName(fixture) || 'Fora';
+    return { home, away, label: `${home} x ${away}` };
+  }
+
+  private buildContextualMultipleGuardResponse(
+    message: string,
+    memory: ConversationMemory,
+    profile: UserBetProfile,
+    richContext?: FlashScoreRichContext | null,
+  ): ChatFootballResponse {
+    const match = memory.lastMatch || this.matchFromFixture(memory.lastFixture);
+    const label = match?.label || 'o jogo anterior';
+    const stats = richContext?.statisticsSummary || this.emptyStatisticsSummary();
+    const odds = richContext?.oddsSummary || this.buildOddsSummary(richContext?.odds || this.extractFixtureOdds(richContext?.fixture));
+
+    const officialAllowed = !!(stats?.available && odds?.available);
+
+    if (!officialAllowed) {
+      return this.direct(
+        'MULTIPLE',
+        `🎫 **Múltipla para ${label}**\n\nNão vou trocar automaticamente para outro jogo.\n\nNo contexto atual, ainda falta validação completa para montar uma múltipla oficial desse confronto.\n\n${odds?.available ? `💰 Odds disponíveis: ${odds.options.map((item: any) => `${item.name} ${item.odd}`).join(' | ')}` : '💰 Odds: indisponíveis'}\n${stats?.available ? '📊 Estatísticas live: disponíveis' : '📊 Estatísticas live: indisponíveis no provedor'}\n\n✅ Posso fazer uma **múltipla hipotética/educacional** para estudar cenários.\n🚫 Mas como recomendação oficial Oddix: **NO_BET** até entrar estatística real de pressão, posse, finalizações ou escanteios.`,
+        memory,
+        profile,
+        {
+          waitingForData: true,
+          richContext,
+          noBetReason: 'Sem estatísticas live suficientes para múltipla oficial contextual.',
+          suggestions: [
+            'Fazer múltipla hipotética',
+            'Buscar notícias desse jogo',
+            'Aguardar dados reais',
+            'Vale entrar?',
+          ],
+        },
+      );
+    }
+
+    return this.direct(
+      'MULTIPLE',
+      `🎫 **Múltipla contextual Oddix — ${label}**\n\nTenho odds e estatísticas do jogo anterior. Antes de liberar como oficial, ainda preciso validar mercado específico e risco de banca.\n\n💰 Odds: ${odds.options.map((item: any) => `${item.name} ${item.odd}`).join(' | ')}\n📊 Pressão: ${richContext?.pressureSummary?.reading || 'em avaliação'}\n\nMe diga se quer perfil **seguro**, **moderado** ou **agressivo**.`,
+      memory,
+      profile,
+      { richContext, suggestions: ['Perfil seguro', 'Perfil moderado', 'Perfil agressivo'] },
+    );
+  }
+
+  private buildContextualEntryDecisionResponse(
+    message: string,
+    memory: ConversationMemory,
+    profile: UserBetProfile,
+    richContext?: FlashScoreRichContext | null,
+  ): ChatFootballResponse {
+    const fixture = richContext?.fixture || memory.lastFixture || null;
+    const match = memory.lastMatch || this.matchFromFixture(fixture);
+    const label = match?.label || 'o jogo anterior';
+    const home = this.getFixtureHomeName(fixture) || match?.home || 'Casa';
+    const away = this.getFixtureAwayName(fixture) || match?.away || 'Fora';
+    const homeGoals = fixture?.goals?.home ?? fixture?.score?.fulltime?.home ?? fixture?.gols?.casa ?? null;
+    const awayGoals = fixture?.goals?.away ?? fixture?.score?.fulltime?.away ?? fixture?.gols?.fora ?? null;
+    const elapsed = fixture?.fixture?.status?.elapsed ?? fixture?.fixture?.status?.decorrido ?? null;
+    const status = fixture?.fixture?.status?.short || fixture?.fixture?.status?.curto || '';
+    const stats = richContext?.statisticsSummary || this.emptyStatisticsSummary();
+    const pressure = richContext?.pressureSummary || this.emptyPressureSummary();
+    const odds = richContext?.oddsSummary || this.buildOddsSummary(richContext?.odds || this.extractFixtureOdds(fixture));
+    const proxy = richContext?.statisticsProxy || this.buildLiveProxySignal(fixture, odds);
+    const implied = odds?.available
+      ? odds.options.map((item: any) => {
+          const pct = this.valueBetService?.impliedProbability?.(Number(item.odd)) ?? this.impliedProbabilityLocal(Number(item.odd));
+          return `${item.name}: ${pct.toFixed(1)}%`;
+        }).join(' | ')
+      : 'indisponível';
+
+    const noBet = !stats?.available;
+    const decision = noBet
+      ? '🚫 **NO_BET** — eu não entraria agora.'
+      : '⚠️ **Aguardar confirmação final** — há estatística, mas ainda precisa validar mercado e risco.';
+
+    const scoreLine = homeGoals !== null && awayGoals !== null ? `${home} ${homeGoals} x ${awayGoals} ${away}` : label;
+
+    return this.direct(
+      'ANALYZE',
+      `🎯 **${label} — decisão contextual**\n\n📌 Jogo: ${scoreLine}${elapsed ? ` (${elapsed}')` : status ? ` (${status})` : ''}\n\n${odds?.available ? `💰 Odds validadas: ${odds.options.map((item: any) => `${item.name} ${item.odd}`).join(' | ')}\n📈 Probabilidades implícitas: ${implied}` : '💰 Odds validadas: indisponíveis'}\n\n${stats?.available ? `📊 Estatísticas oficiais: disponíveis\n⚡ Pressão: ${pressure.reading}` : `📊 Estatísticas oficiais: indisponíveis no provedor\n🧭 Sinal auxiliar: ${proxy.reading}`}\n\n${decision}\n\nMotivo: ${stats?.available ? 'há leitura de campo, mas ainda preciso validar o mercado exato.' : 'sem posse, finalizações, escanteios ou ataques perigosos oficiais, a leitura fica incompleta. Odd sozinha não libera entrada oficial.'}`,
+      memory,
+      profile,
+      {
+        fixture,
+        richContext,
+        waitingForData: noBet,
+        noBetReason: noBet ? 'Sem estatísticas oficiais ao vivo para confirmar pressão/domínio.' : null,
+        suggestions: ['Qual mercado?', 'Próximo gol?', 'Monte cenário hipotético', 'Atualizar jogo'],
+      },
+    );
+  }
+
+  private impliedProbabilityLocal(odd: number) {
+    if (!Number.isFinite(odd) || odd <= 1) return 0;
+    return Number(((1 / odd) * 100).toFixed(2));
+  }
 
   private mergeBackendHistory(
     sessionId: string,
@@ -1852,10 +2080,20 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
         this.extractFixtureOdds(fixture) ||
         null;
 
-      const normalizedStats = this.normalizeRichStatistics(rich.statistics);
+      const bestStatistics = await this.resolveBestLiveStatistics(
+        service,
+        fixtureId,
+        resolvedFixture,
+        rich.statistics,
+      );
+      const normalizedStats = this.normalizeRichStatistics(bestStatistics || rich.statistics);
       const statisticsSummary = this.buildStatisticsSummary(normalizedStats);
       const pressureSummary = this.buildPressureSummary(statisticsSummary, resolvedFixture);
       const oddsSummary = this.buildOddsSummary(resolvedOdds);
+      const statisticsProxy = statisticsSummary.available
+        ? null
+        : this.buildLiveProxySignal(resolvedFixture, oddsSummary);
+      const contextQuality = this.getRichContextQuality(statisticsSummary, oddsSummary, rich);
 
       return {
         ...rich,
@@ -1872,6 +2110,11 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
         statistics: normalizedStats || rich.statistics || null,
         statisticsSummary,
         pressureSummary,
+        statisticsProxy,
+        statsUnavailableReason: statisticsSummary.available
+          ? null
+          : 'Provider não entregou posse, finalizações, escanteios ou ataques perigosos oficiais para este jogo.',
+        contextQuality,
         oddsSummary,
         odds: resolvedOdds,
         errors: rich.errors || [],
@@ -1884,10 +2127,127 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
         fixtureId,
         statisticsSummary: this.emptyStatisticsSummary(),
         pressureSummary: this.emptyPressureSummary(),
+        statisticsProxy: this.buildLiveProxySignal(fixture, this.emptyOddsSummary()),
+        statsUnavailableReason: 'Falha ao consultar estatísticas oficiais.',
+        contextQuality: 'NONE',
         oddsSummary: this.emptyOddsSummary(),
         errors: [error?.message || 'Falha ao montar contexto rico'],
       };
     }
+  }
+
+
+  private async resolveBestLiveStatistics(
+    service: any,
+    fixtureId: string,
+    fixture: any,
+    currentStatistics: any,
+  ) {
+    const currentSummary = this.buildStatisticsSummary(this.normalizeRichStatistics(currentStatistics));
+    if (currentSummary.available) return currentStatistics;
+
+    const externalId =
+      fixture?.fixture?.externalId ||
+      fixture?.fixture?.external_id ||
+      fixture?.fixture?.matchId ||
+      fixture?.fixture?.match_id ||
+      fixture?.flashScoreRaw?.id ||
+      fixture?.flashScoreRaw?.match_id ||
+      fixture?.flashScoreRaw?.eventId ||
+      null;
+
+    const ids = Array.from(new Set([fixtureId, externalId].filter(Boolean).map(String)));
+    const methods = [
+      'getStatistics',
+      'getStatisticsFromFlashScore',
+      'getLiveStatistics',
+      'getFixtureStatistics',
+    ];
+
+    for (const id of ids) {
+      for (const method of methods) {
+        if (typeof service?.[method] !== 'function') continue;
+
+        try {
+          const response = await service[method](id);
+          const normalized = this.normalizeRichStatistics(response);
+          const summary = this.buildStatisticsSummary(normalized);
+          if (summary.available) return normalized || response;
+        } catch {
+          // Continua tentando as próximas fontes. Não quebra o chat por causa de stats.
+        }
+      }
+    }
+
+    const rawStats = this.extractStatisticsFromFixtureRaw(fixture);
+    const rawSummary = this.buildStatisticsSummary(rawStats);
+    if (rawSummary.available) return rawStats;
+
+    return currentStatistics || null;
+  }
+
+  private extractStatisticsFromFixtureRaw(fixture: any) {
+    if (!fixture) return null;
+
+    const candidates = [
+      fixture?.statistics,
+      fixture?.stats,
+      fixture?.matchStats,
+      fixture?.match_stats,
+      fixture?.flashScoreRaw?.statistics,
+      fixture?.flashScoreRaw?.stats,
+      fixture?.flashScoreRaw?.matchStats,
+      fixture?.flashScoreRaw?.match_stats,
+      fixture?.raw?.statistics,
+      fixture?.raw?.stats,
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeRichStatistics(candidate);
+      const summary = this.buildStatisticsSummary(normalized);
+      if (summary.available) return normalized;
+    }
+
+    return null;
+  }
+
+  private getRichContextQuality(stats: any, odds: any, rich: any): FlashScoreRichContext['contextQuality'] {
+    if (stats?.available && odds?.available) return 'FULL';
+    if (stats?.available || rich?.h2h || rich?.lineups || rich?.prematchStats?.available) return 'PARTIAL';
+    if (odds?.available) return 'ODDS_ONLY';
+    if (rich?.fixture) return 'BASIC';
+    return 'NONE';
+  }
+
+  private buildLiveProxySignal(fixture: any, oddsSummary: any) {
+    const status = fixture?.fixture?.status || {};
+    const elapsed = Number(status?.elapsed ?? status?.decorrido ?? 0);
+    const homeGoals = Number(fixture?.goals?.home ?? fixture?.score?.fulltime?.home ?? fixture?.gols?.casa ?? 0);
+    const awayGoals = Number(fixture?.goals?.away ?? fixture?.score?.fulltime?.away ?? fixture?.gols?.fora ?? 0);
+    const scoreDiff = Math.abs(homeGoals - awayGoals);
+    const odds = Array.isArray(oddsSummary?.options) ? oddsSummary.options : [];
+    const favorite = odds.length
+      ? [...odds].sort((a: any, b: any) => Number(a.odd) - Number(b.odd))[0]
+      : null;
+
+    const urgency = elapsed >= 75 ? 'alta' : elapsed >= 55 ? 'média' : 'baixa';
+    const favoriteText = favorite
+      ? `Mercado aponta ${favorite.name} como favorito (${Number(favorite.odd).toFixed(2)}).`
+      : 'Sem favorito validado por odds.';
+
+    return {
+      available: true,
+      official: false,
+      source: 'proxy-score-odds-clock',
+      elapsed: Number.isFinite(elapsed) ? elapsed : null,
+      score: { home: homeGoals, away: awayGoals, diff: scoreDiff },
+      favorite,
+      urgency,
+      reading:
+        `Sem estatísticas oficiais de pressão. Sinal auxiliar usa apenas placar, minuto e odds. ${favoriteText} Urgência live: ${urgency}.`,
+      warning:
+        'Sinal auxiliar não substitui posse, finalizações, escanteios ou ataques perigosos oficiais. Não liberar entrada oficial só por proxy.',
+    };
   }
 
   private normalizeRichStatistics(statistics: any) {
@@ -2253,6 +2613,8 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
 ${oddsLine}
 ${rich.h2h ? '✅ H2H' : '⚠️ H2H pendente'}
 ${rich.lineups ? '✅ Escalações' : '⚠️ Escalações pendentes'}
+
+${rich.statisticsProxy?.reading ? `🧭 Sinal auxiliar: ${rich.statisticsProxy.reading}` : ''}
 
 Leitura: sem posse, finalizações, escanteios ou ataques perigosos validados. Não liberar entrada oficial baseada em pressão. Se houver odds validadas, use apenas como cotação observada, não como entrada oficial.`;
     }

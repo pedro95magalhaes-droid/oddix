@@ -246,6 +246,7 @@ Se não houver Copa nos dados filtrados, diga que a base não confirmou jogos de
       `Responda como analista live profissional da Oddix.
 Se houver statisticsSummary/pressureSummary, destaque pressão, posse, finalizações, chutes no gol, escanteios e ataques perigosos.
 Se houver oddsSummary, cite as odds validadas.
+Se não houver estatísticas oficiais, use statisticsProxy apenas como sinal auxiliar e avise que não é estatística oficial.
 Se não houver dados ricos, liste apenas placar/minuto/competição e diga que não há entrada oficial.
 Nunca invente posse, escanteios, finalizações, odds ou pressão.`,
     );
@@ -769,6 +770,8 @@ ${userMessage}`,
           odds: rich?.odds || fixtureOdds || null,
         },
         fixture,
+        service,
+        fixtureId,
       );
     }
 
@@ -786,6 +789,8 @@ ${userMessage}`,
           lineups: null,
         },
         fixture,
+        service,
+        fixtureId,
       );
     }
 
@@ -1064,31 +1069,139 @@ ${userMessage}`,
       hasLineups: !!rich?.lineups,
       statisticsSummary: rich?.statisticsSummary || this.buildStatisticsSummary(this.normalizeRichStatistics(rich?.statistics)),
       pressureSummary: rich?.pressureSummary || null,
+      statisticsProxy: rich?.statisticsProxy || null,
+      statsUnavailableReason: rich?.statsUnavailableReason || null,
+      contextQuality: rich?.contextQuality || null,
       oddsSummary: rich?.oddsSummary || null,
       prematchStats: rich?.prematchStats || null,
       errors: rich?.errors || [],
     };
   }
 
-  private enrichRichContext(rich: any, fixture: any) {
+  private async enrichRichContext(rich: any, fixture: any, service?: any, fixtureId?: string) {
     if (!rich) return null;
 
-    const normalizedStats = this.normalizeRichStatistics(rich.statistics);
+    const resolvedFixture = rich.fixture || fixture;
+    const bestStats = await this.resolveBestLiveStatistics(
+      service,
+      fixtureId || String(resolvedFixture?.fixture?.id || ''),
+      resolvedFixture,
+      rich.statistics,
+    );
+    const normalizedStats = this.normalizeRichStatistics(bestStats || rich.statistics);
     const statisticsSummary = this.buildStatisticsSummary(normalizedStats);
-    const pressureSummary = this.buildPressureSummary(statisticsSummary, rich.fixture || fixture);
-    const fixtureOdds = this.extractFixtureOdds(rich.fixture || fixture);
+    const pressureSummary = this.buildPressureSummary(statisticsSummary, resolvedFixture);
+    const fixtureOdds = this.extractFixtureOdds(resolvedFixture || fixture);
     const resolvedOdds = rich.odds || fixtureOdds || null;
     const oddsSummary = this.buildOddsSummary(resolvedOdds);
+    const statisticsProxy = statisticsSummary.available ? null : this.buildLiveProxySignal(resolvedFixture, oddsSummary);
+    const contextQuality = statisticsSummary.available && oddsSummary.available
+      ? 'FULL'
+      : statisticsSummary.available || rich.h2h || rich.lineups || rich.prematchStats?.available
+        ? 'PARTIAL'
+        : oddsSummary.available
+          ? 'ODDS_ONLY'
+          : resolvedFixture
+            ? 'BASIC'
+            : 'NONE';
 
     return {
       ...rich,
-      fixture: rich.fixture || fixture,
+      fixture: resolvedFixture,
       statistics: normalizedStats || rich.statistics || null,
       statisticsSummary,
       pressureSummary,
+      statisticsProxy,
+      statsUnavailableReason: statisticsSummary.available
+        ? null
+        : 'Provider não entregou posse, finalizações, escanteios ou ataques perigosos oficiais para este jogo.',
+      contextQuality,
       odds: resolvedOdds,
       oddsSummary,
       ok: !!(rich.ok || statisticsSummary.available || oddsSummary.available || rich.h2h || rich.lineups || rich.prematchStats?.available),
+    };
+  }
+
+  private async resolveBestLiveStatistics(service: any, fixtureId: string, fixture: any, currentStatistics: any) {
+    const currentSummary = this.buildStatisticsSummary(this.normalizeRichStatistics(currentStatistics));
+    if (currentSummary.available) return currentStatistics;
+
+    if (!service) return this.extractStatisticsFromFixtureRaw(fixture);
+
+    const externalId =
+      fixture?.fixture?.externalId ||
+      fixture?.fixture?.external_id ||
+      fixture?.fixture?.matchId ||
+      fixture?.fixture?.match_id ||
+      fixture?.flashScoreRaw?.id ||
+      fixture?.flashScoreRaw?.match_id ||
+      null;
+
+    const ids = Array.from(new Set([fixtureId, externalId].filter(Boolean).map(String)));
+    const methods = ['getStatistics', 'getStatisticsFromFlashScore', 'getLiveStatistics', 'getFixtureStatistics'];
+
+    for (const id of ids) {
+      for (const method of methods) {
+        if (typeof service?.[method] !== 'function') continue;
+
+        try {
+          const response = await service[method](id);
+          const normalized = this.normalizeRichStatistics(response);
+          const summary = this.buildStatisticsSummary(normalized);
+          if (summary.available) return normalized || response;
+        } catch {
+          // Continua tentando a próxima fonte.
+        }
+      }
+    }
+
+    return this.extractStatisticsFromFixtureRaw(fixture) || currentStatistics || null;
+  }
+
+  private extractStatisticsFromFixtureRaw(fixture: any) {
+    if (!fixture) return null;
+
+    const candidates = [
+      fixture?.statistics,
+      fixture?.stats,
+      fixture?.matchStats,
+      fixture?.match_stats,
+      fixture?.flashScoreRaw?.statistics,
+      fixture?.flashScoreRaw?.stats,
+      fixture?.flashScoreRaw?.matchStats,
+      fixture?.raw?.statistics,
+      fixture?.raw?.stats,
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeRichStatistics(candidate);
+      const summary = this.buildStatisticsSummary(normalized);
+      if (summary.available) return normalized;
+    }
+
+    return null;
+  }
+
+  private buildLiveProxySignal(fixture: any, oddsSummary: any) {
+    const status = fixture?.fixture?.status || {};
+    const elapsed = Number(status?.elapsed ?? status?.decorrido ?? 0);
+    const homeGoals = Number(fixture?.goals?.home ?? fixture?.score?.fulltime?.home ?? fixture?.gols?.casa ?? 0);
+    const awayGoals = Number(fixture?.goals?.away ?? fixture?.score?.fulltime?.away ?? fixture?.gols?.fora ?? 0);
+    const odds = Array.isArray(oddsSummary?.options) ? oddsSummary.options : [];
+    const favorite = odds.length ? [...odds].sort((a: any, b: any) => Number(a.odd) - Number(b.odd))[0] : null;
+    const urgency = elapsed >= 75 ? 'alta' : elapsed >= 55 ? 'média' : 'baixa';
+    const favoriteText = favorite ? `Mercado aponta ${favorite.name} como favorito (${Number(favorite.odd).toFixed(2)}).` : 'Sem favorito validado por odds.';
+
+    return {
+      available: true,
+      official: false,
+      source: 'proxy-score-odds-clock',
+      elapsed: Number.isFinite(elapsed) ? elapsed : null,
+      score: { home: homeGoals, away: awayGoals, diff: Math.abs(homeGoals - awayGoals) },
+      favorite,
+      urgency,
+      reading: `Sem estatísticas oficiais de pressão. Sinal auxiliar usa apenas placar, minuto e odds. ${favoriteText} Urgência live: ${urgency}.`,
+      warning: 'Sinal auxiliar não substitui estatísticas oficiais. Não liberar entrada oficial só por proxy.',
     };
   }
 
