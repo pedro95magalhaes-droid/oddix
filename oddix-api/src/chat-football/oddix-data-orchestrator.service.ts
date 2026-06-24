@@ -6,6 +6,7 @@ import { OddixBrainService, OddixBrainDecision } from './oddix-brain.service';
 import { OddixQueryCleanerService } from './oddix-query-cleaner.service';
 import { OddixResearchAgentService } from './oddix-research-agent.service';
 import { OddixWorldCupResolverService } from './oddix-worldcup-resolver.service';
+import { FlashScoreService } from './flashscore.service';
 
 export type OddixDataOrchestratorResponse = {
   handled: boolean;
@@ -20,6 +21,7 @@ export class OddixDataOrchestratorService {
 
   constructor(
     @Optional() private readonly footballService?: FootballService,
+    @Optional() private readonly flashScoreService?: FlashScoreService,
     @Optional() private readonly researchService?: FootballResearchService,
     @Optional() private readonly llmService?: OddixLlmService,
     @Optional() private readonly brainService?: OddixBrainService,
@@ -46,6 +48,12 @@ export class OddixDataOrchestratorService {
 
     if (cleanedQuery?.intentHint === 'TODAY_CUP_GAMES') {
       (decision as any).intent = 'TODAY_GAMES';
+    }
+
+    // V20: perguntas globais de futebol como escalação, prováveis titulares, desfalques
+    // e odds não devem cair no fluxo genérico. Primeiro tenta FlashScore real.
+    if (this.asksForLineup(message)) {
+      return this.answerLineupQuestion(message, decision);
     }
 
     try {
@@ -423,6 +431,67 @@ Sem inventar odds, estatísticas ou mercados oficiais.`,
     };
   }
 
+  private async answerLineupQuestion(
+    message: string,
+    decision?: OddixBrainDecision,
+  ): Promise<OddixDataOrchestratorResponse> {
+    const teamQuery = this.extractLineupTeamQuery(message);
+    const wantsToday = this.mentionsToday(message);
+    const fixtures = wantsToday ? await this.getTodayFixtures() : await this.getMatchSearchFixtures(0, 7);
+    const match = teamQuery ? this.findFixtureByTeam(fixtures, teamQuery) : null;
+    const research = await this.runResearch(message, decision, teamQuery || 'escalação futebol').catch(() => null);
+
+    if (!match) {
+      const researchAnswer = await this.answerFromResearchOnly(message, research, decision, 'escalação provável/oficial');
+      if (researchAnswer) return researchAnswer;
+
+      return {
+        handled: true,
+        answer:
+          `📋 Escalação\n\nNão encontrei uma partida confirmada ${wantsToday ? 'para hoje' : 'na janela atual'} envolvendo ${teamQuery || 'o time citado'} na FlashScore/base Oddix.\n\nSem jogo confirmado e sem escalação oficial/provável validada, não vou inventar titulares.`,
+        data: { waitingForData: true, teamQuery, fixtures: fixtures.slice(0, 12).map((game: any) => this.simplifyFixture(game)), research, decision },
+        suggestions: ['Mostrar jogos de hoje', 'Buscar jogos ao vivo', 'Enviar o confronto exato'],
+      };
+    }
+
+    const simple = this.simplifyFixture(match);
+    const fixtureId = String(simple.externalId || match?.fixture?.externalId || match?.fixture?.id || match?.id || '');
+    const richContext = await this.getRichContext(fixtureId, match).catch(() => null);
+    const hasLineups = !!richContext?.lineups;
+
+    const context = JSON.stringify(
+      {
+        pergunta: message,
+        teamQuery,
+        jogo: simple,
+        lineups: this.safeJsonSample(richContext?.lineups, 6500),
+        richContext: this.simplifyRichContext(richContext),
+        research,
+        regra:
+          'Se lineups não tiver dados claros de titulares, responda que escalação oficial/provável não está disponível. Não invente jogador. Diferencie oficial de provável.',
+      },
+      null,
+      2,
+    );
+
+    const answer = await this.humanizeWithDeepSeek(
+      message,
+      context,
+      `Responda como especialista de futebol.\nFormato:\n📋 Escalação\n⚽ Jogo\n✅ Confirmado/provável\n👥 Times\n⚠️ Observação\n\nUse somente dados de lineups/pesquisa fornecidos. Não invente jogadores.`,
+    );
+
+    return {
+      handled: true,
+      answer:
+        answer ||
+        (hasLineups
+          ? `📋 Escalação encontrada para ${simple.home} x ${simple.away}.\n\nRecebi dados de escalação da FlashScore, mas não consegui formatar automaticamente. Verifique o raw em data.lineups.`
+          : `📋 ${simple.home} x ${simple.away}\n\nA partida foi encontrada na FlashScore/base Oddix, mas a escalação ainda não está disponível. Normalmente ela aparece perto do início do jogo. Não vou inventar titulares.`),
+      data: { decision, teamQuery, fixture: match, lineups: richContext?.lineups || null, richContext, research },
+      suggestions: [`Analisar ${simple.home} x ${simple.away}`, 'Ver odds desse jogo', 'Mostrar jogos da Copa hoje'],
+    };
+  }
+
   private async answerFollowUp(
     message: string,
     decision?: OddixBrainDecision,
@@ -625,7 +694,7 @@ Nunca invente odds, estatísticas, escalações ou resultado. Se faltar dado rea
     }
 
     if (cleanedQuery?.intentHint === 'TODAY_CUP_GAMES') {
-      return `FIFA Club World Cup fixtures ${this.todayIso()} Club World Cup matches today FlashScore ESPN SofaScore`;
+      return 'FIFA World Cup Club World Cup jogos hoje futebol fixtures today FlashScore ESPN';
     }
 
     if (intent === 'TODAY_GAMES') return `${base} futebol jogos hoje calendário partidas oficiais`;
@@ -706,7 +775,7 @@ ${research.summary}
       {
         role: 'system',
         content:
-          'Você é a IA Oddix Chat V19, com raciocínio de futebol em nível premium. Responda em português do Brasil, natural, direto e inteligente. Nunca invente dados atuais. Para futebol, use somente dados reais fornecidos pela pesquisa web e pelas APIs do backend. Diferencie dado confirmado, indício e ausência de dado. Se faltar dado, diga claramente.',
+          'Você é a IA Oddix Chat V13. Responda em português do Brasil, natural, direto e inteligente. Nunca invente dados atuais. Para futebol, use somente dados reais fornecidos pela pesquisa web e pelas APIs do backend. Se faltar dado, diga claramente.',
       },
       {
         role: 'user',
@@ -724,9 +793,27 @@ ${userMessage}`,
   }
 
   private async getTodayFixtures() {
-    if (!this.footballService) return [];
+    const today = this.todayIso('America/Sao_Paulo');
+    const allFixtures: any[] = [];
 
-    const today = this.todayIso();
+    // V20: FlashScore direto é a fonte prioritária quando disponível.
+    if (this.flashScoreService?.isEnabled?.() && this.flashScoreService?.hasKey?.()) {
+      try {
+        const response = await this.flashScoreService.getFixtures(today);
+        const fixtures = this.extractFixtureArray(response);
+        if (fixtures.length) {
+          this.logger.log(`[ODDIX_ORCHESTRATOR] flashscore.getFixtures(${today}) retornou ${fixtures.length} jogos`);
+          allFixtures.push(...fixtures);
+        } else if (!response.ok) {
+          this.logger.warn(`[ODDIX_ORCHESTRATOR] flashscore.getFixtures falhou: ${response.error}`);
+        }
+      } catch (error: any) {
+        this.logger.warn(`[ODDIX_ORCHESTRATOR] flashscore direto falhou: ${error?.message || error}`);
+      }
+    }
+
+    if (!this.footballService) return this.sortFixtures(this.uniqueFixtures(allFixtures)).slice(0, 300);
+
     const service: any = this.footballService as any;
 
     const methods = [
@@ -739,8 +826,6 @@ ${userMessage}`,
       { name: 'getFlashScoreMatches', call: () => service.getFlashScoreMatches?.(today) },
       { name: 'getAllTodayFixtures', call: () => service.getAllTodayFixtures?.() },
     ];
-
-    const allFixtures: any[] = [];
 
     for (const method of methods) {
       try {
@@ -762,7 +847,19 @@ ${userMessage}`,
   }
 
   private async getLiveFixtures() {
-    if (!this.footballService) return [];
+    const allFixtures: any[] = [];
+
+    if (this.flashScoreService?.isEnabled?.() && this.flashScoreService?.hasKey?.()) {
+      try {
+        const response = await this.flashScoreService.getLiveFixtures();
+        const fixtures = this.extractFixtureArray(response);
+        if (fixtures.length) allFixtures.push(...fixtures);
+      } catch (error: any) {
+        this.logger.warn(`[ODDIX_ORCHESTRATOR] flashscore live falhou: ${error?.message || error}`);
+      }
+    }
+
+    if (!this.footballService) return this.uniqueFixtures(allFixtures).slice(0, 80);
 
     const service: any = this.footballService as any;
 
@@ -777,36 +874,41 @@ ${userMessage}`,
       try {
         const response = await method();
         const fixtures = this.extractFixtureArray(response);
-        if (fixtures.length) return this.uniqueFixtures(fixtures).slice(0, 50);
+        if (fixtures.length) allFixtures.push(...fixtures);
       } catch {}
     }
 
-    return [];
+    return this.uniqueFixtures(allFixtures).slice(0, 80);
   }
 
   private async getFixturesWindow(daysBack = 3, daysForward = 7) {
-    if (!this.footballService) return [];
-
     const dates: string[] = [];
-    const now = new Date(`${this.todayIso()}T12:00:00Z`);
-
     for (let i = -daysBack; i <= daysForward; i += 1) {
-      const date = new Date(now);
-      date.setUTCDate(now.getUTCDate() + i);
-      dates.push(date.toISOString().slice(0, 10));
+      dates.push(this.shiftIsoDate(this.todayIso('America/Sao_Paulo'), i));
     }
 
     const all: any[] = [];
 
-    for (const date of dates) {
-      try {
-        const response =
-          typeof (this.footballService as any).getFixtures === 'function'
-            ? await (this.footballService as any).getFixtures(date)
-            : null;
+    if (this.flashScoreService?.isEnabled?.() && this.flashScoreService?.hasKey?.()) {
+      for (const date of dates) {
+        try {
+          const response = await this.flashScoreService.getFixtures(date);
+          all.push(...this.extractFixtureArray(response));
+        } catch {}
+      }
+    }
 
-        all.push(...this.extractFixtureArray(response));
-      } catch {}
+    if (this.footballService) {
+      for (const date of dates) {
+        try {
+          const response =
+            typeof (this.footballService as any).getFixtures === 'function'
+              ? await (this.footballService as any).getFixtures(date)
+              : null;
+
+          all.push(...this.extractFixtureArray(response));
+        } catch {}
+      }
     }
 
     return this.uniqueFixtures(all);
@@ -829,6 +931,14 @@ ${userMessage}`,
         this.logger.warn(`[ORCH_MATCH_SEARCH] ${label} falhou: ${error?.message || error}`);
       }
     };
+
+    if (this.flashScoreService?.isEnabled?.() && this.flashScoreService?.hasKey?.()) {
+      await safeCollect('flashscore.direct.live', () => this.flashScoreService?.getLiveFixtures());
+      for (let i = -daysBack; i <= daysForward; i += 1) {
+        const date = this.shiftIsoDate(this.todayIso('America/Sao_Paulo'), i);
+        await safeCollect(`flashscore.direct.fixtures.${date}`, () => this.flashScoreService?.getFixtures(date));
+      }
+    }
 
     await safeCollect('live.flashscore', () => service?.getLiveFixturesFromFlashScore?.());
     await safeCollect('live.default', () => service?.getLiveFixtures?.());
@@ -935,11 +1045,74 @@ ${userMessage}`,
   }
 
   private async getRichContext(fixtureId: string, fixture: any) {
-    if (!fixtureId || !this.footballService) return null;
+    if (!fixtureId && !fixture) return null;
 
-    const service: any = this.footballService as any;
     const provider = String(fixture?.provider || fixture?.source || '').toLowerCase();
     const isFlashScoreFixture = provider.includes('flashscore') || !!fixture?.flashScoreRaw;
+    const flashScoreId = this.getFlashScoreMatchId(fixtureId, fixture);
+
+    // V20: usa FlashScoreService diretamente quando a fixture veio da FlashScore.
+    if (this.flashScoreService && isFlashScoreFixture && flashScoreId) {
+      const errors: string[] = [];
+      const [statsResult, lineupsResult, h2hResult, oddsResult] = await Promise.all([
+        this.flashScoreService.getStats(flashScoreId).catch((error: any) => ({ ok: false, data: null, error: error?.message || error })),
+        this.flashScoreService.getLineups(flashScoreId).catch((error: any) => ({ ok: false, data: null, error: error?.message || error })),
+        this.flashScoreService.getH2H(flashScoreId).catch((error: any) => ({ ok: false, data: null, error: error?.message || error })),
+        this.flashScoreService.getOdds(flashScoreId).catch((error: any) => ({ ok: false, data: null, error: error?.message || error })),
+      ]);
+
+      if (!statsResult.ok) errors.push(`stats: ${statsResult.error}`);
+      if (!lineupsResult.ok) errors.push(`lineups: ${lineupsResult.error}`);
+      if (!h2hResult.ok) errors.push(`h2h: ${h2hResult.error}`);
+      if (!oddsResult.ok) errors.push(`odds: ${oddsResult.error}`);
+
+      const mappedStats = statsResult.ok
+        ? this.flashScoreService.mapStatsToOddix(flashScoreId, statsResult.data)
+        : null;
+
+      return this.enrichRichContext(
+        {
+          ok: !!(statsResult.ok || lineupsResult.ok || h2hResult.ok || oddsResult.ok),
+          source: 'flashscore',
+          fixture,
+          fixtureId,
+          flashScoreExternalId: flashScoreId,
+          statistics: mappedStats,
+          odds: oddsResult.ok ? oddsResult.data : this.extractFixtureOdds(fixture) || null,
+          h2h: h2hResult.ok ? h2hResult.data : null,
+          lineups: lineupsResult.ok ? lineupsResult.data : null,
+          errors,
+        },
+        fixture,
+        this.flashScoreService,
+        flashScoreId,
+      );
+    }
+
+    if (!this.footballService) {
+      const fixtureOdds = this.extractFixtureOdds(fixture);
+      return fixtureOdds
+        ? this.enrichRichContext(
+            {
+              ok: true,
+              source: provider || 'fixture',
+              fixture,
+              fixtureId,
+              flashScoreExternalId: flashScoreId,
+              statistics: null,
+              odds: fixtureOdds,
+              h2h: null,
+              lineups: null,
+              errors: [],
+            },
+            fixture,
+            undefined,
+            fixtureId,
+          )
+        : null;
+    }
+
+    const service: any = this.footballService as any;
 
     if (!isFlashScoreFixture) {
       const fixtureOdds = this.extractFixtureOdds(fixture);
@@ -1687,24 +1860,130 @@ ${userMessage}`,
     return Number.isFinite(parsed) && parsed > 1 ? Number(parsed.toFixed(2)) : null;
   }
 
+  private asksForLineup(message: string) {
+    const text = this.normalize(message);
+    return this.hasAny(text, [
+      'escalação',
+      'escalacao',
+      'provavel escalação',
+      'provavel escalacao',
+      'prováveis titulares',
+      'provaveis titulares',
+      'time titular',
+      'lineup',
+      'lineups',
+      'starting xi',
+      'titulares',
+      'desfalques',
+    ]);
+  }
+
+  private mentionsToday(message: string) {
+    const text = this.normalize(message);
+    return this.hasAny(text, ['hoje', 'agora', 'de hoje', 'pra hoje', 'para hoje', 'today']);
+  }
+
+  private extractLineupTeamQuery(message: string) {
+    const text = String(message || '')
+      .replace(/qual|quais|a|o|os|as|do|da|de|para|pra|hoje|time|titular|escalação|escalacao|provavel|provável|titulares|lineup|starting xi|desfalques/gi, ' ')
+      .replace(/[?!.:,;]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (text) return text;
+
+    const normalized = this.normalize(message);
+    const commonTeams: Record<string, string> = {
+      brasil: 'Brasil',
+      brazil: 'Brazil',
+      argentina: 'Argentina',
+      franca: 'França',
+      france: 'France',
+      espanha: 'Espanha',
+      spain: 'Spain',
+      inglaterra: 'Inglaterra',
+      england: 'England',
+      alemanha: 'Alemanha',
+      germany: 'Germany',
+      flamengo: 'Flamengo',
+      palmeiras: 'Palmeiras',
+      corinthians: 'Corinthians',
+      vasco: 'Vasco',
+      botafogo: 'Botafogo',
+      fluminense: 'Fluminense',
+    };
+
+    for (const [key, value] of Object.entries(commonTeams)) {
+      if (normalized.includes(key)) return value;
+    }
+
+    return '';
+  }
+
+  private findFixtureByTeam(fixtures: any[], teamQuery: string) {
+    const aliases = this.buildTeamSearchAliases(teamQuery);
+    return (fixtures || []).find((game: any) => {
+      const homeAliases = this.buildTeamSearchAliases(this.getFixtureHomeName(game));
+      const awayAliases = this.buildTeamSearchAliases(this.getFixtureAwayName(game));
+      return this.teamAliasMatch(aliases, homeAliases) || this.teamAliasMatch(aliases, awayAliases);
+    }) || null;
+  }
+
+  private getFlashScoreMatchId(fixtureId: string, fixture: any) {
+    return String(
+      fixture?.fixture?.externalId ||
+        fixture?.fixture?.external_id ||
+        fixture?.fixture?.matchId ||
+        fixture?.fixture?.match_id ||
+        fixture?.flashScoreRaw?.match_id ||
+        fixture?.flashScoreRaw?.id ||
+        fixture?.externalId ||
+        fixtureId ||
+        '',
+    ).trim();
+  }
+
+  private todayIso(timeZone = 'America/Sao_Paulo') {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+
+    return year && month && day ? `${year}-${month}-${day}` : new Date().toISOString().slice(0, 10);
+  }
+
+  private shiftIsoDate(baseIso: string, days: number) {
+    const date = new Date(`${baseIso}T12:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
+  }
+
+  private safeJsonSample(value: any, maxLength = 5000) {
+    if (!value) return null;
+    try {
+      const json = JSON.stringify(value, null, 2);
+      return json.length > maxLength ? `${json.slice(0, maxLength)}\n...TRUNCADO...` : json;
+    } catch {
+      return String(value).slice(0, maxLength);
+    }
+  }
+
   private asksForCup(message: string) {
     const text = this.normalize(message);
 
     return this.hasAny(text, [
       'copa',
-      'copa hoje',
-      'jogos da copa',
       'mundial',
-      'mundial hoje',
-      'jogos do mundial',
       'world cup',
-      'world cup today',
       'club world cup',
-      'fifa club world cup',
-      'fifa world cup',
       'fifa',
       'copa do mundo',
-      'copa do mundo de clubes',
       'mundial de clubes',
     ]);
   }
@@ -1722,14 +2001,10 @@ ${userMessage}`,
       'club world cup',
       'fifa club world cup',
       'copa do mundo',
-      'copa do mundo de clubes',
-      'mundial',
       'mundial de clubes',
-      'club wc',
-      'cwc',
-      'fifa cwc',
-      'world championship',
-      'club championship',
+      'fifa',
+      'world',
+      'cup',
     ].some((term) => haystack.includes(this.normalize(term)));
   }
 
@@ -1751,7 +2026,7 @@ ${userMessage}`,
   }
 
   private formatFixturesList(fixtures: any[], title: string) {
-    const lines = fixtures.slice(0, 60).map((game: any, index: number) => {
+    const lines = fixtures.slice(0, 18).map((game: any, index: number) => {
       const simple = this.simplifyFixture(game);
       const home = simple.home || 'Casa';
       const away = simple.away || 'Fora';
@@ -1846,22 +2121,6 @@ Sem odds reais e estatísticas completas, não libero entrada oficial.`;
       seen.add(id);
       return true;
     });
-  }
-
-  private todayIso(timeZone = process.env.ODDIX_TIMEZONE || 'America/Sao_Paulo') {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).formatToParts(new Date());
-
-    const year = parts.find((part) => part.type === 'year')?.value;
-    const month = parts.find((part) => part.type === 'month')?.value;
-    const day = parts.find((part) => part.type === 'day')?.value;
-
-    if (!year || !month || !day) return new Date().toISOString().slice(0, 10);
-    return `${year}-${month}-${day}`;
   }
 
   private cleanTeamName(value: string) {
