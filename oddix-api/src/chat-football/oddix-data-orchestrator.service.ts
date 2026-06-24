@@ -786,6 +786,7 @@ ${userMessage}`,
   }
 
   private fixtureLivePriorityScore(game: any) {
+    const provider = String(game?.provider || game?.source || '').toLowerCase();
     const status = String(
       game?.fixture?.status?.short ||
         game?.status?.short ||
@@ -806,7 +807,9 @@ ${userMessage}`,
       game?.goals?.home !== undefined ||
       game?.goals?.away !== undefined ||
       game?.score?.fulltime?.home !== undefined ||
-      game?.score?.fulltime?.away !== undefined;
+      game?.score?.fulltime?.away !== undefined ||
+      game?.placar?.['tempo integral']?.casa !== undefined ||
+      game?.gols?.casa !== undefined;
 
     const hasOdds = !!(
       game?.odds?.options?.length ||
@@ -815,12 +818,22 @@ ${userMessage}`,
       game?.odds?.mercado
     );
 
-    if (['LIVE', 'IN_PLAY', '1H', '2H', 'ET', 'P', 'PEN_LIVE'].includes(status)) return 1000 + elapsed + (hasOdds ? 20 : 0);
-    if (status === 'HT' || status.includes('HALF')) return 900 + (hasOdds ? 20 : 0);
-    if (elapsed > 0 && elapsed < 130) return 800 + elapsed + (hasOdds ? 20 : 0);
-    if (['NS', 'TBD', 'SCHEDULED'].includes(status)) return 100 + (hasOdds ? 20 : 0);
-    if (['FT', 'AET', 'PEN'].includes(status)) return 50 + (hasScore ? 10 : 0);
-    return hasOdds ? 40 : 0;
+    const providerBonus = provider.includes('flashscore')
+      ? 5000
+      : provider.includes('sportscore6')
+        ? 100
+        : provider.includes('sportscore')
+          ? 80
+          : 0;
+
+    const oddsBonus = hasOdds ? 800 : 0;
+
+    if (['LIVE', 'IN_PLAY', '1H', '2H', 'ET', 'P', 'PEN_LIVE'].includes(status)) return providerBonus + 3000 + elapsed + oddsBonus;
+    if (status === 'HT' || status.includes('HALF') || status.includes('INTERVAL')) return providerBonus + 2800 + oddsBonus;
+    if (elapsed > 0 && elapsed < 130) return providerBonus + 2500 + elapsed + oddsBonus;
+    if (['NS', 'TBD', 'SCHEDULED'].includes(status)) return providerBonus + 300 + oddsBonus;
+    if (['FT', 'AET', 'PEN'].includes(status)) return providerBonus + 100 + (hasScore ? 50 : 0) + oddsBonus;
+    return providerBonus + oddsBonus;
   }
 
   private fixtureTimestampSafe(game: any) {
@@ -848,6 +861,29 @@ ${userMessage}`,
     if (!fixtureId || !this.footballService) return null;
 
     const service: any = this.footballService as any;
+    const provider = String(fixture?.provider || fixture?.source || '').toLowerCase();
+    const isFlashScoreFixture = provider.includes('flashscore') || !!fixture?.flashScoreRaw;
+
+    if (!isFlashScoreFixture) {
+      const fixtureOdds = this.extractFixtureOdds(fixture);
+      return this.enrichRichContext(
+        {
+          ok: !!fixtureOdds,
+          source: provider || 'non-flashscore',
+          fixture,
+          fixtureId,
+          flashScoreExternalId: null,
+          statistics: null,
+          odds: fixtureOdds || null,
+          h2h: null,
+          lineups: null,
+          errors: [`Provider ${provider || 'desconhecido'} não possui ID compatível com FlashScore. Rich context FlashScore bloqueado.`],
+        },
+        fixture,
+        service,
+        fixtureId,
+      );
+    }
 
     if (typeof service.getFlashScoreRichContext === 'function') {
       const rich = await service.getFlashScoreRichContext(fixtureId, fixture);

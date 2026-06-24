@@ -924,13 +924,13 @@ Leitura Oddix: ${this.describeLiveStatus(statusShort)}
 
     if (!lastMatch && !lastFixture) return null;
 
-    // V14.2: quando a pergunta contextual também traz o jogo no texto
-    // (ex.: "Panamá x Croácia, vale entrar?"), resolvemos novamente na base
-    // para não depender de um snapshot incompleto que tenha apenas lastMatch.
-    if (lastMatch && (!lastFixture || !this.fixtureMatchesMemory(lastFixture, lastMatch))) {
+    // V14.4: sempre tenta resolver novamente e escolhe o melhor fixture.
+    // Isso evita reutilizar um cache NS quando existe um FlashScore LIVE/com odds.
+    if (lastMatch) {
       const resolvedFixture = await this.resolveFixtureFromMatchMemory(lastMatch);
-      if (resolvedFixture) {
-        lastFixture = resolvedFixture;
+      const bestFixture = this.pickBestMatchFixture([resolvedFixture, lastFixture]);
+      if (bestFixture && bestFixture !== lastFixture) {
+        lastFixture = bestFixture;
         lastRichContext = null;
       }
     }
@@ -1562,7 +1562,8 @@ Responda à pergunta atual considerando o contexto anterior quando ela for curta
         ? memory.lastFixture
         : null;
       const recentFixture = this.findMatch(this.getRecentFixtureStoreItems(), teams.home, teams.away);
-      const match = memoryFixture || recentFixture || this.findMatch(fixtures, teams.home, teams.away);
+      const freshFixture = this.findMatch(fixtures, teams.home, teams.away);
+      const match = this.pickBestMatchFixture([freshFixture, memoryFixture, recentFixture]);
 
       if (!match) {
         const discovery =
@@ -2273,7 +2274,20 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
     });
   }
 
+  private pickBestMatchFixture(fixtures: any[]) {
+    const candidates = (fixtures || []).filter(Boolean);
+    if (!candidates.length) return null;
+
+    return candidates.sort((a: any, b: any) => {
+      const scoreA = this.fixtureLivePriorityScore(a);
+      const scoreB = this.fixtureLivePriorityScore(b);
+      if (scoreA !== scoreB) return scoreB - scoreA;
+      return this.fixtureTimestampSafe(b) - this.fixtureTimestampSafe(a);
+    })[0] || null;
+  }
+
   private fixtureLivePriorityScore(game: any) {
+    const provider = String(game?.provider || game?.source || '').toLowerCase();
     const status = String(
       game?.fixture?.status?.short ||
         game?.status?.short ||
@@ -2294,7 +2308,9 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
       game?.goals?.home !== undefined ||
       game?.goals?.away !== undefined ||
       game?.score?.fulltime?.home !== undefined ||
-      game?.score?.fulltime?.away !== undefined;
+      game?.score?.fulltime?.away !== undefined ||
+      game?.placar?.['tempo integral']?.casa !== undefined ||
+      game?.gols?.casa !== undefined;
 
     const hasOdds = !!(
       game?.odds?.options?.length ||
@@ -2303,12 +2319,39 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
       game?.odds?.mercado
     );
 
-    if (['LIVE', 'IN_PLAY', '1H', '2H', 'ET', 'P', 'PEN_LIVE'].includes(status)) return 1000 + elapsed + (hasOdds ? 20 : 0);
-    if (status === 'HT' || status.includes('HALF')) return 900 + (hasOdds ? 20 : 0);
-    if (elapsed > 0 && elapsed < 130) return 800 + elapsed + (hasOdds ? 20 : 0);
-    if (['NS', 'TBD', 'SCHEDULED'].includes(status)) return 100 + (hasOdds ? 20 : 0);
-    if (['FT', 'AET', 'PEN'].includes(status)) return 50 + (hasScore ? 10 : 0);
-    return hasOdds ? 40 : 0;
+    // V14.4: prioridade estrutural por provider.
+    // Nunca deixe um SportScore6 NS vencer um FlashScore com odds/live.
+    const providerBonus = provider.includes('flashscore')
+      ? 5000
+      : provider.includes('sportscore6')
+        ? 100
+        : provider.includes('sportscore')
+          ? 80
+          : 0;
+
+    const oddsBonus = hasOdds ? 800 : 0;
+
+    if (['LIVE', 'IN_PLAY', '1H', '2H', 'ET', 'P', 'PEN_LIVE'].includes(status)) {
+      return providerBonus + 3000 + elapsed + oddsBonus;
+    }
+
+    if (status === 'HT' || status.includes('HALF') || status.includes('INTERVAL')) {
+      return providerBonus + 2800 + oddsBonus;
+    }
+
+    if (elapsed > 0 && elapsed < 130) {
+      return providerBonus + 2500 + elapsed + oddsBonus;
+    }
+
+    if (['NS', 'TBD', 'SCHEDULED'].includes(status)) {
+      return providerBonus + 300 + oddsBonus;
+    }
+
+    if (['FT', 'AET', 'PEN'].includes(status)) {
+      return providerBonus + 100 + (hasScore ? 50 : 0) + oddsBonus;
+    }
+
+    return providerBonus + oddsBonus;
   }
 
   private fixtureTimestampSafe(game: any) {
@@ -2372,6 +2415,43 @@ Eu entendo intenção, uso memória da conversa, busco dados reais e respondo se
     if (!fixtureId || !this.footballService) return null;
 
     const service: any = this.footballService as any;
+    const provider = String(fixture?.provider || fixture?.source || '').toLowerCase();
+    const isFlashScoreFixture = provider.includes('flashscore') || !!fixture?.flashScoreRaw;
+
+    // V14.4: não misturar IDs entre providers.
+    // Ex.: sportscore6 externalId "croatia-vs-panama" não é match_id válido da FlashScore.
+    if (!isFlashScoreFixture) {
+      const resolvedOdds = this.extractFixtureOdds(fixture) || null;
+      const normalizedStats = this.extractStatisticsFromFixtureRaw(fixture);
+      const statisticsSummary = this.buildStatisticsSummary(normalizedStats);
+      const pressureSummary = this.buildPressureSummary(statisticsSummary, fixture);
+      const oddsSummary = this.buildOddsSummary(resolvedOdds);
+      const statisticsProxy = statisticsSummary.available
+        ? null
+        : this.buildLiveProxySignal(fixture, oddsSummary);
+
+      return {
+        ok: !!(statisticsSummary.available || oddsSummary.available),
+        source: provider || 'non-flashscore',
+        fixture,
+        fixtureId,
+        flashScoreExternalId: null,
+        statistics: normalizedStats,
+        statisticsSummary,
+        pressureSummary,
+        statisticsProxy,
+        statsUnavailableReason: statisticsSummary.available
+          ? null
+          : `Provider ${provider || 'desconhecido'} não entregou estatísticas oficiais compatíveis com FlashScore.`,
+        contextQuality: this.getRichContextQuality(statisticsSummary, oddsSummary, {}),
+        oddsSummary,
+        odds: resolvedOdds,
+        h2h: null,
+        lineups: null,
+        prematchStats: null,
+        errors: [`Provider ${provider || 'desconhecido'} não possui ID compatível com FlashScore. Rich context FlashScore bloqueado.`],
+      };
+    }
 
     try {
       let rich: FlashScoreRichContext | null = null;
