@@ -3,6 +3,13 @@ import { Injectable } from '@nestjs/common';
 export type OddixMasterRouteKind =
   | 'GENERAL_CHAT'
   | 'GENERAL_RESEARCH'
+  | 'GENERAL_WRITING'
+  | 'GENERAL_EXPLANATION'
+  | 'GENERAL_CODE'
+  | 'GENERAL_MATH'
+  | 'GENERAL_CREATIVE'
+  | 'GENERAL_BUSINESS'
+  | 'GENERAL_PLANNING'
   | 'FOOTBALL_GLOBAL'
   | 'FOOTBALL_TODAY_GAMES'
   | 'FOOTBALL_LIVE'
@@ -70,6 +77,14 @@ export class OddixMasterRouterService {
     });
 
     if (!text) return route('GENERAL_CHAT', 0.99, 'Mensagem vazia ou sem texto útil.', 'llm');
+
+    // V22: detectar intenção geral antes dos gatilhos de futebol.
+    // Isso impede que palavras genéricas como "jogo", "copa" ou "agora" puxem o fluxo esportivo
+    // quando a pergunta é sobre texto, explicação, código, negócio, planejamento ou criatividade.
+    const generalKind = this.classifyGeneralKind(text);
+    if (generalKind) {
+      return route(generalKind, 0.93, 'Pergunta geral identificada pelo Master Router V22.', this.generalKindNeedsResearch(generalKind, text) ? 'research' : 'llm');
+    }
 
     if (cleanedQuery?.intentHint === 'TODAY_CUP_GAMES') {
       return route('FOOTBALL_TODAY_GAMES', 0.99, 'QueryCleaner identificou jogos de Copa/Mundial hoje.', 'flashscore');
@@ -140,6 +155,61 @@ export class OddixMasterRouterService {
     }
 
     return route('GENERAL_CHAT', 0.86, 'Pergunta geral; não deve forçar cérebro de futebol.', 'llm');
+  }
+
+  private classifyGeneralKind(text: string): OddixMasterRouteKind | null {
+    const hasFootballTerm = this.isFootballish(text);
+    const hasStrongFootballAction = this.hasAny(text, [
+      'jogos de hoje', 'jogo de hoje', 'quais jogos', 'quem joga hoje', 'ao vivo', 'placar',
+      'escalação', 'escalacao', 'lineup', 'odds', 'odd', 'cotação', 'cotacao', 'aposta',
+      'multipla', 'múltipla', 'top pick', 'classificação', 'classificacao', 'tabela',
+    ]);
+
+    // Se claramente é uma pergunta de futebol, não rotular como geral.
+    if (hasFootballTerm && hasStrongFootballAction) return null;
+
+    if (this.hasAny(text, [
+      'crie um texto', 'cria um texto', 'escreva', 'reescreva', 'melhore esse texto', 'corrija esse texto',
+      'texto formal', 'mensagem para cliente', 'email', 'e-mail', 'legenda', 'copy', 'roteiro', 'proposta',
+      'contrato', 'orçamento', 'orcamento', 'bio para instagram', 'post', 'anuncio', 'anúncio',
+    ])) return 'GENERAL_WRITING';
+
+    if (this.hasAny(text, [
+      'me explica', 'explique', 'o que é', 'o que e', 'como funciona', 'qual a diferença', 'resuma',
+      'passo a passo', 'ensina', 'tutorial', 'defina', 'conceito de',
+    ])) return 'GENERAL_EXPLANATION';
+
+    if (this.hasAny(text, [
+      'código', 'codigo', 'programa', 'typescript', 'javascript', 'node', 'nest', 'react', 'next',
+      'erro ts', 'build', 'git', 'api', 'endpoint', 'função', 'funcao', 'classe', 'sql', 'python',
+    ])) return 'GENERAL_CODE';
+
+    if (this.hasAny(text, [
+      'calcule', 'quanto é', 'quanto e', 'porcentagem', 'percentual', 'juros', 'regra de três',
+      'regra de tres', 'somar', 'dividir', 'multiplicar', 'subtrair',
+    ])) return 'GENERAL_MATH';
+
+    if (this.hasAny(text, [
+      'ideia', 'ideias', 'criativo', 'criatividade', 'nome para', 'slogan', 'marca', 'logo',
+      'campanha', 'conteúdo', 'conteudo', 'brainstorm', 'meme', 'prompt',
+    ])) return 'GENERAL_CREATIVE';
+
+    if (this.hasAny(text, [
+      'negócio', 'negocio', 'cliente', 'vendas', 'empresa', 'preço', 'preco', 'estratégia', 'estrategia',
+      'marketing', 'atendimento', 'prospecção', 'prospeccao', 'orcamento', 'orçamento',
+    ])) return 'GENERAL_BUSINESS';
+
+    if (this.hasAny(text, [
+      'plano', 'planejamento', 'organize', 'organizar', 'cronograma', 'agenda', 'tarefa',
+      'prioridade', 'metas', 'rotina', 'checklist',
+    ])) return 'GENERAL_PLANNING';
+
+    return null;
+  }
+
+  private generalKindNeedsResearch(kind: OddixMasterRouteKind, text: string) {
+    if (kind === 'GENERAL_CODE') return false;
+    return this.needsCurrentResearch(text);
   }
 
   private hasTodayGamesIntent(text: string) {

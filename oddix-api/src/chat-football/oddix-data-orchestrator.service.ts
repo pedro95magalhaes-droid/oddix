@@ -7,6 +7,7 @@ import { OddixQueryCleanerService } from './oddix-query-cleaner.service';
 import { OddixResearchAgentService } from './oddix-research-agent.service';
 import { OddixWorldCupResolverService } from './oddix-worldcup-resolver.service';
 import { FlashScoreService } from './flashscore.service';
+import { OddixGlobalAiService } from './oddix-global-ai.service';
 import { OddixMasterRouterService, OddixMasterRoute } from './oddix-master-router.service';
 
 export type OddixDataOrchestratorResponse = {
@@ -24,6 +25,7 @@ export class OddixDataOrchestratorService {
     @Optional() private readonly footballService?: FootballService,
     @Optional() private readonly flashScoreService?: FlashScoreService,
     @Optional() private readonly masterRouter?: OddixMasterRouterService,
+    @Optional() private readonly globalAiService?: OddixGlobalAiService,
     @Optional() private readonly researchService?: FootballResearchService,
     @Optional() private readonly llmService?: OddixLlmService,
     @Optional() private readonly brainService?: OddixBrainService,
@@ -74,8 +76,21 @@ export class OddixDataOrchestratorService {
         return this.answerGeneralFootball(message, decision);
       }
 
-      if (masterRoute?.kind === 'GENERAL_CHAT') {
-        return this.answerGeneral(message);
+      if (masterRoute?.kind === 'GENERAL_RESEARCH') {
+        return this.answerGeneralResearch(message, decision, masterRoute);
+      }
+
+      if (
+        masterRoute?.kind === 'GENERAL_CHAT' ||
+        masterRoute?.kind === 'GENERAL_WRITING' ||
+        masterRoute?.kind === 'GENERAL_EXPLANATION' ||
+        masterRoute?.kind === 'GENERAL_CODE' ||
+        masterRoute?.kind === 'GENERAL_MATH' ||
+        masterRoute?.kind === 'GENERAL_CREATIVE' ||
+        masterRoute?.kind === 'GENERAL_BUSINESS' ||
+        masterRoute?.kind === 'GENERAL_PLANNING'
+      ) {
+        return this.answerGeneral(message, masterRoute);
       }
 
       if (decision.intent === 'GENERAL') {
@@ -251,22 +266,113 @@ ${status}
     };
   }
 
-  private async answerGeneral(message: string): Promise<OddixDataOrchestratorResponse> {
+  private async answerGeneral(
+    message: string,
+    masterRoute?: OddixMasterRoute | null,
+  ): Promise<OddixDataOrchestratorResponse> {
+    const globalAnswer = await this.globalAiService?.answer(message).catch((error: any) => {
+      this.logger.warn(`[ODDIX_GLOBAL_AI] falhou no orchestrator: ${error?.message || error}`);
+      return null;
+    });
+
+    if (globalAnswer?.answer) {
+      return {
+        handled: true,
+        answer: globalAnswer.answer,
+        data: {
+          general: true,
+          source: globalAnswer.success ? 'oddix-global-ai' : 'oddix-global-ai-local-fallback',
+          route: masterRoute || null,
+        },
+        suggestions: globalAnswer.suggestions,
+      };
+    }
+
+    const context = JSON.stringify(
+      {
+        route: masterRoute || null,
+        regra: 'Esta é uma pergunta geral. Não force futebol, apostas ou FlashScore. Responda como assistente geral. Só mencione limitações se precisar de dados atuais que não foram fornecidos.',
+      },
+      null,
+      2,
+    );
+
     const answer = await this.humanizeWithDeepSeek(
       message,
-      'Pergunta geral, sem necessidade obrigatória de dados atuais de futebol.',
-      `Responda como um assistente inteligente e natural.
-Se a pergunta for sobre apostas ou jogos atuais, avise que precisa consultar a base Oddix.
-Se for conhecimento geral, responda normalmente.`,
+      context,
+      `Você é a IA geral da Oddix, em português do Brasil.
+Responda qualquer pergunta comum com clareza: explicações, textos, ideias, cálculos simples, planejamento, tecnologia, código, negócios e dúvidas gerais.
+Não force futebol/apostas quando a pergunta não for sobre futebol.
+Se a pergunta exigir dado atual e não houver pesquisa/contexto, diga que precisa verificar fontes atuais em vez de inventar.`,
     );
 
     return {
       handled: true,
       answer:
         answer ||
-        'Posso te ajudar com futebol, apostas, análise de jogos, múltiplas, gestão de banca ou perguntas gerais. Me diga o que você quer analisar.',
-      data: { general: true },
+        this.localGeneralFallback(message),
+      data: { general: true, route: masterRoute || null, source: answer ? 'llm' : 'local-general-fallback' },
     };
+  }
+
+  private async answerGeneralResearch(
+    message: string,
+    decision: OddixBrainDecision,
+    masterRoute?: OddixMasterRoute | null,
+  ): Promise<OddixDataOrchestratorResponse> {
+    const research = await this.runResearch(message, decision, message).catch(() => null);
+    const hasResearch = !!research?.items?.length || !!research?.summary;
+
+    const context = JSON.stringify(
+      {
+        route: masterRoute || null,
+        research,
+        regra: 'Pergunta geral com possível necessidade de informação atual. Use a pesquisa quando houver dados. Se a pesquisa falhar, responda com conhecimento geral e deixe claro quando algo depender de atualização.',
+      },
+      null,
+      2,
+    );
+
+    const answer = await this.humanizeWithDeepSeek(
+      message,
+      context,
+      `Responda como ChatGPT em português do Brasil.
+A pergunta não é necessariamente futebol. Não force dados esportivos.
+Use o contexto de pesquisa se existir. Se não existir, responda com segurança e marque incerteza quando for informação atual.`,
+    );
+
+    return {
+      handled: true,
+      answer:
+        answer ||
+        (hasResearch
+          ? `🔎 Encontrei informações na pesquisa, mas não consegui formatar uma resposta completa agora. Resumo disponível:\n\n${research?.summary || 'Sem resumo disponível.'}`
+          : this.localGeneralFallback(message)),
+      data: { general: true, currentResearch: true, route: masterRoute || null, research },
+      suggestions: ['Reformular pergunta', 'Pesquisar mais detalhes', 'Fazer pergunta sobre futebol'],
+    };
+  }
+
+  private localGeneralFallback(message: string) {
+    const text = this.normalize(message);
+
+    if (/^oi\b|^ola\b|^olá\b|bom dia|boa tarde|boa noite/.test(text)) {
+      return 'Olá! Pode perguntar sobre futebol, apostas, textos, ideias, tecnologia, planejamento ou qualquer dúvida geral.';
+    }
+
+    if (text.includes('gestao de banca') || text.includes('gestão de banca')) {
+      return 'Gestão de banca é o conjunto de regras para controlar quanto você arrisca em cada aposta. Uma regra conservadora é usar de 1% a 2% da banca por entrada, evitar recuperar perdas aumentando stake e registrar todas as apostas.';
+    }
+
+    if (text.includes('texto formal') || text.includes('mensagem formal')) {
+      return `Claro. Modelo base:\n\nPrezado(a), tudo bem?\n\nGostaria de reforçar nosso compromisso em oferecer um atendimento claro, profissional e eficiente. Permanecemos à disposição para esclarecer dúvidas e alinhar os próximos passos conforme sua necessidade.\n\nAtenciosamente,\n[Seu nome]`;
+    }
+
+    if (text.includes('obrigado') || text.includes('valeu')) {
+      return 'De nada!';
+    }
+
+    return 'Entendi. Posso responder perguntas gerais, criar textos, explicar assuntos, organizar ideias e analisar futebol/apostas. Para dados em tempo real, preciso de pesquisa ou API disponível para não inventar informação.';
   }
 
   private async answerGeneralFootball(
