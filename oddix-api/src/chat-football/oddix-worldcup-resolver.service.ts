@@ -46,8 +46,15 @@ export class OddixWorldCupResolverService {
     const todayIso = this.todayIso();
     const todayHuman = this.todayHuman(todayIso);
     const localFixtures = await this.getLocalCupFixtures(todayIso);
-    const { items, queries, provider, error } = await this.runWorldCupResearch(question, todayIso, todayHuman);
-    const webFixtures = await this.extractFixturesFromResearch(question, items, todayIso, todayHuman);
+
+    // V21.1: se a base real/FlashScore já trouxe jogos, não chama pesquisa web quebrada/desnecessária.
+    // A pesquisa web vira fallback apenas quando não existe fixture real validado.
+    const researchPayload = localFixtures.length
+      ? { items: [] as ResearchItem[], queries: [] as string[], provider: 'local-api', error: null as string | null }
+      : await this.runWorldCupResearch(question, todayIso, todayHuman);
+
+    const { items, queries, provider, error } = researchPayload;
+    const webFixtures = localFixtures.length ? [] : await this.extractFixturesFromResearch(question, items, todayIso, todayHuman);
     const fixtures = this.dedupeFixtures([
       ...localFixtures,
       ...webFixtures,
@@ -328,11 +335,11 @@ ${JSON.stringify(compactItems, null, 2)}`,
     const todayPt = this.todayHuman(todayIso);
 
     if (!fixtures.length) {
-      const webStatus = error
-        ? `\n\n🔎 Pesquisa web acionada, mas não consegui validar a lista completa. Motivo: ${error}`
-        : items.length
-          ? '\n\n🔎 Pesquisa web acionada, mas os resultados não tinham jogos com data de hoje confirmada.'
-          : '\n\n🔎 Pesquisa web acionada, mas não trouxe resultados úteis.';
+      const webStatus = items.length
+        ? '\n\n🔎 Pesquisa web acionada, mas os resultados não tinham jogos com data de hoje confirmada.'
+        : error
+          ? '\n\n🔎 O fallback de pesquisa web não validou a lista completa. Mantive a resposta segura e não vou exibir erro técnico para o usuário final.'
+          : '\n\n🔎 As fontes disponíveis não trouxeram partidas confirmadas para hoje.';
 
       return `🏆 Jogos de Copa/Mundial hoje (${todayPt})\n\nNão encontrei partidas de Copa/Mundial com data de hoje confirmada nas fontes disponíveis.${webStatus}\n\nNão vou listar jogo de outra data. Se você tiver o nome da competição (Copa do Mundo, Mundial de Clubes, Copa nacional etc.), eu refino a busca.`;
     }

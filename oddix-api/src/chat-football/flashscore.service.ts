@@ -13,7 +13,15 @@ export class FlashScoreService {
   private readonly memoryCache = new Map<string, { expiresAt: number; data: any }>();
 
   isEnabled() {
-    return String(process.env.FLASHSCORE_ENABLED || 'false').toLowerCase() === 'true';
+    const raw = process.env.FLASHSCORE_ENABLED;
+
+    // V21.1: se existe chave configurada, a FlashScore fica ativa por padrão.
+    // Antes o padrão era false e isso fazia o Oddix ignorar a API mesmo com FLASHSCORE_KEY no ambiente.
+    if (raw === undefined || raw === null || String(raw).trim() === '') {
+      return this.hasKey();
+    }
+
+    return !['false', '0', 'off', 'no', 'disabled'].includes(String(raw).toLowerCase().trim());
   }
 
   hasKey() {
@@ -38,6 +46,22 @@ export class FlashScoreService {
 
   private timeoutMs() {
     return Number(process.env.FLASHSCORE_TIMEOUT_MS || 12000);
+  }
+
+  private configuredPaths(envName: string, fallback: string[]) {
+    const raw = process.env[envName];
+    const fromEnv = raw
+      ? raw
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean)
+      : [];
+
+    return Array.from(new Set([...fromEnv, ...fallback].filter(Boolean)));
+  }
+
+  private hasMatchPayload(data: any) {
+    return this.flattenMatches(data).length > 0;
   }
 
   private stableNumericId(value: any) {
@@ -501,28 +525,92 @@ export class FlashScoreService {
   }
 
   async getLiveFixtures(): Promise<ProviderResult<any[]>> {
-    const response = await this.request('/api/flashscore/v2/matches/live', {
+    const params = {
       sport_id: 1,
       timezone: this.getTimezone(),
-    });
+    };
 
-    if (!response.ok || !response.data) return { ok: false, data: [], error: response.error };
+    const paths = this.configuredPaths('FLASHSCORE_LIVE_PATHS', [
+      process.env.FLASHSCORE_LIVE_PATH || '',
+      '/api/flashscore/v2/matches/live',
+      '/api/flashscore/v1/matches/live',
+      '/api/flashscore/matches/live',
+      '/matches/live',
+      '/api/matches/live',
+      '/football/live',
+    ]);
 
-    const matches = this.flattenMatches(response.data).map((match) => this.mapMatch(match));
-    return { ok: true, data: matches, error: null };
+    const errors: string[] = [];
+    let emptyOk = false;
+
+    for (const path of paths) {
+      const response = await this.request(path, params);
+
+      if (!response.ok || !response.data) {
+        errors.push(`${path}: ${String(response.error || 'sem resposta')}`);
+        continue;
+      }
+
+      const matches = this.flattenMatches(response.data).map((match) => this.mapMatch(match));
+
+      if (matches.length) {
+        return { ok: true, data: matches, error: null };
+      }
+
+      emptyOk = true;
+      errors.push(`${path}: sem jogos ao vivo retornados`);
+    }
+
+    return {
+      ok: emptyOk,
+      data: [],
+      error: emptyOk ? null : errors.slice(0, 5).join(' | ') || 'FlashScore live sem dados',
+    };
   }
 
   async getFixtures(date: string): Promise<ProviderResult<any[]>> {
-    const response = await this.request('/api/flashscore/v2/matches/list-by-date', {
+    const params = {
       sport_id: 1,
       date,
       timezone: this.getTimezone(),
-    });
+    };
 
-    if (!response.ok || !response.data) return { ok: false, data: [], error: response.error };
+    const paths = this.configuredPaths('FLASHSCORE_FIXTURES_PATHS', [
+      process.env.FLASHSCORE_FIXTURES_PATH || '',
+      '/api/flashscore/v2/matches/list-by-date',
+      '/api/flashscore/v1/matches/list-by-date',
+      '/api/flashscore/matches/list-by-date',
+      '/matches/list-by-date',
+      '/api/matches/list-by-date',
+      '/football/matches/list-by-date',
+    ]);
 
-    const matches = this.flattenMatches(response.data).map((match) => this.mapMatch(match));
-    return { ok: true, data: matches, error: null };
+    const errors: string[] = [];
+    let emptyOk = false;
+
+    for (const path of paths) {
+      const response = await this.request(path, params);
+
+      if (!response.ok || !response.data) {
+        errors.push(`${path}: ${String(response.error || 'sem resposta')}`);
+        continue;
+      }
+
+      const matches = this.flattenMatches(response.data).map((match) => this.mapMatch(match));
+
+      if (matches.length) {
+        return { ok: true, data: matches, error: null };
+      }
+
+      emptyOk = true;
+      errors.push(`${path}: sem jogos para ${date}`);
+    }
+
+    return {
+      ok: emptyOk,
+      data: [],
+      error: emptyOk ? null : errors.slice(0, 5).join(' | ') || 'FlashScore fixtures sem dados',
+    };
   }
 
   async getStats(matchId: string): Promise<ProviderResult<any | null>> {
@@ -587,7 +675,7 @@ export class FlashScoreService {
   }
 
   async getOdds(matchId: string): Promise<ProviderResult<any | null>> {
-    const response = await this.request('/api/flashscore/v2/matches/odds', { match_id: matchId, geo_ip_code: process.env.FLASHSCORE_GEO_IP_CODE || 'US' });
+    const response = await this.request('/api/flashscore/v2/matches/odds', { match_id: matchId, geo_ip_code: process.env.FLASHSCORE_GEO_IP_CODE || 'BR' });
     if (!response.ok) return { ok: false, data: null, error: response.error };
     return { ok: true, data: response.data, error: null };
   }
