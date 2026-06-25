@@ -410,10 +410,10 @@ export default function OddixChatPage() {
           chatId: sessionId || 'oddix-web-session',
           messages,
           history: messages,
-          version: 'v22.1',
+          version: 'v22.2',
           context: {
             source: 'oddix-web-chat',
-            version: 'V22.1-general-football-brain',
+            version: 'V22.2-premium-general-ui',
             sessionId: sessionId || 'oddix-web-session',
           },
         }),
@@ -521,7 +521,7 @@ export default function OddixChatPage() {
   }
 
   return (
-    <main className="oddix-chat-root h-dvh w-screen overflow-hidden bg-[var(--oddix-bg)] text-[#ecfff7] [--header-height:52px] [--sidebar-width:260px] [--sidebar-rail-width:72px] [--thread-content-max-width:48rem] [--thread-content-margin:clamp(1rem,4vw,4rem)] [--oddix-bg:#0b0f14] [--oddix-sidebar:#081019] [--oddix-surface:#101922] [--oddix-surface-2:#132231] [--oddix-border:rgba(16,185,129,.18)] [--oddix-green:#10b981]">
+    <main className="oddix-chat-root h-dvh w-screen overflow-hidden bg-[var(--oddix-bg)] text-[#f6f7fb] [--header-height:56px] [--sidebar-width:276px] [--sidebar-rail-width:78px] [--thread-content-max-width:52rem] [--thread-content-margin:clamp(1rem,4vw,4.5rem)] [--oddix-bg:#090b10] [--oddix-sidebar:#070910] [--oddix-surface:#121620] [--oddix-surface-2:#191f2b] [--oddix-border:rgba(245,158,11,.18)] [--oddix-accent:#f59e0b] [--oddix-accent-2:#8b5cf6] [--oddix-muted:#aeb7c7]">
       <style jsx global>{`
         html,
         body {
@@ -529,7 +529,7 @@ export default function OddixChatPage() {
           max-width: 100%;
           height: 100%;
           overflow: hidden;
-          background: #0b0f14;
+          background: #090b10;
           overscroll-behavior: none;
           -webkit-font-smoothing: antialiased;
           text-rendering: geometricPrecision;
@@ -567,31 +567,76 @@ export default function OddixChatPage() {
         }
 
         .oddix-message strong {
-          color: #d1fae5;
+          color: #fde68a;
           font-weight: 800;
         }
 
         .oddix-premium-bg {
           background:
-            radial-gradient(circle at 50% 0%, rgba(16,185,129,.14), transparent 34%),
-            radial-gradient(circle at 85% 18%, rgba(59,130,246,.10), transparent 30%),
-            linear-gradient(180deg, #0b0f14 0%, #0b0f14 52%, #070b10 100%);
+            radial-gradient(circle at 48% -10%, rgba(245,158,11,.12), transparent 34%),
+            radial-gradient(circle at 88% 16%, rgba(139,92,246,.16), transparent 30%),
+            radial-gradient(circle at 12% 20%, rgba(59,130,246,.10), transparent 26%),
+            linear-gradient(180deg, #090b10 0%, #0b0d13 52%, #06070b 100%);
         }
 
         .oddix-glass {
-          background: linear-gradient(180deg, rgba(16,25,34,.92), rgba(10,18,26,.92));
-          border: 1px solid rgba(16,185,129,.16);
-          box-shadow: 0 18px 60px rgba(0,0,0,.28);
+          background: linear-gradient(180deg, rgba(18,22,32,.94), rgba(9,12,18,.92));
+          border: 1px solid rgba(245,158,11,.14);
+          box-shadow: 0 18px 70px rgba(0,0,0,.36);
         }
 
         .oddix-premium-chip {
-          border: 1px solid rgba(16,185,129,.18);
-          background: rgba(16,185,129,.08);
-          color: #a7f3d0;
+          border: 1px solid rgba(245,158,11,.20);
+          background: rgba(245,158,11,.075);
+          color: #fde68a;
         }
 
         .oddix-logo-glow {
-          box-shadow: 0 0 34px rgba(16,185,129,.32), inset 0 0 18px rgba(255,255,255,.08);
+          box-shadow: 0 0 38px rgba(245,158,11,.24), 0 0 80px rgba(139,92,246,.16), inset 0 0 18px rgba(255,255,255,.08);
+        }
+
+        .oddix-answer-card {
+          background: linear-gradient(180deg, rgba(18,22,32,.62), rgba(10,13,19,.36));
+          border: 1px solid rgba(255,255,255,.065);
+          box-shadow: 0 14px 42px rgba(0,0,0,.22);
+        }
+
+        .oddix-message p {
+          margin: .55rem 0;
+        }
+
+        .oddix-message ul,
+        .oddix-message ol {
+          margin: .55rem 0 .75rem 1.2rem;
+        }
+
+        .oddix-message li {
+          margin: .28rem 0;
+        }
+
+        .oddix-message h1,
+        .oddix-message h2,
+        .oddix-message h3 {
+          margin: .9rem 0 .45rem;
+          color: #ffffff;
+          line-height: 1.25;
+        }
+
+        .oddix-message code {
+          border: 1px solid rgba(245,158,11,.18);
+          border-radius: .55rem;
+          background: rgba(245,158,11,.08);
+          padding: .08rem .38rem;
+          color: #fde68a;
+        }
+
+        .oddix-message pre {
+          margin: .8rem 0;
+          overflow-x: auto;
+          border-radius: 1rem;
+          border: 1px solid rgba(255,255,255,.08);
+          background: #070910;
+          padding: 1rem;
         }
 
         .oddix-chat-root textarea {
@@ -646,7 +691,7 @@ export default function OddixChatPage() {
 
         <aside
           className={[
-            'fixed inset-y-0 left-0 z-50 flex h-full w-[var(--sidebar-width)] shrink-0 flex-col overflow-hidden border-r border-[#2a2a2a] bg-[var(--oddix-sidebar)] text-[#ecfff7] transition-[width,transform] duration-150 ease-out lg:relative lg:z-10 lg:translate-x-0',
+            'fixed inset-y-0 left-0 z-50 flex h-full w-[var(--sidebar-width)] shrink-0 flex-col overflow-hidden border-r border-[#2a2a2a] bg-[var(--oddix-sidebar)] text-[#f6f7fb] transition-[width,transform] duration-150 ease-out lg:relative lg:z-10 lg:translate-x-0',
             mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
             sidebarOpen ? 'lg:w-[var(--sidebar-width)]' : 'lg:w-[var(--sidebar-rail-width)] oddix-sidebar-rail',
           ].join(' ')}
@@ -659,13 +704,13 @@ export default function OddixChatPage() {
                 className="flex min-w-0 items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-semibold text-white/90 hover:bg-white/10"
                 aria-label="Início Oddix"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center oddix-logo-glow rounded-full bg-emerald-500/10 p-0.5">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center oddix-logo-glow rounded-2xl bg-amber-500/10 p-1">
                   <Image
                     src="/images/oddix-logo-icon.png"
                     alt="Oddix"
-                    width={28}
-                    height={28}
-                    className="h-6 w-6 object-contain"
+                    width={42}
+                    height={42}
+                    className="h-8 w-8 object-contain"
                     priority
                   />
                 </span>
@@ -724,7 +769,7 @@ export default function OddixChatPage() {
               {showSidebarLabels && (
                 <div className="mb-2 flex items-center justify-between px-3 text-xs font-medium text-white/45">
                   <span>Recentes</span>
-                  {historyLoading && <span className="text-emerald-300/70">...</span>}
+                  {historyLoading && <span className="text-amber-300/70">...</span>}
                 </div>
               )}
 
@@ -738,7 +783,7 @@ export default function OddixChatPage() {
                         transition={{ delay: index * 0.025 }}
                         className={[
                           'group flex w-full items-center rounded-xl text-left text-sm hover:bg-white/10',
-                          sessionId === item.id ? 'bg-emerald-500/10 text-emerald-100' : 'text-white/82',
+                          sessionId === item.id ? 'bg-amber-500/10 text-amber-100' : 'text-white/82',
                         ].join(' ')}
                       >
                         <button
@@ -747,7 +792,7 @@ export default function OddixChatPage() {
                           className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left"
                           title={getSessionTitle(item)}
                         >
-                          <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400/80" />
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400/80" />
                           {showSidebarLabels && (
                             <span className="oddix-sidebar-label min-w-0 flex-1">
                               <span className="block truncate">{getSessionTitle(item)}</span>
@@ -779,7 +824,7 @@ export default function OddixChatPage() {
                         className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-white/82 hover:bg-white/10"
                         title={item.title}
                       >
-                        <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400/80" />
+                        <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400/80" />
                         {showSidebarLabels && (
                           <span className="oddix-sidebar-label min-w-0 flex-1">
                             <span className="block truncate">{item.title}</span>
@@ -796,7 +841,7 @@ export default function OddixChatPage() {
                 type="button"
                 className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-white/10"
               >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/12 text-xs font-black text-emerald-300">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/12 text-xs font-black text-amber-300">
                   PM
                 </span>
                 {showSidebarLabels && (
@@ -851,8 +896,8 @@ export default function OddixChatPage() {
                   className="h-6 w-auto object-contain"
                   priority
                 />
-                <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                  V22.1
+                <span className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300 shadow-[0_0_22px_rgba(245,158,11,.16)]">
+                  V22.2
                 </span>
               </div>
             </div>
@@ -861,7 +906,7 @@ export default function OddixChatPage() {
               <span
                 className={[
                   'hidden rounded-full px-3 py-1.5 text-xs font-semibold sm:inline-flex',
-                  apiConnected ? 'bg-emerald-500/12 text-emerald-300' : 'bg-yellow-500/12 text-yellow-300',
+                  apiConnected ? 'bg-amber-500/12 text-amber-300' : 'bg-yellow-500/12 text-yellow-300',
                 ].join(' ')}
               >
                 {apiConnected ? '● API online' : '● API offline'}
@@ -896,9 +941,9 @@ export default function OddixChatPage() {
                       <Image
                         src="/images/oddix-logo-banner.png"
                         alt="Oddix"
-                        width={280}
-                        height={90}
-                        className="h-auto w-[220px] object-contain drop-shadow-[0_0_42px_rgba(16,185,129,.28)] sm:w-[280px]"
+                        width={420}
+                        height={140}
+                        className="h-auto w-[300px] object-contain drop-shadow-[0_0_58px_rgba(245,158,11,.24)] sm:w-[380px]"
                         priority
                       />
                     </div>
@@ -963,23 +1008,23 @@ export default function OddixChatPage() {
                       className={['flex w-full', item.role === 'user' ? 'justify-end' : 'justify-start'].join(' ')}
                     >
                       {item.role === 'assistant' && (
-                        <div className="mr-3 mt-1 hidden h-8 w-8 shrink-0 items-center justify-center oddix-logo-glow rounded-full bg-emerald-500/10 p-1 sm:flex">
+                        <div className="mr-4 mt-1 hidden h-10 w-10 shrink-0 items-center justify-center oddix-logo-glow rounded-2xl bg-amber-500/10 p-1.5 sm:flex">
                           <Image
                             src="/images/oddix-logo-icon.png"
                             alt="Oddix"
-                            width={24}
-                            height={24}
-                            className="h-6 w-6 object-contain"
+                            width={34}
+                            height={34}
+                            className="h-7 w-7 object-contain"
                           />
                         </div>
                       )}
 
                       <div
                         className={[
-                          'oddix-message max-w-[min(100%,42rem)] text-[15px] leading-7 sm:text-base',
+                          'oddix-message max-w-[min(100%,46rem)] text-[15px] leading-7 sm:text-base',
                           item.role === 'user'
-                            ? 'rounded-[26px] bg-[var(--oddix-surface)] px-5 py-3.5 text-white/92'
-                            : 'px-0 py-1 text-white/88',
+                            ? 'rounded-[26px] bg-[var(--oddix-surface)] px-5 py-3.5 text-white/92 shadow-[0_10px_34px_rgba(0,0,0,.20)]'
+                            : 'oddix-answer-card rounded-3xl px-5 py-4 text-white/88',
                         ].join(' ')}
                       >
                         {item.role === 'assistant' ? (
@@ -997,13 +1042,13 @@ export default function OddixChatPage() {
                       animate={{ opacity: 1 }}
                       className="flex items-center gap-3 text-sm text-white/58"
                     >
-                      <div className="hidden h-8 w-8 shrink-0 items-center justify-center oddix-logo-glow rounded-full bg-emerald-500/10 p-1 sm:flex">
+                      <div className="hidden h-10 w-10 shrink-0 items-center justify-center oddix-logo-glow rounded-2xl bg-amber-500/10 p-1.5 sm:flex">
                         <Image
                           src="/images/oddix-logo-icon.png"
                           alt="Oddix"
-                          width={24}
-                          height={24}
-                          className="h-6 w-6 object-contain"
+                          width={34}
+                          height={34}
+                          className="h-7 w-7 object-contain"
                         />
                       </div>
                       <div className="flex items-center gap-1 rounded-2xl bg-[var(--oddix-surface)] px-4 py-3">
@@ -1025,7 +1070,7 @@ export default function OddixChatPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35 }}
                 onSubmit={handleSubmit}
-                className="relative min-h-[52px] rounded-[28px] bg-[var(--oddix-surface)] px-2 py-[9px] shadow-[0_0_0_1px_rgba(16,185,129,.16),0_12px_44px_rgba(0,0,0,.42),0_0_40px_rgba(16,185,129,.08)] transition-all duration-200 focus-within:shadow-[0_0_0_1px_rgba(16,185,129,.36),0_14px_52px_rgba(0,0,0,.48),0_0_48px_rgba(16,185,129,.14)]"
+                className="relative min-h-[52px] rounded-[28px] bg-[var(--oddix-surface)] px-2 py-[9px] shadow-[0_0_0_1px_rgba(245,158,11,.16),0_12px_44px_rgba(0,0,0,.42),0_0_40px_rgba(245,158,11,.08)] transition-all duration-200 focus-within:shadow-[0_0_0_1px_rgba(245,158,11,.36),0_14px_52px_rgba(0,0,0,.48),0_0_48px_rgba(245,158,11,.14)]"
               >
                 <div className="flex items-end gap-2">
                   <button
@@ -1059,7 +1104,7 @@ export default function OddixChatPage() {
                   <button
                     type="submit"
                     disabled={!message.trim() || isThinking}
-                    className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-lg font-black text-black transition hover:scale-105 disabled:cursor-not-allowed disabled:bg-white/18 disabled:text-white/40 disabled:hover:scale-100"
+                    className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-400 text-lg font-black text-black transition hover:scale-105 hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-white/18 disabled:text-white/40 disabled:hover:scale-100"
                     aria-label="Enviar mensagem"
                   >
                     {isThinking ? '…' : '↑'}
@@ -1069,7 +1114,7 @@ export default function OddixChatPage() {
 
               <p className="mx-auto mt-2 max-w-2xl text-center text-[11px] leading-relaxed text-white/42">
                 Oddix IA usa dados, mercado e contexto. Confirme informações antes de apostar.{' '}
-                <span className="font-semibold text-emerald-300">+18 • Jogue com responsabilidade.</span>
+                <span className="font-semibold text-amber-300">+18 • Jogue com responsabilidade.</span>
               </p>
             </div>
           </div>

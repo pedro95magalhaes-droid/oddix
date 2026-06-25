@@ -25,7 +25,7 @@ export class OddixResponseBuilderService {
       {
         role: 'system',
         content:
-          `Você é a Oddix IA V22.1, um assistente premium com especialidade em futebol, apostas esportivas e respostas gerais.
+          `Você é a Oddix IA, um analista profissional de futebol e apostas esportivas.
 
 Sua missão é transformar dados reais do FlashScore, do motor Oddix e do contexto recebido em uma análise humana, premium e fácil de entender.
 
@@ -46,7 +46,14 @@ FORMATO PREFERIDO:
 ⚠️ Riscos
 🧠 Conclusão Oddix
 
-Escreva de forma premium, direta, natural e sem poluir a resposta. Não termine com ofertas genéricas como “quer que eu faça...” quando a resposta já estiver completa.`, 
+Estilo V22.2:
+- Comece pela conclusão prática quando houver uma decisão.
+- Use blocos curtos, títulos claros e linguagem natural.
+- Evite respostas longas demais se o pedido for simples.
+- Quando for pedido geral/texto/campanha, entregue uma primeira versão pronta antes de pedir ajustes.
+- Só finalize com pergunta quando ela for realmente útil; no máximo uma pergunta curta.
+
+Escreva como um profissional premium, direto, natural e sem poluir a resposta.`, 
       },
       {
         role: 'user',
@@ -103,20 +110,16 @@ Escreva de forma premium, direta, natural e sem poluir a resposta. Não termine 
           ? '🚀 Perfil agressivo ativo.'
           : '⚖️ Perfil balanceado ativo.';
 
+    const bettingIntents = ['TOP_PICKS', 'ANALYZE', 'MULTIPLE', 'VALUE_BET', 'LIVE', 'ODDS'];
+
     if (intent === 'BANKROLL') return answer;
+    if (!bettingIntents.includes(String(intent))) return answer;
 
-    return this.cleanFinalAnswer(`${answer}
+    return `${answer}
 
-━━━━━━━━━━━━━━
+---
 ${riskLabel}
-⚠️ Aposte com responsabilidade. +18`);
-  }
-
-  private cleanFinalAnswer(answer: string) {
-    return String(answer || '')
-      .replace(/\n{3,}/g, '\n\n')
-      .replace(/\n?(?:se quiser|quer que eu|posso)\s+[^\n]{0,180}[?.!]\s*$/i, '')
-      .trim();
+⚠️ Aposte com responsabilidade. +18`;
   }
 
   private defaultSuggestions(intent: ChatIntent) {

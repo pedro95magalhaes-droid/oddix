@@ -64,26 +64,6 @@ export class OddixDataOrchestratorService {
     this.applyMasterRouteToDecision(masterRoute, decision);
 
     try {
-      if (masterRoute?.kind === 'FOOTBALL_LIVE') {
-        return this.answerLiveGames(message, decision);
-      }
-
-      if (masterRoute?.kind === 'FOOTBALL_TODAY_GAMES') {
-        return this.answerTodayGames(message, decision);
-      }
-
-      if (masterRoute?.kind === 'BETTING_MULTIPLE') {
-        return this.answerMultiple(message, decision);
-      }
-
-      if (masterRoute?.kind === 'BETTING_TOP_PICK') {
-        return this.answerTopPicks(message, decision);
-      }
-
-      if (masterRoute?.kind === 'BETTING_VALUE') {
-        return this.answerGeneralFootball(message, decision);
-      }
-
       if (masterRoute?.kind === 'FOOTBALL_LINEUP' || this.asksForLineup(message)) {
         return this.answerLineupQuestion(message, decision);
       }
@@ -206,8 +186,8 @@ export class OddixDataOrchestratorService {
       quota,
       unavailable: quota || attempts.some((attempt: any) => attempt?.ok === false),
       reason: quota
-        ? 'A fonte principal FlashScore está conectada, mas a cota/limite do provider foi atingida. Ativei cache e fallback público/web para tentar validar os dados sem inventar placar.'
-        : 'A fonte principal FlashScore não confirmou dados agora. Ativei cache e fallback público/web e só vou responder com dados validados.',
+        ? 'A FlashScore está conectada, mas a cota/limite do provider foi atingida. Acionei fallback web/cache e não vou inventar dados.'
+        : 'A FlashScore não confirmou dados agora. Acionei fallback web/cache e não vou inventar dados.',
     };
   }
 
@@ -320,10 +300,12 @@ ${status}
     const answer = await this.humanizeWithDeepSeek(
       message,
       context,
-      `Você é a IA geral da Oddix, em português do Brasil.
-Responda qualquer pergunta comum com clareza, objetividade e acabamento premium: explicações, textos, ideias, cálculos simples, planejamento, tecnologia, código, negócios e dúvidas gerais. Entregue direto o resultado pedido.
+      `Você é a IA geral da Oddix V22.2, em português do Brasil.
+Responda como um assistente premium: claro, humano, útil e direto.
+Regra principal: entregue primeiro uma resposta aproveitável. Só faça pergunta de esclarecimento depois de entregar uma primeira versão, modelo ou caminho prático.
+Para pedidos de texto, campanha, proposta, mensagem, e-mail ou roteiro, crie uma versão pronta para uso com campos editáveis quando faltar contexto.
 Não force futebol/apostas quando a pergunta não for sobre futebol.
-Se a pergunta exigir dado atual e não houver pesquisa/contexto, diga que precisa verificar fontes atuais em vez de inventar. Não finalize com perguntas genéricas de continuidade; só sugira próximo passo quando for realmente útil.`,
+Se a pergunta exigir dado atual e não houver pesquisa/contexto, diga que precisa verificar fontes atuais em vez de inventar.`,
     );
 
     return {
@@ -356,7 +338,8 @@ Se a pergunta exigir dado atual e não houver pesquisa/contexto, diga que precis
     const answer = await this.humanizeWithDeepSeek(
       message,
       context,
-      `Responda como ChatGPT em português do Brasil.
+      `Responda como assistente geral premium em português do Brasil.
+Entregue resposta direta, bem estruturada e útil. Evite responder apenas com perguntas.
 A pergunta não é necessariamente futebol. Não force dados esportivos.
 Use o contexto de pesquisa se existir. Se não existir, responda com segurança e marque incerteza quando for informação atual.`,
     );
@@ -572,15 +555,13 @@ Não invente partidas. Se a pergunta mencionar Copa/Mundial/FIFA, liste apenas j
       return {
         handled: true,
         answer:
-          `⚡ Jogos ao vivo
-
-Não encontrei uma lista confiável de jogos ao vivo neste momento.
+          `⚡ Não encontrei jogos ao vivo/ativos confirmados agora.
 
 ${flashScoreStatus.reason}
 
-Também consultei fallback público/web em tempo real, mas nenhuma fonte confirmou partidas ativas com segurança suficiente. Por isso, não vou inventar placar, minuto ou competição.
+Também tentei a pesquisa web em tempo real, mas ela não confirmou uma lista confiável de jogos ao vivo. Não vou inventar placar.
 
-Comando técnico: \`diagnóstico flashscore\`.`,
+Digite \`diagnóstico flashscore\` para ver o status técnico da conexão.`,
         data: {
           waitingForData: true,
           fixtures: [],
@@ -1990,6 +1971,73 @@ ${lines.join('\n')}
 ⚠️ Fonte: pesquisa web/cache. Confiança média. Sem placar, odds, estatísticas ou escalações oficiais validadas pela FlashScore neste momento.`;
   }
 
+
+  private isGeneralWritingRequest(text: string) {
+    return [
+      'texto formal',
+      'texto profissional',
+      'criar um texto',
+      'cria um texto',
+      'crie um texto',
+      'mensagem para cliente',
+      'proposta',
+      'email',
+      'e mail',
+      'campanha',
+      'copy',
+      'roteiro',
+      'comunicado',
+    ].some((term) => text.includes(this.normalize(term)));
+  }
+
+  private localWritingTemplate(text: string) {
+    if (text.includes('campanha')) {
+      return `Claro. Aqui está uma campanha pronta para adaptar:
+
+## Campanha: Cuidado que cabe no bolso
+
+**Objetivo:** aumentar vendas, reforçar confiança e aproximar a drogaria dos clientes da região.
+
+**Público-alvo:** clientes recorrentes, famílias, idosos e pessoas que buscam preço justo com atendimento próximo.
+
+**Conceito:** saúde acessível, atendimento humano e praticidade no dia a dia.
+
+**Chamada principal:**
+Na dúvida, na pressa, no cuidado: a gente está aqui.
+
+**Ações práticas:**
+1. Ofertas-relâmpago no WhatsApp.
+2. Combo de cuidado com produtos essenciais.
+3. Post de interação: “qual item não pode faltar na sua casa?”
+4. Programa simples de pontos para clientes recorrentes.
+
+**Texto para post:**
+Cuidar da saúde não precisa ser complicado. Na [Nome da Drogaria], você encontra atendimento próximo, ofertas especiais e tudo para facilitar sua rotina. Passe aqui ou peça pelo WhatsApp.
+
+**Slogan:**
+Cuidado de verdade, preço que ajuda.`;
+    }
+
+    return `Claro. Aqui está um modelo formal versátil que você pode adaptar:
+
+**Assunto:** [Assunto principal]
+
+Prezado(a) [Nome],
+
+Espero que esteja bem.
+
+Gostaria de entrar em contato para tratar sobre [explique o motivo de forma breve]. Nosso objetivo é apresentar uma solução clara, organizada e adequada às suas necessidades, mantendo transparência e profissionalismo em todas as etapas.
+
+Fico à disposição para esclarecer qualquer dúvida e alinhar os próximos passos da melhor forma possível.
+
+Atenciosamente,
+[Seu nome]
+[Cargo ou empresa]
+[Contato]
+
+Quando você me enviar o contexto, eu adapto esse texto para o cliente, assunto e tom exatos.`;
+  }
+
   private async humanizeWithDeepSeek(userMessage: string, realContext: string, instruction: string) {
     if (!this.llmService?.isEnabled()) return null;
 
@@ -1997,7 +2045,7 @@ ${lines.join('\n')}
       {
         role: 'system',
         content:
-          'Você é a IA Oddix Chat V22.1, um assistente premium geral com cérebro especializado em futebol e apostas. Responda em português do Brasil, natural, direto e inteligente. Entregue a resposta completa sem terminar com ofertas genéricas como “quer que eu faça...”. Nunca invente dados atuais. Para futebol, odds, escalações e placares, use somente dados reais fornecidos pela pesquisa web, cache e APIs do backend. Se faltar dado, diga claramente.',
+          'Você é a IA Oddix Chat V22.2. Responda em português do Brasil com tom premium, natural, direto e útil. Entregue primeiro uma resposta aproveitável e só pergunte detalhes depois, quando necessário. Nunca invente dados atuais. Para futebol, use somente dados reais fornecidos pela pesquisa web e pelas APIs do backend. Se faltar dado, diga claramente.',
       },
       {
         role: 'user',
@@ -2011,17 +2059,7 @@ ${userMessage}`,
       },
     ];
 
-    const rawAnswer = await this.llmService.complete(messages);
-    return this.polishAssistantAnswer(rawAnswer);
-  }
-
-  private polishAssistantAnswer(answer: string | null | undefined) {
-    if (!answer) return answer || null;
-
-    return String(answer)
-      .replace(/\n{3,}/g, '\n\n')
-      .replace(/\n?(?:se quiser|quer que eu|posso)\s+[^\n]{0,180}[?.!]\s*$/i, '')
-      .trim();
+    return this.llmService.complete(messages);
   }
 
   private async getTodayFixtures() {
