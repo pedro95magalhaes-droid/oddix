@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
 import { FootballModule } from '../football/football.module';
 import { ChatFootballController } from './chat-football.controller';
 import { ChatFootballService } from './chat-football.service';
@@ -24,11 +25,15 @@ import { OddixResearchAgentService } from './oddix-research-agent.service';
 import { MatchResolverService } from './match-resolver.service';
 import { OddsCacheService } from './odds-cache.service';
 import { OddixWorldCupResolverService } from './oddix-worldcup-resolver.service';
-import { FlashScoreService } from './flashscore.service';
-import { OddixMasterRouterService } from './oddix-master-router.service';
 
 @Module({
-  imports: [FootballModule],
+  imports: [
+    FootballModule,
+    JwtModule.register({
+      secret: process.env.JWT_SECRET || 'oddix_secret_2026',
+      signOptions: { expiresIn: '7d' },
+    }),
+  ],
   controllers: [ChatFootballController],
   providers: [
     ChatFootballService,
@@ -54,8 +59,6 @@ import { OddixMasterRouterService } from './oddix-master-router.service';
     MatchResolverService,
     OddsCacheService,
     OddixWorldCupResolverService,
-    FlashScoreService,
-    OddixMasterRouterService,
   ],
   exports: [
     ChatFootballService,
@@ -81,8 +84,6 @@ import { OddixMasterRouterService } from './oddix-master-router.service';
     MatchResolverService,
     OddsCacheService,
     OddixWorldCupResolverService,
-    FlashScoreService,
-    OddixMasterRouterService,
   ],
 })
 export class ChatFootballModule {}

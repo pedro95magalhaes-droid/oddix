@@ -49,6 +49,97 @@ type ChatSession = {
   messages?: ChatHistoryMessage[];
 };
 
+type OddixAccessPlan = 'free' | 'vip' | 'pro' | 'premium' | 'admin';
+
+type OddixAuthUser = {
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+  role?: string | null;
+  plan?: string | null;
+  accessAllowed?: boolean;
+};
+
+const ODDIX_ALLOWED_CHAT_PLANS: OddixAccessPlan[] = ['vip', 'pro', 'premium', 'admin'];
+
+function normalizeOddixPlan(value?: string | null): OddixAccessPlan {
+  const plan = String(value || '').trim().toLowerCase();
+
+  if (plan === 'vip') return 'vip';
+  if (plan === 'pro') return 'pro';
+  if (plan === 'premium') return 'premium';
+  if (plan === 'admin' || plan === 'owner') return 'admin';
+
+  return 'free';
+}
+
+function isOddixPremiumPlan(plan: OddixAccessPlan) {
+  return ODDIX_ALLOWED_CHAT_PLANS.includes(plan);
+}
+
+function getOddixStoredAuthToken() {
+  if (typeof window === 'undefined') return '';
+
+  const keys = ['oddix_auth_token', 'oddix_token', 'access_token', 'token', 'auth_token', 'authToken', 'jwt'];
+
+  for (const key of keys) {
+    const value = window.localStorage.getItem(key);
+    if (value) return value;
+  }
+
+  for (const key of ['oddix_auth', 'oddix_session', 'user', 'auth']) {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) continue;
+
+    try {
+      const parsed = JSON.parse(raw);
+      const token = parsed?.access_token || parsed?.accessToken || parsed?.token || parsed?.jwt;
+      if (token) return String(token);
+    } catch {
+      // ignore invalid storage payloads
+    }
+  }
+
+  return '';
+}
+
+function getOddixStoredUser(): OddixAuthUser | null {
+  if (typeof window === 'undefined') return null;
+
+  for (const key of ['oddix_user', 'user', 'auth_user']) {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) continue;
+
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed?.user || parsed;
+    } catch {
+      // ignore invalid storage payloads
+    }
+  }
+
+  return null;
+}
+
+function storeOddixUser(user: OddixAuthUser | null, token?: string) {
+  if (typeof window === 'undefined') return;
+
+  if (token) {
+    window.localStorage.setItem('oddix_auth_token', token);
+    window.localStorage.setItem('oddix_token', token);
+    window.localStorage.setItem('access_token', token);
+  }
+
+  if (user) {
+    const plan = normalizeOddixPlan(user.plan);
+    window.localStorage.setItem('oddix_user', JSON.stringify(user));
+    window.localStorage.setItem('oddix_user_email', String(user.email || ''));
+    window.localStorage.setItem('oddix_user_plan', plan);
+    window.localStorage.setItem('oddix_access_plan', plan);
+  }
+}
+
+
 export default function OddixChatPage() {
   const [message, setMessage] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -60,6 +151,9 @@ export default function OddixChatPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [authToken, setAuthToken] = useState('');
+  const [authUser, setAuthUser] = useState<OddixAuthUser | null>(null);
+  const [accessLoaded, setAccessLoaded] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
@@ -69,7 +163,10 @@ export default function OddixChatPage() {
   const historyApi = cleanApiBase ? `${cleanApiBase}/chat-history` : '';
   const hasConversation = Array.isArray(messages) && messages.some((item) => item?.content?.trim().length > 0);
   const showSidebarLabels = sidebarOpen || mobileSidebarOpen;
-  const userId = 'demo-user';
+  const userId = authUser?.id || authUser?.email || 'demo-user';
+  const normalizedAccessPlan = normalizeOddixPlan(authUser?.plan || (typeof window !== 'undefined' ? window.localStorage.getItem('oddix_user_plan') : ''));
+  const hasPremiumAccess = isOddixPremiumPlan(normalizedAccessPlan);
+  const accessPlanLabel = normalizedAccessPlan === 'admin' ? 'Admin' : normalizedAccessPlan.toUpperCase();
 
   const suggestions: Suggestion[] = [
     {
@@ -190,6 +287,49 @@ export default function OddixChatPage() {
     setApiConnected(true);
     setApiStatus('api configurada');
   }, [apiBase]);
+
+  useEffect(() => {
+    async function loadAccess() {
+      const token = getOddixStoredAuthToken();
+      const storedUser = getOddixStoredUser();
+
+      if (storedUser) {
+        setAuthUser(storedUser);
+      }
+
+      if (!token) {
+        setAccessLoaded(true);
+        return;
+      }
+
+      setAuthToken(token);
+
+      if (!cleanApiBase) {
+        setAccessLoaded(true);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${cleanApiBase}/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const user = await response.json();
+          setAuthUser(user);
+          storeOddixUser(user, token);
+        }
+      } catch (error) {
+        console.warn('Falha ao validar acesso Oddix:', error);
+      } finally {
+        setAccessLoaded(true);
+      }
+    }
+
+    void loadAccess();
+  }, [cleanApiBase]);
 
   useEffect(() => {
     if (!historyApi) return;
@@ -430,7 +570,11 @@ export default function OddixChatPage() {
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          'x-oddix-plan': normalizedAccessPlan,
+        },
         body: JSON.stringify({
           message: prompt,
           question: prompt,
@@ -439,10 +583,16 @@ export default function OddixChatPage() {
           chatId: sessionId || 'oddix-web-session',
           messages,
           history: messages,
-          version: 'v22.3',
+          version: 'v23.1',
+          userPlan: normalizedAccessPlan,
+          accessPlan: normalizedAccessPlan,
+          authToken,
           context: {
             source: 'oddix-web-chat',
-            version: 'V22.4.1-install-button-polish',
+            version: 'V23.1-auto-access',
+            userPlan: normalizedAccessPlan,
+            accessPlan: normalizedAccessPlan,
+            userEmail: authUser?.email || '',
             sessionId: sessionId || 'oddix-web-session',
           },
         }),
@@ -475,6 +625,21 @@ export default function OddixChatPage() {
   async function sendMessage(customText?: string) {
     const text = (customText ?? message).trim();
     if (!text || isThinking) return;
+
+    if (accessLoaded && !hasPremiumAccess) {
+      setMessages((current) => [
+        ...current,
+        { id: `user-${Date.now()}`, role: 'user', content: text },
+        {
+          id: `assistant-blocked-${Date.now()}`,
+          role: 'assistant',
+          content:
+            '🔒 **Acesso restrito**\n\nEste chat é exclusivo para clientes **VIP** e **PRO**. Faça login no dashboard com uma conta liberada para acessar o Oddix premium.',
+        },
+      ]);
+      setMessage('');
+      return;
+    }
 
     let currentSessionId = sessionId;
 
@@ -946,8 +1111,8 @@ export default function OddixChatPage() {
                 </span>
                 {showSidebarLabels && (
                   <span className="oddix-sidebar-label min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-white/90">Pedro Magalhães</span>
-                    <span className="block truncate text-xs text-white/42">Oddix Premium IA • {apiStatus}</span>
+                    <span className="block truncate text-sm font-semibold text-white/90">{authUser?.name || authUser?.email || 'Cliente Oddix'}</span>
+                    <span className="block truncate text-xs text-white/42">Plano {accessPlanLabel} • {apiStatus}</span>
                   </span>
                 )}
               </button>
@@ -997,7 +1162,7 @@ export default function OddixChatPage() {
                   priority
                 />
                 <span className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300 shadow-[0_0_22px_rgba(245,158,11,.16)]">
-                  V22.4.1
+                  V23.1
                 </span>
               </div>
             </div>
@@ -1028,7 +1193,17 @@ export default function OddixChatPage() {
             data-scroll-root=""
             className="oddix-scroll relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden scroll-pt-[var(--header-height)] [scrollbar-gutter:stable]"
           >
-            {!hasConversation ? (
+            {accessLoaded && !hasPremiumAccess ? (
+              <div className="mx-auto flex w-full max-w-3xl flex-1 items-center justify-center px-6 py-10 text-center">
+                <div className="oddix-glass rounded-[32px] p-8 shadow-[0_30px_120px_rgba(0,0,0,.45)]">
+                  <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-3xl border border-amber-300/20 bg-amber-400/10 text-4xl">🔒</div>
+                  <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">Acesso VIP / PRO</p>
+                  <h1 className="mt-4 text-3xl font-semibold text-white">Chat premium bloqueado</h1>
+                  <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-white/58">Faça login no dashboard com uma conta VIP, PRO, Premium ou Admin. A liberação agora é automática pelo plano da conta, sem token manual para o cliente.</p>
+                  <a href="/dashboard" className="mt-7 inline-flex h-12 items-center justify-center rounded-2xl bg-amber-400 px-6 text-sm font-black text-black hover:bg-amber-300">Abrir dashboard</a>
+                </div>
+              </div>
+            ) : !hasConversation ? (
               <div className="flex h-full min-h-0 flex-1 flex-col">
                 <div className="mx-auto flex w-full max-w-[var(--thread-content-max-width)] flex-1 flex-col items-center justify-center px-[var(--thread-content-margin)] pb-4 pt-8 text-center">
                   <motion.div

@@ -35,8 +35,8 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Patch('plan')
   async updatePlan(@Req() req: any, @Body() body: any) {
-    const userId = req.user.userId || req.user.sub || req.user.id;
+    const userId = body?.userId || req.user.userId || req.user.sub || req.user.id;
 
-    return this.authService.updatePlan(userId, body.plan);
+    return this.authService.updatePlan(userId, body.plan, req.user);
   }
 }
