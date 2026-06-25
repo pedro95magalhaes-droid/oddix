@@ -151,6 +151,35 @@ export default function OddixChatPage() {
     [],
   );
 
+
+  useEffect(() => {
+    const normalizeInstallButton = () => {
+      const candidates = Array.from(document.querySelectorAll('button, a')) as HTMLElement[];
+
+      for (const element of candidates) {
+        const label = (element.textContent || element.getAttribute('aria-label') || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        if (!label.includes('instalar') || !label.includes('oddix')) continue;
+
+        element.setAttribute('data-install-app', 'true');
+        element.setAttribute('aria-label', 'Instalar app Oddix');
+        element.classList.add('oddix-install-pill');
+      }
+    };
+
+    normalizeInstallButton();
+
+    const observer = new MutationObserver(() => normalizeInstallButton());
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     if (!apiBase) {
       setApiConnected(false);
@@ -413,7 +442,7 @@ export default function OddixChatPage() {
           version: 'v22.3',
           context: {
             source: 'oddix-web-chat',
-            version: 'V22.4-final-ui-polish',
+            version: 'V22.4.1-install-button-polish',
             sessionId: sessionId || 'oddix-web-session',
           },
         }),
@@ -649,38 +678,56 @@ export default function OddixChatPage() {
           -webkit-tap-highlight-color: transparent;
         }
 
-        .oddix-chat-root [class*="install"],
-        .oddix-chat-root [aria-label*="Instalar"],
-        .oddix-chat-root [data-install-app] {
+        .oddix-install-pill,
+        [data-install-app="true"],
+        [aria-label="Instalar app Oddix"] {
           position: fixed !important;
-          top: calc(var(--header-height) + 0.8rem) !important;
-          right: max(0.8rem, env(safe-area-inset-right)) !important;
-          bottom: auto !important;
+          top: auto !important;
+          right: max(1rem, env(safe-area-inset-right)) !important;
+          bottom: calc(env(safe-area-inset-bottom,0px) + 1rem) !important;
           left: auto !important;
-          z-index: 35 !important;
-          max-width: min(172px, calc(100vw - 1.6rem)) !important;
-          transform: scale(.76) !important;
-          transform-origin: top right !important;
-          opacity: .78 !important;
+          z-index: 60 !important;
+          min-height: 38px !important;
+          max-width: min(154px, calc(100vw - 2rem)) !important;
+          padding: 0.58rem 0.88rem !important;
+          transform: none !important;
+          transform-origin: bottom right !important;
+          opacity: .72 !important;
           border-radius: 999px !important;
-          box-shadow: 0 12px 36px rgba(0,0,0,.34), 0 0 22px rgba(245,158,11,.12) !important;
+          font-size: 10px !important;
+          letter-spacing: .16em !important;
+          background: linear-gradient(135deg, rgba(245,158,11,.88), rgba(251,146,60,.88)) !important;
+          border: 1px solid rgba(255,255,255,.16) !important;
+          box-shadow: 0 12px 34px rgba(0,0,0,.38), 0 0 20px rgba(245,158,11,.11) !important;
         }
 
-        .oddix-chat-root [class*="install"]:hover,
-        .oddix-chat-root [aria-label*="Instalar"]:hover,
-        .oddix-chat-root [data-install-app]:hover {
-          opacity: .96 !important;
-          transform: scale(.82) !important;
+        .oddix-install-pill:hover,
+        [data-install-app="true"]:hover,
+        [aria-label="Instalar app Oddix"]:hover {
+          opacity: .95 !important;
+          transform: translateY(-1px) !important;
+        }
+
+        @media (min-width: 1024px) {
+          .oddix-install-pill,
+          [data-install-app="true"],
+          [aria-label="Instalar app Oddix"] {
+            right: 1.25rem !important;
+            bottom: 1.1rem !important;
+          }
         }
 
         @media (max-width: 640px) {
-          .oddix-chat-root [class*="install"],
-          .oddix-chat-root [aria-label*="Instalar"],
-          .oddix-chat-root [data-install-app] {
-            top: auto !important;
+          .oddix-install-pill,
+          [data-install-app="true"],
+          [aria-label="Instalar app Oddix"] {
             right: .75rem !important;
-            bottom: calc(env(safe-area-inset-bottom,0px) + 5.35rem) !important;
-            transform: scale(.68) !important;
+            bottom: calc(env(safe-area-inset-bottom,0px) + 4.85rem) !important;
+            max-width: 138px !important;
+            min-height: 34px !important;
+            padding: .48rem .68rem !important;
+            font-size: 9px !important;
+            opacity: .76 !important;
           }
         }
 
@@ -950,7 +997,7 @@ export default function OddixChatPage() {
                   priority
                 />
                 <span className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300 shadow-[0_0_22px_rgba(245,158,11,.16)]">
-                  V22.4
+                  V22.4.1
                 </span>
               </div>
             </div>
