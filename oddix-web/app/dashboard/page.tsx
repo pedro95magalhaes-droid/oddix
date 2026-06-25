@@ -1,74 +1,59 @@
 'use client';
 
-import Image from 'next/image';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 
-type OddixPlan = 'free' | 'vip' | 'pro' | 'premium' | 'admin';
+type OddixPlan = 'Free' | 'VIP' | 'PRO' | 'Premium' | 'Admin';
+type TabKey = 'overview' | 'bets' | 'analyses' | 'players' | 'markets' | 'compliance';
 
-type OddixUser = {
+type DashboardUser = {
   id?: string;
   name?: string | null;
   email?: string | null;
   role?: string | null;
-  plan?: string | null;
+  plan?: OddixPlan | string | null;
   accessAllowed?: boolean;
 };
 
-const allowedPlans: OddixPlan[] = ['vip', 'pro', 'premium', 'admin'];
+type ChartPoint = { label: string; value: number };
 
-function normalizePlan(value?: string | null): OddixPlan {
-  const plan = String(value || '').trim().toLowerCase();
-  if (plan === 'vip') return 'vip';
-  if (plan === 'pro') return 'pro';
-  if (plan === 'premium') return 'premium';
-  if (plan === 'admin' || plan === 'owner') return 'admin';
-  return 'free';
-}
+type DashboardPayload = {
+  user?: DashboardUser;
+  access?: { allowed?: boolean; plan?: string; status?: string };
+  source?: string;
+  hasOperationalData?: boolean;
+  metrics?: any;
+  charts?: {
+    bankroll?: ChartPoint[];
+    roi?: ChartPoint[];
+    winRate?: ChartPoint[];
+  };
+  analyses?: any[];
+  bets?: any[];
+  players?: any[];
+  markets?: any[];
+  games?: any[];
+  compliance?: { seals?: string[]; checklist?: string[] };
+  emptyState?: { title?: string; message?: string };
+};
+
+const tabs: { key: TabKey; label: string; icon: string }[] = [
+  { key: 'overview', label: 'Visão geral', icon: '📊' },
+  { key: 'bets', label: 'Minhas apostas', icon: '🎫' },
+  { key: 'analyses', label: 'Análises', icon: '🧠' },
+  { key: 'players', label: 'Jogadores', icon: '⭐' },
+  { key: 'markets', label: 'Mercados', icon: '📈' },
+  { key: 'compliance', label: 'Compliance', icon: '18+' },
+];
 
 function getStoredAuthToken() {
   if (typeof window === 'undefined') return '';
-
   const tokenKeys = ['oddix_auth_token', 'oddix_token', 'access_token', 'token', 'auth_token', 'authToken', 'jwt'];
   for (const key of tokenKeys) {
     const value = window.localStorage.getItem(key);
     if (value) return value;
   }
-
-  const objectKeys = ['oddix_auth', 'oddix_session', 'user', 'auth'];
-  for (const key of objectKeys) {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) continue;
-    try {
-      const parsed = JSON.parse(raw);
-      const token = parsed?.access_token || parsed?.accessToken || parsed?.token || parsed?.jwt;
-      if (token) return String(token);
-    } catch {
-      // ignore invalid JSON
-    }
-  }
-
   return '';
-}
-
-function storeAuthPayload(payload: any) {
-  if (typeof window === 'undefined') return;
-
-  const token = payload?.access_token || payload?.token || '';
-  const user = payload?.user || null;
-  const plan = normalizePlan(user?.plan);
-
-  if (token) {
-    window.localStorage.setItem('oddix_auth_token', token);
-    window.localStorage.setItem('oddix_token', token);
-    window.localStorage.setItem('access_token', token);
-  }
-
-  if (user) {
-    window.localStorage.setItem('oddix_user', JSON.stringify(user));
-    window.localStorage.setItem('oddix_user_email', String(user.email || ''));
-    window.localStorage.setItem('oddix_user_plan', plan);
-    window.localStorage.setItem('oddix_access_plan', plan);
-  }
 }
 
 function clearAuthPayload() {
@@ -89,38 +74,20 @@ function clearAuthPayload() {
   ].forEach((key) => window.localStorage.removeItem(key));
 }
 
-function getPlanVisual(plan: OddixPlan) {
-  switch (plan) {
-    case 'vip':
-      return {
-        label: 'VIP',
-        badge: 'border-sky-300/20 bg-sky-400/10 text-sky-300',
-        description: 'Acesso premium ao chat, análises e recursos VIP.',
-      };
-    case 'pro':
-      return {
-        label: 'PRO',
-        badge: 'border-violet-300/20 bg-violet-400/10 text-violet-300',
-        description: 'Acesso completo aos agentes, odds e recursos avançados.',
-      };
-    case 'premium':
-      return {
-        label: 'PREMIUM',
-        badge: 'border-amber-300/20 bg-amber-400/10 text-amber-200',
-        description: 'Conta premium com recursos expandidos e visão completa.',
-      };
-    case 'admin':
-      return {
-        label: 'ADMIN',
-        badge: 'border-emerald-300/20 bg-emerald-400/10 text-emerald-300',
-        description: 'Acesso administrativo e controle total da plataforma.',
-      };
-    default:
-      return {
-        label: 'FREE',
-        badge: 'border-rose-300/20 bg-rose-400/10 text-rose-300',
-        description: 'Conta sem acesso liberado aos recursos premium.',
-      };
+function storeAuthPayload(payload: any) {
+  if (typeof window === 'undefined') return;
+  const token = payload?.access_token || payload?.token || '';
+  const user = payload?.user || null;
+  if (token) {
+    window.localStorage.setItem('oddix_auth_token', token);
+    window.localStorage.setItem('oddix_token', token);
+    window.localStorage.setItem('access_token', token);
+  }
+  if (user) {
+    window.localStorage.setItem('oddix_user', JSON.stringify(user));
+    window.localStorage.setItem('oddix_user_email', String(user.email || ''));
+    window.localStorage.setItem('oddix_user_plan', String(user.plan || 'Free'));
+    window.localStorage.setItem('oddix_access_plan', String(user.plan || 'Free'));
   }
 }
 
@@ -129,147 +96,148 @@ function formatCurrency(value: number) {
     style: 'currency',
     currency: 'BRL',
     minimumFractionDigits: 2,
-  }).format(value);
+  }).format(Number(value || 0));
+}
+
+function formatPercent(value: number) {
+  return `${Number(value || 0).toFixed(1).replace('.', ',')}%`;
+}
+
+function planStyle(plan?: string | null) {
+  const normalized = String(plan || 'Free').toLowerCase();
+  if (normalized === 'admin') return 'border-emerald-300/20 bg-emerald-400/10 text-emerald-300';
+  if (normalized === 'pro') return 'border-violet-300/20 bg-violet-400/10 text-violet-300';
+  if (normalized === 'vip') return 'border-sky-300/20 bg-sky-400/10 text-sky-300';
+  if (normalized === 'premium') return 'border-amber-300/20 bg-amber-400/10 text-amber-200';
+  return 'border-rose-300/20 bg-rose-400/10 text-rose-300';
+}
+
+function EmptyState({ title, message }: { title?: string; message?: string }) {
+  return (
+    <div className="rounded-[26px] border border-dashed border-white/12 bg-white/[0.025] p-7 text-center">
+      <p className="text-sm font-black uppercase tracking-[0.18em] text-amber-200">Sem dados ainda</p>
+      <h3 className="mt-3 text-2xl font-semibold">{title || 'Dados não conectados'}</h3>
+      <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-white/55">
+        {message || 'Esta aba já está conectada ao backend, mas ainda não há registros para exibir.'}
+      </p>
+    </div>
+  );
+}
+
+function LineChart({ data, title, valuePrefix = '', valueSuffix = '' }: { data: ChartPoint[]; title: string; valuePrefix?: string; valueSuffix?: string }) {
+  const points = data?.length ? data : [{ label: 'Hoje', value: 0 }];
+  const max = Math.max(...points.map((item) => Number(item.value || 0)), 1);
+  const min = Math.min(...points.map((item) => Number(item.value || 0)), 0);
+  const span = Math.max(max - min, 1);
+  const width = 560;
+  const height = 180;
+  const padding = 24;
+  const coords = points.map((item, index) => {
+    const x = padding + (index * (width - padding * 2)) / Math.max(points.length - 1, 1);
+    const y = height - padding - ((Number(item.value || 0) - min) * (height - padding * 2)) / span;
+    return { x, y, label: item.label, value: Number(item.value || 0) };
+  });
+  const path = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+
+  return (
+    <div className="rounded-[26px] border border-white/8 bg-black/18 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-white">{title}</p>
+        <span className="text-xs text-white/42">{valuePrefix}{points[points.length - 1]?.value || 0}{valueSuffix}</span>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="mt-4 h-44 w-full overflow-visible">
+        {[0, 1, 2, 3].map((line) => (
+          <line key={line} x1={padding} x2={width - padding} y1={padding + line * 38} y2={padding + line * 38} stroke="rgba(255,255,255,.07)" />
+        ))}
+        <path d={path} fill="none" stroke="rgba(251,191,36,.95)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+        {coords.map((point) => (
+          <circle key={`${point.label}-${point.x}`} cx={point.x} cy={point.y} r="5" fill="rgba(251,191,36,1)" />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function BarChart({ data, title }: { data: ChartPoint[]; title: string }) {
+  const points = data?.length ? data : [{ label: 'Sem dados', value: 0 }];
+  const max = Math.max(...points.map((item) => Number(item.value || 0)), 1);
+
+  return (
+    <div className="rounded-[26px] border border-white/8 bg-black/18 p-5">
+      <p className="text-sm font-semibold text-white">{title}</p>
+      <div className="mt-5 space-y-4">
+        {points.map((item) => (
+          <div key={item.label}>
+            <div className="mb-2 flex items-center justify-between text-xs text-white/50">
+              <span>{item.label}</span>
+              <span>{item.value}</span>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full bg-white/8">
+              <div className="h-full rounded-full bg-amber-300" style={{ width: `${Math.max((Number(item.value || 0) / max) * 100, 3)}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function OddixDashboardPage() {
+  const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authToken, setAuthToken] = useState('');
-  const [user, setUser] = useState<OddixUser | null>(null);
-  const [status, setStatus] = useState('verificando acesso');
+  const [payload, setPayload] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const apiBase = process.env.NEXT_PUBLIC_ODDIX_API_URL;
   const cleanApiBase = apiBase?.replace(/\/$/, '') ?? '';
-
-  const plan = normalizePlan(user?.plan);
-  const allowed = allowedPlans.includes(plan);
-  const planInfo = getPlanVisual(plan);
+  const user = payload?.user || null;
+  const accessAllowed = Boolean(payload?.access?.allowed || user?.accessAllowed);
+  const planLabel = String(payload?.access?.plan || user?.plan || 'Free');
   const displayName = user?.name?.trim() || 'Usuário Oddix';
-  const initials = displayName
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((chunk) => chunk[0]?.toUpperCase())
-    .join('') || 'OD';
+  const initials = displayName.split(' ').filter(Boolean).slice(0, 2).map((item) => item[0]?.toUpperCase()).join('') || 'OD';
+  const isAdmin = planLabel.toLowerCase() === 'admin';
 
-  const overviewCards = useMemo(
-    () => [
-      { label: 'Saldo da banca', value: formatCurrency(1840), detail: '+12,4% no mês', tone: 'text-emerald-300' },
-      { label: 'ROI acumulado', value: '+18,2%', detail: 'últimos 30 dias', tone: 'text-emerald-300' },
-      { label: 'Win rate', value: '63%', detail: '29 greens / 17 reds', tone: 'text-sky-300' },
-      { label: 'Apostas abertas', value: '3', detail: '8 realizadas hoje', tone: 'text-amber-200' },
-    ],
-    [],
-  );
-
-  const recentAnalyses = useMemo(
-    () => [
-      { title: 'Scotland x Brazil', market: 'Dupla chance Brasil ou Empate', confidence: '86%', note: 'Bom cenário para proteção com tendência favorável ao Brasil.' },
-      { title: 'Marrocos x Haiti', market: 'Over 1.5 gols', confidence: '79%', note: 'Leitura favorável para jogo com ao menos dois gols.' },
-      { title: 'Bosnia x Qatar', market: 'Ambas marcam', confidence: '74%', note: 'Jogo com boa abertura de espaços e tendência ofensiva.' },
-    ],
-    [],
-  );
-
-  const userBets = useMemo(
-    () => [
-      { match: 'Suíça x Canadá', pick: 'Canadá +1.5', odd: '1.57', stake: 'R$ 30', result: 'Aberta' },
-      { match: 'Bosnia x Qatar', pick: 'Ambas marcam', odd: '1.88', stake: 'R$ 25', result: 'Green' },
-      { match: 'Marrocos x Haiti', pick: 'Over 1.5', odd: '1.62', stake: 'R$ 40', result: 'Aberta' },
-      { match: 'Kairat x Khan Tengri', pick: 'Kairat vence', odd: '1.16', stake: 'R$ 50', result: 'Red' },
-    ],
-    [],
-  );
-
-  const topPlayers = useMemo(
-    () => [
-      { name: 'Mbappé', stat: '4 finalizações por jogo', badge: 'Top Pick' },
-      { name: 'Haaland', stat: '0.94 gol por jogo', badge: 'Goleador' },
-      { name: 'Bellingham', stat: '2.3 passes-chave', badge: 'Criação' },
-      { name: 'Vinicius Jr.', stat: '3.1 dribles certos', badge: 'Explosão' },
-    ],
-    [],
-  );
-
-  const topMarkets = useMemo(
-    () => [
-      { label: 'Over 1.5 gols', description: 'Ótimo para múltiplas conservadoras.', edge: 'Alta recorrência' },
-      { label: 'Dupla chance', description: 'Mercado mais seguro em jogos equilibrados.', edge: 'Proteção' },
-      { label: 'Ambas marcam', description: 'Boa relação risco/retorno em jogos abertos.', edge: 'Valor' },
-      { label: 'Escanteios over', description: 'Ideal quando há pressão ofensiva.', edge: 'Tático' },
-    ],
-    [],
-  );
-
-  const featuredGames = useMemo(
-    () => [
-      { match: 'Brasil x Escócia', comp: 'Copa do Mundo', meta: '22:00 • Pré-jogo' },
-      { match: 'Marrocos x Haiti', comp: 'Copa do Mundo', meta: '19:00 • Pré-jogo' },
-      { match: 'Bosnia x Qatar', comp: 'Ao vivo', meta: '52 min • 2x1' },
-      { match: 'Suíça x Canadá', comp: 'Ao vivo', meta: '31 min • 0x0' },
-    ],
-    [],
-  );
-
-  const complianceItems = useMemo(
-    () => [
-      '18+ • conteúdo exclusivo para maiores de idade.',
-      'Jogue com responsabilidade.',
-      'Aposta não é investimento.',
-      'Não aposte para recuperar perdas.',
-      'Use controle de banca e limite de exposição.',
-    ],
-    [],
-  );
+  const emptyState = payload?.emptyState || {
+    title: 'Dados operacionais ainda não conectados',
+    message: 'O dashboard já busca dados reais do backend. Assim que as tabelas de apostas, análises, banca e mercados forem conectadas, os dados aparecerão aqui automaticamente.',
+  };
 
   useEffect(() => {
     const token = getStoredAuthToken();
-    if (!token) {
-      setStatus('login necessário');
-      return;
-    }
-
+    if (!token) return;
     setAuthToken(token);
-    void loadMe(token);
+    void loadDashboard(token);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadMe(token = authToken) {
+  async function loadDashboard(token = authToken) {
     if (!cleanApiBase) {
-      setStatus('api não configurada');
+      setError('NEXT_PUBLIC_ODDIX_API_URL não está configurada.');
       return;
     }
 
-    if (!token) {
-      setStatus('login necessário');
-      return;
-    }
+    if (!token) return;
 
     setLoading(true);
     setError('');
 
     try {
-      const response = await fetch(`${cleanApiBase}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const response = await fetch(`${cleanApiBase}/auth/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
+      const data = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(`Falha ao validar sessão (${response.status})`);
+        throw new Error(data?.message || `Falha ao carregar dashboard (${response.status})`);
       }
 
-      const data = await response.json();
-      setUser(data);
-      storeAuthPayload({ token, user: data });
-      setStatus(allowedPlans.includes(normalizePlan(data?.plan)) ? 'acesso liberado' : 'plano sem acesso');
+      setPayload(data);
+      if (data?.user) storeAuthPayload({ token, user: data.user });
     } catch (err: any) {
-      setUser(null);
-      setStatus('sessão inválida');
-      setError(err?.message || 'Não foi possível validar o login.');
+      setError(err?.message || 'Não foi possível carregar o dashboard.');
     } finally {
       setLoading(false);
     }
@@ -293,16 +261,13 @@ export default function OddixDashboardPage() {
       });
 
       const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(data?.message || 'Email ou senha inválidos.');
-      }
+      if (!response.ok) throw new Error(data?.message || 'Email ou senha inválidos.');
 
       const token = data?.access_token || data?.token || '';
       setAuthToken(token);
-      setUser(data?.user || null);
       storeAuthPayload(data);
-      setStatus(allowedPlans.includes(normalizePlan(data?.user?.plan)) ? 'acesso liberado' : 'plano sem acesso');
       setPassword('');
+      await loadDashboard(token);
     } catch (err: any) {
       setError(err?.message || 'Não foi possível fazer login.');
     } finally {
@@ -312,34 +277,47 @@ export default function OddixDashboardPage() {
 
   function logout() {
     clearAuthPayload();
+    setPayload(null);
     setAuthToken('');
-    setUser(null);
     setPassword('');
-    setStatus('login necessário');
   }
+
+  const metrics = payload?.metrics || {};
+  const charts = payload?.charts || {};
+  const analyses = payload?.analyses || [];
+  const bets = payload?.bets || [];
+  const players = payload?.players || [];
+  const markets = payload?.markets || [];
+  const games = payload?.games || [];
+  const compliance = payload?.compliance || {};
 
   return (
     <main className="min-h-screen bg-[#05060a] text-white">
-      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,.10),transparent_18%),radial-gradient(circle_at_top_right,rgba(79,70,229,.12),transparent_22%),linear-gradient(180deg,#05060a,#04050a)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,.10),transparent_20%),radial-gradient(circle_at_top_right,rgba(99,102,241,.12),transparent_24%),linear-gradient(180deg,#05060a,#030408)]" />
 
       <section className="relative mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-        <header className="rounded-[28px] border border-white/8 bg-[rgba(10,12,19,.82)] px-5 py-4 backdrop-blur-xl shadow-[0_24px_80px_rgba(0,0,0,.30)]">
+        <header className="rounded-[28px] border border-white/8 bg-[rgba(10,12,19,.84)] px-5 py-4 shadow-[0_24px_80px_rgba(0,0,0,.28)] backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-[18px] border border-amber-300/18 bg-white/[0.03]">
+              <div className="flex h-14 w-14 items-center justify-center rounded-[18px] border border-amber-300/16 bg-white/[0.03]">
                 <Image src="/images/oddix-logo-icon.png" alt="Oddix" width={42} height={42} className="h-9 w-9 object-contain" priority />
               </div>
               <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.34em] text-amber-300">Oddix Dashboard</p>
-                <p className="mt-1 text-sm text-white/50">Centro de controle do usuário</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.34em] text-amber-300">Oddix Control Center</p>
+                <p className="mt-1 text-sm text-white/50">Dashboard real com tabs, métricas e painel administrativo separado</p>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/55">
-                {cleanApiBase ? 'API conectada' : 'API não configurada'}
-              </span>
-              <a href="/chat" className="rounded-full border border-amber-300/20 bg-amber-400/10 px-4 py-2 text-sm font-bold text-amber-200 transition hover:border-amber-300/35 hover:bg-amber-400/14">
+              {isAdmin && (
+                <a href="/admin" className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-sm font-bold text-emerald-300 transition hover:bg-emerald-400/14">
+                  Painel admin
+                </a>
+              )}
+              <button type="button" onClick={() => loadDashboard()} disabled={loading || !authToken} className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-white/65 transition hover:bg-white/[0.06] disabled:opacity-50">
+                Atualizar
+              </button>
+              <a href="/chat" className="rounded-full border border-amber-300/20 bg-amber-400/10 px-4 py-2 text-sm font-bold text-amber-200 transition hover:bg-amber-400/14">
                 Abrir chat
               </a>
             </div>
@@ -348,243 +326,47 @@ export default function OddixDashboardPage() {
 
         {!user ? (
           <div className="mx-auto flex min-h-[78vh] max-w-xl items-center justify-center">
-            <div className="w-full rounded-[32px] border border-white/10 bg-[rgba(12,15,22,.84)] p-7 shadow-[0_30px_120px_rgba(0,0,0,.38)] backdrop-blur-xl">
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-amber-300">Login do dashboard</p>
+            <div className="w-full rounded-[32px] border border-white/10 bg-[rgba(12,15,22,.86)] p-7 shadow-[0_30px_120px_rgba(0,0,0,.38)] backdrop-blur-xl">
+              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-amber-300">Dashboard premium</p>
               <h1 className="mt-4 text-3xl font-semibold">Entre no centro de controle Oddix</h1>
               <p className="mt-3 text-sm leading-7 text-white/58">
-                Acompanhe análises, apostas, performance, top mercados, jogadores em destaque e alertas de jogo responsável em um só painel.
+                Faça login para carregar dados reais do backend: banca, ROI, winrate, apostas, análises, jogadores, mercados e compliance.
               </p>
 
               <form onSubmit={login} className="mt-6 space-y-4">
                 <div>
                   <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-white/40">Email</label>
-                  <input
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    type="email"
-                    autoComplete="email"
-                    placeholder="cliente@email.com"
-                    className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-amber-300/35"
-                  />
+                  <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" placeholder="cliente@email.com" className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-amber-300/35" />
                 </div>
                 <div>
                   <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-white/40">Senha</label>
-                  <input
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    type="password"
-                    autoComplete="current-password"
-                    placeholder="Sua senha"
-                    className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-amber-300/35"
-                  />
+                  <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="Sua senha" className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-amber-300/35" />
                 </div>
                 <button type="submit" disabled={loading} className="h-12 w-full rounded-2xl bg-amber-400 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60">
                   {loading ? 'Entrando...' : 'Entrar no dashboard'}
                 </button>
               </form>
-
               {error && <p className="mt-4 rounded-2xl border border-rose-300/14 bg-rose-400/8 p-4 text-sm leading-6 text-rose-200">{error}</p>}
             </div>
           </div>
         ) : (
-          <div className="grid gap-6 py-6 xl:grid-cols-[1.2fr_.8fr]">
-            <div className="space-y-6">
-              <section className="rounded-[32px] border border-white/8 bg-[rgba(10,12,19,.84)] p-6 shadow-[0_30px_100px_rgba(0,0,0,.30)] backdrop-blur-xl">
-                <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="max-w-3xl">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/18 bg-amber-400/8 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.22em] text-amber-200">
-                      <span className="h-2 w-2 rounded-full bg-amber-300" />
-                      V23.5 Control Center
-                    </div>
-                    <h1 className="mt-4 max-w-2xl text-3xl font-semibold leading-tight sm:text-4xl xl:text-[44px]">
-                      Um dashboard mais elegante, organizado e realmente útil para o usuário.
-                    </h1>
-                    <p className="mt-4 max-w-2xl text-sm leading-7 text-white/58 sm:text-base">
-                      Aqui o usuário controla banca, acompanha análises, apostas abertas, mercados fortes, jogadores em alta, jogos do dia e os alertas obrigatórios de jogo responsável.
-                    </p>
-
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      {['Análises', 'Apostas', 'Performance', 'Mercados', 'Jogadores', 'Compliance'].map((chip) => (
-                        <span key={chip} className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/66">
-                          {chip}
-                        </span>
-                      ))}
-                    </div>
+          <div className="py-6">
+            <section className="rounded-[32px] border border-white/8 bg-[rgba(10,12,19,.84)] p-6 shadow-[0_30px_100px_rgba(0,0,0,.30)] backdrop-blur-xl">
+              <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/18 bg-amber-400/8 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.22em] text-amber-200">
+                    <span className="h-2 w-2 rounded-full bg-amber-300" />
+                    V23.6 Real Backend Dashboard
                   </div>
-
-                  <div className="min-w-[290px] rounded-[26px] border border-white/10 bg-black/22 p-4">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-300/25 to-violet-400/15 text-base font-black text-white">
-                        {initials}
-                      </div>
-                      <div>
-                        <p className="text-lg font-semibold">{displayName}</p>
-                        <p className="text-sm text-white/48">{user.email}</p>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${planInfo.badge}`}>
-                            {planInfo.label}
-                          </span>
-                          <span className="text-xs text-white/45">{status}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                {overviewCards.map((item) => (
-                  <div key={item.label} className="rounded-[24px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5">
-                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-white/34">{item.label}</p>
-                    <p className={`mt-4 text-3xl font-semibold ${item.tone}`}>{item.value}</p>
-                    <p className="mt-2 text-sm text-white/50">{item.detail}</p>
-                  </div>
-                ))}
-              </section>
-
-              <section className="grid gap-6 xl:grid-cols-[1.05fr_.95fr]">
-                <div className="rounded-[30px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5">
-                  <div className="flex items-center justify-between gap-3 border-b border-white/8 pb-4">
-                    <div>
-                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Espaço de controle</p>
-                      <h2 className="mt-2 text-2xl font-semibold">Minhas análises recentes</h2>
-                    </div>
-                    <a href="/chat" className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-bold text-white/70 transition hover:bg-white/[0.06]">
-                      Ver tudo
-                    </a>
-                  </div>
-
-                  <div className="mt-4 space-y-3">
-                    {recentAnalyses.map((item) => (
-                      <div key={item.title} className="rounded-2xl border border-white/8 bg-black/18 p-4 transition hover:border-amber-300/16">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-white">{item.title}</p>
-                            <p className="mt-1 text-sm text-amber-200">{item.market}</p>
-                          </div>
-                          <span className="rounded-full border border-emerald-300/16 bg-emerald-400/8 px-2.5 py-1 text-[11px] font-black text-emerald-300">
-                            {item.confidence}
-                          </span>
-                        </div>
-                        <p className="mt-3 text-sm leading-6 text-white/55">{item.note}</p>
-                      </div>
-                    ))}
-                  </div>
+                  <h1 className="mt-4 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl xl:text-[44px]">
+                    Centro de controle com tabs reais, gráficos e dados carregados do backend.
+                  </h1>
+                  <p className="mt-4 max-w-3xl text-sm leading-7 text-white/58 sm:text-base">
+                    Use as abas para acompanhar visão geral, apostas, análises, jogadores, mercados e compliance. O painel admin agora fica separado em <span className="font-semibold text-emerald-300">/admin</span>.
+                  </p>
                 </div>
 
-                <div className="rounded-[30px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5">
-                  <div className="flex items-center justify-between gap-3 border-b border-white/8 pb-4">
-                    <div>
-                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Apostas</p>
-                      <h2 className="mt-2 text-2xl font-semibold">Controle das entradas</h2>
-                    </div>
-                    <span className="rounded-full border border-amber-300/16 bg-amber-400/8 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-amber-200">
-                      Usuário
-                    </span>
-                  </div>
-
-                  <div className="mt-4 space-y-3">
-                    {userBets.map((bet) => (
-                      <div key={`${bet.match}-${bet.pick}`} className="rounded-2xl border border-white/8 bg-black/18 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-white">{bet.match}</p>
-                            <p className="mt-1 text-sm text-white/55">{bet.pick}</p>
-                          </div>
-                          <span
-                            className={[
-                              'rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.12em]',
-                              bet.result === 'Green'
-                                ? 'bg-emerald-400/10 text-emerald-300'
-                                : bet.result === 'Red'
-                                  ? 'bg-rose-400/10 text-rose-300'
-                                  : 'bg-amber-400/10 text-amber-200',
-                            ].join(' ')}
-                          >
-                            {bet.result}
-                          </span>
-                        </div>
-                        <div className="mt-3 flex items-center justify-between text-sm text-white/52">
-                          <span>Odd {bet.odd}</span>
-                          <span>Stake {bet.stake}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-
-              <section className="grid gap-6 lg:grid-cols-3">
-                <div className="rounded-[30px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Top players</p>
-                  <h2 className="mt-2 text-xl font-semibold">Melhores jogadores</h2>
-                  <div className="mt-4 space-y-3">
-                    {topPlayers.map((player) => (
-                      <div key={player.name} className="rounded-2xl border border-white/8 bg-black/18 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold">{player.name}</p>
-                          <span className="rounded-full bg-white/6 px-2.5 py-1 text-[11px] font-black text-white/66">{player.badge}</span>
-                        </div>
-                        <p className="mt-2 text-sm text-white/52">{player.stat}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-[30px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Mercados</p>
-                  <h2 className="mt-2 text-xl font-semibold">Mercados em foco</h2>
-                  <div className="mt-4 space-y-3">
-                    {topMarkets.map((market) => (
-                      <div key={market.label} className="rounded-2xl border border-white/8 bg-black/18 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold">{market.label}</p>
-                          <span className="rounded-full bg-amber-400/10 px-2.5 py-1 text-[11px] font-black text-amber-200">{market.edge}</span>
-                        </div>
-                        <p className="mt-2 text-sm text-white/52">{market.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-[30px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Jogos</p>
-                  <h2 className="mt-2 text-xl font-semibold">Jogos monitorados</h2>
-                  <div className="mt-4 space-y-3">
-                    {featuredGames.map((game) => (
-                      <div key={`${game.match}-${game.meta}`} className="rounded-2xl border border-white/8 bg-black/18 p-4">
-                        <p className="text-sm font-semibold text-white">{game.match}</p>
-                        <div className="mt-2 flex items-center justify-between text-sm text-white/52">
-                          <span>{game.comp}</span>
-                          <span>{game.meta}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </div>
-
-            <aside className="space-y-6">
-              <section className="rounded-[30px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5 shadow-[0_24px_70px_rgba(0,0,0,.26)]">
-                <div className="flex items-start justify-between gap-3 border-b border-white/8 pb-4">
-                  <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/36">Status do acesso</p>
-                    <h2 className="mt-2 text-2xl font-semibold">Plano {planInfo.label}</h2>
-                    <p className="mt-2 text-sm leading-6 text-white/50">{planInfo.description}</p>
-                  </div>
-                  <span
-                    className={[
-                      'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em]',
-                      allowed ? 'border-emerald-300/20 bg-emerald-400/10 text-emerald-300' : planInfo.badge,
-                    ].join(' ')}
-                  >
-                    <span className={`h-2 w-2 rounded-full ${allowed ? 'bg-emerald-300' : 'bg-rose-300'}`} />
-                    {allowed ? 'Liberado' : 'Bloqueado'}
-                  </span>
-                </div>
-
-                <div className="mt-4 rounded-[24px] border border-white/10 bg-black/22 p-4">
+                <div className="min-w-[310px] rounded-[26px] border border-white/10 bg-black/22 p-4">
                   <div className="flex items-center gap-4">
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-300/25 to-violet-400/15 text-base font-black text-white">
                       {initials}
@@ -592,107 +374,111 @@ export default function OddixDashboardPage() {
                     <div>
                       <p className="text-lg font-semibold">{displayName}</p>
                       <p className="text-sm text-white/48">{user.email}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${planStyle(planLabel)}`}>{planLabel}</span>
+                        <span className={accessAllowed ? 'text-xs text-emerald-300' : 'text-xs text-rose-300'}>{accessAllowed ? 'acesso liberado' : 'sem acesso premium'}</span>
+                      </div>
                     </div>
                   </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <button type="button" onClick={() => loadDashboard()} disabled={loading} className="h-11 rounded-2xl bg-amber-400 text-sm font-black text-black transition hover:bg-amber-300 disabled:opacity-60">Revalidar</button>
+                    <button type="button" onClick={logout} className="h-11 rounded-2xl border border-white/10 bg-white/[0.02] text-sm font-bold text-white/75 transition hover:bg-white/[0.06]">Sair</button>
+                  </div>
+                </div>
+              </div>
+            </section>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <nav className="sticky top-0 z-20 mt-6 overflow-x-auto rounded-[24px] border border-white/8 bg-[rgba(7,9,15,.88)] p-2 backdrop-blur-xl">
+              <div className="flex min-w-max gap-2">
+                {tabs.map((tab) => (
+                  <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)} className={[
+                    'flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition',
+                    activeTab === tab.key ? 'bg-amber-400 text-black shadow-[0_12px_30px_rgba(245,158,11,.18)]' : 'text-white/58 hover:bg-white/[0.06] hover:text-white',
+                  ].join(' ')}>
+                    <span>{tab.icon}</span>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </nav>
+
+            <section className="mt-6">
+              {activeTab === 'overview' && (
+                <div className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     {[
-                      ['Status', status],
-                      ['Acesso ao chat', allowed ? 'Liberado' : 'Bloqueado'],
-                      ['Tipo de conta', user.role || 'USER'],
-                    ].map(([label, value]) => (
-                      <div key={label} className="rounded-2xl border border-white/8 bg-white/[0.02] p-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/34">{label}</p>
-                        <p className="mt-2 text-sm font-semibold text-white/82">{value}</p>
+                      ['Saldo da banca', formatCurrency(metrics?.bankroll?.current || 0), formatPercent(metrics?.bankroll?.monthlyChangePercent || 0), 'text-emerald-300'],
+                      ['ROI acumulado', formatPercent(metrics?.roi?.current || 0), metrics?.roi?.period || '30 dias', 'text-emerald-300'],
+                      ['Win rate', formatPercent(metrics?.winRate?.current || 0), `${metrics?.winRate?.greens || 0} greens / ${metrics?.winRate?.reds || 0} reds`, 'text-sky-300'],
+                      ['Apostas hoje', String(metrics?.bets?.today || 0), `${metrics?.bets?.open || 0} abertas • ${metrics?.bets?.closed || 0} encerradas`, 'text-amber-200'],
+                    ].map(([label, value, detail, tone]) => (
+                      <div key={label} className="rounded-[24px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5">
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-white/34">{label}</p>
+                        <p className={`mt-4 text-3xl font-semibold ${tone}`}>{value}</p>
+                        <p className="mt-2 text-sm text-white/50">{detail}</p>
                       </div>
                     ))}
                   </div>
-                </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => loadMe()}
-                    disabled={loading}
-                    className="h-11 rounded-2xl bg-amber-400 px-5 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {loading ? 'Validando...' : 'Revalidar acesso'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={logout}
-                    className="h-11 rounded-2xl border border-white/10 bg-white/[0.02] px-5 text-sm font-bold text-white/78 transition hover:bg-white/[0.06]"
-                  >
-                    Sair da conta
-                  </button>
-                </div>
-
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <a href="/chat" className="flex h-11 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-400/8 px-5 text-sm font-black text-amber-200 transition hover:border-amber-300/35 hover:bg-amber-400/12">
-                    Entrar no chat
-                  </a>
-                  <a href="/" className="flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.02] px-5 text-sm font-bold text-white/76 transition hover:bg-white/[0.06]">
-                    Ir para a home
-                  </a>
-                </div>
-              </section>
-
-              <section className="rounded-[30px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5">
-                <div className="flex items-center justify-between gap-3 border-b border-white/8 pb-4">
-                  <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Compliance obrigatório</p>
-                    <h2 className="mt-2 text-xl font-semibold">Jogo responsável</h2>
+                  <div className="grid gap-6 xl:grid-cols-3">
+                    <LineChart data={charts.bankroll || []} title="Evolução da banca" valuePrefix="R$ " />
+                    <LineChart data={charts.roi || []} title="ROI no período" valueSuffix="%" />
+                    <BarChart data={charts.winRate || []} title="Greens x Reds" />
                   </div>
-                  <span className="rounded-full border border-amber-300/18 bg-amber-400/10 px-3 py-1 text-[11px] font-black text-amber-200">18+</span>
-                </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {['18+', 'Jogue com responsabilidade', 'Aposta não é investimento', 'Não recupere perdas'].map((pill) => (
-                    <span key={pill} className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] font-bold text-white/72">
-                      {pill}
-                    </span>
-                  ))}
+                  {!payload?.hasOperationalData && <EmptyState title={emptyState.title} message={emptyState.message} />}
                 </div>
+              )}
 
-                <div className="mt-4 space-y-3">
-                  {complianceItems.map((item) => (
-                    <div key={item} className="flex items-start gap-3 rounded-2xl border border-white/8 bg-black/18 p-3.5">
-                      <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400/12 text-xs text-emerald-300">✓</span>
-                      <p className="text-sm leading-6 text-white/60">{item}</p>
-                    </div>
-                  ))}
+              {activeTab === 'bets' && (
+                <div className="rounded-[30px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5">
+                  <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/8 pb-4">
+                    <div><p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Minhas apostas</p><h2 className="mt-2 text-2xl font-semibold">Histórico e entradas abertas</h2></div>
+                  </div>
+                  {bets.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{bets.map((bet: any, index: number) => <div key={bet.id || index} className="rounded-2xl border border-white/8 bg-black/18 p-4"><p className="font-semibold">{bet.match || bet.title || 'Aposta'}</p><p className="mt-1 text-sm text-white/55">{bet.pick || bet.market || 'Mercado não informado'}</p><div className="mt-3 flex justify-between text-sm text-white/55"><span>Odd {bet.odd || '-'}</span><span>{bet.stake || ''}</span></div></div>)}</div> : <EmptyState title="Nenhuma aposta registrada" message="Quando o backend de apostas estiver conectado, suas entradas abertas, greens, reds, odds e stakes aparecerão aqui." />}
                 </div>
+              )}
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <a href="/jogo-responsavel" className="flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.02] text-sm font-bold text-white/76 transition hover:bg-white/[0.06]">
-                    Ver página responsável
-                  </a>
-                  <a href="/aviso-legal" className="flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.02] text-sm font-bold text-white/76 transition hover:bg-white/[0.06]">
-                    Ver aviso legal
-                  </a>
+              {activeTab === 'analyses' && (
+                <div className="rounded-[30px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5">
+                  <div className="mb-5 border-b border-white/8 pb-4"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Análises</p><h2 className="mt-2 text-2xl font-semibold">Análises salvas e recomendações</h2></div>
+                  {analyses.length ? <div className="grid gap-3 md:grid-cols-2">{analyses.map((item: any, index: number) => <div key={item.id || index} className="rounded-2xl border border-white/8 bg-black/18 p-4"><p className="font-semibold">{item.title || item.match || 'Análise'}</p><p className="mt-2 text-sm leading-6 text-white/55">{item.note || item.summary || 'Sem resumo.'}</p></div>)}</div> : <EmptyState title="Nenhuma análise salva" message="As análises geradas pelo Oddix poderão ser salvas no backend e exibidas nesta aba." />}
                 </div>
-              </section>
+              )}
 
-              <section className="rounded-[30px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Ações rápidas</p>
-                <div className="mt-4 grid gap-3">
-                  {[
-                    'Ver top picks do dia',
-                    'Abrir análises ao vivo',
-                    'Montar múltipla segura',
-                    'Consultar melhores mercados',
-                  ].map((action) => (
-                    <button key={action} className="rounded-2xl border border-white/8 bg-black/18 px-4 py-3 text-left text-sm font-semibold text-white/76 transition hover:border-amber-300/18 hover:bg-amber-400/6">
-                      {action}
-                    </button>
-                  ))}
+              {activeTab === 'players' && (
+                <div className="rounded-[30px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5">
+                  <div className="mb-5 border-b border-white/8 pb-4"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Jogadores</p><h2 className="mt-2 text-2xl font-semibold">Melhores jogadores monitorados</h2></div>
+                  {players.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{players.map((player: any, index: number) => <div key={player.id || index} className="rounded-2xl border border-white/8 bg-black/18 p-4"><p className="font-semibold">{player.name || 'Jogador'}</p><p className="mt-2 text-sm text-white/55">{player.stat || player.summary || 'Sem estatística.'}</p></div>)}</div> : <EmptyState title="Jogadores ainda não conectados" message="Quando o provider de estatísticas de jogadores estiver conectado, esta aba exibirá os melhores atletas e tendências." />}
                 </div>
-              </section>
-            </aside>
+              )}
+
+              {activeTab === 'markets' && (
+                <div className="rounded-[30px] border border-white/8 bg-[rgba(10,12,19,.84)] p-5">
+                  <div className="mb-5 border-b border-white/8 pb-4"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Mercados</p><h2 className="mt-2 text-2xl font-semibold">Mercados em foco</h2></div>
+                  {markets.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{markets.map((market: any, index: number) => <div key={market.id || index} className="rounded-2xl border border-white/8 bg-black/18 p-4"><p className="font-semibold">{market.label || market.name || 'Mercado'}</p><p className="mt-2 text-sm text-white/55">{market.description || market.edge || 'Sem descrição.'}</p></div>)}</div> : <EmptyState title="Mercados ainda não conectados" message="Aqui entrarão os mercados vindos da engine: over/under, ambas marcam, handicap, dupla chance, escanteios e outros." />}
+                </div>
+              )}
+
+              {activeTab === 'compliance' && (
+                <div className="grid gap-6 xl:grid-cols-[.9fr_1.1fr]">
+                  <div className="rounded-[30px] border border-amber-300/14 bg-amber-400/6 p-6">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Compliance obrigatório</p>
+                    <h2 className="mt-3 text-3xl font-semibold">Selos e avisos de jogo responsável</h2>
+                    <div className="mt-5 flex flex-wrap gap-2">{(compliance.seals || []).map((seal) => <span key={seal} className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white/75">{seal}</span>)}</div>
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2"><a href="/jogo-responsavel" className="flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-black/18 text-sm font-bold text-white/75">Jogo responsável</a><a href="/aviso-legal" className="flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-black/18 text-sm font-bold text-white/75">Aviso legal</a></div>
+                  </div>
+                  <div className="rounded-[30px] border border-white/8 bg-[rgba(10,12,19,.84)] p-6">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Checklist</p>
+                    <div className="mt-4 space-y-3">{(compliance.checklist || []).map((item) => <div key={item} className="flex gap-3 rounded-2xl border border-white/8 bg-black/18 p-4"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400/12 text-xs text-emerald-300">✓</span><p className="text-sm leading-6 text-white/62">{item}</p></div>)}</div>
+                  </div>
+                </div>
+              )}
+            </section>
           </div>
         )}
 
-        {error && user && <p className="mt-4 rounded-2xl border border-rose-300/14 bg-rose-400/8 p-4 text-sm leading-6 text-rose-200">{error}</p>}
+        {error && user && <p className="mb-6 rounded-2xl border border-rose-300/14 bg-rose-400/8 p-4 text-sm leading-6 text-rose-200">{error}</p>}
       </section>
     </main>
   );
