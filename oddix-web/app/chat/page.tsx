@@ -410,10 +410,10 @@ export default function OddixChatPage() {
           chatId: sessionId || 'oddix-web-session',
           messages,
           history: messages,
-          version: 'v17',
+          version: 'v22.1',
           context: {
             source: 'oddix-web-chat',
-            version: 'V17-worldcup-resolver',
+            version: 'V22.1-general-football-brain',
             sessionId: sessionId || 'oddix-web-session',
           },
         }),
@@ -852,7 +852,7 @@ export default function OddixChatPage() {
                   priority
                 />
                 <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                  V17
+                  V22.1
                 </span>
               </div>
             </div>

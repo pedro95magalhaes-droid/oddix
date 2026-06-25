@@ -114,8 +114,8 @@ export class OddixMasterRouterService {
       return route('BETTING_VALUE', 0.93, 'Pedido de value bet/EV.', 'flashscore');
     }
 
-    if (this.hasAny(text, ['ao vivo', 'live', 'agora', 'em andamento', 'placar agora', 'jogo rolando'])) {
-      return route('FOOTBALL_LIVE', 0.94, 'Pergunta pede jogos ao vivo/placar atual.', 'flashscore', true);
+    if (this.hasExplicitLiveIntent(text)) {
+      return route('FOOTBALL_LIVE', 0.97, 'Pergunta pede jogos ao vivo/placar atual em tempo real.', 'flashscore', true);
     }
 
     if (this.hasTodayGamesIntent(text)) {
@@ -212,6 +212,36 @@ export class OddixMasterRouterService {
     return this.needsCurrentResearch(text);
   }
 
+  private hasExplicitLiveIntent(text: string) {
+    const liveTerms = [
+      'jogos ao vivo',
+      'jogo ao vivo',
+      'partidas ao vivo',
+      'partida ao vivo',
+      'placar ao vivo',
+      'placar agora',
+      'ao vivo agora',
+      'live agora',
+      'futebol ao vivo',
+      'quem esta jogando agora',
+      'quem está jogando agora',
+      'quem ta jogando agora',
+      'quem tá jogando agora',
+      'jogos em andamento',
+      'partidas em andamento',
+      'jogo rolando',
+      'jogos rolando',
+      'tempo real',
+    ];
+
+    if (this.hasAny(text, liveTerms)) return true;
+
+    return (
+      this.hasAny(text, ['agora', 'now', 'live']) &&
+      this.hasAny(text, ['jogo', 'jogos', 'partida', 'partidas', 'placar', 'futebol', 'football', 'soccer'])
+    );
+  }
+
   private hasTodayGamesIntent(text: string) {
     return (
       this.hasAny(text, ['jogos de hoje', 'jogo de hoje', 'quais jogos', 'quem joga hoje', 'partidas de hoje', 'calendario de hoje', 'calendário de hoje']) ||
@@ -235,7 +265,7 @@ export class OddixMasterRouterService {
   }
 
   private hasLiveTerm(text: string) {
-    return this.hasAny(text, ['ao vivo', 'live', 'agora', 'em andamento', 'rolando', '1 tempo', '2 tempo', 'intervalo']);
+    return this.hasExplicitLiveIntent(text) || this.hasAny(text, ['em andamento', 'rolando', '1 tempo', '2 tempo', 'intervalo']);
   }
 
   private extractTeams(message: string): { home: string; away: string } | null {

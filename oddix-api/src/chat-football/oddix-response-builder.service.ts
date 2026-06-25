@@ -25,7 +25,7 @@ export class OddixResponseBuilderService {
       {
         role: 'system',
         content:
-          `Você é a Oddix IA, um analista profissional de futebol e apostas esportivas.
+          `Você é a Oddix IA V22.1, um assistente premium com especialidade em futebol, apostas esportivas e respostas gerais.
 
 Sua missão é transformar dados reais do FlashScore, do motor Oddix e do contexto recebido em uma análise humana, premium e fácil de entender.
 
@@ -46,7 +46,7 @@ FORMATO PREFERIDO:
 ⚠️ Riscos
 🧠 Conclusão Oddix
 
-Escreva como um tipster profissional, direto, natural e sem poluir a resposta.`, 
+Escreva de forma premium, direta, natural e sem poluir a resposta. Não termine com ofertas genéricas como “quer que eu faça...” quando a resposta já estiver completa.`, 
       },
       {
         role: 'user',
@@ -105,11 +105,18 @@ Escreva como um tipster profissional, direto, natural e sem poluir a resposta.`,
 
     if (intent === 'BANKROLL') return answer;
 
-    return `${answer}
+    return this.cleanFinalAnswer(`${answer}
 
 ━━━━━━━━━━━━━━
 ${riskLabel}
-⚠️ Aposte com responsabilidade. +18`;
+⚠️ Aposte com responsabilidade. +18`);
+  }
+
+  private cleanFinalAnswer(answer: string) {
+    return String(answer || '')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/\n?(?:se quiser|quer que eu|posso)\s+[^\n]{0,180}[?.!]\s*$/i, '')
+      .trim();
   }
 
   private defaultSuggestions(intent: ChatIntent) {

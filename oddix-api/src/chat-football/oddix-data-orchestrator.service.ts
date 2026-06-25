@@ -64,6 +64,26 @@ export class OddixDataOrchestratorService {
     this.applyMasterRouteToDecision(masterRoute, decision);
 
     try {
+      if (masterRoute?.kind === 'FOOTBALL_LIVE') {
+        return this.answerLiveGames(message, decision);
+      }
+
+      if (masterRoute?.kind === 'FOOTBALL_TODAY_GAMES') {
+        return this.answerTodayGames(message, decision);
+      }
+
+      if (masterRoute?.kind === 'BETTING_MULTIPLE') {
+        return this.answerMultiple(message, decision);
+      }
+
+      if (masterRoute?.kind === 'BETTING_TOP_PICK') {
+        return this.answerTopPicks(message, decision);
+      }
+
+      if (masterRoute?.kind === 'BETTING_VALUE') {
+        return this.answerGeneralFootball(message, decision);
+      }
+
       if (masterRoute?.kind === 'FOOTBALL_LINEUP' || this.asksForLineup(message)) {
         return this.answerLineupQuestion(message, decision);
       }
@@ -186,8 +206,8 @@ export class OddixDataOrchestratorService {
       quota,
       unavailable: quota || attempts.some((attempt: any) => attempt?.ok === false),
       reason: quota
-        ? 'A FlashScore está conectada, mas a cota/limite do provider foi atingida. Acionei fallback web/cache e não vou inventar dados.'
-        : 'A FlashScore não confirmou dados agora. Acionei fallback web/cache e não vou inventar dados.',
+        ? 'A fonte principal FlashScore está conectada, mas a cota/limite do provider foi atingida. Ativei cache e fallback público/web para tentar validar os dados sem inventar placar.'
+        : 'A fonte principal FlashScore não confirmou dados agora. Ativei cache e fallback público/web e só vou responder com dados validados.',
     };
   }
 
@@ -301,9 +321,9 @@ ${status}
       message,
       context,
       `Você é a IA geral da Oddix, em português do Brasil.
-Responda qualquer pergunta comum com clareza: explicações, textos, ideias, cálculos simples, planejamento, tecnologia, código, negócios e dúvidas gerais.
+Responda qualquer pergunta comum com clareza, objetividade e acabamento premium: explicações, textos, ideias, cálculos simples, planejamento, tecnologia, código, negócios e dúvidas gerais. Entregue direto o resultado pedido.
 Não force futebol/apostas quando a pergunta não for sobre futebol.
-Se a pergunta exigir dado atual e não houver pesquisa/contexto, diga que precisa verificar fontes atuais em vez de inventar.`,
+Se a pergunta exigir dado atual e não houver pesquisa/contexto, diga que precisa verificar fontes atuais em vez de inventar. Não finalize com perguntas genéricas de continuidade; só sugira próximo passo quando for realmente útil.`,
     );
 
     return {
@@ -552,13 +572,15 @@ Não invente partidas. Se a pergunta mencionar Copa/Mundial/FIFA, liste apenas j
       return {
         handled: true,
         answer:
-          `⚡ Não encontrei jogos ao vivo/ativos confirmados agora.
+          `⚡ Jogos ao vivo
+
+Não encontrei uma lista confiável de jogos ao vivo neste momento.
 
 ${flashScoreStatus.reason}
 
-Também tentei a pesquisa web em tempo real, mas ela não confirmou uma lista confiável de jogos ao vivo. Não vou inventar placar.
+Também consultei fallback público/web em tempo real, mas nenhuma fonte confirmou partidas ativas com segurança suficiente. Por isso, não vou inventar placar, minuto ou competição.
 
-Digite \`diagnóstico flashscore\` para ver o status técnico da conexão.`,
+Comando técnico: \`diagnóstico flashscore\`.`,
         data: {
           waitingForData: true,
           fixtures: [],
@@ -1975,7 +1997,7 @@ ${lines.join('\n')}
       {
         role: 'system',
         content:
-          'Você é a IA Oddix Chat V21. Responda em português do Brasil, natural, direto e inteligente. Nunca invente dados atuais. Para futebol, use somente dados reais fornecidos pela pesquisa web e pelas APIs do backend. Se faltar dado, diga claramente.',
+          'Você é a IA Oddix Chat V22.1, um assistente premium geral com cérebro especializado em futebol e apostas. Responda em português do Brasil, natural, direto e inteligente. Entregue a resposta completa sem terminar com ofertas genéricas como “quer que eu faça...”. Nunca invente dados atuais. Para futebol, odds, escalações e placares, use somente dados reais fornecidos pela pesquisa web, cache e APIs do backend. Se faltar dado, diga claramente.',
       },
       {
         role: 'user',
@@ -1989,7 +2011,17 @@ ${userMessage}`,
       },
     ];
 
-    return this.llmService.complete(messages);
+    const rawAnswer = await this.llmService.complete(messages);
+    return this.polishAssistantAnswer(rawAnswer);
+  }
+
+  private polishAssistantAnswer(answer: string | null | undefined) {
+    if (!answer) return answer || null;
+
+    return String(answer)
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/\n?(?:se quiser|quer que eu|posso)\s+[^\n]{0,180}[?.!]\s*$/i, '')
+      .trim();
   }
 
   private async getTodayFixtures() {
