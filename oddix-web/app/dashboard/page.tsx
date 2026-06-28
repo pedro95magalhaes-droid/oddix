@@ -891,39 +891,64 @@ export default function OddixDashboardPage() {
 
 
   function PickCard({ pick }: { pick: DashboardPick }) {
+    const confidence = Number(pick.confidence || 0);
+    const risk = String(pick.risk || 'análise').toLowerCase();
+    const riskStyle =
+      risk.includes('segur') || risk.includes('baixo')
+        ? 'border-emerald-300/18 bg-emerald-400/10 text-emerald-300'
+        : risk.includes('ousad') || risk.includes('alto')
+          ? 'border-rose-300/18 bg-rose-400/10 text-rose-300'
+          : 'border-amber-300/18 bg-amber-400/10 text-amber-200';
+
     return (
-      <div className="rounded-[24px] border border-white/8 bg-black/20 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.15em] text-[#c8f71f]">{pick.type || 'Palpite'} • {pick.risk || 'análise'}</p>
-            <p className="mt-2 text-base font-black text-white">{pick.match}</p>
-            <p className="mt-1 text-sm font-bold text-white/68">{pick.market}</p>
+      <div className="group relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.018))] p-5 shadow-[0_20px_60px_rgba(0,0,0,.20)] transition hover:-translate-y-0.5 hover:border-[#c8f71f]/28 hover:shadow-[0_28px_80px_rgba(0,0,0,.30)]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#c8f71f]/70 to-transparent opacity-70" />
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-[#c8f71f]/20 bg-[#c8f71f]/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#c8f71f]">{pick.type || 'Palpite IA'}</span>
+              <span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${riskStyle}`}>{pick.risk || 'análise'}</span>
+            </div>
+            <h3 className="mt-4 text-lg font-black leading-tight text-white">{pick.match}</h3>
+            <p className="mt-1 text-sm font-black text-[#c8f71f]">{pick.market}</p>
           </div>
-          <span className="rounded-xl bg-[#c8f71f]/12 px-3 py-1.5 text-xs font-black text-[#c8f71f]">{pick.confidence ?? 0}%</span>
+
+          <div className="shrink-0 rounded-[22px] border border-[#c8f71f]/18 bg-[#c8f71f]/10 px-4 py-3 text-center">
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">Score</p>
+            <p className="mt-1 text-2xl font-black leading-none text-[#c8f71f]">{confidence}%</p>
+          </div>
         </div>
 
         {(pick.homeTeam || pick.awayTeam) && (
-          <div className="mt-4 flex items-center gap-3">
-            {pick.homeTeam && <TeamLogo src={pick.homeLogo} team={pick.homeTeam} size={30} />}
-            <span className="text-xs font-black text-white/80">{pick.homeTeam || ''}</span>
-            <span className="text-xs font-black text-white/35">x</span>
-            {pick.awayTeam && <TeamLogo src={pick.awayLogo} team={pick.awayTeam} size={30} />}
-            <span className="text-xs font-black text-white/80">{pick.awayTeam || ''}</span>
+          <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-white/8 bg-black/18 p-3">
+            <div className="flex items-center gap-2">
+              {pick.homeTeam && <TeamLogo src={pick.homeLogo} team={pick.homeTeam} size={34} />}
+              <span className="text-sm font-black text-white/85">{pick.homeTeam || ''}</span>
+            </div>
+            <span className="rounded-full bg-white/7 px-2 py-1 text-[10px] font-black text-white/38">VS</span>
+            <div className="flex items-center gap-2">
+              {pick.awayTeam && <TeamLogo src={pick.awayLogo} team={pick.awayTeam} size={34} />}
+              <span className="text-sm font-black text-white/85">{pick.awayTeam || ''}</span>
+            </div>
           </div>
         )}
 
-        <p className="mt-4 text-sm leading-6 text-white/52">{pick.reason || 'Sugestão gerada com base nos dados disponíveis do jogo.'}</p>
+        <p className="mt-4 text-sm leading-6 text-white/55">{pick.reason || 'Sugestão gerada com base nos dados disponíveis do jogo.'}</p>
+
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/8">
+          <div className="h-full rounded-full bg-[linear-gradient(90deg,#c8f71f,#38bdf8)]" style={{ width: `${Math.max(6, Math.min(100, confidence))}%` }} />
+        </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl bg-white/[0.04] p-2">
-            <p className="text-[10px] font-black uppercase text-white/30">Odd</p>
-            <p className="mt-1 text-xs font-black text-white">{pick.odd ? formatDecimal(Number(pick.odd)) : '--'}</p>
+          <div className="rounded-2xl border border-white/8 bg-black/20 p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/30">Odd</p>
+            <p className="mt-1 text-sm font-black text-white">{pick.odd ? formatDecimal(Number(pick.odd)) : '--'}</p>
           </div>
-          <div className="rounded-xl bg-white/[0.04] p-2">
-            <p className="text-[10px] font-black uppercase text-white/30">Risco</p>
-            <p className="mt-1 text-xs font-black text-white">{pick.risk || '--'}</p>
+          <div className="rounded-2xl border border-white/8 bg-black/20 p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/30">Mercado</p>
+            <p className="mt-1 truncate text-sm font-black text-white">{pick.type || '--'}</p>
           </div>
-          <button onClick={() => void savePickAsBet(pick)} className="rounded-xl bg-[#c8f71f] p-2 text-xs font-black text-black">
+          <button onClick={() => void savePickAsBet(pick)} className="rounded-2xl bg-[#c8f71f] p-3 text-sm font-black text-black shadow-[0_14px_34px_rgba(200,247,31,.12)] transition hover:bg-[#d9ff59]">
             Salvar
           </button>
         </div>
@@ -932,44 +957,71 @@ export default function OddixDashboardPage() {
   }
 
   function MultipleCard({ multiple }: { multiple: DashboardMultiple }) {
+    const risk = String(multiple.risk || 'múltipla').toLowerCase();
+    const confidence = Number(multiple.confidence || 0);
+    const riskStyle =
+      risk.includes('segur') || risk.includes('baixo')
+        ? 'from-emerald-300/18 to-[#c8f71f]/12 text-emerald-300 border-emerald-300/18'
+        : risk.includes('ousad') || risk.includes('alto')
+          ? 'from-rose-300/18 to-orange-300/10 text-rose-300 border-rose-300/18'
+          : 'from-amber-300/18 to-[#c8f71f]/10 text-amber-200 border-amber-300/18';
+
     return (
-      <div className="rounded-[28px] border border-white/8 bg-black/20 p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.018))] p-5 shadow-[0_24px_80px_rgba(0,0,0,.25)]">
+        <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-[#c8f71f]/10 blur-3xl" />
+        <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.15em] text-[#c8f71f]">{multiple.risk || 'múltipla'} • {multiple.legs?.length || 0} entradas</p>
-            <h3 className="mt-2 text-2xl font-black text-white">{multiple.title}</h3>
-            <p className="mt-2 text-sm text-white/45">{multiple.note || 'Sugestão estatística. Não há garantia de resultado.'}</p>
+            <div className={`inline-flex rounded-full border bg-gradient-to-r px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${riskStyle}`}>
+              {multiple.risk || 'múltipla'} • {multiple.legs?.length || 0} entradas
+            </div>
+            <h3 className="mt-4 text-2xl font-black leading-tight text-white">{multiple.title}</h3>
+            <p className="mt-2 max-w-md text-sm leading-6 text-white/48">{multiple.note || 'Sugestão estatística para análise. Não há garantia de resultado.'}</p>
           </div>
-          <div className="text-right">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-white/35">Confiança</p>
-            <p className="mt-1 text-2xl font-black text-[#c8f71f]">{multiple.confidence ?? 0}%</p>
+
+          <div className="rounded-[24px] border border-[#c8f71f]/18 bg-[#c8f71f]/10 px-5 py-4 text-center">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">Confiança</p>
+            <p className="mt-1 text-3xl font-black leading-none text-[#c8f71f]">{confidence}%</p>
           </div>
         </div>
 
-        <div className="mt-5 space-y-3">
+        <div className="relative mt-5 space-y-3">
           {(multiple.legs || []).map((leg, index) => (
-            <div key={`${multiple.id}-${leg.id}-${index}`} className="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-black text-white">{index + 1}. {leg.match}</p>
-                  <p className="mt-1 text-sm text-white/56">{leg.market}</p>
+            <div key={`${multiple.id}-${leg.id}-${index}`} className="rounded-[22px] border border-white/8 bg-black/22 p-4 transition hover:border-[#c8f71f]/18">
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#c8f71f] text-sm font-black text-black">{index + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-black text-white">{leg.match}</p>
+                      <p className="mt-1 text-sm text-white/56">{leg.market}</p>
+                    </div>
+                    <span className="rounded-full bg-[#c8f71f]/12 px-3 py-1 text-xs font-black text-[#c8f71f]">{leg.confidence ?? 0}%</span>
+                  </div>
+                  {(leg.homeTeam || leg.awayTeam) && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-black text-white/65">
+                      {leg.homeTeam && <TeamLogo src={leg.homeLogo} team={leg.homeTeam} size={26} />}
+                      <span>{leg.homeTeam || ''}</span>
+                      <span className="text-white/30">x</span>
+                      {leg.awayTeam && <TeamLogo src={leg.awayLogo} team={leg.awayTeam} size={26} />}
+                      <span>{leg.awayTeam || ''}</span>
+                    </div>
+                  )}
                 </div>
-                <span className="rounded-full bg-[#c8f71f]/12 px-3 py-1 text-xs font-black text-[#c8f71f]">{leg.confidence ?? 0}%</span>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="mt-5 grid gap-2 sm:grid-cols-3">
-          <div className="rounded-2xl bg-white/[0.04] p-3 text-center">
-            <p className="text-[10px] font-black uppercase text-white/30">Odd estimada</p>
-            <p className="mt-1 text-sm font-black text-white">{multiple.estimatedOdd ? formatDecimal(Number(multiple.estimatedOdd)) : '--'}</p>
+        <div className="relative mt-5 grid gap-2 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/8 bg-black/20 p-3 text-center">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/30">Odd estimada</p>
+            <p className="mt-1 text-lg font-black text-white">{multiple.estimatedOdd ? formatDecimal(Number(multiple.estimatedOdd)) : '--'}</p>
           </div>
-          <div className="rounded-2xl bg-white/[0.04] p-3 text-center">
-            <p className="text-[10px] font-black uppercase text-white/30">Status odds</p>
+          <div className="rounded-2xl border border-white/8 bg-black/20 p-3 text-center">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/30">Status odds</p>
             <p className="mt-1 text-xs font-black text-white">{multiple.oddStatus || '--'}</p>
           </div>
-          <button onClick={() => setActiveTab('entradas')} className="rounded-2xl bg-[#c8f71f] p-3 text-sm font-black text-black">Usar múltipla</button>
+          <button onClick={() => setActiveTab('entradas')} className="rounded-2xl bg-[#c8f71f] p-3 text-sm font-black text-black shadow-[0_14px_34px_rgba(200,247,31,.14)] transition hover:bg-[#d9ff59]">Usar múltipla</button>
         </div>
       </div>
     );
@@ -978,13 +1030,13 @@ export default function OddixDashboardPage() {
   function renderInicio() {
     return (
       <div className="space-y-5">
-        <section className="rounded-[32px] bg-[linear-gradient(135deg,#d9ff59,#9fdc12)] p-6 text-black shadow-[0_24px_80px_rgba(200,247,31,.14)]">
+        <section className="relative overflow-hidden rounded-[34px] border border-[#c8f71f]/25 bg-[radial-gradient(circle_at_15%_15%,#efff92,transparent_26%),linear-gradient(135deg,#d9ff59,#92d70f)] p-7 text-black shadow-[0_28px_90px_rgba(200,247,31,.18)]">
           <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-black/55">V23.13 • Bet Tracker</p>
-              <h1 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">Banca, apostas e ROI agora com controle real do usuário.</h1>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-black/55">V23.15 • Staly Picks</p>
+              <h1 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">Palpites e múltiplas com visual premium para decidir melhor.</h1>
               <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-black/65">
-                Cadastre banca, adicione apostas, marque Green/Red/Void e acompanhe ROI, lucro e win rate reais.
+                Gere oportunidades, monte múltiplas por risco, salve entradas e acompanhe banca, ROI e performance em tempo real.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -1101,35 +1153,51 @@ export default function OddixDashboardPage() {
 
   function renderPalpites() {
     return (
-      <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-        {sectionHeader('Palpites do dia', 'Mercados gerados pela engine Oddix', generatingPicks ? 'Gerando...' : 'Gerar palpites', () => void generatePicks())}
-        <div className="mt-5 grid gap-3 xl:grid-cols-2">
+      <div className="space-y-5">
+        <section className="overflow-hidden rounded-[34px] border border-[#c8f71f]/18 bg-[radial-gradient(circle_at_12%_18%,rgba(200,247,31,.16),transparent_26%),linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))] p-6 shadow-[0_26px_90px_rgba(0,0,0,.25)]">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#c8f71f]">Picks Engine</p>
+              <h2 className="mt-3 text-3xl font-black leading-tight text-white sm:text-4xl">Palpites prontos por mercado.</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">O Oddix cruza jogos reais, contexto e mercados para sugerir entradas por risco, confiança e oportunidade.</p>
+            </div>
+            <button onClick={() => void generatePicks()} className="h-12 rounded-2xl bg-[#c8f71f] px-6 text-sm font-black text-black shadow-[0_18px_44px_rgba(200,247,31,.16)]">
+              {generatingPicks ? 'Gerando...' : 'Gerar palpites'}
+            </button>
+          </div>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-2">
           {picks.length ? picks.map((pick) => <PickCard key={pick.id} pick={pick} />) : <EmptyState title="Nenhum palpite gerado" subtitle="Clique em Gerar palpites para analisar os jogos reais e montar oportunidades por mercado." />}
-        </div>
-      </section>
+        </section>
+      </div>
     );
   }
 
   function renderMultiplas() {
     return (
-      <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Múltiplas prontas</p>
-            <h2 className="mt-2 text-2xl font-black text-white">Gerador de múltiplas</h2>
+      <div className="space-y-5">
+        <section className="overflow-hidden rounded-[34px] border border-[#c8f71f]/18 bg-[radial-gradient(circle_at_85%_10%,rgba(200,247,31,.16),transparent_28%),linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))] p-6 shadow-[0_26px_90px_rgba(0,0,0,.25)]">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#c8f71f]">Multiples Engine</p>
+              <h2 className="mt-3 text-3xl font-black leading-tight text-white sm:text-4xl">Múltiplas prontas por perfil de risco.</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">Monte combinações seguras, moderadas ou ousadas usando os palpites gerados pela IA e os jogos reais do dia.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {['segura', 'moderada', 'ousada'].map((risk) => (
+                <button key={risk} onClick={() => void generateMultiple(risk)} className="h-11 rounded-2xl bg-[#c8f71f] px-4 text-xs font-black capitalize text-black shadow-[0_14px_34px_rgba(200,247,31,.12)]">
+                  {generatingMultiple === risk ? 'Gerando...' : risk}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {['segura', 'moderada', 'ousada'].map((risk) => (
-              <button key={risk} onClick={() => void generateMultiple(risk)} className="rounded-full bg-[#c8f71f] px-4 py-2 text-xs font-black capitalize text-black">
-                {generatingMultiple === risk ? 'Gerando...' : risk}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="mt-5 space-y-4">
+        </section>
+
+        <section className="space-y-4">
           {multiples.length ? multiples.map((multiple) => <MultipleCard key={multiple.id} multiple={multiple} />) : <EmptyState title="Nenhuma múltipla gerada" subtitle="Escolha segura, moderada ou ousada para montar uma múltipla baseada nos jogos reais." />}
-        </div>
-      </section>
+        </section>
+      </div>
     );
   }
 
@@ -1433,7 +1501,7 @@ export default function OddixDashboardPage() {
               </span>
               <div>
                 <p className="text-sm font-black tracking-tight text-white">Oddix Control</p>
-                <p className="text-xs font-semibold text-white/42">Dashboard esportivo com dados reais</p>
+                <p className="text-xs font-semibold text-white/42">Dashboard de palpites premium</p>
               </div>
             </a>
 
