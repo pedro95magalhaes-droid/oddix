@@ -487,34 +487,103 @@ function mergeGames(groups: any[][]) {
   });
 }
 
-function getOddsOptions(game: Game) {
-  const raw = game.odds;
+function getReadableMarketName(rawMarket: any, rawLabel: any) {
+  const market = normalizeText(String(rawMarket || ''));
+  const label = normalizeText(String(rawLabel || ''));
+  const joined = `${market} ${label}`.trim();
+
+  if (!joined || joined === 'mercado' || joined === 'market') {
+    if (['1', 'x', '2'].includes(String(rawLabel || '').trim().toLowerCase())) return 'Resultado final';
+    return 'Mercado principal';
+  }
+
+  if (joined.includes('match winner') || joined.includes('full time') || joined.includes('resultado final') || joined.includes('winner') || joined.includes('1x2')) return 'Resultado final';
+  if (joined.includes('double chance') || joined.includes('dupla chance')) return 'Dupla chance';
+  if (joined.includes('both teams') || joined.includes('ambas marcam') || joined.includes('btts')) return 'Ambas marcam';
+  if (joined.includes('over') || joined.includes('under') || joined.includes('total') || joined.includes('gols')) return 'Total de gols';
+  if (joined.includes('corner') || joined.includes('escanteio')) return 'Escanteios';
+  if (joined.includes('cards') || joined.includes('cart')) return 'Cartões';
+  if (joined.includes('handicap')) return 'Handicap';
+
+  const cleaned = String(rawMarket || 'Mercado principal').replace(/[_-]+/g, ' ').trim();
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+function getReadableSelection(rawLabel: any, rawMarket: any, game: Game) {
+  const label = String(rawLabel || '').trim();
+  const normalized = normalizeText(label);
+  const market = normalizeText(String(rawMarket || ''));
+  const home = game.teams.home.name;
+  const away = game.teams.away.name;
+
+  if (['1', 'home', 'mandante', 'casa'].includes(normalized)) return `${home} vence`;
+  if (['2', 'away', 'visitante', 'fora'].includes(normalized)) return `${away} vence`;
+  if (['x', 'draw', 'empate'].includes(normalized)) return 'Empate';
+
+  if (normalized === '1x' || normalized.includes('home or draw')) return `${home} ou empate`;
+  if (normalized === 'x2' || normalized.includes('away or draw')) return `${away} ou empate`;
+  if (normalized === '12' || normalized.includes('home or away')) return `${home} ou ${away}`;
+
+  if (normalized === 'yes' || normalized === 'sim') {
+    if (market.includes('both') || market.includes('ambas') || market.includes('btts')) return 'Ambas marcam - Sim';
+    return 'Sim';
+  }
+
+  if (normalized === 'no' || normalized === 'nao' || normalized === 'não') {
+    if (market.includes('both') || market.includes('ambas') || market.includes('btts')) return 'Ambas marcam - Não';
+    return 'Não';
+  }
+
+  if (label && label !== 'Mercado real') return label;
+  return 'Seleção disponível';
+}
+
+function collectOddsCandidates(raw: any) {
   const options: any[] = [];
 
+  if (!raw) return options;
+  if (Array.isArray(raw)) options.push(...raw);
   if (Array.isArray(raw?.options)) options.push(...raw.options);
   if (Array.isArray(raw?.opções)) options.push(...raw.opções);
-  if (Array.isArray(raw)) options.push(...raw);
+  if (Array.isArray(raw?.markets)) options.push(...raw.markets);
+  if (Array.isArray(raw?.bets)) options.push(...raw.bets);
   if (Array.isArray(raw?.bookmakers)) {
     raw.bookmakers.forEach((book: any) => {
       (book?.bets || book?.markets || []).forEach((market: any) => {
-        (market?.values || market?.outcomes || market?.options || []).forEach((outcome: any) => {
-          options.push({ ...outcome, market: market.name || market.label || market.key });
+        const marketName = market.name || market.label || market.key || market.market || market.title;
+        (market?.values || market?.outcomes || market?.options || market?.selections || []).forEach((outcome: any) => {
+          options.push({ ...outcome, market: marketName });
         });
       });
     });
   }
 
+  Object.entries(raw || {}).forEach(([key, value]) => {
+    if (['home', 'away', 'draw', '1', '2', 'x'].includes(String(key).toLowerCase()) && typeof value !== 'object') {
+      options.push({ label: key, odd: value, market: 'Resultado final' });
+    }
+  });
+
+  return options;
+}
+
+function getOddsOptions(game: Game) {
+  const raw = game.odds;
+  const options = collectOddsCandidates(raw);
+
   return options
     .map((item) => {
-      const odd = Number(item?.odd ?? item?.price ?? item?.value ?? item?.cotacao ?? item?.ímpar);
-      const label = item?.label || item?.name || item?.selection || item?.tip || item?.mercado || item?.market || item?.valueName;
+      const odd = Number(item?.odd ?? item?.price ?? item?.value ?? item?.cotacao ?? item?.ímpar ?? item?.odds);
+      const rawLabel = item?.label || item?.name || item?.selection || item?.tip || item?.mercado || item?.valueName || item?.outcome || item?.key;
+      const rawMarket = item?.market || item?.mercado || item?.marketName || item?.name || 'Mercado principal';
       return {
-        label: String(label || 'Mercado real'),
+        label: getReadableSelection(rawLabel, rawMarket, game),
         odd,
-        market: item?.market || item?.mercado || item?.key || 'Mercado',
+        market: getReadableMarketName(rawMarket, rawLabel),
       };
     })
-    .filter((item) => Number.isFinite(item.odd) && item.odd >= 1.15 && item.odd <= 5.5)
+    .filter((item) => Number.isFinite(item.odd) && item.odd >= 1.15 && item.odd <= 5.5 && item.label !== 'Seleção disponível')
+    .filter((item, index, array) => array.findIndex((other) => `${other.market}-${other.label}-${other.odd}` === `${item.market}-${item.label}-${item.odd}`) === index)
     .slice(0, 12);
 }
 
@@ -558,7 +627,7 @@ function buildMarketsForGame(game: Game): Pick[] {
       odd: Number(odd.odd),
       confidence: Math.min(88, Math.max(55, quality - index * 4)),
       risk: index === 0 ? 'Seguro' : index === 1 ? 'Moderado' : 'Ousado',
-      reason: 'Mercado real encontrado na fonte de dados do jogo.',
+      reason: 'Mercado real normalizado a partir da fonte de odds do jogo.',
       source: 'Mercado real',
     }));
   }
@@ -887,7 +956,7 @@ export default function DashboardPage() {
         <div className="relative overflow-hidden rounded-[36px] border border-[#c8f71f]/25 bg-[linear-gradient(135deg,#d9ff59,#a8e71a_48%,#7cc80a)] p-7 text-black shadow-[0_30px_120px_rgba(200,247,31,.16)]">
           <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/25 blur-3xl" />
           <div className="absolute bottom-4 right-8 hidden h-28 w-28 rounded-full border border-black/10 bg-black/10 md:block" />
-          <p className="relative text-xs font-black uppercase tracking-[0.28em] text-black/55">V23.20 • fonte real do futebol</p>
+          <p className="relative text-xs font-black uppercase tracking-[0.28em] text-black/55">V23.21 • fonte real do futebol</p>
           <h1 className="relative mt-4 max-w-3xl text-4xl font-black leading-[1.04] sm:text-5xl">Dashboard vivo, moderno e focado nos principais jogos.</h1>
           <p className="relative mt-4 max-w-2xl text-sm font-semibold leading-7 text-black/65">Usando o mesmo fluxo do seu arquivo: /football/live + /football/fixtures hoje e amanhã. O Oddix filtra os jogos mais relevantes e monta palpites, múltiplas e cards de jogadores.</p>
           <div className="relative mt-6 flex flex-wrap gap-3">
@@ -968,7 +1037,7 @@ export default function DashboardPage() {
         <div className="mt-4 flex flex-wrap gap-2">
           {markets.map((market) => (
             <button key={market.id} onClick={() => setActiveTab('palpites')} className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-xs font-bold text-white/72 transition hover:border-[#c8f71f]/30 hover:text-[#c8f71f]">
-              {market.market}: {market.selection}
+              {market.market} • {market.selection}
             </button>
           ))}
         </div>
