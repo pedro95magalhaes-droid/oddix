@@ -600,7 +600,7 @@ export class AuthService {
   }
 
   private espnCompetitionSlugs() {
-    return String(process.env.ODDIX_DASHBOARD_ESPN_LEAGUES || 'fifa.world,bra.1,eng.1,esp.1,ita.1,ger.1,fra.1,por.1,usa.1')
+    return String(process.env.ODDIX_DASHBOARD_ESPN_LEAGUES || 'fifa.world,bra.1,bra.2,eng.1,esp.1,ita.1,ger.1,fra.1,por.1')
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
@@ -630,6 +630,102 @@ export class AuthService {
 
   private dashboardDateCompact() {
     return this.dashboardDate().replace(/-/g, '');
+  }
+
+
+  private dashboardAllowedLeagueKeywords() {
+    const raw = String(
+      process.env.ODDIX_DASHBOARD_ALLOWED_LEAGUES ||
+        'brazil,brasil,brasileirao,brasileirão,serie a,serie b,copa do brasil,copa do mundo,world cup,premier league,la liga,ligue 1,bundesliga,champions,libertadores,sul-americana,europa league,conference league,portugal,france,italy,germany,spain,england',
+    );
+
+    return raw
+      .split(',')
+      .map((item) =>
+        item
+          .trim()
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, ''),
+      )
+      .filter(Boolean);
+  }
+
+  private includeWomenGames() {
+    return String(process.env.ODDIX_DASHBOARD_INCLUDE_WOMEN || 'false').toLowerCase() === 'true';
+  }
+
+  private includeYouthGames() {
+    return String(process.env.ODDIX_DASHBOARD_INCLUDE_YOUTH || 'false').toLowerCase() === 'true';
+  }
+
+  private minPickConfidence() {
+    return this.toNumber(process.env.ODDIX_DASHBOARD_MIN_PICK_CONFIDENCE, 55);
+  }
+
+  private minPickOdd() {
+    return this.toNumber(process.env.ODDIX_DASHBOARD_MIN_PICK_ODD, 1.2);
+  }
+
+  private maxPickOdd() {
+    return this.toNumber(process.env.ODDIX_DASHBOARD_MAX_PICK_ODD, 3.5);
+  }
+
+  private normalizedSearchText(value: any) {
+    return String(value || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  private isWomenOrYouthGame(game: any) {
+    const text = this.normalizedSearchText(`${game?.league || ''} ${game?.homeTeam || ''} ${game?.awayTeam || ''}`);
+    const women = /\b(women|woman|feminino|feminina|fem|f\b| w\b|\bw\s)/i.test(text);
+    const youth = /\b(u17|u18|u19|u20|u21|sub-17|sub-18|sub-19|sub-20|sub17|sub20|youth|junior|juniors|reserve|reserves)\b/i.test(text);
+
+    if (women && !this.includeWomenGames()) return true;
+    if (youth && !this.includeYouthGames()) return true;
+    return false;
+  }
+
+  private isDashboardGameAllowed(game: any) {
+    if (!game) return false;
+    if (this.isWomenOrYouthGame(game)) return false;
+
+    const keywords = this.dashboardAllowedLeagueKeywords();
+    if (!keywords.length) return true;
+
+    const text = this.normalizedSearchText(`${game?.league || ''} ${game?.source || ''}`);
+    return keywords.some((keyword) => text.includes(keyword));
+  }
+
+  private filterDashboardMarkets(markets: any[]) {
+    const minConfidence = this.minPickConfidence();
+    const minOdd = this.minPickOdd();
+    const maxOdd = this.maxPickOdd();
+
+    return (Array.isArray(markets) ? markets : [])
+      .map((market) => ({
+        ...market,
+        odd: this.normalizeOddValue(market?.odd ?? market?.odds ?? market?.price),
+        confidence: this.toNumber(market?.confidence || market?.score || market?.probability, 0),
+      }))
+      .filter((market) => market.odd && market.odd >= minOdd && market.odd <= maxOdd && market.confidence >= minConfidence)
+      .sort((a, b) => this.toNumber(b.confidence) - this.toNumber(a.confidence));
+  }
+
+  private cleanDashboardGame(game: any) {
+    const markets = this.filterDashboardMarkets(Array.isArray(game?.markets) ? game.markets : []);
+    const top = markets[0];
+
+    return {
+      ...game,
+      markets,
+      topMarket: top?.market,
+      topOdd: top?.odd,
+      confidence: top?.confidence || 0,
+      oddStatus: top ? 'mercado real qualificado' : 'sem mercado real qualificado',
+    };
   }
 
   private dateOnlyInDashboardTimezone(value: any) {
@@ -750,7 +846,7 @@ export class AuthService {
   private marketsFrom1x2Odds(home: string, away: string, odds: Array<{ name: '1' | 'X' | '2'; odd: number }>) {
     const label: Record<string, string> = { '1': `${home} vence`, X: 'Empate', '2': `${away} vence` };
 
-    return odds.map((option) => ({
+    const markets = odds.map((option) => ({
       market: label[option.name],
       type: 'Resultado',
       risk: option.odd <= 1.6 ? 'seguro' : option.odd <= 2.4 ? 'moderado' : 'ousado',
@@ -759,6 +855,8 @@ export class AuthService {
       reason: 'Mercado real 1X2 retornado pela fonte de odds. O score é a probabilidade implícita aproximada da odd, não garantia de resultado.',
       source: 'real-odds',
     }));
+
+    return this.filterDashboardMarkets(markets);
   }
 
   private flattenFlashScoreMatches(data: any): any[] {
@@ -842,7 +940,9 @@ export class AuthService {
       const data = await response.json();
       return this.flattenFlashScoreMatches(data)
         .map((match, index) => this.normalizeFlashScoreDashboardMatch(match, index))
-        .filter((game) => this.isDashboardGameCurrent(game));
+        .filter((game) => this.isDashboardGameCurrent(game))
+        .filter((game) => this.isDashboardGameAllowed(game))
+        .map((game) => this.cleanDashboardGame(game));
     } catch {
       return [];
     }
@@ -947,7 +1047,12 @@ export class AuthService {
         return true;
       });
 
-      return this.sortDashboardGames(merged.filter((game) => this.isDashboardGameCurrent(game))).slice(0, 40);
+      return this.sortDashboardGames(
+        merged
+          .filter((game) => this.isDashboardGameCurrent(game))
+          .filter((game) => this.isDashboardGameAllowed(game))
+          .map((game) => this.cleanDashboardGame(game)),
+      ).slice(0, 40);
     } catch {
       return [];
     } finally {
@@ -968,7 +1073,9 @@ export class AuthService {
     if (rows.length) {
       const currentRows = rows
         .map((row: any, index: number) => this.normalizeDashboardGameRow(row, index))
-        .filter((game: any) => this.isDashboardGameCurrent(game));
+        .filter((game: any) => this.isDashboardGameCurrent(game))
+        .filter((game: any) => this.isDashboardGameAllowed(game))
+        .map((game: any) => this.cleanDashboardGame(game));
 
       if (currentRows.length) return this.sortDashboardGames(currentRows);
     }
@@ -1069,17 +1176,17 @@ export class AuthService {
     const realMarkets = Array.isArray(game?.markets) ? game.markets : [];
 
     if (realMarkets.length) {
-      return realMarkets
-        .map((market: any) => ({
-          market: String(market?.market || market?.name || market?.selection || 'Mercado'),
-          type: String(market?.type || market?.category || 'Mercado real'),
-          risk: String(market?.risk || 'moderado'),
-          confidence: this.toNumber(market?.confidence || market?.score || market?.probability, 0),
-          odd: this.normalizeOddValue(market?.odd ?? market?.odds ?? market?.price),
-          reason: market?.reason || 'Mercado retornado por fonte real de odds/dados. Não há garantia de resultado.',
-          source: market?.source || 'real-market',
-        }))
-        .filter((market: any) => market.odd && market.odd > 1);
+      const mapped = realMarkets.map((market: any) => ({
+        market: String(market?.market || market?.name || market?.selection || 'Mercado'),
+        type: String(market?.type || market?.category || 'Mercado real'),
+        risk: String(market?.risk || 'moderado'),
+        confidence: this.toNumber(market?.confidence || market?.score || market?.probability, 0),
+        odd: this.normalizeOddValue(market?.odd ?? market?.odds ?? market?.price),
+        reason: market?.reason || 'Mercado retornado por fonte real de odds/dados. Não há garantia de resultado.',
+        source: market?.source || 'real-market',
+      }));
+
+      return this.filterDashboardMarkets(mapped);
     }
 
     const allowSynthetic = String(process.env.ODDIX_ENABLE_SYNTHETIC_PICKS || 'false').toLowerCase() === 'true';
@@ -1188,6 +1295,7 @@ export class AuthService {
     }
 
     return picks
+      .filter((pick) => this.normalizeOddValue(pick?.odd) && this.toNumber(pick?.confidence) >= this.minPickConfidence())
       .sort((a, b) => this.toNumber(b.confidence) - this.toNumber(a.confidence))
       .slice(0, limit);
   }
@@ -1207,13 +1315,25 @@ export class AuthService {
       if (selected.length >= size) break;
     }
 
-    const confidence = selected.length
-      ? Math.round(selected.reduce((sum, pick) => sum + this.toNumber(pick.confidence), 0) / selected.length)
-      : 0;
     const odds = selected.map((pick) => this.toNumber(pick.odd, 0)).filter((odd) => odd > 1);
-    const estimatedOdd = odds.length === selected.length && selected.length
-      ? Number(odds.reduce((acc, odd) => acc * odd, 1).toFixed(2))
-      : null;
+
+    if (selected.length < size || odds.length !== selected.length) {
+      return {
+        id: `multiple-${wantedRisk}-empty`,
+        title: wantedRisk === 'seguro' ? 'Múltipla segura' : wantedRisk === 'moderado' ? 'Múltipla moderada' : 'Múltipla ousada',
+        risk: wantedRisk,
+        confidence: 0,
+        estimatedOdd: null,
+        oddStatus: 'sem palpites qualificados suficientes',
+        legs: [],
+        size: 0,
+        generatedAt: new Date().toISOString(),
+        note: 'A múltipla só é montada quando há mercados reais qualificados suficientes.',
+      };
+    }
+
+    const confidence = Math.round(selected.reduce((sum, pick) => sum + this.toNumber(pick.confidence), 0) / selected.length);
+    const estimatedOdd = Number(odds.reduce((acc, odd) => acc * odd, 1).toFixed(2));
 
     return {
       id: `multiple-${wantedRisk}-${selected.map((pick) => pick.id).join('-')}`.slice(0, 120),
