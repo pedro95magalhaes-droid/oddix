@@ -781,6 +781,189 @@ export class AuthService {
     ];
   }
 
+
+  private marketTemplatesForGame(game: any) {
+    const home = String(game?.homeTeam || 'Mandante');
+    const away = String(game?.awayTeam || 'Visitante');
+    const status = String(game?.status || '').toLowerCase();
+    const isLive = status.includes('ao vivo');
+    const isScheduled = status.includes('pré') || status.includes('pre') || status.includes('scheduled');
+    const base = isLive ? 4 : isScheduled ? 2 : 0;
+
+    return [
+      {
+        market: `${home} ou empate`,
+        type: 'Dupla chance',
+        risk: 'seguro',
+        confidence: Math.min(88, 72 + base),
+        reason: 'Mercado de proteção, reduzindo exposição ao resultado seco.',
+      },
+      {
+        market: 'Under 3.5 gols',
+        type: 'Gols',
+        risk: 'seguro',
+        confidence: Math.min(84, 69 + base),
+        reason: 'Linha conservadora para jogos com leitura mais protegida.',
+      },
+      {
+        market: 'Over 1.5 gols',
+        type: 'Gols',
+        risk: 'moderado',
+        confidence: Math.min(82, 66 + base),
+        reason: 'Entrada moderada quando o jogo apresenta potencial mínimo ofensivo.',
+      },
+      {
+        market: 'Ambas marcam',
+        type: 'Gols',
+        risk: 'moderado',
+        confidence: Math.min(76, 59 + base),
+        reason: `Mercado depende de volume ofensivo dos dois lados: ${home} e ${away}.`,
+      },
+      {
+        market: 'Mais de 7.5 escanteios',
+        type: 'Escanteios',
+        risk: 'ousado',
+        confidence: Math.min(70, 54 + base),
+        reason: 'Mercado mais sensível ao ritmo, pressão territorial e estilo de ataque.',
+      },
+      {
+        market: `${home} vence`,
+        type: 'Resultado',
+        risk: 'ousado',
+        confidence: Math.min(68, 51 + base),
+        reason: 'Resultado seco tem maior variância e deve ser usado com stake menor.',
+      },
+    ];
+  }
+
+  private normalizeGeneratedPick(game: any, template: any, index: number) {
+    const homeTeam = String(game?.homeTeam || 'Mandante');
+    const awayTeam = String(game?.awayTeam || 'Visitante');
+    const match = `${homeTeam} x ${awayTeam}`;
+    const hasOdd = game?.topOdd !== undefined && game?.topOdd !== null && game?.topOdd !== '' && Number(game?.topOdd) > 1;
+
+    return {
+      id: `${String(game?.id || match).replace(/[^a-zA-Z0-9_-]/g, '-')}-${index}`,
+      gameId: String(game?.id || ''),
+      match,
+      league: game?.league || 'Futebol',
+      status: game?.status || 'Sem status',
+      minute: game?.minute,
+      score: game?.score,
+      homeTeam,
+      awayTeam,
+      homeLogo: game?.homeLogo,
+      awayLogo: game?.awayLogo,
+      market: template.market,
+      type: template.type,
+      risk: template.risk,
+      confidence: template.confidence,
+      odd: hasOdd && template.type === 'Resultado' ? this.toNumber(game.topOdd, 0) : null,
+      oddStatus: hasOdd && template.type === 'Resultado' ? 'odd disponível' : 'odd indisponível',
+      reason: template.reason,
+      source: 'oddix-picks-engine',
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  private buildPicksFromGames(games: any[], limit = 80) {
+    const picks: any[] = [];
+
+    for (const game of games || []) {
+      const templates = this.marketTemplatesForGame(game);
+      templates.forEach((template, index) => picks.push(this.normalizeGeneratedPick(game, template, index)));
+    }
+
+    return picks
+      .sort((a, b) => this.toNumber(b.confidence) - this.toNumber(a.confidence))
+      .slice(0, limit);
+  }
+
+  private buildMultipleFromPicks(picks: any[], risk: string, size: number) {
+    const normalizedRisk = String(risk || 'segura').toLowerCase();
+    const wantedRisk = normalizedRisk.includes('ous') ? 'ousado' : normalizedRisk.includes('mod') ? 'moderado' : 'seguro';
+    const filtered = picks.filter((pick) => String(pick.risk || '').toLowerCase() === wantedRisk);
+    const base = filtered.length >= size ? filtered : picks;
+    const selected: any[] = [];
+    const usedMatches = new Set<string>();
+
+    for (const pick of base) {
+      if (usedMatches.has(pick.match)) continue;
+      selected.push(pick);
+      usedMatches.add(pick.match);
+      if (selected.length >= size) break;
+    }
+
+    const confidence = selected.length
+      ? Math.round(selected.reduce((sum, pick) => sum + this.toNumber(pick.confidence), 0) / selected.length)
+      : 0;
+    const odds = selected.map((pick) => this.toNumber(pick.odd, 0)).filter((odd) => odd > 1);
+    const estimatedOdd = odds.length === selected.length && selected.length
+      ? Number(odds.reduce((acc, odd) => acc * odd, 1).toFixed(2))
+      : null;
+
+    return {
+      id: `multiple-${wantedRisk}-${selected.map((pick) => pick.id).join('-')}`.slice(0, 120),
+      title: wantedRisk === 'seguro' ? 'Múltipla segura' : wantedRisk === 'moderado' ? 'Múltipla moderada' : 'Múltipla ousada',
+      risk: wantedRisk,
+      confidence,
+      estimatedOdd,
+      oddStatus: estimatedOdd ? 'odd calculada com dados disponíveis' : 'odds indisponíveis para cálculo completo',
+      legs: selected,
+      size: selected.length,
+      generatedAt: new Date().toISOString(),
+      note: 'Sugestão estatística para análise. Não há garantia de resultado.',
+    };
+  }
+
+  async getDashboardPicks(userId: string) {
+    const games = await this.getDashboardGames(userId);
+    return this.buildPicksFromGames(games);
+  }
+
+  async generateDashboardPicks(userId: string) {
+    return this.getDashboardPicks(userId);
+  }
+
+  async getDashboardMultiples(userId: string) {
+    const picks = await this.getDashboardPicks(userId);
+
+    return [
+      this.buildMultipleFromPicks(picks, 'segura', 3),
+      this.buildMultipleFromPicks(picks, 'moderada', 3),
+      this.buildMultipleFromPicks(picks, 'ousada', 4),
+    ].filter((multiple) => multiple.legs.length > 0);
+  }
+
+  async generateDashboardMultiple(userId: string, data: any) {
+    const picks = await this.getDashboardPicks(userId);
+    const risk = String(data?.risk || 'segura');
+    const size = Math.max(2, Math.min(6, this.toNumber(data?.size, risk.toLowerCase().includes('ous') ? 4 : 3)));
+
+    return this.buildMultipleFromPicks(picks, risk, size);
+  }
+
+  async createDashboardBetFromPick(userId: string, data: any) {
+    const pick = data?.pick || data;
+    const stake = this.toNumber(data?.stake || pick?.stake || 0);
+    const odd = this.toNumber(data?.odd || pick?.odd || 1, 1);
+
+    return this.createDashboardBet(userId, {
+      match: pick?.match,
+      market: pick?.market,
+      stake,
+      odd,
+      result: 'Aberta',
+      potentialReturn: stake * odd,
+      homeTeam: pick?.homeTeam,
+      awayTeam: pick?.awayTeam,
+      homeLogo: pick?.homeLogo,
+      awayLogo: pick?.awayLogo,
+      source: 'pick',
+      pickId: pick?.id,
+    });
+  }
+
   async getDashboard(userId: string) {
     const user = await this.me(userId);
 
@@ -788,13 +971,15 @@ export class AuthService {
       throw new NotFoundException('Usuário não encontrado');
     }
 
-    const [overview, games, bets, players, markets, compliance] = await Promise.all([
+    const [overview, games, bets, players, markets, compliance, picks, multiples] = await Promise.all([
       this.getDashboardOverview(userId),
       this.getDashboardGames(userId),
       this.getDashboardBets(userId),
       this.getDashboardPlayers(userId),
       this.getDashboardMarkets(userId),
       this.getDashboardCompliance(userId),
+      this.getDashboardPicks(userId),
+      this.getDashboardMultiples(userId),
     ]);
 
     return {
@@ -810,6 +995,8 @@ export class AuthService {
       players,
       markets,
       compliance,
+      picks,
+      multiples,
       source: 'backend-real-endpoints',
     };
   }

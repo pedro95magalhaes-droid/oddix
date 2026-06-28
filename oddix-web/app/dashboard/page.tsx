@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 type OddixPlan = 'free' | 'vip' | 'pro' | 'premium' | 'admin';
-type Tab = 'inicio' | 'jogos' | 'entradas' | 'ranking' | 'banca' | 'compliance';
+type Tab = 'inicio' | 'jogos' | 'palpites' | 'multiplas' | 'entradas' | 'ranking' | 'banca' | 'compliance';
 
 type OddixUser = {
   id?: string;
@@ -78,6 +78,38 @@ type DashboardMarket = {
   note?: string;
 };
 
+type DashboardPick = {
+  id: string;
+  gameId?: string;
+  match: string;
+  league?: string;
+  status?: string;
+  minute?: string;
+  score?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  homeLogo?: string;
+  awayLogo?: string;
+  market: string;
+  type?: string;
+  risk?: string;
+  confidence?: number;
+  odd?: number | null;
+  oddStatus?: string;
+  reason?: string;
+};
+
+type DashboardMultiple = {
+  id: string;
+  title: string;
+  risk?: string;
+  confidence?: number;
+  estimatedOdd?: number | null;
+  oddStatus?: string;
+  legs: DashboardPick[];
+  note?: string;
+};
+
 type ComplianceItem = {
   title: string;
   description: string;
@@ -88,6 +120,8 @@ const allowedPlans: OddixPlan[] = ['vip', 'pro', 'premium', 'admin'];
 const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: 'inicio', label: 'Início', icon: '🏠' },
   { id: 'jogos', label: 'Jogos', icon: '⚽' },
+  { id: 'palpites', label: 'Palpites', icon: '🧠' },
+  { id: 'multiplas', label: 'Múltiplas', icon: '🧩' },
   { id: 'entradas', label: 'Entradas', icon: '🎯' },
   { id: 'ranking', label: 'Ranking', icon: '🏆' },
   { id: 'banca', label: 'Banca', icon: '📈' },
@@ -314,7 +348,11 @@ export default function OddixDashboardPage() {
   const [bets, setBets] = useState<DashboardBet[]>([]);
   const [players, setPlayers] = useState<DashboardPlayer[]>([]);
   const [markets, setMarkets] = useState<DashboardMarket[]>([]);
+  const [picks, setPicks] = useState<DashboardPick[]>([]);
+  const [multiples, setMultiples] = useState<DashboardMultiple[]>([]);
   const [complianceItems, setComplianceItems] = useState<ComplianceItem[]>(defaultCompliance);
+  const [generatingPicks, setGeneratingPicks] = useState(false);
+  const [generatingMultiple, setGeneratingMultiple] = useState('');
 
   const apiBase = process.env.NEXT_PUBLIC_ODDIX_API_URL;
   const cleanApiBase = apiBase?.replace(/\/$/, '') ?? '';
@@ -372,11 +410,13 @@ export default function OddixDashboardPage() {
       ['/dashboard/bets', []],
       ['/dashboard/players', []],
       ['/dashboard/markets', []],
+      ['/dashboard/picks', []],
+      ['/dashboard/multiples', []],
       ['/dashboard/compliance', defaultCompliance],
     ] as const;
 
     try {
-      const [overviewRaw, gamesRaw, betsRaw, playersRaw, marketsRaw, complianceRaw] = await Promise.all(
+      const [overviewRaw, gamesRaw, betsRaw, playersRaw, marketsRaw, picksRaw, multiplesRaw, complianceRaw] = await Promise.all(
         targets.map(async ([path, fallback]) => {
           try {
             return await requestJson(path, token);
@@ -391,13 +431,17 @@ export default function OddixDashboardPage() {
       setBets(coerceArray<DashboardBet>(betsRaw));
       setPlayers(coerceArray<DashboardPlayer>(playersRaw));
       setMarkets(coerceArray<DashboardMarket>(marketsRaw));
+      setPicks(coerceArray<DashboardPick>(picksRaw));
+      setMultiples(coerceArray<DashboardMultiple>(multiplesRaw));
       setComplianceItems(coerceArray<ComplianceItem>(complianceRaw, defaultCompliance));
 
       const noData =
         coerceArray<DashboardGame>(gamesRaw).length === 0 &&
         coerceArray<DashboardBet>(betsRaw).length === 0 &&
         coerceArray<DashboardPlayer>(playersRaw).length === 0 &&
-        coerceArray<DashboardMarket>(marketsRaw).length === 0;
+        coerceArray<DashboardMarket>(marketsRaw).length === 0 &&
+        coerceArray<DashboardPick>(picksRaw).length === 0 &&
+        coerceArray<DashboardMultiple>(multiplesRaw).length === 0;
 
       if (noData) {
         setDashboardError('O frontend já está pronto para dados reais, mas o backend ainda não retornou conteúdo estruturado nos endpoints do dashboard.');
@@ -497,6 +541,8 @@ export default function OddixDashboardPage() {
     setBets([]);
     setPlayers([]);
     setMarkets([]);
+    setPicks([]);
+    setMultiples([]);
     setOverview(defaultOverview);
   }
 
@@ -611,6 +657,78 @@ export default function OddixDashboardPage() {
       await loadDashboard();
     } catch (err: any) {
       setDashboardError(err?.message || 'Não foi possível atualizar a aposta.');
+    }
+  }
+
+
+  async function generatePicks() {
+    if (!cleanApiBase || !authToken) return;
+
+    setGeneratingPicks(true);
+    setDashboardError('');
+
+    try {
+      const data = await fetch(`${cleanApiBase}/dashboard/generate-picks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+      }).then((response) => response.json());
+
+      setPicks(coerceArray<DashboardPick>(data));
+      setActiveTab('palpites');
+    } catch (err: any) {
+      setDashboardError(err?.message || 'Não foi possível gerar palpites.');
+    } finally {
+      setGeneratingPicks(false);
+    }
+  }
+
+  async function generateMultiple(risk = 'segura') {
+    if (!cleanApiBase || !authToken) return;
+
+    setGeneratingMultiple(risk);
+    setDashboardError('');
+
+    try {
+      const multiple = await fetch(`${cleanApiBase}/dashboard/generate-multiple`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ risk }),
+      }).then((response) => response.json());
+
+      setMultiples((current) => [multiple, ...current.filter((item) => item.id !== multiple.id)]);
+      setActiveTab('multiplas');
+    } catch (err: any) {
+      setDashboardError(err?.message || 'Não foi possível gerar múltipla.');
+    } finally {
+      setGeneratingMultiple('');
+    }
+  }
+
+  async function savePickAsBet(pick: DashboardPick) {
+    if (!cleanApiBase || !authToken) return;
+
+    setDashboardError('');
+
+    try {
+      await fetch(`${cleanApiBase}/dashboard/bets/from-pick`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ pick, stake: 0, odd: pick.odd || 1 }),
+      });
+
+      await loadDashboard();
+      setActiveTab('entradas');
+    } catch (err: any) {
+      setDashboardError(err?.message || 'Não foi possível salvar o palpite como aposta.');
     }
   }
 
@@ -771,6 +889,92 @@ export default function OddixDashboardPage() {
     );
   }
 
+
+  function PickCard({ pick }: { pick: DashboardPick }) {
+    return (
+      <div className="rounded-[24px] border border-white/8 bg-black/20 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.15em] text-[#c8f71f]">{pick.type || 'Palpite'} • {pick.risk || 'análise'}</p>
+            <p className="mt-2 text-base font-black text-white">{pick.match}</p>
+            <p className="mt-1 text-sm font-bold text-white/68">{pick.market}</p>
+          </div>
+          <span className="rounded-xl bg-[#c8f71f]/12 px-3 py-1.5 text-xs font-black text-[#c8f71f]">{pick.confidence ?? 0}%</span>
+        </div>
+
+        {(pick.homeTeam || pick.awayTeam) && (
+          <div className="mt-4 flex items-center gap-3">
+            {pick.homeTeam && <TeamLogo src={pick.homeLogo} team={pick.homeTeam} size={30} />}
+            <span className="text-xs font-black text-white/80">{pick.homeTeam || ''}</span>
+            <span className="text-xs font-black text-white/35">x</span>
+            {pick.awayTeam && <TeamLogo src={pick.awayLogo} team={pick.awayTeam} size={30} />}
+            <span className="text-xs font-black text-white/80">{pick.awayTeam || ''}</span>
+          </div>
+        )}
+
+        <p className="mt-4 text-sm leading-6 text-white/52">{pick.reason || 'Sugestão gerada com base nos dados disponíveis do jogo.'}</p>
+
+        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-xl bg-white/[0.04] p-2">
+            <p className="text-[10px] font-black uppercase text-white/30">Odd</p>
+            <p className="mt-1 text-xs font-black text-white">{pick.odd ? formatDecimal(Number(pick.odd)) : '--'}</p>
+          </div>
+          <div className="rounded-xl bg-white/[0.04] p-2">
+            <p className="text-[10px] font-black uppercase text-white/30">Risco</p>
+            <p className="mt-1 text-xs font-black text-white">{pick.risk || '--'}</p>
+          </div>
+          <button onClick={() => void savePickAsBet(pick)} className="rounded-xl bg-[#c8f71f] p-2 text-xs font-black text-black">
+            Salvar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function MultipleCard({ multiple }: { multiple: DashboardMultiple }) {
+    return (
+      <div className="rounded-[28px] border border-white/8 bg-black/20 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.15em] text-[#c8f71f]">{multiple.risk || 'múltipla'} • {multiple.legs?.length || 0} entradas</p>
+            <h3 className="mt-2 text-2xl font-black text-white">{multiple.title}</h3>
+            <p className="mt-2 text-sm text-white/45">{multiple.note || 'Sugestão estatística. Não há garantia de resultado.'}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-white/35">Confiança</p>
+            <p className="mt-1 text-2xl font-black text-[#c8f71f]">{multiple.confidence ?? 0}%</p>
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          {(multiple.legs || []).map((leg, index) => (
+            <div key={`${multiple.id}-${leg.id}-${index}`} className="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-white">{index + 1}. {leg.match}</p>
+                  <p className="mt-1 text-sm text-white/56">{leg.market}</p>
+                </div>
+                <span className="rounded-full bg-[#c8f71f]/12 px-3 py-1 text-xs font-black text-[#c8f71f]">{leg.confidence ?? 0}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 grid gap-2 sm:grid-cols-3">
+          <div className="rounded-2xl bg-white/[0.04] p-3 text-center">
+            <p className="text-[10px] font-black uppercase text-white/30">Odd estimada</p>
+            <p className="mt-1 text-sm font-black text-white">{multiple.estimatedOdd ? formatDecimal(Number(multiple.estimatedOdd)) : '--'}</p>
+          </div>
+          <div className="rounded-2xl bg-white/[0.04] p-3 text-center">
+            <p className="text-[10px] font-black uppercase text-white/30">Status odds</p>
+            <p className="mt-1 text-xs font-black text-white">{multiple.oddStatus || '--'}</p>
+          </div>
+          <button onClick={() => setActiveTab('entradas')} className="rounded-2xl bg-[#c8f71f] p-3 text-sm font-black text-black">Usar múltipla</button>
+        </div>
+      </div>
+    );
+  }
+
   function renderInicio() {
     return (
       <div className="space-y-5">
@@ -850,6 +1054,35 @@ export default function OddixDashboardPage() {
             </div>
           </div>
         </section>
+
+        <section className="grid gap-5 xl:grid-cols-[1.08fr_.92fr]">
+          <div className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Palpites da IA</p>
+                <h2 className="mt-2 text-2xl font-black">Mercados sugeridos</h2>
+              </div>
+              <button onClick={() => void generatePicks()} className="rounded-full bg-[#c8f71f] px-4 py-2 text-xs font-black text-black">Gerar</button>
+            </div>
+            <div className="space-y-3">
+              {picks.length ? picks.slice(0, 3).map((pick) => <PickCard key={pick.id} pick={pick} />) : <EmptyState title="Sem palpites gerados" subtitle="Clique em Gerar palpites para o Oddix analisar os jogos reais e sugerir mercados." />}
+            </div>
+          </div>
+
+          <div className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Múltiplas</p>
+                <h2 className="mt-2 text-2xl font-black">Combinações prontas</h2>
+              </div>
+              <button onClick={() => void generateMultiple('moderada')} className="rounded-full bg-white/6 px-4 py-2 text-xs font-black text-white/70">Gerar</button>
+            </div>
+            <div className="space-y-3">
+              {multiples.length ? multiples.slice(0, 1).map((multiple) => <MultipleCard key={multiple.id} multiple={multiple} />) : <EmptyState title="Sem múltiplas geradas" subtitle="Gere múltiplas seguras, moderadas ou ousadas a partir dos palpites." />}
+            </div>
+          </div>
+        </section>
+
       </div>
     );
   }
@@ -860,6 +1093,41 @@ export default function OddixDashboardPage() {
         {sectionHeader('Jogos do dia', 'Partidas reais monitoradas pelo Oddix', 'Atualizar jogos', () => void loadDashboard())}
         <div className="mt-5 grid gap-3 lg:grid-cols-2">
           {games.length ? games.map((game) => <GameCard key={game.id} game={game} />) : <EmptyState title="Sem jogos retornados" subtitle="O endpoint /dashboard/games precisa retornar a lista real de partidas com logos, odds e status." />}
+        </div>
+      </section>
+    );
+  }
+
+
+  function renderPalpites() {
+    return (
+      <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
+        {sectionHeader('Palpites do dia', 'Mercados gerados pela engine Oddix', generatingPicks ? 'Gerando...' : 'Gerar palpites', () => void generatePicks())}
+        <div className="mt-5 grid gap-3 xl:grid-cols-2">
+          {picks.length ? picks.map((pick) => <PickCard key={pick.id} pick={pick} />) : <EmptyState title="Nenhum palpite gerado" subtitle="Clique em Gerar palpites para analisar os jogos reais e montar oportunidades por mercado." />}
+        </div>
+      </section>
+    );
+  }
+
+  function renderMultiplas() {
+    return (
+      <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Múltiplas prontas</p>
+            <h2 className="mt-2 text-2xl font-black text-white">Gerador de múltiplas</h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {['segura', 'moderada', 'ousada'].map((risk) => (
+              <button key={risk} onClick={() => void generateMultiple(risk)} className="rounded-full bg-[#c8f71f] px-4 py-2 text-xs font-black capitalize text-black">
+                {generatingMultiple === risk ? 'Gerando...' : risk}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-5 space-y-4">
+          {multiples.length ? multiples.map((multiple) => <MultipleCard key={multiple.id} multiple={multiple} />) : <EmptyState title="Nenhuma múltipla gerada" subtitle="Escolha segura, moderada ou ousada para montar uma múltipla baseada nos jogos reais." />}
         </div>
       </section>
     );
@@ -1134,6 +1402,8 @@ export default function OddixDashboardPage() {
 
   function renderContent() {
     if (activeTab === 'jogos') return renderJogos();
+    if (activeTab === 'palpites') return renderPalpites();
+    if (activeTab === 'multiplas') return renderMultiplas();
     if (activeTab === 'entradas') return renderEntradas();
     if (activeTab === 'ranking') return renderRanking();
     if (activeTab === 'banca') return renderBanca();

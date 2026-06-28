@@ -46,6 +46,32 @@ export class DashboardController {
     return this.authService.getDashboardCompliance(this.getUserId(req));
   }
 
+
+  @Get('picks')
+  async picks(@Req() req: any) {
+    return this.authService.getDashboardPicks(this.getUserId(req));
+  }
+
+  @Get('multiples')
+  async multiples(@Req() req: any) {
+    return this.authService.getDashboardMultiples(this.getUserId(req));
+  }
+
+  @Post('generate-picks')
+  async generatePicks(@Req() req: any) {
+    return this.authService.generateDashboardPicks(this.getUserId(req));
+  }
+
+  @Post('generate-multiple')
+  async generateMultiple(@Req() req: any, @Body() body: any) {
+    return this.authService.generateDashboardMultiple(this.getUserId(req), body);
+  }
+
+  @Post('bets/from-pick')
+  async createBetFromPick(@Req() req: any, @Body() body: any) {
+    return this.authService.createDashboardBetFromPick(this.getUserId(req), body);
+  }
+
   @Get('bankroll')
   async bankroll(@Req() req: any) {
     return this.authService.getDashboardBankroll(this.getUserId(req));
