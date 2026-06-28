@@ -4,6 +4,12 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  getOddixFixtureQualityLabel,
+  getOddixFixtureQualityScore,
+  isOddixDashboardFixtureAllowed,
+  isOddixLeagueAllowed,
+} from '../football/league-filter';
 
 type OddixPlan = 'Free' | 'VIP' | 'PRO' | 'Premium' | 'Admin';
 
@@ -599,8 +605,41 @@ export class AuthService {
     };
   }
 
+  private dashboardCompetitionMode() {
+    return String(
+      process.env.ODDIX_DASHBOARD_COMPETITION_MODE ||
+        process.env.ODDIX_DASHBOARD_FOCUS ||
+        'premium',
+    )
+      .trim()
+      .toLowerCase();
+  }
+
+  private isWorldCupMode() {
+    const mode = this.dashboardCompetitionMode();
+    return ['worldcup', 'world-cup', 'copa', 'copa-do-mundo', 'fifa-world-cup'].includes(mode);
+  }
+
+  private isWorldCupFirstMode() {
+    const mode = this.dashboardCompetitionMode();
+    return ['worldcup-first', 'world-cup-first', 'priority-worldcup', 'copa-first'].includes(mode);
+  }
+
+  private espnWorldCupSlugs() {
+    return String(process.env.ODDIX_DASHBOARD_WORLDCUP_ESPN_LEAGUES || 'fifa.world')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
   private espnCompetitionSlugs() {
-    return String(process.env.ODDIX_DASHBOARD_ESPN_LEAGUES || 'fifa.world,bra.1,bra.2,eng.1,esp.1,ita.1,ger.1,fra.1,por.1')
+    const defaultAll = 'fifa.world,bra.1,bra.2,eng.1,esp.1,ita.1,ger.1,fra.1,por.1';
+
+    if (this.isWorldCupMode()) {
+      return this.espnWorldCupSlugs();
+    }
+
+    return String(process.env.ODDIX_DASHBOARD_ESPN_LEAGUES || defaultAll)
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
@@ -634,9 +673,12 @@ export class AuthService {
 
 
   private dashboardAllowedLeagueKeywords() {
+    const defaultWorldCup = 'fifa.world,fifa world cup,world cup,copa do mundo,mundial';
+    const defaultAll =
+      'fifa.world,fifa world cup,world cup,copa do mundo,mundial,brazil,brasil,brasileirao,brasileirão,serie a,serie b,copa do brasil,premier league,la liga,ligue 1,bundesliga,champions,libertadores,sul-americana,europa league,conference league,portugal,france,italy,germany,spain,england';
+
     const raw = String(
-      process.env.ODDIX_DASHBOARD_ALLOWED_LEAGUES ||
-        'brazil,brasil,brasileirao,brasileirão,serie a,serie b,copa do brasil,copa do mundo,world cup,premier league,la liga,ligue 1,bundesliga,champions,libertadores,sul-americana,europa league,conference league,portugal,france,italy,germany,spain,england',
+      process.env.ODDIX_DASHBOARD_ALLOWED_LEAGUES || (this.isWorldCupMode() ? defaultWorldCup : defaultAll),
     );
 
     return raw
@@ -678,6 +720,20 @@ export class AuthService {
       .replace(/[\u0300-\u036f]/g, '');
   }
 
+  private isWorldCupDashboardGame(game: any) {
+    const text = this.normalizedSearchText(
+      `${game?.league || ''} ${game?.source || ''} ${game?.slug || ''} ${game?.competition || ''} ${game?.competitionSlug || ''}`,
+    );
+
+    return (
+      text.includes('fifa.world') ||
+      text.includes('fifa world cup') ||
+      text.includes('world cup') ||
+      text.includes('copa do mundo') ||
+      text.includes('mundial')
+    );
+  }
+
   private isWomenOrYouthGame(game: any) {
     const text = this.normalizedSearchText(`${game?.league || ''} ${game?.homeTeam || ''} ${game?.awayTeam || ''}`);
     const women = /\b(women|woman|feminino|feminina|fem|f\b| w\b|\bw\s)/i.test(text);
@@ -688,14 +744,85 @@ export class AuthService {
     return false;
   }
 
+
+  private useSharedLeagueFilterOnDashboard() {
+    return String(process.env.ODDIX_DASHBOARD_USE_SHARED_LEAGUE_FILTER || 'true').toLowerCase() !== 'false';
+  }
+
+  private dashboardGameToOddixFixture(game: any) {
+    const date = game?.kickoffIso || game?.dateIso || game?.date || game?.kickoff || game?.startTime || game?.matchDate;
+
+    return {
+      provider: game?.source || game?.provider || game?.provedor,
+      league: {
+        name: game?.league || game?.competition || game?.competitionName,
+        slug: game?.slug || game?.competitionSlug,
+        country: game?.country || game?.countryName,
+        logo: game?.leagueLogo,
+      },
+      competition: game?.league || game?.competition || game?.competitionName,
+      country: game?.country || game?.countryName,
+      fixture: {
+        date,
+        status: {
+          long: game?.status,
+          short: game?.statusShort,
+        },
+      },
+      date,
+      status: game?.status,
+      teams: {
+        home: {
+          name: game?.homeTeam,
+          logo: game?.homeLogo,
+        },
+        away: {
+          name: game?.awayTeam,
+          logo: game?.awayLogo,
+        },
+      },
+      homeTeam: game?.homeTeam,
+      awayTeam: game?.awayTeam,
+      odds: game?.topOdd || game?.odd || (Array.isArray(game?.markets) ? game.markets[0]?.odd : undefined),
+      raw: game?.raw || {
+        competition: game?.league || game?.competition || game?.competitionName,
+        competitionName: game?.league || game?.competition || game?.competitionName,
+        leagueName: game?.league || game?.competition || game?.competitionName,
+        country: game?.country || game?.countryName,
+        ccode: game?.countryCode,
+      },
+    };
+  }
+
+  private dashboardMinimumFixtureQualityScore() {
+    if (this.isWorldCupMode()) return this.toNumber(process.env.ODDIX_DASHBOARD_MIN_FIXTURE_QUALITY_SCORE, 70);
+    return this.toNumber(process.env.ODDIX_DASHBOARD_MIN_FIXTURE_QUALITY_SCORE, 76);
+  }
+
   private isDashboardGameAllowed(game: any) {
     if (!game) return false;
     if (this.isWomenOrYouthGame(game)) return false;
 
+    const fixture = this.dashboardGameToOddixFixture(game);
+
+    if (this.isWorldCupMode()) {
+      if (!this.isWorldCupDashboardGame(game)) return false;
+      if (this.useSharedLeagueFilterOnDashboard()) {
+        return isOddixDashboardFixtureAllowed(fixture) && getOddixFixtureQualityScore(fixture) >= this.dashboardMinimumFixtureQualityScore();
+      }
+      return true;
+    }
+
+    if (this.useSharedLeagueFilterOnDashboard()) {
+      if (!isOddixLeagueAllowed(fixture)) return false;
+      if (!isOddixDashboardFixtureAllowed(fixture)) return false;
+      return getOddixFixtureQualityScore(fixture) >= this.dashboardMinimumFixtureQualityScore();
+    }
+
     const keywords = this.dashboardAllowedLeagueKeywords();
     if (!keywords.length) return true;
 
-    const text = this.normalizedSearchText(`${game?.league || ''} ${game?.source || ''}`);
+    const text = this.normalizedSearchText(`${game?.league || ''} ${game?.source || ''} ${game?.slug || ''} ${game?.competitionSlug || ''}`);
     return keywords.some((keyword) => text.includes(keyword));
   }
 
@@ -717,6 +844,7 @@ export class AuthService {
   private cleanDashboardGame(game: any) {
     const markets = this.filterDashboardMarkets(Array.isArray(game?.markets) ? game.markets : []);
     const top = markets[0];
+    const fixture = this.dashboardGameToOddixFixture({ ...game, markets, topOdd: top?.odd });
 
     return {
       ...game,
@@ -725,6 +853,8 @@ export class AuthService {
       topOdd: top?.odd,
       confidence: top?.confidence || 0,
       oddStatus: top ? 'mercado real qualificado' : 'sem mercado real qualificado',
+      qualityScore: getOddixFixtureQualityScore(fixture),
+      qualityLabel: getOddixFixtureQualityLabel(fixture),
     };
   }
 
@@ -978,7 +1108,9 @@ export class AuthService {
 
     return {
       id: String(event?.id || `${slug}-${homeName}-${awayName}-${index}`),
-      league: event?.league?.name || event?.league?.abbreviation || slug,
+      league: event?.league?.name || event?.league?.abbreviation || (slug === 'fifa.world' ? 'FIFA World Cup' : slug),
+      slug,
+      competitionSlug: slug,
       status: isLive ? 'Ao vivo' : isFinal ? 'Encerrado' : statusName === 'Sem status' ? 'Pré-jogo' : statusName,
       minute: displayClock ? `${displayClock}${period ? ` • ${period}º tempo` : ''}` : undefined,
       kickoff: this.toDateTimeLabel(kickoff),
@@ -1005,59 +1137,78 @@ export class AuthService {
       return 2;
     };
 
-    return games.sort((a, b) => weight(a) - weight(b));
+    return games.sort((a, b) => {
+      const statusDelta = weight(a) - weight(b);
+      if (statusDelta !== 0) return statusDelta;
+      return this.toNumber(b?.qualityScore, 0) - this.toNumber(a?.qualityScore, 0);
+    });
   }
 
   private async fetchEspnPublicGames() {
     const fetchFn = (globalThis as any).fetch;
     if (!fetchFn) return [];
 
-    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeout = controller ? setTimeout(() => controller.abort(), 4500) : null;
+    const fetchSlugs = async (slugs: string[]) => {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timeout = controller ? setTimeout(() => controller.abort(), 4500) : null;
 
-    try {
-      const slugs = this.espnCompetitionSlugs();
-      const results = await Promise.all(
-        slugs.map(async (slug) => {
-          try {
-            const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(slug)}/scoreboard?dates=${this.dashboardDateCompact()}`;
-            const response = await fetchFn(url, {
-              headers: {
-                accept: 'application/json',
-                'user-agent': 'OddixDashboard/1.0',
-              },
-              signal: controller?.signal,
-            });
+      try {
+        const results = await Promise.all(
+          slugs.map(async (slug) => {
+            try {
+              const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(slug)}/scoreboard?dates=${this.dashboardDateCompact()}`;
+              const response = await fetchFn(url, {
+                headers: {
+                  accept: 'application/json',
+                  'user-agent': 'OddixDashboard/1.0',
+                },
+                signal: controller?.signal,
+              });
 
-            if (!response?.ok) return [];
-            const data = await response.json();
-            const events = Array.isArray(data?.events) ? data.events : [];
-            return events.map((event: any, index: number) => this.normalizeEspnEvent(event, slug, index));
-          } catch {
-            return [];
-          }
-        }),
-      );
+              if (!response?.ok) return [];
+              const data = await response.json();
+              const events = Array.isArray(data?.events) ? data.events : [];
+              return events.map((event: any, index: number) => this.normalizeEspnEvent(event, slug, index));
+            } catch {
+              return [];
+            }
+          }),
+        );
 
-      const seen = new Set<string>();
-      const merged = results.flat().filter((game: any) => {
-        const key = `${game.homeTeam}-${game.awayTeam}-${game.kickoff || game.score || game.status}`.toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+        const seen = new Set<string>();
+        const merged = results.flat().filter((game: any) => {
+          const key = `${game.homeTeam}-${game.awayTeam}-${game.kickoff || game.score || game.status}`.toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
 
-      return this.sortDashboardGames(
-        merged
-          .filter((game) => this.isDashboardGameCurrent(game))
-          .filter((game) => this.isDashboardGameAllowed(game))
-          .map((game) => this.cleanDashboardGame(game)),
-      ).slice(0, 40);
-    } catch {
+        return this.sortDashboardGames(
+          merged
+            .filter((game) => this.isDashboardGameCurrent(game))
+            .filter((game) => this.isDashboardGameAllowed(game))
+            .map((game) => this.cleanDashboardGame(game)),
+        );
+      } catch {
+        return [];
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
+    };
+
+    const prioritySlugs = this.espnWorldCupSlugs();
+    const priorityGames = await fetchSlugs(prioritySlugs);
+
+    if (priorityGames.length) return priorityGames.slice(0, 40);
+
+    if (this.isWorldCupMode()) {
       return [];
-    } finally {
-      if (timeout) clearTimeout(timeout);
     }
+
+    const allSlugs = this.espnCompetitionSlugs().filter((slug) => !prioritySlugs.includes(slug));
+    const fallbackGames = await fetchSlugs(allSlugs);
+
+    return fallbackGames.slice(0, 40);
   }
 
   async getDashboardGames(_userId: string) {
