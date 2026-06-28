@@ -5,6 +5,22 @@ import { JwtService } from '@nestjs/jwt';
 
 type OddixPlan = 'Free' | 'VIP' | 'PRO' | 'Premium' | 'Admin';
 
+type DashboardBet = {
+  id: string;
+  match: string;
+  market: string;
+  stake: number;
+  odd: number;
+  potentialReturn: number;
+  result: string;
+  status?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  homeLogo?: string;
+  awayLogo?: string;
+  createdAt?: string;
+};
+
 const PREMIUM_PLANS = ['vip', 'pro', 'premium', 'admin'];
 
 @Injectable()
@@ -82,6 +98,165 @@ export class AuthService {
     });
   }
 
+  private toNumber(value: any, fallback = 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  private toDateLabel(value: any) {
+    if (!value) return '';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  }
+
+  private toDateTimeLabel(value: any) {
+    if (!value) return undefined;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  private resultLabel(value: any) {
+    const result = String(value || '').trim().toLowerCase();
+    if (['green', 'won', 'win', 'vencida', 'ganha'].includes(result)) return 'Green';
+    if (['red', 'lost', 'loss', 'perdida'].includes(result)) return 'Red';
+    if (['void', 'cancelada', 'cancelled', 'anulada'].includes(result)) return 'Void';
+    if (['cashout', 'cash_out'].includes(result)) return 'Cashout';
+    return 'Aberta';
+  }
+
+  private async findManyFromModels(modelNames: string[], argsList: any[] = []) {
+    const prismaAny = this.prisma as any;
+
+    for (const modelName of modelNames) {
+      const delegate = prismaAny?.[modelName];
+      if (!delegate?.findMany) continue;
+
+      const attempts = argsList.length ? argsList : [{}];
+
+      for (const args of attempts) {
+        try {
+          const rows = await delegate.findMany(args);
+          if (Array.isArray(rows)) return rows;
+        } catch {
+          // Try the next compatible Prisma shape/model.
+        }
+      }
+    }
+
+    return [];
+  }
+
+  private async findFirstFromModels(modelNames: string[], argsList: any[] = []) {
+    const prismaAny = this.prisma as any;
+
+    for (const modelName of modelNames) {
+      const delegate = prismaAny?.[modelName];
+      if (!delegate?.findFirst) continue;
+
+      const attempts = argsList.length ? argsList : [{}];
+
+      for (const args of attempts) {
+        try {
+          const row = await delegate.findFirst(args);
+          if (row) return row;
+        } catch {
+          // Try the next compatible Prisma shape/model.
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private userScopedArgs(userId: string, extra: any = {}) {
+    return [
+      { where: { userId }, ...extra },
+      { where: { user_id: userId }, ...extra },
+      { where: { ownerId: userId }, ...extra },
+      { where: { accountId: userId }, ...extra },
+      { where: { user: { id: userId } }, ...extra },
+      extra,
+    ];
+  }
+
+  private firstValue(source: any, keys: string[], fallback?: any) {
+    for (const key of keys) {
+      const value = key.split('.').reduce((acc, part) => acc?.[part], source);
+      if (value !== undefined && value !== null && value !== '') return value;
+    }
+    return fallback;
+  }
+
+  private normalizeBet(row: any): DashboardBet {
+    const homeTeam = this.firstValue(row, ['homeTeamName', 'homeName', 'home', 'teamHome', 'fixture.homeTeam.name', 'homeTeam.name']);
+    const awayTeam = this.firstValue(row, ['awayTeamName', 'awayName', 'away', 'teamAway', 'fixture.awayTeam.name', 'awayTeam.name']);
+    const match = this.firstValue(row, ['match', 'matchName', 'game', 'gameName', 'eventName', 'fixture.name'], homeTeam && awayTeam ? `${homeTeam} x ${awayTeam}` : 'Aposta registrada');
+    const stake = this.toNumber(this.firstValue(row, ['stake', 'amount', 'value', 'investment', 'betAmount']));
+    const odd = this.toNumber(this.firstValue(row, ['odd', 'odds', 'price', 'quote']), 1);
+    const potentialReturn = this.toNumber(this.firstValue(row, ['potentialReturn', 'returnValue', 'expectedReturn', 'payout']), stake * odd);
+
+    return {
+      id: String(this.firstValue(row, ['id', 'externalId', 'betId'], `${match}-${row?.createdAt || Date.now()}`)),
+      match: String(match),
+      market: String(this.firstValue(row, ['market', 'marketName', 'selection', 'pick', 'tip'], 'Mercado não informado')),
+      stake,
+      odd,
+      potentialReturn,
+      result: this.resultLabel(this.firstValue(row, ['result', 'status', 'state'])),
+      status: this.firstValue(row, ['status', 'state']),
+      homeTeam: homeTeam ? String(homeTeam) : undefined,
+      awayTeam: awayTeam ? String(awayTeam) : undefined,
+      homeLogo: this.firstValue(row, ['homeLogo', 'homeTeamLogo', 'homeLogoUrl', 'fixture.homeTeam.logo', 'homeTeam.logo', 'homeTeam.logoUrl']),
+      awayLogo: this.firstValue(row, ['awayLogo', 'awayTeamLogo', 'awayLogoUrl', 'fixture.awayTeam.logo', 'awayTeam.logo', 'awayTeam.logoUrl']),
+      createdAt: this.toDateTimeLabel(this.firstValue(row, ['placedAt', 'createdAt', 'date', 'updatedAt'])),
+    };
+  }
+
+  private calculateBetProfit(row: any) {
+    const explicitProfit = this.firstValue(row, ['profit', 'netProfit', 'pnl', 'resultAmount']);
+    if (explicitProfit !== undefined && explicitProfit !== null) return this.toNumber(explicitProfit);
+
+    const stake = this.toNumber(this.firstValue(row, ['stake', 'amount', 'value', 'investment', 'betAmount']));
+    const odd = this.toNumber(this.firstValue(row, ['odd', 'odds', 'price', 'quote']), 1);
+    const result = this.resultLabel(this.firstValue(row, ['result', 'status', 'state']));
+
+    if (result === 'Green') return stake * Math.max(0, odd - 1);
+    if (result === 'Red') return -stake;
+    if (result === 'Cashout') return this.toNumber(this.firstValue(row, ['cashoutAmount', 'cashout', 'payout'])) - stake;
+    return 0;
+  }
+
+  private isSettledBet(row: any) {
+    return ['Green', 'Red', 'Void', 'Cashout'].includes(this.resultLabel(this.firstValue(row, ['result', 'status', 'state'])));
+  }
+
+  private async getRawBets(userId: string) {
+    return this.findManyFromModels(
+      ['bet', 'userBet', 'oddixBet', 'bettingSlip', 'ticket', 'pick', 'entry'],
+      this.userScopedArgs(userId, {
+        orderBy: [{ placedAt: 'desc' }, { createdAt: 'desc' }, { updatedAt: 'desc' }],
+        take: 100,
+      }),
+    );
+  }
+
+  private async getRawBankroll(userId: string) {
+    return this.findFirstFromModels(
+      ['bankroll', 'userBankroll'],
+      this.userScopedArgs(userId, {
+        orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      }),
+    );
+  }
+
   async register(data: any) {
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
@@ -153,7 +328,7 @@ export class AuthService {
         id: userId,
       },
       data: {
-        plan,
+        plan: this.normalizePlan(plan),
       },
       select: {
         id: true,
@@ -166,12 +341,177 @@ export class AuthService {
     });
   }
 
+  async getDashboardOverview(userId: string) {
+    const [bankroll, rawBets, snapshots] = await Promise.all([
+      this.getRawBankroll(userId),
+      this.getRawBets(userId),
+      this.findManyFromModels(
+        ['bankrollSnapshot', 'dailyPerformanceSnapshot', 'performanceSnapshot'],
+        this.userScopedArgs(userId, {
+          orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+          take: 30,
+        }),
+      ),
+    ]);
+
+    const settledBets = rawBets.filter((bet) => this.isSettledBet(bet));
+    const openBets = rawBets.length - settledBets.length;
+    const totalStake = settledBets.reduce((sum, bet) => sum + this.toNumber(this.firstValue(bet, ['stake', 'amount', 'value', 'investment', 'betAmount'])), 0);
+    const profit = settledBets.reduce((sum, bet) => sum + this.calculateBetProfit(bet), 0);
+    const greens = settledBets.filter((bet) => this.resultLabel(this.firstValue(bet, ['result', 'status', 'state'])) === 'Green').length;
+    const reds = settledBets.filter((bet) => this.resultLabel(this.firstValue(bet, ['result', 'status', 'state'])) === 'Red').length;
+    const initialBalance = this.toNumber(this.firstValue(bankroll, ['initialAmount', 'initialBalance', 'startingBalance', 'amount', 'balance']), 0);
+    const explicitBalance = this.firstValue(bankroll, ['currentAmount', 'currentBalance', 'balance', 'amount']);
+    const balance = explicitBalance !== undefined && explicitBalance !== null ? this.toNumber(explicitBalance) : initialBalance + profit;
+    const avgOdd = rawBets.length ? rawBets.reduce((sum, bet) => sum + this.toNumber(this.firstValue(bet, ['odd', 'odds', 'price', 'quote']), 1), 0) / rawBets.length : 0;
+    const bankrollHistory = snapshots.length
+      ? snapshots.map((snapshot) => ({
+          label: this.toDateLabel(this.firstValue(snapshot, ['date', 'createdAt'])) || 'Dia',
+          value: this.toNumber(this.firstValue(snapshot, ['bankroll', 'balance', 'currentAmount', 'value'])),
+        }))
+      : this.buildBankrollHistoryFromBets(rawBets, initialBalance || balance);
+
+    return {
+      balance,
+      initialBalance,
+      profit,
+      roi: totalStake > 0 ? (profit / totalStake) * 100 : 0,
+      winRate: greens + reds > 0 ? (greens / (greens + reds)) * 100 : 0,
+      totalBets: rawBets.length,
+      openBets,
+      settledBets: settledBets.length,
+      avgOdd,
+      bankrollHistory,
+    };
+  }
+
+  private buildBankrollHistoryFromBets(rawBets: any[], initialBalance: number) {
+    const settled = rawBets
+      .filter((bet) => this.isSettledBet(bet))
+      .sort((a, b) => {
+        const da = new Date(this.firstValue(a, ['settledAt', 'updatedAt', 'createdAt', 'placedAt']) || 0).getTime();
+        const db = new Date(this.firstValue(b, ['settledAt', 'updatedAt', 'createdAt', 'placedAt']) || 0).getTime();
+        return da - db;
+      });
+
+    if (!settled.length) return [];
+
+    let running = initialBalance;
+    const points: Array<{ label: string; value: number }> = [];
+
+    for (const bet of settled) {
+      running += this.calculateBetProfit(bet);
+      points.push({
+        label: this.toDateLabel(this.firstValue(bet, ['settledAt', 'updatedAt', 'createdAt', 'placedAt'])) || `#${points.length + 1}`,
+        value: Number(running.toFixed(2)),
+      });
+    }
+
+    return points.slice(-14);
+  }
+
+  async getDashboardGames(_userId: string) {
+    const rows = await this.findManyFromModels(
+      ['dashboardGame', 'game', 'match', 'fixture', 'footballMatch'],
+      [
+        { orderBy: [{ kickoff: 'asc' }, { startTime: 'asc' }, { createdAt: 'desc' }], take: 40 },
+        { orderBy: [{ createdAt: 'desc' }], take: 40 },
+        { take: 40 },
+      ],
+    );
+
+    return rows.map((row: any, index: number) => {
+      const homeTeam = this.firstValue(row, ['homeTeamName', 'homeName', 'home', 'teamHome', 'homeTeam.name'], 'Mandante');
+      const awayTeam = this.firstValue(row, ['awayTeamName', 'awayName', 'away', 'teamAway', 'awayTeam.name'], 'Visitante');
+
+      return {
+        id: String(this.firstValue(row, ['id', 'externalId'], `${homeTeam}-${awayTeam}-${index}`)),
+        league: this.firstValue(row, ['league', 'competition', 'tournament', 'competitionName', 'leagueName'], 'Futebol'),
+        status: this.firstValue(row, ['status', 'state', 'matchStatus'], 'Sem status'),
+        minute: this.firstValue(row, ['minute', 'elapsed', 'matchMinute']),
+        kickoff: this.toDateTimeLabel(this.firstValue(row, ['kickoff', 'startTime', 'date', 'matchDate'])),
+        score: this.firstValue(row, ['score', 'scoreText', 'result']),
+        confidence: this.toNumber(this.firstValue(row, ['confidence', 'scoreConfidence', 'probability']), 0),
+        homeTeam: String(homeTeam),
+        awayTeam: String(awayTeam),
+        homeLogo: this.firstValue(row, ['homeLogo', 'homeTeamLogo', 'homeLogoUrl', 'homeTeam.logo', 'homeTeam.logoUrl']),
+        awayLogo: this.firstValue(row, ['awayLogo', 'awayTeamLogo', 'awayLogoUrl', 'awayTeam.logo', 'awayTeam.logoUrl']),
+        topMarket: this.firstValue(row, ['topMarket', 'market', 'bestMarket', 'recommendation']),
+        topOdd: this.firstValue(row, ['topOdd', 'odd', 'odds', 'bestOdd']),
+      };
+    });
+  }
+
+  async getDashboardBets(userId: string) {
+    const rows = await this.getRawBets(userId);
+    return rows.map((row) => this.normalizeBet(row));
+  }
+
+  async getDashboardPlayers(_userId: string) {
+    const rows = await this.findManyFromModels(
+      ['dashboardPlayer', 'playerStat', 'player', 'footballPlayer'],
+      [
+        { orderBy: [{ score: 'desc' }, { rating: 'desc' }, { createdAt: 'desc' }], take: 30 },
+        { take: 30 },
+      ],
+    );
+
+    return rows.map((row: any, index: number) => ({
+      id: String(this.firstValue(row, ['id', 'externalId'], `${row?.name || 'player'}-${index}`)),
+      name: String(this.firstValue(row, ['name', 'playerName', 'fullName'], 'Jogador')),
+      team: this.firstValue(row, ['team', 'teamName', 'club', 'team.name']),
+      teamLogo: this.firstValue(row, ['teamLogo', 'teamLogoUrl', 'clubLogo', 'team.logo', 'team.logoUrl']),
+      score: this.toNumber(this.firstValue(row, ['score', 'rating', 'index', 'value']), 0),
+      trend: this.firstValue(row, ['trend', 'tag', 'label', 'category']),
+      metric: this.firstValue(row, ['metric', 'stat', 'description', 'note']),
+    }));
+  }
+
+  async getDashboardMarkets(_userId: string) {
+    const rows = await this.findManyFromModels(
+      ['dashboardMarket', 'marketStat', 'market', 'bettingMarket'],
+      [
+        { orderBy: [{ edge: 'desc' }, { winRate: 'desc' }, { createdAt: 'desc' }], take: 30 },
+        { take: 30 },
+      ],
+    );
+
+    return rows.map((row: any, index: number) => ({
+      id: String(this.firstValue(row, ['id', 'externalId'], `${row?.name || 'market'}-${index}`)),
+      name: String(this.firstValue(row, ['name', 'market', 'marketName'], 'Mercado')),
+      edge: this.toNumber(this.firstValue(row, ['edge', 'score', 'value', 'rating', 'winRate']), 0),
+      volume: this.toNumber(this.firstValue(row, ['volume', 'count', 'total', 'entries']), 0),
+      winRate: this.toNumber(this.firstValue(row, ['winRate', 'hitRate']), 0),
+      note: this.firstValue(row, ['note', 'description', 'hint']),
+    }));
+  }
+
+  async getDashboardCompliance(_userId: string) {
+    return [
+      { title: '18+', description: 'Conteúdo exclusivo para maiores de 18 anos.' },
+      { title: 'Jogo responsável', description: 'Aposte com controle e consciência.' },
+      { title: 'Sem promessa de lucro', description: 'Análises, odds e estatísticas não garantem resultado.' },
+      { title: 'Aposta não é investimento', description: 'Aposte apenas como entretenimento e nunca como fonte de renda.' },
+      { title: 'Controle de banca', description: 'Defina limite de stake, valor diário e exposição máxima.' },
+      { title: 'Não recupere perdas', description: 'Não use novas apostas para tentar recuperar prejuízos anteriores.' },
+    ];
+  }
+
   async getDashboard(userId: string) {
     const user = await this.me(userId);
 
     if (!user) {
       throw new NotFoundException('Usuário não encontrado');
     }
+
+    const [overview, games, bets, players, markets, compliance] = await Promise.all([
+      this.getDashboardOverview(userId),
+      this.getDashboardGames(userId),
+      this.getDashboardBets(userId),
+      this.getDashboardPlayers(userId),
+      this.getDashboardMarkets(userId),
+      this.getDashboardCompliance(userId),
+    ]);
 
     return {
       user,
@@ -180,72 +520,13 @@ export class AuthService {
         plan: user.plan,
         status: user.accessAllowed ? 'acesso liberado' : 'plano sem acesso',
       },
-      source: 'backend',
-      hasOperationalData: false,
-      metrics: {
-        bankroll: {
-          current: 0,
-          monthlyChangePercent: 0,
-        },
-        roi: {
-          current: 0,
-          period: '30 dias',
-        },
-        winRate: {
-          current: 0,
-          greens: 0,
-          reds: 0,
-        },
-        bets: {
-          today: 0,
-          open: 0,
-          closed: 0,
-        },
-      },
-      charts: {
-        bankroll: [
-          { label: 'D-6', value: 0 },
-          { label: 'D-5', value: 0 },
-          { label: 'D-4', value: 0 },
-          { label: 'D-3', value: 0 },
-          { label: 'D-2', value: 0 },
-          { label: 'Ontem', value: 0 },
-          { label: 'Hoje', value: 0 },
-        ],
-        roi: [
-          { label: 'D-6', value: 0 },
-          { label: 'D-5', value: 0 },
-          { label: 'D-4', value: 0 },
-          { label: 'D-3', value: 0 },
-          { label: 'D-2', value: 0 },
-          { label: 'Ontem', value: 0 },
-          { label: 'Hoje', value: 0 },
-        ],
-        winRate: [
-          { label: 'Greens', value: 0 },
-          { label: 'Reds', value: 0 },
-        ],
-      },
-      analyses: [],
-      bets: [],
-      players: [],
-      markets: [],
-      games: [],
-      compliance: {
-        seals: ['18+', 'Jogue com responsabilidade', 'Aposta não é investimento', 'Não recupere perdas'],
-        checklist: [
-          'Conteúdo exclusivo para maiores de 18 anos.',
-          'Apostas envolvem risco financeiro.',
-          'O jogo deve ser tratado como entretenimento.',
-          'Não utilize apostas como fonte de renda ou investimento.',
-          'Estabeleça limite de banca, valor e tempo.',
-        ],
-      },
-      emptyState: {
-        title: 'Dados operacionais ainda não conectados',
-        message:
-          'Este painel já busca dados reais do backend. Para popular apostas, análises, banca, jogadores e mercados, conecte as tabelas/serviços correspondentes ao endpoint /auth/dashboard.',
-      },
+      overview,
+      games,
+      bets,
+      players,
+      markets,
+      compliance,
+      source: 'backend-real-endpoints',
     };
   }
 
@@ -271,14 +552,11 @@ export class AuthService {
     });
 
     const normalizedUsers = users.map((user) => this.buildUserPayload(user));
-    const planCounts = normalizedUsers.reduce(
-      (acc: Record<string, number>, user: any) => {
-        const plan = String(user?.plan || 'Free');
-        acc[plan] = (acc[plan] || 0) + 1;
-        return acc;
-      },
-      {},
-    );
+    const planCounts = normalizedUsers.reduce((acc: Record<string, number>, user: any) => {
+      const plan = String(user?.plan || 'Free');
+      acc[plan] = (acc[plan] || 0) + 1;
+      return acc;
+    }, {});
 
     return {
       actor,
