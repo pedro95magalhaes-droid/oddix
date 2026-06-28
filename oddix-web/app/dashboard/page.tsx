@@ -311,11 +311,11 @@ export default function OddixDashboardPage() {
       <div className="mx-auto flex min-h-[82vh] w-full max-w-md items-center justify-center px-4">
         <div className="w-full rounded-[32px] border border-white/10 bg-[#12151d] p-6 shadow-[0_30px_100px_rgba(0,0,0,.35)]">
           <div className="mb-7 flex items-center gap-3">
-            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#d7ff2f]">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#c8f71f]/35 bg-[#0d1017] shadow-[0_0_28px_rgba(200,247,31,.14)]">
               <Image src="/images/oddix-logo-icon.png" alt="Oddix" width={38} height={38} className="h-9 w-9 object-contain" priority />
             </span>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#d7ff2f]">Oddix</p>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#c8f71f]">Oddix</p>
               <h1 className="text-2xl font-black">Centro de controle</h1>
             </div>
           </div>
@@ -331,7 +331,7 @@ export default function OddixDashboardPage() {
               type="email"
               autoComplete="email"
               placeholder="Email"
-              className="h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#d7ff2f]/60"
+              className="h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#c8f71f]/60"
             />
             <input
               value={password}
@@ -339,12 +339,12 @@ export default function OddixDashboardPage() {
               type="password"
               autoComplete="current-password"
               placeholder="Senha"
-              className="h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#d7ff2f]/60"
+              className="h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#c8f71f]/60"
             />
             <button
               type="submit"
               disabled={loading}
-              className="h-12 w-full rounded-2xl bg-[#d7ff2f] text-sm font-black text-black transition hover:bg-[#e3ff64] disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-12 w-full rounded-2xl bg-[#c8f71f] text-sm font-black text-black transition hover:bg-[#d9ff59] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? 'Validando...' : 'Entrar'}
             </button>
@@ -360,10 +360,10 @@ export default function OddixDashboardPage() {
     return (
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#d7ff2f]">{subtitle}</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">{subtitle}</p>
           <h2 className="mt-2 text-2xl font-black text-white">{title}</h2>
         </div>
-        {action && <button className="rounded-full bg-[#d7ff2f] px-4 py-2 text-xs font-black text-black">{action}</button>}
+        {action && <button className="rounded-full bg-[#c8f71f] px-4 py-2 text-xs font-black text-black">{action}</button>}
       </div>
     );
   }
@@ -383,7 +383,7 @@ export default function OddixDashboardPage() {
           <span className="rounded-xl bg-white/7 px-3 py-1.5 text-xs font-black text-white/78">{game.time}</span>
         </div>
         <div className="mt-4 flex items-center justify-between gap-3">
-          <span className="rounded-full bg-[#d7ff2f]/12 px-3 py-1 text-xs font-black text-[#d7ff2f]">Odd {game.odd}</span>
+          <span className="rounded-full bg-[#c8f71f]/12 px-3 py-1 text-xs font-black text-[#c8f71f]">Odd {game.odd}</span>
           <span className="text-xs font-black text-white/50">Confiança {game.confidence}%</span>
         </div>
       </div>
@@ -421,17 +421,17 @@ export default function OddixDashboardPage() {
   function renderInicio() {
     return (
       <div className="space-y-5">
-        <section className="rounded-[32px] bg-[#d7ff2f] p-6 text-black shadow-[0_24px_80px_rgba(215,255,47,.16)]">
+        <section className="rounded-[32px] bg-[linear-gradient(135deg,#d9ff59,#9fdc12)] p-6 text-black shadow-[0_24px_80px_rgba(200,247,31,.14)]">
           <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-black/55">V23.8 • Oddix Control</p>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-black/55">V23.9 • Oddix Control</p>
               <h1 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">Palpites, banca e controle em um só lugar.</h1>
               <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-black/65">
                 Visual inspirado em app esportivo: direto, rápido, mobile-first e focado em jogos, entradas e performance.
               </p>
             </div>
-            <a href="/chat" className="inline-flex h-12 items-center justify-center rounded-2xl bg-black px-6 text-sm font-black text-[#d7ff2f]">
-              Abrir chat Oddix
+            <a href="/chat" className="inline-flex h-12 min-w-[148px] items-center justify-center whitespace-nowrap rounded-2xl bg-black px-5 text-sm font-black text-[#c8f71f] shadow-[0_14px_30px_rgba(0,0,0,.18)]">
+              Abrir chat
             </a>
           </div>
         </section>
@@ -439,11 +439,11 @@ export default function OddixDashboardPage() {
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             ['Banca', formatCurrency(balance), '+18,2%', 'bg-emerald-400/12 text-emerald-300'],
-            ['Lucro', formatCurrency(profit), 'No período', 'bg-[#d7ff2f]/12 text-[#d7ff2f]'],
+            ['Lucro', formatCurrency(profit), 'No período', 'bg-[#c8f71f]/12 text-[#c8f71f]'],
             ['Win rate', `${winRate}%`, '29G / 17R', 'bg-sky-400/12 text-sky-300'],
             ['Plano', planLabel(plan), allowed ? 'Liberado' : 'Bloqueado', allowed ? 'bg-emerald-400/12 text-emerald-300' : 'bg-rose-400/12 text-rose-300'],
           ].map(([label, value, detail, tone]) => (
-            <div key={label} className="rounded-[26px] border border-white/8 bg-[#12151d] p-5">
+            <div key={label} className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-white/35">{label}</p>
               <p className="mt-4 text-3xl font-black text-white">{value}</p>
               <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-black ${tone}`}>{detail}</span>
@@ -452,10 +452,10 @@ export default function OddixDashboardPage() {
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[1.08fr_.92fr]">
-          <div className="rounded-[28px] border border-white/8 bg-[#12151d] p-5">
+          <div className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#d7ff2f]">Jogos quentes</p>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Jogos quentes</p>
                 <h2 className="mt-2 text-2xl font-black">Para acompanhar hoje</h2>
               </div>
               <button onClick={() => setActiveTab('jogos')} className="rounded-full bg-white/6 px-4 py-2 text-xs font-black text-white/70">
@@ -465,14 +465,14 @@ export default function OddixDashboardPage() {
             <div className="space-y-3">{games.slice(0, 3).map((game) => gameCard(game))}</div>
           </div>
 
-          <div className="rounded-[28px] border border-white/8 bg-[#12151d] p-5">
+          <div className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#d7ff2f]">Entradas</p>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Entradas</p>
                 <h2 className="mt-2 text-2xl font-black">Minhas apostas</h2>
               </div>
-              <button onClick={() => setActiveTab('entradas')} className="rounded-full bg-white/6 px-4 py-2 text-xs font-black text-white/70">
-                Controle
+              <button onClick={() => setActiveTab('entradas')} className="rounded-full bg-[#c8f71f] px-4 py-2 text-xs font-black text-black">
+                Adicionar aposta
               </button>
             </div>
             <div className="space-y-3">{picks.slice(0, 3).map((pick) => pickCard(pick))}</div>
@@ -484,7 +484,7 @@ export default function OddixDashboardPage() {
 
   function renderJogos() {
     return (
-      <section className="rounded-[28px] border border-white/8 bg-[#12151d] p-5">
+      <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
         {sectionHeader('Jogos do dia', 'Partidas monitoradas pelo Oddix', 'Atualizar jogos')}
         <div className="mt-5 grid gap-3 lg:grid-cols-2">{games.map((game) => gameCard(game))}</div>
       </section>
@@ -493,7 +493,7 @@ export default function OddixDashboardPage() {
 
   function renderEntradas() {
     return (
-      <section className="rounded-[28px] border border-white/8 bg-[#12151d] p-5">
+      <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
         {sectionHeader('Minhas apostas', 'Controle de entradas, stake, odd e resultado', 'Nova aposta')}
         <div className="mt-5 space-y-3">{picks.map((pick) => pickCard(pick))}</div>
       </section>
@@ -503,18 +503,18 @@ export default function OddixDashboardPage() {
   function renderRanking() {
     return (
       <div className="grid gap-5 xl:grid-cols-2">
-        <section className="rounded-[28px] border border-white/8 bg-[#12151d] p-5">
+        <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
           {sectionHeader('Melhores jogadores', 'Atletas com melhor tendência estatística')}
           <div className="mt-5 space-y-3">
             {players.map((player, index) => (
               <div key={player.name} className="flex items-center gap-4 rounded-2xl border border-white/8 bg-black/20 p-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#d7ff2f] text-sm font-black text-black">#{index + 1}</span>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#c8f71f] text-sm font-black text-black">#{index + 1}</span>
                 <div className="min-w-0 flex-1">
                   <p className="font-black text-white">{player.name}</p>
                   <p className="text-sm text-white/48">{player.stat}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl font-black text-[#d7ff2f]">{player.score}</p>
+                  <p className="text-xl font-black text-[#c8f71f]">{player.score}</p>
                   <p className="text-xs font-bold text-white/36">{player.tag}</p>
                 </div>
               </div>
@@ -522,7 +522,7 @@ export default function OddixDashboardPage() {
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-white/8 bg-[#12151d] p-5">
+        <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
           {sectionHeader('Ranking de mercados', 'Mercados com maior recorrência e valor')}
           <div className="mt-5 space-y-3">
             {markets.map((market, index) => (
@@ -532,10 +532,10 @@ export default function OddixDashboardPage() {
                     <p className="font-black text-white">#{index + 1} {market.name}</p>
                     <p className="mt-1 text-sm text-white/48">{market.note}</p>
                   </div>
-                  <span className="rounded-full bg-[#d7ff2f]/12 px-3 py-1 text-sm font-black text-[#d7ff2f]">{market.edge}%</span>
+                  <span className="rounded-full bg-[#c8f71f]/12 px-3 py-1 text-sm font-black text-[#c8f71f]">{market.edge}%</span>
                 </div>
                 <div className="mt-4 h-2 rounded-full bg-white/8">
-                  <div className="h-full rounded-full bg-[#d7ff2f]" style={{ width: `${market.edge}%` }} />
+                  <div className="h-full rounded-full bg-[#c8f71f]" style={{ width: `${market.edge}%` }} />
                 </div>
               </div>
             ))}
@@ -548,13 +548,13 @@ export default function OddixDashboardPage() {
   function renderBanca() {
     return (
       <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
-        <section className="rounded-[28px] border border-white/8 bg-[#12151d] p-5">
+        <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
           {sectionHeader('Evolução da banca', 'Gráfico simples de saldo por dia')}
           <div className="mt-8 flex h-64 items-end gap-3 rounded-[24px] border border-white/8 bg-black/20 p-5">
             {bankrollHistory.map((item) => (
               <div key={item.day} className="flex h-full flex-1 flex-col justify-end gap-2">
                 <div
-                  className="min-h-[16px] rounded-t-2xl bg-[#d7ff2f] shadow-[0_0_24px_rgba(215,255,47,.18)]"
+                  className="min-h-[16px] rounded-t-2xl bg-[#c8f71f] shadow-[0_0_24px_rgba(200,247,31,.18)]"
                   style={{ height: `${Math.max(12, (item.value / maxBankroll) * 100)}%` }}
                   title={`${item.day}: ${formatCurrency(item.value)}`}
                 />
@@ -564,7 +564,7 @@ export default function OddixDashboardPage() {
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-white/8 bg-[#12151d] p-5">
+        <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
           {sectionHeader('Resumo financeiro', 'ROI, lucro e exposição')}
           <div className="mt-5 space-y-3">
             {[
@@ -588,7 +588,7 @@ export default function OddixDashboardPage() {
   function renderCompliance() {
     return (
       <div className="grid gap-5 xl:grid-cols-[.9fr_1.1fr]">
-        <section className="rounded-[28px] border border-[#d7ff2f]/20 bg-[#d7ff2f] p-6 text-black">
+        <section className="rounded-[28px] border border-[#c8f71f]/20 bg-[linear-gradient(135deg,#d9ff59,#a8e71a)] p-6 text-black">
           <p className="text-xs font-black uppercase tracking-[0.22em] text-black/55">Jogo responsável</p>
           <h2 className="mt-3 text-4xl font-black">18+</h2>
           <p className="mt-3 text-sm font-semibold leading-7 text-black/68">
@@ -601,7 +601,7 @@ export default function OddixDashboardPage() {
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-white/8 bg-[#12151d] p-5">
+        <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
           {sectionHeader('Avisos obrigatórios', 'Selos para afiliados e boas práticas')}
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {[
@@ -613,7 +613,7 @@ export default function OddixDashboardPage() {
               ['Autoexclusão', 'Use pausas e limites quando necessário.'],
             ].map(([title, desc]) => (
               <div key={title} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <p className="font-black text-[#d7ff2f]">{title}</p>
+                <p className="font-black text-[#c8f71f]">{title}</p>
                 <p className="mt-2 text-sm leading-6 text-white/55">{desc}</p>
               </div>
             ))}
@@ -654,12 +654,12 @@ export default function OddixDashboardPage() {
         <header className="sticky top-3 z-30 rounded-[28px] border border-white/8 bg-[#0d1017]/90 p-3 shadow-[0_22px_80px_rgba(0,0,0,.28)] backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <a href="/chat" className="flex items-center gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#d7ff2f]">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#c8f71f]/35 bg-[#0d1017] shadow-[0_0_24px_rgba(200,247,31,.12)]">
                 <Image src="/images/oddix-logo-icon.png" alt="Oddix" width={34} height={34} className="h-8 w-8 object-contain" priority />
               </span>
               <div>
                 <p className="text-sm font-black tracking-tight text-white">Oddix Control</p>
-                <p className="text-xs font-semibold text-white/42">Dashboard estilo app esportivo</p>
+                <p className="text-xs font-semibold text-white/42">Dashboard esportivo premium</p>
               </div>
             </a>
 
@@ -680,7 +680,7 @@ export default function OddixDashboardPage() {
             <div className="rounded-[30px] border border-white/8 bg-[#0d1017] p-3 shadow-[0_24px_70px_rgba(0,0,0,.24)]">
               <div className="mb-3 rounded-[24px] bg-white/[0.035] p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#d7ff2f]/14 text-sm font-black text-[#d7ff2f]">{initials}</div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#c8f71f]/14 text-sm font-black text-[#c8f71f]">{initials}</div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black text-white">{displayName}</p>
                     <p className="truncate text-xs text-white/40">{user.email}</p>
@@ -698,7 +698,7 @@ export default function OddixDashboardPage() {
                     className={[
                       'flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black transition',
                       activeTab === tab.id
-                        ? 'bg-[#d7ff2f] text-black shadow-[0_14px_34px_rgba(215,255,47,.16)]'
+                        ? 'bg-[#c8f71f] text-black shadow-[0_14px_34px_rgba(200,247,31,.16)]'
                         : 'text-white/58 hover:bg-white/[0.05] hover:text-white',
                     ].join(' ')}
                   >
@@ -708,8 +708,8 @@ export default function OddixDashboardPage() {
                 ))}
               </nav>
 
-              <div className="mt-3 rounded-[22px] border border-[#d7ff2f]/18 bg-[#d7ff2f]/8 p-4">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#d7ff2f]">18+</p>
+              <div className="mt-3 rounded-[22px] border border-[#c8f71f]/18 bg-[#c8f71f]/8 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">18+</p>
                 <p className="mt-2 text-xs leading-5 text-white/58">Aposte com responsabilidade. Aposta não é investimento.</p>
               </div>
             </div>
