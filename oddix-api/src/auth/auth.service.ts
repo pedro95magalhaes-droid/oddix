@@ -586,6 +586,7 @@ export class AuthService {
       status: this.firstValue(row, ['status', 'state', 'matchStatus'], 'Sem status'),
       minute: this.firstValue(row, ['minute', 'elapsed', 'matchMinute']),
       kickoff: this.toDateTimeLabel(this.firstValue(row, ['kickoff', 'startTime', 'date', 'matchDate'])),
+      kickoffIso: this.firstValue(row, ['kickoff', 'startTime', 'date', 'matchDate']),
       score: this.firstValue(row, ['score', 'scoreText', 'result']),
       confidence: this.toNumber(this.firstValue(row, ['confidence', 'scoreConfidence', 'probability']), 0),
       homeTeam: String(homeTeam),
@@ -594,6 +595,7 @@ export class AuthService {
       awayLogo: this.firstValue(row, ['awayLogo', 'awayTeamLogo', 'awayLogoUrl', 'awayTeam.logo', 'awayTeam.logoUrl']),
       topMarket: this.firstValue(row, ['topMarket', 'market', 'bestMarket', 'recommendation']),
       topOdd: this.firstValue(row, ['topOdd', 'odd', 'odds', 'bestOdd']),
+      markets: Array.isArray(row?.markets) ? row.markets : [],
     };
   }
 
@@ -602,6 +604,248 @@ export class AuthService {
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
+  }
+
+  private dashboardTimezone() {
+    return process.env.ODDIX_DASHBOARD_TIMEZONE || process.env.FLASHSCORE_TIMEZONE || 'America/Sao_Paulo';
+  }
+
+  private dashboardDate() {
+    const configured = String(process.env.ODDIX_DASHBOARD_DATE || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(configured)) return configured;
+
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: this.dashboardTimezone(),
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+
+    const year = parts.find((item) => item.type === 'year')?.value || '1970';
+    const month = parts.find((item) => item.type === 'month')?.value || '01';
+    const day = parts.find((item) => item.type === 'day')?.value || '01';
+
+    return `${year}-${month}-${day}`;
+  }
+
+  private dashboardDateCompact() {
+    return this.dashboardDate().replace(/-/g, '');
+  }
+
+  private dateOnlyInDashboardTimezone(value: any) {
+    if (!value) return '';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: this.dashboardTimezone(),
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+
+    const year = parts.find((item) => item.type === 'year')?.value || '';
+    const month = parts.find((item) => item.type === 'month')?.value || '';
+    const day = parts.find((item) => item.type === 'day')?.value || '';
+
+    return year && month && day ? `${year}-${month}-${day}` : '';
+  }
+
+  private isDashboardGameCurrent(game: any) {
+    const status = String(game?.status || '').toLowerCase();
+    if (status.includes('ao vivo')) return true;
+
+    const sourceDate =
+      game?.kickoffIso ||
+      game?.dateIso ||
+      game?.date ||
+      game?.kickoff ||
+      game?.startTime ||
+      game?.matchDate;
+
+    const dateOnly = this.dateOnlyInDashboardTimezone(sourceDate);
+    if (!dateOnly) return true;
+
+    return dateOnly === this.dashboardDate();
+  }
+
+  private flashScoreBaseURL() {
+    return process.env.FLASHSCORE_API_BASE_URL || 'https://flashscore4.p.rapidapi.com';
+  }
+
+  private flashScoreKey() {
+    return process.env.FLASHSCORE_KEY || process.env.FLASHSCORE_API_KEY || process.env.RAPIDAPI_KEY || '';
+  }
+
+  private flashScoreHost() {
+    return process.env.FLASHSCORE_HOST || process.env.FLASHSCORE_API_HOST || 'flashscore4.p.rapidapi.com';
+  }
+
+  private isFlashScoreDashboardEnabled() {
+    return String(process.env.FLASHSCORE_ENABLED || process.env.ODDIX_DASHBOARD_FLASHSCORE_ENABLED || 'false').toLowerCase() === 'true' && !!this.flashScoreKey();
+  }
+
+  private normalizeOddValue(value: any): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return Number.isFinite(value) && value > 1 ? Number(value.toFixed(2)) : null;
+    if (typeof value === 'object') {
+      return this.normalizeOddValue(value?.odd ?? value?.odds ?? value?.value ?? value?.price ?? value?.decimal ?? value?.rate ?? value?.current);
+    }
+
+    const parsed = Number(String(value).replace(',', '.').replace(/[^0-9.]/g, ''));
+    return Number.isFinite(parsed) && parsed > 1 ? Number(parsed.toFixed(2)) : null;
+  }
+
+  private normalizeOutcomeName(value: any) {
+    const raw = String(value || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+
+    if (['1', 'home', 'casa', 'mandante', 'homewin', 'vitoriacasa', 'time1'].includes(raw)) return '1';
+    if (['x', 'draw', 'empate', 'tie'].includes(raw)) return 'X';
+    if (['2', 'away', 'fora', 'visitante', 'awaywin', 'vitoriafora', 'time2'].includes(raw)) return '2';
+    return '';
+  }
+
+  private extract1x2Odds(input: any): Array<{ name: '1' | 'X' | '2'; odd: number }> {
+    const options: Array<{ name: '1' | 'X' | '2'; odd: number }> = [];
+
+    const push = (name: '1' | 'X' | '2', value: any) => {
+      const odd = this.normalizeOddValue(value);
+      if (!odd || options.some((item) => item.name === name)) return;
+      options.push({ name, odd });
+    };
+
+    const visit = (node: any, depth = 0) => {
+      if (!node || depth > 6 || options.length >= 3) return;
+
+      if (Array.isArray(node)) {
+        node.forEach((item) => visit(item, depth + 1));
+        return;
+      }
+
+      if (typeof node !== 'object') return;
+
+      push('1', node?.['1'] ?? node?.home ?? node?.casa ?? node?.mandante);
+      push('X', node?.X ?? node?.x ?? node?.draw ?? node?.empate);
+      push('2', node?.['2'] ?? node?.away ?? node?.fora ?? node?.visitante);
+
+      const name = this.normalizeOutcomeName(node?.name ?? node?.label ?? node?.title ?? node?.outcome ?? node?.selection ?? node?.selectionName ?? node?.marketName);
+      if (name) push(name as '1' | 'X' | '2', node?.odd ?? node?.odds ?? node?.value ?? node?.price ?? node?.decimal ?? node?.rate);
+
+      ['options', 'outcomes', 'selections', 'values', 'markets', 'market', 'odds', 'bookmakers', 'data', 'response', 'result', 'payload'].forEach((key) => visit(node?.[key], depth + 1));
+
+      if (options.length < 3) Object.values(node).forEach((value) => visit(value, depth + 1));
+    };
+
+    visit(input);
+
+    const order: Record<string, number> = { '1': 1, X: 2, '2': 3 };
+    return options.sort((a, b) => order[a.name] - order[b.name]);
+  }
+
+  private marketsFrom1x2Odds(home: string, away: string, odds: Array<{ name: '1' | 'X' | '2'; odd: number }>) {
+    const label: Record<string, string> = { '1': `${home} vence`, X: 'Empate', '2': `${away} vence` };
+
+    return odds.map((option) => ({
+      market: label[option.name],
+      type: 'Resultado',
+      risk: option.odd <= 1.6 ? 'seguro' : option.odd <= 2.4 ? 'moderado' : 'ousado',
+      confidence: Math.max(1, Math.min(99, Math.round(100 / option.odd))),
+      odd: option.odd,
+      reason: 'Mercado real 1X2 retornado pela fonte de odds. O score é a probabilidade implícita aproximada da odd, não garantia de resultado.',
+      source: 'real-odds',
+    }));
+  }
+
+  private flattenFlashScoreMatches(data: any): any[] {
+    const root = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : Array.isArray(data?.response) ? data.response : Array.isArray(data?.matches) ? data.matches : [];
+    const out: any[] = [];
+
+    for (const row of root) {
+      if (Array.isArray(row?.matches)) {
+        row.matches.forEach((match: any) => out.push({ ...match, tournament: row, league: { name: row?.name, country: row?.country_name, logo: row?.image_path } }));
+      } else {
+        out.push(row);
+      }
+    }
+
+    return out;
+  }
+
+  private normalizeFlashScoreDashboardMatch(match: any, index = 0) {
+    const homeTeam = String(this.firstValue(match, ['home_team.name', 'home.name', 'homeTeam.name', 'home_name'], 'Mandante'));
+    const awayTeam = String(this.firstValue(match, ['away_team.name', 'away.name', 'awayTeam.name', 'away_name'], 'Visitante'));
+    const rawId = this.firstValue(match, ['match_id', 'id', 'matchId', 'eventId'], `${homeTeam}-${awayTeam}-${index}`);
+    const dateRaw = this.firstValue(match, ['start_time', 'startTime', 'date', 'eventTime', 'time.startTime', 'timestamp']);
+    const timestamp = Number(this.firstValue(match, ['timestamp', 'time.timestamp'], 0));
+    const kickoffIso = timestamp > 0 ? new Date(timestamp * 1000).toISOString() : dateRaw;
+    const statusRaw = String(this.firstValue(match, ['match_status.stage', 'match_status.live_time', 'status.short', 'status.name', 'status', 'stage'], '')).toLowerCase();
+    const isFinished = this.firstValue(match, ['match_status.is_finished'], false) === true || statusRaw.includes('finished') || statusRaw === 'ft';
+    const isLive = this.firstValue(match, ['match_status.is_in_progress'], false) === true || statusRaw.includes('live') || Number(String(this.firstValue(match, ['match_status.live_time', 'minute', 'elapsed'], '')).replace(/[^0-9]/g, '')) > 0;
+    const homeScore = this.firstValue(match, ['scores.home', 'score.home', 'homeScore', 'home.score', 'home_team.score']);
+    const awayScore = this.firstValue(match, ['scores.away', 'score.away', 'awayScore', 'away.score', 'away_team.score']);
+    const oddsRaw = this.firstValue(match, ['odds', 'market.odds', 'markets', 'bookmakers', 'prematchOdds', 'matchOdds']);
+    const odds = this.extract1x2Odds(oddsRaw);
+    const markets = this.marketsFrom1x2Odds(homeTeam, awayTeam, odds);
+    const top = markets[0];
+
+    return {
+      id: String(rawId),
+      league: this.firstValue(match, ['league.name', 'tournament.name', 'competition.name', 'tournament.name'], 'Futebol'),
+      status: isLive ? 'Ao vivo' : isFinished ? 'Encerrado' : 'Pré-jogo',
+      minute: this.firstValue(match, ['match_status.live_time', 'minute', 'elapsed']),
+      kickoff: this.toDateTimeLabel(kickoffIso),
+      kickoffIso,
+      score: homeScore !== undefined && awayScore !== undefined && homeScore !== null && awayScore !== null ? `${homeScore} x ${awayScore}` : undefined,
+      confidence: top?.confidence || 0,
+      homeTeam,
+      awayTeam,
+      homeLogo: this.firstValue(match, ['home_team.image_path', 'home_team.logo', 'home.logo', 'homeTeam.logo', 'home.image']),
+      awayLogo: this.firstValue(match, ['away_team.image_path', 'away_team.logo', 'away.logo', 'awayTeam.logo', 'away.image']),
+      topMarket: top?.market,
+      topOdd: top?.odd,
+      markets,
+      source: 'flashscore',
+    };
+  }
+
+  private async fetchFlashScoreDashboardGames() {
+    if (!this.isFlashScoreDashboardEnabled()) return [];
+    const fetchFn = (globalThis as any).fetch;
+    if (!fetchFn) return [];
+
+    const url = `${this.flashScoreBaseURL()}/api/flashscore/v2/matches/list-by-date`;
+    const params = new URLSearchParams({
+      sport_id: '1',
+      date: this.dashboardDate(),
+      timezone: this.dashboardTimezone(),
+    });
+
+    try {
+      const timeoutFactory = (globalThis as any).AbortSignal?.timeout;
+      const response = await fetchFn(`${url}?${params.toString()}`, {
+        headers: {
+          accept: 'application/json',
+          'x-rapidapi-key': this.flashScoreKey(),
+          'x-rapidapi-host': this.flashScoreHost(),
+          'user-agent': 'OddixDashboard/1.0',
+        },
+        signal: timeoutFactory ? timeoutFactory(8000) : undefined,
+      } as any);
+
+      if (!response?.ok) return [];
+
+      const data = await response.json();
+      return this.flattenFlashScoreMatches(data)
+        .map((match, index) => this.normalizeFlashScoreDashboardMatch(match, index))
+        .filter((game) => this.isDashboardGameCurrent(game));
+    } catch {
+      return [];
+    }
   }
 
   private scoreFromEspnCompetition(competition: any) {
@@ -635,9 +879,10 @@ export class AuthService {
     return {
       id: String(event?.id || `${slug}-${homeName}-${awayName}-${index}`),
       league: event?.league?.name || event?.league?.abbreviation || slug,
-      status: isLive ? 'Ao vivo' : isFinal ? 'Encerrado' : statusName,
+      status: isLive ? 'Ao vivo' : isFinal ? 'Encerrado' : statusName === 'Sem status' ? 'Pré-jogo' : statusName,
       minute: displayClock ? `${displayClock}${period ? ` • ${period}º tempo` : ''}` : undefined,
       kickoff: this.toDateTimeLabel(kickoff),
+      kickoffIso: kickoff,
       score,
       confidence: 0,
       homeTeam: String(homeName),
@@ -646,6 +891,7 @@ export class AuthService {
       awayLogo: away?.team?.logo || away?.team?.logos?.[0]?.href,
       topMarket: undefined,
       topOdd: undefined,
+      markets: [],
       source: 'espn-public-scoreboard',
     };
   }
@@ -674,7 +920,7 @@ export class AuthService {
       const results = await Promise.all(
         slugs.map(async (slug) => {
           try {
-            const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(slug)}/scoreboard`;
+            const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(slug)}/scoreboard?dates=${this.dashboardDateCompact()}`;
             const response = await fetchFn(url, {
               headers: {
                 accept: 'application/json',
@@ -701,7 +947,7 @@ export class AuthService {
         return true;
       });
 
-      return this.sortDashboardGames(merged).slice(0, 40);
+      return this.sortDashboardGames(merged.filter((game) => this.isDashboardGameCurrent(game))).slice(0, 40);
     } catch {
       return [];
     } finally {
@@ -720,8 +966,15 @@ export class AuthService {
     );
 
     if (rows.length) {
-      return rows.map((row: any, index: number) => this.normalizeDashboardGameRow(row, index));
+      const currentRows = rows
+        .map((row: any, index: number) => this.normalizeDashboardGameRow(row, index))
+        .filter((game: any) => this.isDashboardGameCurrent(game));
+
+      if (currentRows.length) return this.sortDashboardGames(currentRows);
     }
+
+    const flashScoreGames = await this.fetchFlashScoreDashboardGames();
+    if (flashScoreGames.length) return this.sortDashboardGames(flashScoreGames).slice(0, 40);
 
     return this.fetchEspnPublicGames();
   }
@@ -760,13 +1013,41 @@ export class AuthService {
       ],
     );
 
-    return rows.map((row: any, index: number) => ({
-      id: String(this.firstValue(row, ['id', 'externalId'], `${row?.name || 'market'}-${index}`)),
-      name: String(this.firstValue(row, ['name', 'market', 'marketName'], 'Mercado')),
-      edge: this.toNumber(this.firstValue(row, ['edge', 'score', 'value', 'rating', 'winRate']), 0),
-      volume: this.toNumber(this.firstValue(row, ['volume', 'count', 'total', 'entries']), 0),
-      winRate: this.toNumber(this.firstValue(row, ['winRate', 'hitRate']), 0),
-      note: this.firstValue(row, ['note', 'description', 'hint']),
+    if (rows.length) {
+      return rows.map((row: any, index: number) => ({
+        id: String(this.firstValue(row, ['id', 'externalId'], `${row?.name || 'market'}-${index}`)),
+        name: String(this.firstValue(row, ['name', 'market', 'marketName'], 'Mercado')),
+        edge: this.toNumber(this.firstValue(row, ['edge', 'score', 'value', 'rating', 'winRate']), 0),
+        volume: this.toNumber(this.firstValue(row, ['volume', 'count', 'total', 'entries']), 0),
+        winRate: this.toNumber(this.firstValue(row, ['winRate', 'hitRate']), 0),
+        note: this.firstValue(row, ['note', 'description', 'hint']),
+      }));
+    }
+
+    const games = await this.getDashboardGames(_userId);
+    const picks = this.buildPicksFromGames(games);
+    const grouped = new Map<string, any>();
+
+    for (const pick of picks) {
+      const key = String(pick.type || pick.market || 'Mercado');
+      const current = grouped.get(key) || {
+        id: key.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        name: key,
+        edge: 0,
+        volume: 0,
+        winRate: 0,
+        note: 'Mercado real agregado a partir das odds disponíveis nos jogos atuais.',
+      };
+
+      current.volume += 1;
+      current.edge += this.toNumber(pick.confidence);
+      grouped.set(key, current);
+    }
+
+    return Array.from(grouped.values()).map((item) => ({
+      ...item,
+      edge: item.volume ? Math.round(item.edge / item.volume) : 0,
+      winRate: item.volume ? Math.round(item.edge / item.volume) : 0,
     }));
   }
 
@@ -785,6 +1066,25 @@ export class AuthService {
   private marketTemplatesForGame(game: any) {
     const home = String(game?.homeTeam || 'Mandante');
     const away = String(game?.awayTeam || 'Visitante');
+    const realMarkets = Array.isArray(game?.markets) ? game.markets : [];
+
+    if (realMarkets.length) {
+      return realMarkets
+        .map((market: any) => ({
+          market: String(market?.market || market?.name || market?.selection || 'Mercado'),
+          type: String(market?.type || market?.category || 'Mercado real'),
+          risk: String(market?.risk || 'moderado'),
+          confidence: this.toNumber(market?.confidence || market?.score || market?.probability, 0),
+          odd: this.normalizeOddValue(market?.odd ?? market?.odds ?? market?.price),
+          reason: market?.reason || 'Mercado retornado por fonte real de odds/dados. Não há garantia de resultado.',
+          source: market?.source || 'real-market',
+        }))
+        .filter((market: any) => market.odd && market.odd > 1);
+    }
+
+    const allowSynthetic = String(process.env.ODDIX_ENABLE_SYNTHETIC_PICKS || 'false').toLowerCase() === 'true';
+    if (!allowSynthetic) return [];
+
     const status = String(game?.status || '').toLowerCase();
     const isLive = status.includes('ao vivo');
     const isScheduled = status.includes('pré') || status.includes('pre') || status.includes('scheduled');
@@ -796,42 +1096,54 @@ export class AuthService {
         type: 'Dupla chance',
         risk: 'seguro',
         confidence: Math.min(88, 72 + base),
-        reason: 'Mercado de proteção, reduzindo exposição ao resultado seco.',
+        odd: null,
+        reason: 'Sugestão estatística sem odd real. Ative apenas como modo demonstrativo.',
+        source: 'synthetic-template',
       },
       {
         market: 'Under 3.5 gols',
         type: 'Gols',
         risk: 'seguro',
         confidence: Math.min(84, 69 + base),
-        reason: 'Linha conservadora para jogos com leitura mais protegida.',
+        odd: null,
+        reason: 'Sugestão estatística sem odd real. Ative apenas como modo demonstrativo.',
+        source: 'synthetic-template',
       },
       {
         market: 'Over 1.5 gols',
         type: 'Gols',
         risk: 'moderado',
         confidence: Math.min(82, 66 + base),
-        reason: 'Entrada moderada quando o jogo apresenta potencial mínimo ofensivo.',
+        odd: null,
+        reason: 'Sugestão estatística sem odd real. Ative apenas como modo demonstrativo.',
+        source: 'synthetic-template',
       },
       {
         market: 'Ambas marcam',
         type: 'Gols',
         risk: 'moderado',
         confidence: Math.min(76, 59 + base),
-        reason: `Mercado depende de volume ofensivo dos dois lados: ${home} e ${away}.`,
+        odd: null,
+        reason: `Sugestão estatística sem odd real para ${home} x ${away}.`,
+        source: 'synthetic-template',
       },
       {
         market: 'Mais de 7.5 escanteios',
         type: 'Escanteios',
         risk: 'ousado',
         confidence: Math.min(70, 54 + base),
-        reason: 'Mercado mais sensível ao ritmo, pressão territorial e estilo de ataque.',
+        odd: null,
+        reason: 'Sugestão estatística sem odd real. Ative apenas como modo demonstrativo.',
+        source: 'synthetic-template',
       },
       {
         market: `${home} vence`,
         type: 'Resultado',
         risk: 'ousado',
         confidence: Math.min(68, 51 + base),
-        reason: 'Resultado seco tem maior variância e deve ser usado com stake menor.',
+        odd: null,
+        reason: 'Sugestão estatística sem odd real. Ative apenas como modo demonstrativo.',
+        source: 'synthetic-template',
       },
     ];
   }
@@ -840,7 +1152,8 @@ export class AuthService {
     const homeTeam = String(game?.homeTeam || 'Mandante');
     const awayTeam = String(game?.awayTeam || 'Visitante');
     const match = `${homeTeam} x ${awayTeam}`;
-    const hasOdd = game?.topOdd !== undefined && game?.topOdd !== null && game?.topOdd !== '' && Number(game?.topOdd) > 1;
+    const templateOdd = this.normalizeOddValue(template?.odd);
+    const hasOdd = !!templateOdd || (game?.topOdd !== undefined && game?.topOdd !== null && game?.topOdd !== '' && Number(game?.topOdd) > 1);
 
     return {
       id: `${String(game?.id || match).replace(/[^a-zA-Z0-9_-]/g, '-')}-${index}`,
@@ -858,10 +1171,10 @@ export class AuthService {
       type: template.type,
       risk: template.risk,
       confidence: template.confidence,
-      odd: hasOdd && template.type === 'Resultado' ? this.toNumber(game.topOdd, 0) : null,
-      oddStatus: hasOdd && template.type === 'Resultado' ? 'odd disponível' : 'odd indisponível',
+      odd: templateOdd || (hasOdd && template.type === 'Resultado' ? this.toNumber(game.topOdd, 0) : null),
+      oddStatus: hasOdd ? 'odd real disponível' : 'odd indisponível',
       reason: template.reason,
-      source: 'oddix-picks-engine',
+      source: template.source || 'oddix-picks-engine',
       generatedAt: new Date().toISOString(),
     };
   }

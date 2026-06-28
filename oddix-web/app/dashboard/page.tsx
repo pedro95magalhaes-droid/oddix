@@ -97,6 +97,7 @@ type DashboardPick = {
   odd?: number | null;
   oddStatus?: string;
   reason?: string;
+  source?: string;
 };
 
 type DashboardMultiple = {
@@ -444,7 +445,7 @@ export default function OddixDashboardPage() {
         coerceArray<DashboardMultiple>(multiplesRaw).length === 0;
 
       if (noData) {
-        setDashboardError('O frontend já está pronto para dados reais, mas o backend ainda não retornou conteúdo estruturado nos endpoints do dashboard.');
+        setDashboardError('O dashboard carregou, mas ainda não há mercados reais/odds disponíveis para todos os jogos atuais. Sem odds reais, o Oddix não inventa mercado.');
       }
     } catch (err: any) {
       setDashboardError(err?.message || 'Não foi possível carregar os dados reais do dashboard.');
@@ -715,6 +716,11 @@ export default function OddixDashboardPage() {
 
     setDashboardError('');
 
+    if (!pick.odd || Number(pick.odd) <= 1) {
+      setDashboardError('Este palpite ainda não tem odd real. Para salvar como aposta, primeiro é preciso receber mercado/odd real do backend.');
+      return;
+    }
+
     try {
       await fetch(`${cleanApiBase}/dashboard/bets/from-pick`, {
         method: 'POST',
@@ -722,7 +728,7 @@ export default function OddixDashboardPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
         },
-        body: JSON.stringify({ pick, stake: 0, odd: pick.odd || 1 }),
+        body: JSON.stringify({ pick, stake: 0, odd: pick.odd }),
       });
 
       await loadDashboard();
@@ -906,7 +912,7 @@ export default function OddixDashboardPage() {
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-[#c8f71f]/20 bg-[#c8f71f]/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#c8f71f]">{pick.type || 'Palpite IA'}</span>
+              <span className="rounded-full border border-[#c8f71f]/20 bg-[#c8f71f]/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#c8f71f]">{pick.type || 'Mercado real'}</span>
               <span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${riskStyle}`}>{pick.risk || 'análise'}</span>
             </div>
             <h3 className="mt-4 text-lg font-black leading-tight text-white">{pick.match}</h3>
@@ -933,7 +939,7 @@ export default function OddixDashboardPage() {
           </div>
         )}
 
-        <p className="mt-4 text-sm leading-6 text-white/55">{pick.reason || 'Sugestão gerada com base nos dados disponíveis do jogo.'}</p>
+        <p className="mt-4 text-sm leading-6 text-white/55">{pick.reason || 'Mercado retornado por dados reais disponíveis. Não há garantia de resultado.'}</p>
 
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/8">
           <div className="h-full rounded-full bg-[linear-gradient(90deg,#c8f71f,#38bdf8)]" style={{ width: `${Math.max(6, Math.min(100, confidence))}%` }} />
@@ -948,8 +954,8 @@ export default function OddixDashboardPage() {
             <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/30">Mercado</p>
             <p className="mt-1 truncate text-sm font-black text-white">{pick.type || '--'}</p>
           </div>
-          <button onClick={() => void savePickAsBet(pick)} className="rounded-2xl bg-[#c8f71f] p-3 text-sm font-black text-black shadow-[0_14px_34px_rgba(200,247,31,.12)] transition hover:bg-[#d9ff59]">
-            Salvar
+          <button onClick={() => void savePickAsBet(pick)} disabled={!pick.odd || Number(pick.odd) <= 1} className="rounded-2xl bg-[#c8f71f] p-3 text-sm font-black text-black shadow-[0_14px_34px_rgba(200,247,31,.12)] transition hover:bg-[#d9ff59] disabled:cursor-not-allowed disabled:bg-white/8 disabled:text-white/35">
+            {pick.odd ? 'Salvar' : 'Sem odd'}
           </button>
         </div>
       </div>
@@ -1033,8 +1039,8 @@ export default function OddixDashboardPage() {
         <section className="relative overflow-hidden rounded-[34px] border border-[#c8f71f]/25 bg-[radial-gradient(circle_at_15%_15%,#efff92,transparent_26%),linear-gradient(135deg,#d9ff59,#92d70f)] p-7 text-black shadow-[0_28px_90px_rgba(200,247,31,.18)]">
           <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-black/55">V23.15 • Staly Picks</p>
-              <h1 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">Palpites e múltiplas com visual premium para decidir melhor.</h1>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-black/55">V23.16 • Jogos atuais + mercados reais</p>
+              <h1 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">Palpites e múltiplas somente com dados atuais.</h1>
               <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-black/65">
                 Gere oportunidades, monte múltiplas por risco, salve entradas e acompanhe banca, ROI e performance em tempo real.
               </p>
@@ -1111,13 +1117,13 @@ export default function OddixDashboardPage() {
           <div className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Palpites da IA</p>
-                <h2 className="mt-2 text-2xl font-black">Mercados sugeridos</h2>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Mercados reais</p>
+                <h2 className="mt-2 text-2xl font-black">Odds disponíveis</h2>
               </div>
               <button onClick={() => void generatePicks()} className="rounded-full bg-[#c8f71f] px-4 py-2 text-xs font-black text-black">Gerar</button>
             </div>
             <div className="space-y-3">
-              {picks.length ? picks.slice(0, 3).map((pick) => <PickCard key={pick.id} pick={pick} />) : <EmptyState title="Sem palpites gerados" subtitle="Clique em Gerar palpites para o Oddix analisar os jogos reais e sugerir mercados." />}
+              {picks.length ? picks.slice(0, 3).map((pick) => <PickCard key={pick.id} pick={pick} />) : <EmptyState title="Sem mercados reais disponíveis" subtitle="O Oddix só mostra palpites quando o backend recebe odds/mercados reais. Ative a fonte de odds para preencher esta área." />}
             </div>
           </div>
 
@@ -1157,9 +1163,9 @@ export default function OddixDashboardPage() {
         <section className="overflow-hidden rounded-[34px] border border-[#c8f71f]/18 bg-[radial-gradient(circle_at_12%_18%,rgba(200,247,31,.16),transparent_26%),linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))] p-6 shadow-[0_26px_90px_rgba(0,0,0,.25)]">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#c8f71f]">Picks Engine</p>
-              <h2 className="mt-3 text-3xl font-black leading-tight text-white sm:text-4xl">Palpites prontos por mercado.</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">O Oddix cruza jogos reais, contexto e mercados para sugerir entradas por risco, confiança e oportunidade.</p>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#c8f71f]">Picks Engine Real</p>
+              <h2 className="mt-3 text-3xl font-black leading-tight text-white sm:text-4xl">Palpites só com mercado e odd real.</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">O Oddix agora bloqueia sugestões inventadas. Quando a fonte de odds retornar mercados reais, os palpites e múltiplas aparecem aqui.</p>
             </div>
             <button onClick={() => void generatePicks()} className="h-12 rounded-2xl bg-[#c8f71f] px-6 text-sm font-black text-black shadow-[0_18px_44px_rgba(200,247,31,.16)]">
               {generatingPicks ? 'Gerando...' : 'Gerar palpites'}
@@ -1168,7 +1174,7 @@ export default function OddixDashboardPage() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
-          {picks.length ? picks.map((pick) => <PickCard key={pick.id} pick={pick} />) : <EmptyState title="Nenhum palpite gerado" subtitle="Clique em Gerar palpites para analisar os jogos reais e montar oportunidades por mercado." />}
+          {picks.length ? picks.map((pick) => <PickCard key={pick.id} pick={pick} />) : <EmptyState title="Nenhum mercado real encontrado" subtitle="Clique em Gerar palpites depois que o backend estiver recebendo odds/mercados reais. O Oddix não vai inventar dupla chance, over ou escanteios sem fonte." />}
         </section>
       </div>
     );
