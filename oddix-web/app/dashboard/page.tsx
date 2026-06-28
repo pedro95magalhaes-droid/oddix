@@ -3,10 +3,10 @@
 import Image from 'next/image';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
-type OddixPlan = 'free' | 'vip' | 'pro' | 'premium' | 'admin';
-type Tab = 'inicio' | 'jogos' | 'palpites' | 'multiplas' | 'entradas' | 'ranking' | 'banca' | 'compliance';
+type TabKey = 'inicio' | 'jogos' | 'palpites' | 'multiplas' | 'jogadores' | 'entradas' | 'banca' | 'compliance';
+type Plan = 'free' | 'vip' | 'pro' | 'premium' | 'admin';
 
-type OddixUser = {
+type User = {
   id?: string;
   name?: string | null;
   email?: string | null;
@@ -14,145 +14,182 @@ type OddixUser = {
   plan?: string | null;
 };
 
-type DashboardOverview = {
-  balance: number;
-  initialBalance: number;
-  profit: number;
-  roi: number;
-  winRate: number;
-  totalBets: number;
-  openBets: number;
-  settledBets: number;
-  avgOdd: number;
-  bankrollHistory: Array<{ label: string; value: number }>;
+type Team = {
+  id?: number | string;
+  name: string;
+  logo?: string;
 };
 
-type DashboardGame = {
+type Game = {
   id: string;
-  league?: string;
-  status?: string;
-  minute?: string;
-  kickoff?: string;
-  score?: string;
-  confidence?: number;
+  provider?: string;
+  fixture: {
+    id?: string | number;
+    date?: string;
+    status: {
+      short: string;
+      long?: string;
+      elapsed?: number;
+      extra?: number | null;
+    };
+    loadedAt: number;
+    baseElapsed: number;
+  };
+  league: {
+    id?: string | number;
+    name: string;
+    country?: string;
+    logo?: string;
+  };
+  teams: {
+    home: Team;
+    away: Team;
+  };
+  goals: {
+    home: number | null;
+    away: number | null;
+  };
+  score?: any;
+  odds?: any;
+  lineups?: any[];
+  incidents?: any[];
+  oddix: {
+    qualityScore: number;
+    qualityLabel: string;
+    priorityLeague: boolean;
+    leagueAllowed: boolean;
+  };
+  raw?: any;
+};
+
+type Pick = {
+  id: string;
+  fixtureId?: string | number;
+  game: string;
+  league: string;
   homeTeam: string;
   awayTeam: string;
   homeLogo?: string;
   awayLogo?: string;
-  topMarket?: string;
-  topOdd?: number | string;
-};
-
-type DashboardBet = {
-  id: string;
-  match: string;
   market: string;
-  stake: number;
-  odd: number;
-  potentialReturn?: number;
-  result?: 'Aberta' | 'Green' | 'Red' | 'Void' | string;
-  status?: string;
-  homeTeam?: string;
-  awayTeam?: string;
-  homeLogo?: string;
-  awayLogo?: string;
-  createdAt?: string;
+  selection: string;
+  odd: number | null;
+  confidence: number;
+  risk: 'Seguro' | 'Moderado' | 'Ousado';
+  reason: string;
+  source: 'Mercado real' | 'IA sem odd';
 };
 
-type DashboardPlayer = {
-  id?: string;
-  name: string;
+type PlayerCard = {
+  id: string;
+  player: string;
+  game: string;
   team?: string;
   teamLogo?: string;
-  score?: number;
-  trend?: string;
-  metric?: string;
-};
-
-type DashboardMarket = {
-  id?: string;
-  name: string;
-  edge?: number;
-  volume?: number;
-  winRate?: number;
-  note?: string;
-};
-
-type DashboardPick = {
-  id: string;
-  gameId?: string;
-  match: string;
-  league?: string;
-  status?: string;
-  minute?: string;
-  score?: string;
-  homeTeam?: string;
-  awayTeam?: string;
-  homeLogo?: string;
-  awayLogo?: string;
   market: string;
-  type?: string;
-  risk?: string;
-  confidence?: number;
-  odd?: number | null;
-  oddStatus?: string;
-  reason?: string;
-  source?: string;
+  confidence: number;
+  status: string;
 };
 
-type DashboardMultiple = {
-  id: string;
-  title: string;
-  risk?: string;
-  confidence?: number;
-  estimatedOdd?: number | null;
-  oddStatus?: string;
-  legs: DashboardPick[];
-  note?: string;
+type Bet = {
+  id?: string;
+  match?: string;
+  game?: string;
+  market?: string;
+  stake?: number;
+  odd?: number;
+  status?: string;
+  result?: string;
+  profit?: number;
 };
 
-type ComplianceItem = {
-  title: string;
-  description: string;
-};
-
-const allowedPlans: OddixPlan[] = ['vip', 'pro', 'premium', 'admin'];
-
-const tabs: { id: Tab; label: string; icon: string }[] = [
+const tabs: { id: TabKey; label: string; icon: string }[] = [
   { id: 'inicio', label: 'Início', icon: '🏠' },
   { id: 'jogos', label: 'Jogos', icon: '⚽' },
   { id: 'palpites', label: 'Palpites', icon: '🧠' },
   { id: 'multiplas', label: 'Múltiplas', icon: '🧩' },
+  { id: 'jogadores', label: 'Jogadores', icon: '⭐' },
   { id: 'entradas', label: 'Entradas', icon: '🎯' },
-  { id: 'ranking', label: 'Ranking', icon: '🏆' },
   { id: 'banca', label: 'Banca', icon: '📈' },
   { id: 'compliance', label: '18+', icon: '🛡️' },
 ];
 
-const defaultOverview: DashboardOverview = {
-  balance: 0,
-  initialBalance: 0,
-  profit: 0,
-  roi: 0,
-  winRate: 0,
-  totalBets: 0,
-  openBets: 0,
-  settledBets: 0,
-  avgOdd: 0,
-  bankrollHistory: [],
-};
-
-const defaultCompliance: ComplianceItem[] = [
-  { title: '18+', description: 'Conteúdo exclusivo para maiores de 18 anos.' },
-  { title: 'Jogo responsável', description: 'Aposte com controle e consciência.' },
-  { title: 'Sem promessa de lucro', description: 'Análises e odds não garantem resultado.' },
-  { title: 'Aposta não é investimento', description: 'Use a plataforma como entretenimento, não como renda garantida.' },
-  { title: 'Controle de banca', description: 'Defina limites de stake, tempo e exposição.' },
-  { title: 'Autoexclusão', description: 'Se necessário, pause, limite ou interrompa sua atividade.' },
+const blockedLeagueWords = [
+  'women',
+  'woman',
+  'feminino',
+  'feminina',
+  'w -',
+  ' w ',
+  'sub-',
+  'sub ',
+  'u17',
+  'u18',
+  'u19',
+  'u20',
+  'u21',
+  'youth',
+  'junior',
+  'reserva',
+  'reserve',
+  'esoccer',
+  'e-soccer',
+  'esports',
+  'amistoso de clubes',
+  'club friendly',
+  'serie c',
+  'série c',
+  'serie d',
+  'série d',
+  'carioca c',
+  'paulista a4',
+  'regional amateur',
 ];
 
-function normalizePlan(value?: string | null): OddixPlan {
-  const plan = String(value || '').trim().toLowerCase();
+const premiumLeagueRules: Array<{ terms: string[]; score: number; label: string }> = [
+  { terms: ['fifa world cup', 'world cup', 'copa do mundo', 'mundial'], score: 100, label: 'Mundial' },
+  { terms: ['uefa champions', 'champions league'], score: 98, label: 'Elite' },
+  { terms: ['libertadores'], score: 96, label: 'Elite' },
+  { terms: ['sul-americana', 'sudamericana'], score: 91, label: 'Continental' },
+  { terms: ['copa do brasil'], score: 90, label: 'Brasil' },
+  { terms: ['brazil: serie a', 'brasil: serie a', 'brasileirao serie a', 'brasileirão série a', 'serie a'], score: 88, label: 'Brasil' },
+  { terms: ['premier league'], score: 88, label: 'Europa' },
+  { terms: ['la liga'], score: 87, label: 'Europa' },
+  { terms: ['serie a - italy', 'italy: serie a', 'italian serie a'], score: 87, label: 'Europa' },
+  { terms: ['bundesliga'], score: 86, label: 'Europa' },
+  { terms: ['ligue 1'], score: 84, label: 'Europa' },
+  { terms: ['europa league'], score: 84, label: 'Europa' },
+  { terms: ['conference league'], score: 80, label: 'Europa' },
+  { terms: ['nations league', 'euro', 'copa america', 'copa américa', 'international'], score: 78, label: 'Seleções' },
+  { terms: ['brazil: serie b', 'brasil: serie b', 'brasileirao serie b', 'brasileirão série b', 'serie b'], score: 72, label: 'Brasil B' },
+  { terms: ['mls', 'liga mx', 'argentina primera', 'primera division'], score: 68, label: 'Americas' },
+];
+
+function normalizeText(value: any) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s:.+-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function safeNumber(value: any, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function safeScore(value: any) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(String(value).replace(/[^0-9.-]/g, ''));
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed < 0 || parsed > 30) return null;
+  return parsed;
+}
+
+function normalizePlan(value?: string | null): Plan {
+  const plan = normalizeText(value);
   if (plan === 'vip') return 'vip';
   if (plan === 'pro') return 'pro';
   if (plan === 'premium') return 'premium';
@@ -160,70 +197,32 @@ function normalizePlan(value?: string | null): OddixPlan {
   return 'free';
 }
 
-function getStoredAuthToken() {
-  if (typeof window === 'undefined') return '';
-
-  const tokenKeys = ['oddix_auth_token', 'oddix_token', 'access_token', 'token', 'auth_token', 'authToken', 'jwt'];
-
-  for (const key of tokenKeys) {
-    const value = window.localStorage.getItem(key);
-    if (value) return value;
-  }
-
-  for (const key of ['oddix_auth', 'oddix_session', 'user', 'auth']) {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) continue;
-
-    try {
-      const parsed = JSON.parse(raw);
-      const token = parsed?.access_token || parsed?.accessToken || parsed?.token || parsed?.jwt;
-      if (token) return String(token);
-    } catch {
-      // ignore invalid payloads
-    }
-  }
-
-  return '';
+function planLabel(plan: Plan) {
+  if (plan === 'admin') return 'ADMIN';
+  if (plan === 'premium') return 'PREMIUM';
+  return plan.toUpperCase();
 }
 
-function storeAuthPayload(payload: any) {
-  if (typeof window === 'undefined') return;
-
-  const token = payload?.access_token || payload?.token || '';
-  const user = payload?.user || null;
-  const plan = normalizePlan(user?.plan);
-
-  if (token) {
-    window.localStorage.setItem('oddix_auth_token', token);
-    window.localStorage.setItem('oddix_token', token);
-    window.localStorage.setItem('access_token', token);
-  }
-
-  if (user) {
-    window.localStorage.setItem('oddix_user', JSON.stringify(user));
-    window.localStorage.setItem('oddix_user_email', String(user.email || ''));
-    window.localStorage.setItem('oddix_user_plan', plan);
-    window.localStorage.setItem('oddix_access_plan', plan);
-  }
+function dateKey(date: Date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
 }
 
-function clearAuthPayload() {
-  if (typeof window === 'undefined') return;
-
-  [
-    'oddix_auth_token',
-    'oddix_token',
-    'access_token',
-    'token',
-    'auth_token',
-    'authToken',
-    'jwt',
-    'oddix_user',
-    'oddix_user_email',
-    'oddix_user_plan',
-    'oddix_access_plan',
-    'oddix_access_token',
-  ].forEach((key) => window.localStorage.removeItem(key));
+function formatDateTime(value?: string) {
+  if (!value) return '--';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '--';
+  return parsed.toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function formatCurrency(value: number) {
@@ -234,79 +233,424 @@ function formatCurrency(value: number) {
   }).format(Number.isFinite(value) ? value : 0);
 }
 
-function formatDecimal(value: number, digits = 2) {
-  return new Intl.NumberFormat('pt-BR', {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).format(Number.isFinite(value) ? value : 0);
+function getStoredAuthToken() {
+  if (typeof window === 'undefined') return '';
+  const keys = ['oddix_auth_token', 'oddix_token', 'access_token', 'token', 'auth_token', 'authToken', 'jwt'];
+  for (const key of keys) {
+    const value = window.localStorage.getItem(key);
+    if (value) return value;
+  }
+  return '';
 }
 
-function planLabel(plan: OddixPlan) {
-  if (plan === 'admin') return 'ADMIN';
-  if (plan === 'premium') return 'PREMIUM';
-  return plan.toUpperCase();
+function storeAuthPayload(payload: any) {
+  if (typeof window === 'undefined') return;
+  const token = payload?.access_token || payload?.token || '';
+  const user = payload?.user || null;
+  if (token) {
+    window.localStorage.setItem('oddix_auth_token', token);
+    window.localStorage.setItem('oddix_token', token);
+    window.localStorage.setItem('access_token', token);
+    window.localStorage.setItem('token', token);
+  }
+  if (user) {
+    window.localStorage.setItem('oddix_user', JSON.stringify(user));
+    window.localStorage.setItem('oddix_user_email', String(user.email || ''));
+    window.localStorage.setItem('oddix_user_plan', normalizePlan(user.plan));
+  }
 }
 
-function nameInitials(name: string) {
-  return name
+function clearAuthPayload() {
+  if (typeof window === 'undefined') return;
+  ['oddix_auth_token', 'oddix_token', 'access_token', 'token', 'auth_token', 'authToken', 'jwt', 'oddix_user', 'oddix_user_email', 'oddix_user_plan'].forEach((key) => window.localStorage.removeItem(key));
+}
+
+function getApiBase() {
+  return (process.env.NEXT_PUBLIC_ODDIX_API_URL || process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+}
+
+async function apiRequest(path: string, token = '', options: RequestInit = {}) {
+  const base = getApiBase();
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string> | undefined),
+  };
+
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+
+  const response = await fetch(`${base}${path}`, {
+    ...options,
+    headers,
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(text || `Erro ${response.status} em ${path}`);
+  }
+
+  return response.json().catch(() => null);
+}
+
+function normalizeStatusShort(status: any) {
+  const raw = String(status?.short || status?.curto || status?.shortName || status?.name || '').toUpperCase();
+  if (raw === '1T') return '1H';
+  if (raw === '2T') return '2H';
+  return raw;
+}
+
+function isLiveStatus(status: string) {
+  return ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'SUSP', 'INT'].includes(String(status || '').toUpperCase());
+}
+
+function isFinishedStatus(status: string) {
+  return ['FT', 'AET', 'PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'].includes(String(status || '').toUpperCase());
+}
+
+function isGameLive(game: Game) {
+  const status = game.fixture.status.short;
+  const elapsed = safeNumber(game.fixture.status.elapsed, 0);
+  if (isFinishedStatus(status)) return false;
+  if (!isLiveStatus(status)) return false;
+  if (elapsed >= 90) return false;
+  return true;
+}
+
+function isGameFinished(game: Game) {
+  const status = game.fixture.status.short;
+  const elapsed = safeNumber(game.fixture.status.elapsed, 0);
+  return isFinishedStatus(status) || elapsed >= 90;
+}
+
+function gameDateKey(game: Game) {
+  if (!game.fixture.date) return '';
+  const parsed = new Date(game.fixture.date);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return dateKey(parsed);
+}
+
+function getScoreLabel(game: Game) {
+  const home = game.goals.home;
+  const away = game.goals.away;
+  if (home === null || away === null) return formatDateTime(game.fixture.date);
+  return `${home} x ${away}`;
+}
+
+function getStatusLabel(game: Game) {
+  if (isGameLive(game)) {
+    const elapsed = safeNumber(game.fixture.status.elapsed, 0);
+    return elapsed ? `Ao vivo • ${elapsed}'` : 'Ao vivo';
+  }
+  if (isGameFinished(game)) return 'Encerrado';
+  return 'Pré-jogo';
+}
+
+function leagueQualityScore(rawLeague: any, rawGame: any) {
+  const text = normalizeText([
+    rawLeague?.name,
+    rawLeague?.nome,
+    rawLeague?.country,
+    rawLeague?.pais,
+    rawLeague?.país,
+    rawGame?.league?.name,
+    rawGame?.liga?.nome,
+    rawGame?.competition?.name,
+  ].filter(Boolean).join(' '));
+
+  if (blockedLeagueWords.some((word) => text.includes(normalizeText(word)))) {
+    return { allowed: false, score: 0, label: 'Bloqueada' };
+  }
+
+  for (const rule of premiumLeagueRules) {
+    if (rule.terms.some((term) => text.includes(normalizeText(term)))) {
+      return { allowed: true, score: rule.score, label: rule.label };
+    }
+  }
+
+  const apiScore = safeNumber(rawGame?.oddix?.qualityScore ?? rawGame?.oddix?.pontuacaoQualidade, 0);
+  if (apiScore >= 65) return { allowed: true, score: apiScore, label: rawGame?.oddix?.qualityLabel || 'Boa' };
+
+  return { allowed: false, score: apiScore || 45, label: 'Baixa' };
+}
+
+function normalizeGame(raw: any): Game | null {
+  if (!raw) return null;
+
+  const fixture = raw.fixture || raw.jogo || raw.partida || {};
+  const status = fixture.status || {};
+  const league = raw.league || raw.liga || raw.competition || {};
+  const teams = raw.teams || raw.times || {};
+  const home = teams.home || teams.casa || teams.mandante || raw.home || {};
+  const away = teams.away || teams.fora || teams.visitante || raw.away || {};
+  const goals = raw.goals || raw.gols || raw.placar || {};
+  const score = raw.score || raw.placar || {};
+  const quality = leagueQualityScore(league, raw);
+
+  const homeName = home.name || home.nome || home.teamName || 'Casa';
+  const awayName = away.name || away.nome || away.teamName || 'Fora';
+  const date = fixture.date || fixture.data || raw.date || raw.data;
+  const statusShort = normalizeStatusShort(status);
+
+  const game: Game = {
+    id: String(fixture.id || fixture.externalId || raw.id || `${date}-${homeName}-${awayName}`),
+    provider: raw.provider || raw.provedor || 'football',
+    fixture: {
+      id: fixture.id || fixture.externalId || raw.id,
+      date,
+      status: {
+        short: statusShort,
+        long: status.long || status.longo || status.name || '',
+        elapsed: safeNumber(status.elapsed ?? status.decorrido ?? status.tempoDecorrido, 0),
+        extra: status.extra ?? null,
+      },
+      loadedAt: Date.now(),
+      baseElapsed: safeNumber(status.elapsed ?? status.decorrido ?? status.tempoDecorrido, 0),
+    },
+    league: {
+      id: league.id || 0,
+      name: league.name || league.nome || raw.leagueName || 'Liga',
+      country: league.country || league.pais || league.país || '',
+      logo: league.logo || league.logotipo || '',
+    },
+    teams: {
+      home: {
+        id: home.id || 0,
+        name: homeName,
+        logo: home.logo || home.logotipo || home.crest || '',
+      },
+      away: {
+        id: away.id || 0,
+        name: awayName,
+        logo: away.logo || away.logotipo || away.crest || '',
+      },
+    },
+    goals: {
+      home: safeScore(goals.home ?? goals.casa ?? score?.fulltime?.home ?? score?.fulltime?.casa),
+      away: safeScore(goals.away ?? goals.fora ?? goals.visitante ?? score?.fulltime?.away ?? score?.fulltime?.fora),
+    },
+    score,
+    odds: raw.odds || raw.cotacoes || raw.bookmakers || null,
+    lineups: raw.lineups || raw.escalacoes || raw.escalações || [],
+    incidents: raw.incidents || raw.eventos || [],
+    oddix: {
+      qualityScore: quality.score,
+      qualityLabel: quality.label,
+      priorityLeague: quality.score >= 78,
+      leagueAllowed: quality.allowed,
+    },
+    raw,
+  };
+
+  if (!game.oddix.leagueAllowed) return null;
+  if (!game.fixture.date && !isGameLive(game)) return null;
+
+  return game;
+}
+
+function gameDedupeKey(game: Game) {
+  const home = normalizeText(game.teams.home.name);
+  const away = normalizeText(game.teams.away.name);
+  const day = gameDateKey(game);
+  if (home && away && day) return `${day}-${home}-${away}`;
+  return String(game.fixture.id || game.id);
+}
+
+function mergeGames(groups: any[][]) {
+  const map = new Map<string, Game>();
+
+  groups.flat().forEach((raw) => {
+    const game = normalizeGame(raw);
+    if (!game) return;
+    const key = gameDedupeKey(game);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, game);
+      return;
+    }
+
+    const existingLive = isGameLive(existing) ? 1 : 0;
+    const currentLive = isGameLive(game) ? 1 : 0;
+    const existingQuality = safeNumber(existing.oddix.qualityScore, 0);
+    const currentQuality = safeNumber(game.oddix.qualityScore, 0);
+
+    if (currentLive > existingLive || currentQuality > existingQuality || game.teams.home.logo || game.teams.away.logo) {
+      map.set(key, { ...existing, ...game });
+    }
+  });
+
+  return Array.from(map.values()).sort((a, b) => {
+    const liveDiff = Number(isGameLive(b)) - Number(isGameLive(a));
+    if (liveDiff) return liveDiff;
+    const scoreDiff = b.oddix.qualityScore - a.oddix.qualityScore;
+    if (scoreDiff) return scoreDiff;
+    return new Date(a.fixture.date || 0).getTime() - new Date(b.fixture.date || 0).getTime();
+  });
+}
+
+function getOddsOptions(game: Game) {
+  const raw = game.odds;
+  const options: any[] = [];
+
+  if (Array.isArray(raw?.options)) options.push(...raw.options);
+  if (Array.isArray(raw?.opções)) options.push(...raw.opções);
+  if (Array.isArray(raw)) options.push(...raw);
+  if (Array.isArray(raw?.bookmakers)) {
+    raw.bookmakers.forEach((book: any) => {
+      (book?.bets || book?.markets || []).forEach((market: any) => {
+        (market?.values || market?.outcomes || market?.options || []).forEach((outcome: any) => {
+          options.push({ ...outcome, market: market.name || market.label || market.key });
+        });
+      });
+    });
+  }
+
+  return options
+    .map((item) => {
+      const odd = Number(item?.odd ?? item?.price ?? item?.value ?? item?.cotacao ?? item?.ímpar);
+      const label = item?.label || item?.name || item?.selection || item?.tip || item?.mercado || item?.market || item?.valueName;
+      return {
+        label: String(label || 'Mercado real'),
+        odd,
+        market: item?.market || item?.mercado || item?.key || 'Mercado',
+      };
+    })
+    .filter((item) => Number.isFinite(item.odd) && item.odd >= 1.15 && item.odd <= 5.5)
+    .slice(0, 12);
+}
+
+function getPlayerNameFromLineup(game: Game) {
+  const lineups = game.lineups || [];
+  for (const lineup of lineups) {
+    const starters = lineup?.startXI || lineup?.startXi || lineup?.titulares || lineup?.players || [];
+    if (!Array.isArray(starters)) continue;
+    const found = starters.find((item: any) => item?.player?.name || item?.player?.nome || item?.name || item?.nome || item?.athlete?.name);
+    if (found) return found?.player?.name || found?.player?.nome || found?.name || found?.nome || found?.athlete?.name;
+  }
+
+  const scorer = (game.incidents || []).find((item: any) => {
+    const type = normalizeText(item?.type || item?.tipo || item?.incidentType);
+    return type.includes('goal') || type.includes('gol');
+  });
+
+  return scorer?.player?.name || scorer?.player?.nome || scorer?.playerName || scorer?.nome || null;
+}
+
+function buildMarketsForGame(game: Game): Pick[] {
+  const odds = getOddsOptions(game);
+  const home = game.teams.home.name;
+  const away = game.teams.away.name;
+  const quality = safeNumber(game.oddix.qualityScore, 60);
+  const live = isGameLive(game);
+  const scoreTotal = safeNumber(game.goals.home, 0) + safeNumber(game.goals.away, 0);
+
+  if (odds.length) {
+    return odds.slice(0, 3).map((odd, index) => ({
+      id: `${game.id}-real-${index}`,
+      fixtureId: game.fixture.id,
+      game: `${home} x ${away}`,
+      league: game.league.name,
+      homeTeam: home,
+      awayTeam: away,
+      homeLogo: game.teams.home.logo,
+      awayLogo: game.teams.away.logo,
+      market: String(odd.market || 'Mercado real'),
+      selection: String(odd.label || 'Seleção'),
+      odd: Number(odd.odd),
+      confidence: Math.min(88, Math.max(55, quality - index * 4)),
+      risk: index === 0 ? 'Seguro' : index === 1 ? 'Moderado' : 'Ousado',
+      reason: 'Mercado real encontrado na fonte de dados do jogo.',
+      source: 'Mercado real',
+    }));
+  }
+
+  const baseMarkets = live
+    ? [
+        { market: 'Ao vivo', selection: scoreTotal <= 1 ? 'Over 0.5 gol no jogo' : 'Under 5.5 gols', delta: 0, risk: 'Moderado' as const },
+        { market: 'Proteção ao vivo', selection: 'Dupla chance do lado dominante', delta: -3, risk: 'Moderado' as const },
+      ]
+    : [
+        { market: 'Dupla chance', selection: `${home} ou empate`, delta: 1, risk: 'Seguro' as const },
+        { market: 'Total de gols', selection: 'Over 1.5 gols', delta: -1, risk: 'Moderado' as const },
+        { market: 'Total de gols', selection: 'Under 3.5 gols', delta: -2, risk: 'Seguro' as const },
+        { market: 'Ambas marcam', selection: 'Ambas marcam - Sim', delta: -6, risk: 'Ousado' as const },
+        { market: 'Escanteios', selection: 'Over escanteios', delta: -7, risk: 'Ousado' as const },
+      ];
+
+  return baseMarkets.map((item, index) => ({
+    id: `${game.id}-suggested-${index}`,
+    fixtureId: game.fixture.id,
+    game: `${home} x ${away}`,
+    league: game.league.name,
+    homeTeam: home,
+    awayTeam: away,
+    homeLogo: game.teams.home.logo,
+    awayLogo: game.teams.away.logo,
+    market: item.market,
+    selection: item.selection,
+    odd: null,
+    confidence: Math.min(86, Math.max(52, quality + item.delta)),
+    risk: item.risk,
+    reason: 'Sugestão gerada a partir de jogo atual e qualidade da liga. Odd real ainda indisponível.',
+    source: 'IA sem odd',
+  }));
+}
+
+function buildPlayerCards(games: Game[]) {
+  const cards: PlayerCard[] = [];
+  for (const game of games) {
+    const player = getPlayerNameFromLineup(game);
+    if (!player) continue;
+    cards.push({
+      id: `${game.id}-${player}`,
+      player,
+      game: `${game.teams.home.name} x ${game.teams.away.name}`,
+      team: game.teams.home.name,
+      teamLogo: game.teams.home.logo,
+      market: 'Player prop em observação',
+      confidence: Math.min(84, Math.max(58, game.oddix.qualityScore - 3)),
+      status: isGameLive(game) ? 'Ao vivo' : 'Pré-jogo',
+    });
+  }
+  return cards.slice(0, 8);
+}
+
+function buildMultiples(picks: Pick[]) {
+  const qualified = picks.filter((pick) => pick.confidence >= 55).sort((a, b) => b.confidence - a.confidence);
+  const safe = qualified.filter((pick) => pick.risk === 'Seguro').slice(0, 3);
+  const moderate = qualified.slice(0, 4);
+  const bold = qualified.slice(0, 5);
+
+  return [
+    { id: 'safe', title: 'Múltipla segura', label: 'Seguro', description: 'Combinação conservadora com mercados de proteção.', items: safe.length >= 2 ? safe : qualified.slice(0, 3) },
+    { id: 'moderate', title: 'Múltipla moderada', label: 'Moderado', description: 'Equilíbrio entre proteção e potencial de retorno.', items: moderate },
+    { id: 'bold', title: 'Múltipla ousada', label: 'Ousado', description: 'Entrada agressiva para quem aceita maior risco.', items: bold },
+  ].filter((multiple) => multiple.items.length >= 2);
+}
+
+function calculateMultipleOdd(items: Pick[]) {
+  if (!items.length || items.some((item) => !item.odd)) return null;
+  return items.reduce((total, item) => total * Number(item.odd || 1), 1);
+}
+
+function TeamLogo({ src, name, size = 34 }: { src?: string; name: string; size?: number }) {
+  const initials = name
     .split(' ')
     .filter(Boolean)
     .slice(0, 2)
-    .map((item) => item[0]?.toUpperCase())
-    .join('');
-}
-
-function coerceArray<T>(value: any, fallback: T[] = []): T[] {
-  if (Array.isArray(value)) return value as T[];
-  if (Array.isArray(value?.items)) return value.items as T[];
-  if (Array.isArray(value?.data)) return value.data as T[];
-  if (Array.isArray(value?.rows)) return value.rows as T[];
-  if (Array.isArray(value?.results)) return value.results as T[];
-  return fallback;
-}
-
-function coerceObject<T extends object>(value: any, fallback: T): T {
-  if (value && typeof value === 'object' && !Array.isArray(value)) return { ...fallback, ...value };
-  if (value?.data && typeof value.data === 'object' && !Array.isArray(value.data)) return { ...fallback, ...value.data };
-  return fallback;
-}
-
-function resultBadgeValue(value?: string) {
-  const result = String(value || '').trim().toLowerCase();
-  if (result === 'green' || result === 'won' || result === 'win') return 'Green';
-  if (result === 'red' || result === 'lost' || result === 'loss') return 'Red';
-  if (result === 'void' || result === 'cancelada' || result === 'cancelled') return 'Void';
-  return 'Aberta';
-}
-
-function ResultPill({ value }: { value?: string }) {
-  const normalized = resultBadgeValue(value);
-  const style =
-    normalized === 'Green'
-      ? 'bg-emerald-400/12 text-emerald-300'
-      : normalized === 'Red'
-        ? 'bg-rose-400/12 text-rose-300'
-        : normalized === 'Void'
-          ? 'bg-slate-400/12 text-slate-300'
-          : 'bg-lime-300/12 text-lime-200';
-
-  return <span className={`rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${style}`}>{normalized}</span>;
-}
-
-function TeamLogo({ src, team, size = 38 }: { src?: string; team: string; size?: number }) {
-  const initials = nameInitials(team || 'Time') || 'TM';
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'TM';
 
   if (src) {
     return (
-      <span className="flex items-center justify-center overflow-hidden rounded-full border border-white/12 bg-white/5" style={{ width: size, height: size }}>
+      <span className="flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/5" style={{ width: size, height: size }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt={team} className="h-full w-full object-contain" />
+        <img src={src} alt={name} className="h-full w-full object-contain" />
       </span>
     );
   }
 
   return (
-    <span className="flex items-center justify-center rounded-full border border-white/12 bg-white/5 text-[10px] font-black text-white/70" style={{ width: size, height: size }}>
+    <span className="flex shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/6 text-[10px] font-black text-white/70" style={{ width: size, height: size }}>
       {initials}
     </span>
   );
@@ -314,221 +658,178 @@ function TeamLogo({ src, team, size = 38 }: { src?: string; team: string; size?:
 
 function EmptyState({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-white/10 bg-black/10 p-8 text-center">
-      <p className="text-base font-black text-white">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-white/45">{subtitle}</p>
+    <div className="rounded-[28px] border border-dashed border-white/12 bg-black/15 p-8 text-center">
+      <p className="text-lg font-black text-white">{title}</p>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-white/48">{subtitle}</p>
     </div>
   );
 }
 
-export default function OddixDashboardPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('inicio');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+function RiskBadge({ risk }: { risk: string }) {
+  const className =
+    risk === 'Seguro'
+      ? 'border-emerald-300/20 bg-emerald-400/10 text-emerald-300'
+      : risk === 'Moderado'
+        ? 'border-sky-300/20 bg-sky-400/10 text-sky-300'
+        : 'border-amber-300/20 bg-amber-400/10 text-amber-200';
+  return <span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${className}`}>{risk}</span>;
+}
+
+export default function DashboardPage() {
+  const [activeTab, setActiveTab] = useState<TabKey>('inicio');
+  const [user, setUser] = useState<User | null>(null);
   const [authToken, setAuthToken] = useState('');
-  const [user, setUser] = useState<OddixUser | null>(null);
-  const [status, setStatus] = useState('verificando acesso');
-  const [loading, setLoading] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [games, setGames] = useState<Game[]>([]);
+  const [bets, setBets] = useState<Bet[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [dashboardLoading, setDashboardLoading] = useState(false);
-  const [dashboardError, setDashboardError] = useState('');
-  const [showBetForm, setShowBetForm] = useState(false);
-  const [showBankrollForm, setShowBankrollForm] = useState(false);
-  const [savingBet, setSavingBet] = useState(false);
-  const [savingBankroll, setSavingBankroll] = useState(false);
-  const [betGameId, setBetGameId] = useState('');
-  const [betMatch, setBetMatch] = useState('');
-  const [betMarket, setBetMarket] = useState('');
-  const [betStake, setBetStake] = useState('');
-  const [betOdd, setBetOdd] = useState('');
-  const [betResult, setBetResult] = useState('Aberta');
-  const [bankrollInitial, setBankrollInitial] = useState('');
-
-  const [overview, setOverview] = useState<DashboardOverview>(defaultOverview);
-  const [games, setGames] = useState<DashboardGame[]>([]);
-  const [bets, setBets] = useState<DashboardBet[]>([]);
-  const [players, setPlayers] = useState<DashboardPlayer[]>([]);
-  const [markets, setMarkets] = useState<DashboardMarket[]>([]);
-  const [picks, setPicks] = useState<DashboardPick[]>([]);
-  const [multiples, setMultiples] = useState<DashboardMultiple[]>([]);
-  const [complianceItems, setComplianceItems] = useState<ComplianceItem[]>(defaultCompliance);
-  const [generatingPicks, setGeneratingPicks] = useState(false);
-  const [generatingMultiple, setGeneratingMultiple] = useState('');
-
-  const apiBase = process.env.NEXT_PUBLIC_ODDIX_API_URL;
-  const cleanApiBase = apiBase?.replace(/\/$/, '') ?? '';
+  const [search, setSearch] = useState('');
+  const [leagueFilter, setLeagueFilter] = useState('all');
+  const [savingPickId, setSavingPickId] = useState('');
 
   const plan = normalizePlan(user?.plan);
-  const allowed = allowedPlans.includes(plan);
+  const allowed = ['vip', 'pro', 'premium', 'admin'].includes(plan);
   const displayName = user?.name?.trim() || 'Usuário Oddix';
-  const initials = nameInitials(displayName) || 'OD';
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'OD';
 
-  const bankrollHistory = useMemo(() => {
-    if (overview.bankrollHistory?.length) return overview.bankrollHistory;
-    return [] as Array<{ label: string; value: number }>;
-  }, [overview.bankrollHistory]);
+  const liveGames = useMemo(() => games.filter(isGameLive), [games]);
+  const pregameGames = useMemo(() => games.filter((game) => !isGameLive(game) && !isGameFinished(game)), [games]);
+  const finishedGames = useMemo(() => games.filter(isGameFinished), [games]);
+  const leagues = useMemo(() => Array.from(new Set(games.map((game) => game.league.name).filter(Boolean))).sort(), [games]);
 
-  const maxBankroll = Math.max(1, ...bankrollHistory.map((item) => item.value || 0));
+  const allPicks = useMemo(() => games.flatMap((game) => buildMarketsForGame(game)).filter((pick) => pick.confidence >= 52).slice(0, 80), [games]);
+  const realOddPicks = useMemo(() => allPicks.filter((pick) => pick.odd), [allPicks]);
+  const multiples = useMemo(() => buildMultiples(allPicks), [allPicks]);
+  const playerCards = useMemo(() => buildPlayerCards(games), [games]);
 
-  useEffect(() => {
-    const token = getStoredAuthToken();
+  const filteredGames = useMemo(() => {
+    const q = normalizeText(search);
+    return games
+      .filter((game) => {
+        if (leagueFilter !== 'all' && game.league.name !== leagueFilter) return false;
+        if (!q) return true;
+        const haystack = normalizeText(`${game.teams.home.name} ${game.teams.away.name} ${game.league.name} ${game.league.country}`);
+        return q.split(' ').some((term) => haystack.includes(term));
+      })
+      .slice(0, 80);
+  }, [games, search, leagueFilter]);
 
-    if (!token) {
-      setStatus('login necessário');
-      return;
-    }
+  const stats = useMemo(() => {
+    const won = bets.filter((bet) => ['won', 'green'].includes(normalizeText(bet.status || bet.result))).length;
+    const lost = bets.filter((bet) => ['lost', 'red'].includes(normalizeText(bet.status || bet.result))).length;
+    const settled = won + lost;
+    const totalStake = bets.reduce((sum, bet) => sum + safeNumber(bet.stake, 0), 0);
+    const profit = bets.reduce((sum, bet) => sum + safeNumber(bet.profit, 0), 0);
+    return {
+      bets: bets.length,
+      won,
+      lost,
+      roi: settled ? Math.round((won / settled) * 100) : 0,
+      totalStake,
+      profit,
+    };
+  }, [bets]);
 
-    setAuthToken(token);
-    void loadMe(token);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function requestJson(path: string, token: string) {
-    const response = await fetch(`${cleanApiBase}${path}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      const message = await response.text().catch(() => 'Falha ao carregar dados');
-      throw new Error(message || `Falha em ${path}`);
-    }
-
-    return response.json().catch(() => null);
-  }
-
-  async function loadDashboard(token = authToken) {
-    if (!cleanApiBase || !token) return;
-
-    setDashboardLoading(true);
-    setDashboardError('');
-
-    const targets = [
-      ['/dashboard/overview', defaultOverview],
-      ['/dashboard/games', []],
-      ['/dashboard/bets', []],
-      ['/dashboard/players', []],
-      ['/dashboard/markets', []],
-      ['/dashboard/picks', []],
-      ['/dashboard/multiples', []],
-      ['/dashboard/compliance', defaultCompliance],
-    ] as const;
-
+  async function loadAll(token = authToken, showLoading = false) {
     try {
-      const [overviewRaw, gamesRaw, betsRaw, playersRaw, marketsRaw, picksRaw, multiplesRaw, complianceRaw] = await Promise.all(
-        targets.map(async ([path, fallback]) => {
-          try {
-            return await requestJson(path, token);
-          } catch {
-            return fallback;
-          }
-        }),
-      );
+      if (showLoading) setLoading(true);
+      setRefreshing(true);
+      setError('');
 
-      setOverview(coerceObject<DashboardOverview>(overviewRaw, defaultOverview));
-      setGames(coerceArray<DashboardGame>(gamesRaw));
-      setBets(coerceArray<DashboardBet>(betsRaw));
-      setPlayers(coerceArray<DashboardPlayer>(playersRaw));
-      setMarkets(coerceArray<DashboardMarket>(marketsRaw));
-      setPicks(coerceArray<DashboardPick>(picksRaw));
-      setMultiples(coerceArray<DashboardMultiple>(multiplesRaw));
-      setComplianceItems(coerceArray<ComplianceItem>(complianceRaw, defaultCompliance));
+      const today = dateKey(new Date());
+      const tomorrow = dateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
+      const responses = await Promise.allSettled([
+        apiRequest('/football/live', token),
+        apiRequest(`/football/fixtures?date=${today}`, token),
+        apiRequest(`/football/fixtures?date=${tomorrow}`, token),
+        apiRequest('/bets', token),
+      ]);
 
-      const noData =
-        coerceArray<DashboardGame>(gamesRaw).length === 0 &&
-        coerceArray<DashboardBet>(betsRaw).length === 0 &&
-        coerceArray<DashboardPlayer>(playersRaw).length === 0 &&
-        coerceArray<DashboardMarket>(marketsRaw).length === 0 &&
-        coerceArray<DashboardPick>(picksRaw).length === 0 &&
-        coerceArray<DashboardMultiple>(multiplesRaw).length === 0;
+      const live = responses[0].status === 'fulfilled' ? responses[0].value?.data || responses[0].value || [] : [];
+      const todayGames = responses[1].status === 'fulfilled' ? responses[1].value?.data || responses[1].value || [] : [];
+      const tomorrowGames = responses[2].status === 'fulfilled' ? responses[2].value?.data || responses[2].value || [] : [];
+      const loadedBets = responses[3].status === 'fulfilled' ? responses[3].value?.data || responses[3].value || [] : [];
 
-      if (noData) {
-        setDashboardError('O dashboard carregou, mas ainda não há mercados reais/odds disponíveis para todos os jogos atuais. Sem odds reais, o Oddix não inventa mercado.');
+      const allowedDates = new Set([today, tomorrow]);
+      const minScore = safeNumber(process.env.NEXT_PUBLIC_ODDIX_DASHBOARD_MIN_SCORE, 55);
+      const merged = mergeGames([live, todayGames, tomorrowGames])
+        .filter((game) => isGameLive(game) || allowedDates.has(gameDateKey(game)))
+        .filter((game) => game.oddix.qualityScore >= minScore)
+        .slice(0, 80);
+
+      setGames(merged);
+      setBets(Array.isArray(loadedBets) ? loadedBets : []);
+
+      if (!merged.length) {
+        setError('Nenhum jogo principal retornou da fonte /football/live ou /football/fixtures com o filtro de qualidade atual.');
       }
     } catch (err: any) {
-      setDashboardError(err?.message || 'Não foi possível carregar os dados reais do dashboard.');
+      setError(err?.message || 'Não foi possível carregar os jogos principais.');
+      setGames([]);
     } finally {
-      setDashboardLoading(false);
+      setLoading(false);
+      setRefreshing(false);
     }
   }
 
-  async function loadMe(token = authToken) {
-    if (!cleanApiBase) {
-      setStatus('api não configurada');
-      return;
-    }
-
+  async function loadUser(token = authToken) {
     if (!token) {
-      setStatus('login necessário');
+      setLoading(false);
       return;
     }
-
-    setLoading(true);
-    setError('');
 
     try {
-      const response = await fetch(`${cleanApiBase}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: 'no-store',
-      });
-
-      if (!response.ok) {
-        throw new Error(`Falha ao validar sessão (${response.status})`);
-      }
-
-      const data = await response.json();
+      const data = await apiRequest('/auth/me', token);
       setUser(data);
-      storeAuthPayload({ token, user: data });
-      setStatus(allowedPlans.includes(normalizePlan(data?.plan)) ? 'acesso liberado' : 'plano sem acesso');
-      await loadDashboard(token);
+      await loadAll(token, true);
     } catch (err: any) {
-      setUser(null);
-      setStatus('sessão inválida');
-      setError(err?.message || 'Não foi possível validar seu login.');
-    } finally {
+      setError(err?.message || 'Sessão inválida. Faça login novamente.');
       setLoading(false);
     }
   }
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!cleanApiBase) {
-      setError('NEXT_PUBLIC_ODDIX_API_URL não está configurada no frontend.');
-      return;
-    }
-
     setLoading(true);
     setError('');
 
     try {
-      const response = await fetch(`${cleanApiBase}/auth/login`, {
+      const data = await apiRequest('/auth/login', '', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
-
-      const data = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(data?.message || 'Email ou senha inválidos.');
-      }
-
       const token = data?.access_token || data?.token || '';
+      if (!token) throw new Error('Login sem token retornado.');
       setAuthToken(token);
       setUser(data?.user || null);
       storeAuthPayload(data);
-      setStatus(allowedPlans.includes(normalizePlan(data?.user?.plan)) ? 'acesso liberado' : 'plano sem acesso');
-      setPassword('');
-      await loadDashboard(token);
+      await loadAll(token, true);
     } catch (err: any) {
       setError(err?.message || 'Não foi possível fazer login.');
-    } finally {
       setLoading(false);
+    }
+  }
+
+  async function savePick(pick: Pick) {
+    try {
+      setSavingPickId(pick.id);
+      await apiRequest('/dashboard/bets/from-pick', authToken, {
+        method: 'POST',
+        body: JSON.stringify({ pick }),
+      });
+      await loadAll(authToken);
+    } catch {
+      alert('Não foi possível salvar agora. Confirme se o backend tem POST /dashboard/bets/from-pick ativo.');
+    } finally {
+      setSavingPickId('');
     }
   }
 
@@ -536,498 +837,254 @@ export default function OddixDashboardPage() {
     clearAuthPayload();
     setAuthToken('');
     setUser(null);
-    setPassword('');
-    setStatus('login necessário');
     setGames([]);
     setBets([]);
-    setPlayers([]);
-    setMarkets([]);
-    setPicks([]);
-    setMultiples([]);
-    setOverview(defaultOverview);
   }
 
-  function openBetFormFromGame(game?: DashboardGame) {
-    if (game) {
-      setBetGameId(game.id);
-      setBetMatch(`${game.homeTeam} x ${game.awayTeam}`);
-      setBetMarket(game.topMarket || '');
-      setBetOdd(game.topOdd ? String(game.topOdd) : '');
-    } else {
-      setBetGameId('');
-      setBetMatch('');
-      setBetMarket('');
-      setBetOdd('');
-    }
+  useEffect(() => {
+    const token = getStoredAuthToken();
+    setAuthToken(token);
+    void loadUser(token);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    setBetStake('');
-    setBetResult('Aberta');
-    setShowBetForm(true);
-  }
-
-  async function saveBankroll(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!cleanApiBase || !authToken) return;
-
-    setSavingBankroll(true);
-    setDashboardError('');
-
-    try {
-      await fetch(`${cleanApiBase}/dashboard/bankroll`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ initialAmount: Number(bankrollInitial), currentAmount: Number(bankrollInitial) }),
-      });
-
-      setShowBankrollForm(false);
-      setBankrollInitial('');
-      await loadDashboard();
-    } catch (err: any) {
-      setDashboardError(err?.message || 'Não foi possível salvar a banca.');
-    } finally {
-      setSavingBankroll(false);
-    }
-  }
-
-  async function saveBet(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!cleanApiBase || !authToken) return;
-
-    const selectedGame = games.find((game) => game.id === betGameId);
-    const match = betMatch || (selectedGame ? `${selectedGame.homeTeam} x ${selectedGame.awayTeam}` : 'Aposta registrada');
-    const stake = Number(betStake);
-    const odd = Number(betOdd || selectedGame?.topOdd || 1);
-
-    setSavingBet(true);
-    setDashboardError('');
-
-    try {
-      await fetch(`${cleanApiBase}/dashboard/bets`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          match,
-          market: betMarket || selectedGame?.topMarket || 'Mercado não informado',
-          stake,
-          odd,
-          potentialReturn: stake * odd,
-          result: betResult,
-          homeTeam: selectedGame?.homeTeam,
-          awayTeam: selectedGame?.awayTeam,
-          homeLogo: selectedGame?.homeLogo,
-          awayLogo: selectedGame?.awayLogo,
-        }),
-      });
-
-      setShowBetForm(false);
-      setBetGameId('');
-      setBetMatch('');
-      setBetMarket('');
-      setBetStake('');
-      setBetOdd('');
-      setBetResult('Aberta');
-      await loadDashboard();
-    } catch (err: any) {
-      setDashboardError(err?.message || 'Não foi possível salvar a aposta.');
-    } finally {
-      setSavingBet(false);
-    }
-  }
-
-  async function updateBetResult(betId: string, result: string) {
-    if (!cleanApiBase || !authToken) return;
-
-    setDashboardError('');
-
-    try {
-      await fetch(`${cleanApiBase}/dashboard/bets/${encodeURIComponent(betId)}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ result }),
-      });
-
-      await loadDashboard();
-    } catch (err: any) {
-      setDashboardError(err?.message || 'Não foi possível atualizar a aposta.');
-    }
-  }
-
-
-  async function generatePicks() {
-    if (!cleanApiBase || !authToken) return;
-
-    setGeneratingPicks(true);
-    setDashboardError('');
-
-    try {
-      const data = await fetch(`${cleanApiBase}/dashboard/generate-picks`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-      }).then((response) => response.json());
-
-      setPicks(coerceArray<DashboardPick>(data));
-      setActiveTab('palpites');
-    } catch (err: any) {
-      setDashboardError(err?.message || 'Não foi possível gerar palpites.');
-    } finally {
-      setGeneratingPicks(false);
-    }
-  }
-
-  async function generateMultiple(risk = 'segura') {
-    if (!cleanApiBase || !authToken) return;
-
-    setGeneratingMultiple(risk);
-    setDashboardError('');
-
-    try {
-      const multiple = await fetch(`${cleanApiBase}/dashboard/generate-multiple`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ risk }),
-      }).then((response) => response.json());
-
-      setMultiples((current) => [multiple, ...current.filter((item) => item.id !== multiple.id)]);
-      setActiveTab('multiplas');
-    } catch (err: any) {
-      setDashboardError(err?.message || 'Não foi possível gerar múltipla.');
-    } finally {
-      setGeneratingMultiple('');
-    }
-  }
-
-  async function savePickAsBet(pick: DashboardPick) {
-    if (!cleanApiBase || !authToken) return;
-
-    setDashboardError('');
-
-    if (!pick.odd || Number(pick.odd) <= 1) {
-      setDashboardError('Este palpite ainda não tem odd real. Para salvar como aposta, primeiro é preciso receber mercado/odd real do backend.');
-      return;
-    }
-
-    try {
-      await fetch(`${cleanApiBase}/dashboard/bets/from-pick`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ pick, stake: 0, odd: pick.odd }),
-      });
-
-      await loadDashboard();
-      setActiveTab('entradas');
-    } catch (err: any) {
-      setDashboardError(err?.message || 'Não foi possível salvar o palpite como aposta.');
-    }
-  }
-
-  function sectionHeader(title: string, subtitle: string, action?: string, onAction?: () => void) {
-    return (
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">{subtitle}</p>
-          <h2 className="mt-2 text-2xl font-black text-white">{title}</h2>
-        </div>
-        {action && (
-          <button onClick={onAction} className="rounded-full bg-[#c8f71f] px-4 py-2 text-xs font-black text-black">
-            {action}
-          </button>
-        )}
-      </div>
-    );
-  }
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (authToken) void loadAll(authToken, false);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [authToken]);
 
   function renderLogin() {
     return (
-      <div className="mx-auto flex min-h-[82vh] w-full max-w-md items-center justify-center px-4">
-        <div className="w-full rounded-[32px] border border-white/10 bg-[#12151d] p-6 shadow-[0_30px_100px_rgba(0,0,0,.35)]">
-          <div className="mb-7 flex items-center gap-3">
-            <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#c8f71f]/35 bg-[#0d1017] shadow-[0_0_28px_rgba(200,247,31,.14)]">
-              <Image src="/images/oddix-logo-icon.png" alt="Oddix" width={38} height={38} className="h-9 w-9 object-contain" priority />
-            </span>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#c8f71f]">Oddix</p>
-              <h1 className="text-2xl font-black">Centro de controle</h1>
+      <main className="min-h-screen bg-[#05070b] text-white">
+        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(200,247,31,.18),transparent_28%),radial-gradient(circle_at_85%_0%,rgba(56,189,248,.12),transparent_26%),linear-gradient(180deg,#070a0f,#040509)]" />
+        <div className="relative mx-auto flex min-h-screen max-w-md items-center px-5">
+          <form onSubmit={login} className="w-full rounded-[34px] border border-white/10 bg-[#10141d]/90 p-7 shadow-[0_30px_120px_rgba(0,0,0,.42)] backdrop-blur-xl">
+            <div className="mb-7 flex items-center gap-4">
+              <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#c8f71f]/35 bg-black/40">
+                <Image src="/images/oddix-logo-icon.png" alt="Oddix" width={38} height={38} className="h-9 w-9 object-contain" priority />
+              </span>
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#c8f71f]">Oddix</p>
+                <h1 className="text-2xl font-black">Dashboard premium</h1>
+              </div>
             </div>
-          </div>
-
-          <p className="mb-6 text-sm leading-7 text-white/55">Entre para acompanhar jogos reais, entradas, banca, ranking, mercados e compliance.</p>
-
-          <form onSubmit={login} className="space-y-4">
-            <input
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              type="email"
-              autoComplete="email"
-              placeholder="Email"
-              className="h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#c8f71f]/60"
-            />
-            <input
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              type="password"
-              autoComplete="current-password"
-              placeholder="Senha"
-              className="h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#c8f71f]/60"
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              className="h-12 w-full rounded-2xl bg-[#c8f71f] text-sm font-black text-black transition hover:bg-[#d9ff59] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? 'Validando...' : 'Entrar'}
-            </button>
+            <p className="mb-6 text-sm leading-7 text-white/56">Entre para acessar os principais jogos, palpites, múltiplas, jogadores e controle de banca.</p>
+            <input value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} type="email" placeholder="Email" className="mb-3 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm outline-none focus:border-[#c8f71f]/50" />
+            <input value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} type="password" placeholder="Senha" className="mb-4 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm outline-none focus:border-[#c8f71f]/50" />
+            <button disabled={loading} className="h-12 w-full rounded-2xl bg-[#c8f71f] text-sm font-black text-black disabled:opacity-60">{loading ? 'Entrando...' : 'Entrar'}</button>
+            {error && <p className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm text-rose-200">{error}</p>}
           </form>
-
-          {error && <p className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm text-rose-200">{error}</p>}
         </div>
+      </main>
+    );
+  }
+
+  function renderHero() {
+    return (
+      <section className="grid gap-5 xl:grid-cols-[1.25fr_.75fr]">
+        <div className="relative overflow-hidden rounded-[36px] border border-[#c8f71f]/25 bg-[linear-gradient(135deg,#d9ff59,#a8e71a_48%,#7cc80a)] p-7 text-black shadow-[0_30px_120px_rgba(200,247,31,.16)]">
+          <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/25 blur-3xl" />
+          <div className="absolute bottom-4 right-8 hidden h-28 w-28 rounded-full border border-black/10 bg-black/10 md:block" />
+          <p className="relative text-xs font-black uppercase tracking-[0.28em] text-black/55">V23.20 • fonte real do futebol</p>
+          <h1 className="relative mt-4 max-w-3xl text-4xl font-black leading-[1.04] sm:text-5xl">Dashboard vivo, moderno e focado nos principais jogos.</h1>
+          <p className="relative mt-4 max-w-2xl text-sm font-semibold leading-7 text-black/65">Usando o mesmo fluxo do seu arquivo: /football/live + /football/fixtures hoje e amanhã. O Oddix filtra os jogos mais relevantes e monta palpites, múltiplas e cards de jogadores.</p>
+          <div className="relative mt-6 flex flex-wrap gap-3">
+            <button onClick={() => void loadAll(authToken, false)} className="h-12 rounded-2xl bg-black px-5 text-sm font-black text-[#c8f71f] shadow-[0_16px_34px_rgba(0,0,0,.22)]">{refreshing ? 'Atualizando...' : 'Atualizar radar'}</button>
+            <button onClick={() => setActiveTab('palpites')} className="h-12 rounded-2xl bg-white/70 px-5 text-sm font-black text-black">Gerar palpites</button>
+            <button onClick={() => setActiveTab('multiplas')} className="h-12 rounded-2xl border border-black/10 bg-black/10 px-5 text-sm font-black text-black">Montar múltiplas</button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
+          <MiniBanner title="Ao vivo" value={String(liveGames.length)} caption="jogos monitorados" tone="from-emerald-400/16 to-[#12151d]" />
+          <MiniBanner title="Pré-jogo" value={String(pregameGames.length)} caption="oportunidades futuras" tone="from-sky-400/16 to-[#12151d]" />
+          <MiniBanner title="Mercados" value={String(allPicks.length)} caption="sugestões geradas" tone="from-[#c8f71f]/16 to-[#12151d]" />
+        </div>
+      </section>
+    );
+  }
+
+  function MiniBanner({ title, value, caption, tone }: { title: string; value: string; caption: string; tone: string }) {
+    return (
+      <div className={`rounded-[30px] border border-white/8 bg-gradient-to-br ${tone} p-5 shadow-[0_20px_70px_rgba(0,0,0,.24)]`}>
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">{title}</p>
+        <p className="mt-3 text-4xl font-black text-white">{value}</p>
+        <p className="mt-2 text-sm text-white/45">{caption}</p>
       </div>
     );
   }
 
-  function GameCard({ game }: { game: DashboardGame }) {
-    const statusText = [game.status, game.minute].filter(Boolean).join(' • ');
-
+  function renderMetricCards() {
     return (
-      <div className="rounded-[24px] border border-white/8 bg-black/20 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.15em] text-[#c8f71f]">{game.league || 'Partida'}</p>
-            <p className="mt-1 text-xs font-semibold text-white/40">{statusText || game.kickoff || 'Sem status'}</p>
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          ['Jogos', String(games.length), `${liveGames.length} ao vivo`, 'bg-emerald-400/12 text-emerald-300'],
+          ['Palpites', String(allPicks.length), `${realOddPicks.length} com odds`, 'bg-[#c8f71f]/12 text-[#c8f71f]'],
+          ['Múltiplas', String(multiples.length), 'por perfil de risco', 'bg-sky-400/12 text-sky-300'],
+          ['Entradas', String(stats.bets), `${stats.won}G / ${stats.lost}R`, 'bg-violet-400/12 text-violet-300'],
+          ['Plano', planLabel(plan), allowed ? 'Liberado' : 'Bloqueado', allowed ? 'bg-emerald-400/12 text-emerald-300' : 'bg-rose-400/12 text-rose-300'],
+        ].map(([label, value, detail, tone]) => (
+          <div key={label} className="rounded-[30px] border border-white/8 bg-[#12151d] p-5 shadow-[0_20px_70px_rgba(0,0,0,.20)] transition hover:-translate-y-1 hover:border-[#c8f71f]/20">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-white/35">{label}</p>
+            <p className="mt-4 text-3xl font-black text-white">{value}</p>
+            <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-black ${tone}`}>{detail}</span>
           </div>
-          <span className="rounded-xl bg-white/7 px-3 py-1.5 text-xs font-black text-white/78">{game.score || game.kickoff || '--'}</span>
-        </div>
-
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <TeamLogo src={game.homeLogo} team={game.homeTeam} />
-            <span className="font-black text-white">{game.homeTeam}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <TeamLogo src={game.awayLogo} team={game.awayTeam} />
-            <span className="font-black text-white">{game.awayTeam}</span>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl bg-white/[0.04] p-2">
-            <p className="text-[10px] font-black uppercase text-white/30">Mercado</p>
-            <p className="mt-1 text-xs font-black text-white">{game.topMarket || '--'}</p>
-          </div>
-          <div className="rounded-xl bg-white/[0.04] p-2">
-            <p className="text-[10px] font-black uppercase text-white/30">Odd</p>
-            <p className="mt-1 text-xs font-black text-white">{game.topOdd ?? '--'}</p>
-          </div>
-          <div className="rounded-xl bg-white/[0.04] p-2">
-            <p className="text-[10px] font-black uppercase text-white/30">Confiança</p>
-            <p className="mt-1 text-xs font-black text-white">{game.confidence ? `${game.confidence}%` : '--'}</p>
-          </div>
-        </div>
-        <button onClick={() => openBetFormFromGame(game)} className="mt-3 h-10 w-full rounded-2xl bg-[#c8f71f] text-xs font-black text-black">
-          Adicionar aposta neste jogo
-        </button>
-      </div>
+        ))}
+      </section>
     );
   }
 
-  function BetCard({ bet }: { bet: DashboardBet }) {
-    const returnValue = bet.potentialReturn ?? bet.stake * bet.odd;
-
+  function GameCard({ game }: { game: Game }) {
+    const markets = buildMarketsForGame(game).slice(0, 2);
     return (
-      <div className="rounded-[24px] border border-white/8 bg-black/20 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-black text-white">{bet.match}</p>
-            <p className="mt-1 text-xs font-semibold text-white/45">{bet.market}</p>
-            {bet.createdAt && <p className="mt-1 text-[11px] text-white/32">{bet.createdAt}</p>}
-          </div>
-          <ResultPill value={bet.result || bet.status} />
-        </div>
-
-        {(bet.homeTeam || bet.awayTeam) && (
-          <div className="mt-4 flex items-center gap-3">
-            {bet.homeTeam && <TeamLogo src={bet.homeLogo} team={bet.homeTeam} size={30} />}
-            <span className="text-xs font-black text-white/80">{bet.homeTeam || ''}</span>
-            <span className="text-xs font-black text-white/35">x</span>
-            {bet.awayTeam && <TeamLogo src={bet.awayLogo} team={bet.awayTeam} size={30} />}
-            <span className="text-xs font-black text-white/80">{bet.awayTeam || ''}</span>
-          </div>
-        )}
-
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl bg-white/[0.04] p-2">
-            <p className="text-[10px] font-black uppercase text-white/30">Stake</p>
-            <p className="mt-1 text-xs font-black text-white">{formatCurrency(bet.stake)}</p>
-          </div>
-          <div className="rounded-xl bg-white/[0.04] p-2">
-            <p className="text-[10px] font-black uppercase text-white/30">Odd</p>
-            <p className="mt-1 text-xs font-black text-white">{formatDecimal(bet.odd)}</p>
-          </div>
-          <div className="rounded-xl bg-white/[0.04] p-2">
-            <p className="text-[10px] font-black uppercase text-white/30">Retorno</p>
-            <p className="mt-1 text-xs font-black text-white">{formatCurrency(returnValue)}</p>
-          </div>
-        </div>
-
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <button onClick={() => updateBetResult(bet.id, 'Green')} className="h-9 rounded-xl bg-emerald-400/12 text-xs font-black text-emerald-300">Green</button>
-          <button onClick={() => updateBetResult(bet.id, 'Red')} className="h-9 rounded-xl bg-rose-400/12 text-xs font-black text-rose-300">Red</button>
-          <button onClick={() => updateBetResult(bet.id, 'Void')} className="h-9 rounded-xl bg-white/6 text-xs font-black text-white/65">Void</button>
-        </div>
-      </div>
-    );
-  }
-
-
-  function PickCard({ pick }: { pick: DashboardPick }) {
-    const confidence = Number(pick.confidence || 0);
-    const risk = String(pick.risk || 'análise').toLowerCase();
-    const riskStyle =
-      risk.includes('segur') || risk.includes('baixo')
-        ? 'border-emerald-300/18 bg-emerald-400/10 text-emerald-300'
-        : risk.includes('ousad') || risk.includes('alto')
-          ? 'border-rose-300/18 bg-rose-400/10 text-rose-300'
-          : 'border-amber-300/18 bg-amber-400/10 text-amber-200';
-
-    return (
-      <div className="group relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.018))] p-5 shadow-[0_20px_60px_rgba(0,0,0,.20)] transition hover:-translate-y-0.5 hover:border-[#c8f71f]/28 hover:shadow-[0_28px_80px_rgba(0,0,0,.30)]">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#c8f71f]/70 to-transparent opacity-70" />
+      <div className="group rounded-[28px] border border-white/8 bg-[#12151d] p-5 shadow-[0_24px_70px_rgba(0,0,0,.20)] transition hover:-translate-y-1 hover:border-[#c8f71f]/25">
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-[#c8f71f]/20 bg-[#c8f71f]/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#c8f71f]">{pick.type || 'Mercado real'}</span>
-              <span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${riskStyle}`}>{pick.risk || 'análise'}</span>
-            </div>
-            <h3 className="mt-4 text-lg font-black leading-tight text-white">{pick.match}</h3>
-            <p className="mt-1 text-sm font-black text-[#c8f71f]">{pick.market}</p>
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">{game.league.name}</p>
+            <p className="mt-1 text-xs text-white/42">{game.league.country || game.oddix.qualityLabel} • {getStatusLabel(game)}</p>
           </div>
+          <span className="rounded-full bg-white/8 px-3 py-1.5 text-xs font-black text-white/76">{getScoreLabel(game)}</span>
+        </div>
 
-          <div className="shrink-0 rounded-[22px] border border-[#c8f71f]/18 bg-[#c8f71f]/10 px-4 py-3 text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">Score</p>
-            <p className="mt-1 text-2xl font-black leading-none text-[#c8f71f]">{confidence}%</p>
+        <div className="mt-5 space-y-3">
+          <div className="flex items-center gap-3">
+            <TeamLogo src={game.teams.home.logo} name={game.teams.home.name} size={40} />
+            <p className="text-base font-black text-white">{game.teams.home.name}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <TeamLogo src={game.teams.away.logo} name={game.teams.away.name} size={40} />
+            <p className="text-base font-black text-white">{game.teams.away.name}</p>
           </div>
         </div>
 
-        {(pick.homeTeam || pick.awayTeam) && (
-          <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-white/8 bg-black/18 p-3">
-            <div className="flex items-center gap-2">
-              {pick.homeTeam && <TeamLogo src={pick.homeLogo} team={pick.homeTeam} size={34} />}
-              <span className="text-sm font-black text-white/85">{pick.homeTeam || ''}</span>
-            </div>
-            <span className="rounded-full bg-white/7 px-2 py-1 text-[10px] font-black text-white/38">VS</span>
-            <div className="flex items-center gap-2">
-              {pick.awayTeam && <TeamLogo src={pick.awayLogo} team={pick.awayTeam} size={34} />}
-              <span className="text-sm font-black text-white/85">{pick.awayTeam || ''}</span>
-            </div>
-          </div>
-        )}
-
-        <p className="mt-4 text-sm leading-6 text-white/55">{pick.reason || 'Mercado retornado por dados reais disponíveis. Não há garantia de resultado.'}</p>
-
-        <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/8">
-          <div className="h-full rounded-full bg-[linear-gradient(90deg,#c8f71f,#38bdf8)]" style={{ width: `${Math.max(6, Math.min(100, confidence))}%` }} />
+        <div className="mt-5 grid gap-2 sm:grid-cols-3">
+          <InfoTile label="Qualidade" value={`${game.oddix.qualityScore}%`} />
+          <InfoTile label="Mercados" value={markets.length ? String(markets.length) : 'Aguarde'} />
+          <InfoTile label="Horário" value={isGameLive(game) ? 'Live' : formatDateTime(game.fixture.date)} />
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-2xl border border-white/8 bg-black/20 p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/30">Odd</p>
-            <p className="mt-1 text-sm font-black text-white">{pick.odd ? formatDecimal(Number(pick.odd)) : '--'}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {markets.map((market) => (
+            <button key={market.id} onClick={() => setActiveTab('palpites')} className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-xs font-bold text-white/72 transition hover:border-[#c8f71f]/30 hover:text-[#c8f71f]">
+              {market.market}: {market.selection}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function InfoTile({ label, value }: { label: string; value: string }) {
+    return (
+      <div className="rounded-2xl bg-white/[0.035] p-3 text-center">
+        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/30">{label}</p>
+        <p className="mt-1 text-xs font-black text-white">{value}</p>
+      </div>
+    );
+  }
+
+  function PickCard({ pick }: { pick: Pick }) {
+    return (
+      <div className="rounded-[28px] border border-white/8 bg-[linear-gradient(145deg,#151923,#0f1219)] p-5 shadow-[0_24px_70px_rgba(0,0,0,.20)] transition hover:-translate-y-1 hover:border-[#c8f71f]/25">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border border-[#c8f71f]/20 bg-[#c8f71f]/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-[#c8f71f]">{pick.market}</span>
+            <RiskBadge risk={pick.risk} />
           </div>
-          <div className="rounded-2xl border border-white/8 bg-black/20 p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/30">Mercado</p>
-            <p className="mt-1 truncate text-sm font-black text-white">{pick.type || '--'}</p>
+          <div className="rounded-2xl border border-[#c8f71f]/20 bg-[#c8f71f]/10 px-4 py-2 text-right">
+            <p className="text-[10px] font-black uppercase text-white/36">Score</p>
+            <p className="text-2xl font-black text-[#c8f71f]">{pick.confidence}%</p>
           </div>
-          <button onClick={() => void savePickAsBet(pick)} disabled={!pick.odd || Number(pick.odd) <= 1} className="rounded-2xl bg-[#c8f71f] p-3 text-sm font-black text-black shadow-[0_14px_34px_rgba(200,247,31,.12)] transition hover:bg-[#d9ff59] disabled:cursor-not-allowed disabled:bg-white/8 disabled:text-white/35">
-            {pick.odd ? 'Salvar' : 'Sem odd'}
+        </div>
+        <h3 className="mt-4 text-xl font-black text-white">{pick.game}</h3>
+        <p className="mt-1 text-sm font-bold text-[#c8f71f]">{pick.selection}</p>
+        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-white/8 bg-black/18 p-3">
+          <TeamLogo src={pick.homeLogo} name={pick.homeTeam} size={30} />
+          <span className="text-xs font-black text-white/75">{pick.homeTeam}</span>
+          <span className="rounded-full bg-white/8 px-2 py-1 text-[10px] font-black text-white/35">VS</span>
+          <TeamLogo src={pick.awayLogo} name={pick.awayTeam} size={30} />
+          <span className="text-xs font-black text-white/75">{pick.awayTeam}</span>
+        </div>
+        <p className="mt-4 text-sm leading-6 text-white/50">{pick.reason}</p>
+        <div className="mt-4 h-2 rounded-full bg-white/8">
+          <div className="h-full rounded-full bg-[linear-gradient(90deg,#c8f71f,#38bdf8)]" style={{ width: `${Math.max(8, Math.min(100, pick.confidence))}%` }} />
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <InfoTile label="Odd" value={pick.odd ? pick.odd.toFixed(2) : 'Sem odd'} />
+          <InfoTile label="Fonte" value={pick.source === 'Mercado real' ? 'Real' : 'IA'} />
+          <button onClick={() => void savePick(pick)} disabled={savingPickId === pick.id} className="rounded-2xl bg-[#c8f71f] px-4 py-3 text-xs font-black text-black transition hover:bg-[#d9ff59] disabled:opacity-60">
+            {savingPickId === pick.id ? 'Salvando...' : 'Salvar'}
           </button>
         </div>
       </div>
     );
   }
 
-  function MultipleCard({ multiple }: { multiple: DashboardMultiple }) {
-    const risk = String(multiple.risk || 'múltipla').toLowerCase();
-    const confidence = Number(multiple.confidence || 0);
-    const riskStyle =
-      risk.includes('segur') || risk.includes('baixo')
-        ? 'from-emerald-300/18 to-[#c8f71f]/12 text-emerald-300 border-emerald-300/18'
-        : risk.includes('ousad') || risk.includes('alto')
-          ? 'from-rose-300/18 to-orange-300/10 text-rose-300 border-rose-300/18'
-          : 'from-amber-300/18 to-[#c8f71f]/10 text-amber-200 border-amber-300/18';
-
+  function MultipleCard({ multiple }: { multiple: ReturnType<typeof buildMultiples>[number] }) {
+    const avgConfidence = Math.round(multiple.items.reduce((sum, item) => sum + item.confidence, 0) / multiple.items.length);
+    const odd = calculateMultipleOdd(multiple.items);
     return (
-      <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.018))] p-5 shadow-[0_24px_80px_rgba(0,0,0,.25)]">
-        <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-[#c8f71f]/10 blur-3xl" />
-        <div className="relative flex flex-wrap items-start justify-between gap-4">
+      <div className="overflow-hidden rounded-[32px] border border-white/8 bg-[radial-gradient(circle_at_top_right,rgba(200,247,31,.15),transparent_36%),linear-gradient(145deg,#151923,#0f1219)] p-5 shadow-[0_30px_90px_rgba(0,0,0,.26)]">
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <div className={`inline-flex rounded-full border bg-gradient-to-r px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${riskStyle}`}>
-              {multiple.risk || 'múltipla'} • {multiple.legs?.length || 0} entradas
-            </div>
-            <h3 className="mt-4 text-2xl font-black leading-tight text-white">{multiple.title}</h3>
-            <p className="mt-2 max-w-md text-sm leading-6 text-white/48">{multiple.note || 'Sugestão estatística para análise. Não há garantia de resultado.'}</p>
+            <span className="rounded-full border border-[#c8f71f]/20 bg-[#c8f71f]/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-[#c8f71f]">{multiple.label} • {multiple.items.length} entradas</span>
+            <h3 className="mt-4 text-2xl font-black text-white">{multiple.title}</h3>
+            <p className="mt-2 text-sm leading-6 text-white/50">{multiple.description}</p>
           </div>
-
-          <div className="rounded-[24px] border border-[#c8f71f]/18 bg-[#c8f71f]/10 px-5 py-4 text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">Confiança</p>
-            <p className="mt-1 text-3xl font-black leading-none text-[#c8f71f]">{confidence}%</p>
+          <div className="rounded-2xl border border-[#c8f71f]/20 bg-[#c8f71f]/10 px-4 py-3 text-center">
+            <p className="text-[10px] font-black uppercase text-white/36">Confiança</p>
+            <p className="text-2xl font-black text-[#c8f71f]">{avgConfidence}%</p>
           </div>
         </div>
-
-        <div className="relative mt-5 space-y-3">
-          {(multiple.legs || []).map((leg, index) => (
-            <div key={`${multiple.id}-${leg.id}-${index}`} className="rounded-[22px] border border-white/8 bg-black/22 p-4 transition hover:border-[#c8f71f]/18">
+        <div className="mt-5 space-y-3">
+          {multiple.items.map((item, index) => (
+            <div key={item.id} className="rounded-2xl border border-white/8 bg-black/18 p-4">
               <div className="flex items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#c8f71f] text-sm font-black text-black">{index + 1}</span>
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#c8f71f] text-xs font-black text-black">{index + 1}</span>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-black text-white">{leg.match}</p>
-                      <p className="mt-1 text-sm text-white/56">{leg.market}</p>
-                    </div>
-                    <span className="rounded-full bg-[#c8f71f]/12 px-3 py-1 text-xs font-black text-[#c8f71f]">{leg.confidence ?? 0}%</span>
+                  <p className="font-black text-white">{item.game}</p>
+                  <p className="text-sm text-white/48">{item.selection}</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <TeamLogo src={item.homeLogo} name={item.homeTeam} size={24} />
+                    <span className="text-xs text-white/45">x</span>
+                    <TeamLogo src={item.awayLogo} name={item.awayTeam} size={24} />
                   </div>
-                  {(leg.homeTeam || leg.awayTeam) && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-black text-white/65">
-                      {leg.homeTeam && <TeamLogo src={leg.homeLogo} team={leg.homeTeam} size={26} />}
-                      <span>{leg.homeTeam || ''}</span>
-                      <span className="text-white/30">x</span>
-                      {leg.awayTeam && <TeamLogo src={leg.awayLogo} team={leg.awayTeam} size={26} />}
-                      <span>{leg.awayTeam || ''}</span>
-                    </div>
-                  )}
                 </div>
+                <span className="rounded-full bg-[#c8f71f]/12 px-3 py-1 text-xs font-black text-[#c8f71f]">{item.confidence}%</span>
               </div>
             </div>
           ))}
         </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <InfoTile label="Odd" value={odd ? odd.toFixed(2) : 'Sem cálculo'} />
+          <InfoTile label="Status" value={odd ? 'Com odds' : 'Aguardando odds'} />
+          <button className="rounded-2xl bg-[#c8f71f] px-4 py-3 text-xs font-black text-black">Usar múltipla</button>
+        </div>
+      </div>
+    );
+  }
 
-        <div className="relative mt-5 grid gap-2 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/8 bg-black/20 p-3 text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/30">Odd estimada</p>
-            <p className="mt-1 text-lg font-black text-white">{multiple.estimatedOdd ? formatDecimal(Number(multiple.estimatedOdd)) : '--'}</p>
+  function PlayerCardView({ card }: { card: PlayerCard }) {
+    return (
+      <div className="rounded-[28px] border border-white/8 bg-[#12151d] p-5 shadow-[0_20px_70px_rgba(0,0,0,.22)] transition hover:-translate-y-1 hover:border-[#c8f71f]/20">
+        <div className="flex items-center gap-4">
+          <TeamLogo src={card.teamLogo} name={card.team || card.player} size={48} />
+          <div>
+            <p className="text-lg font-black text-white">{card.player}</p>
+            <p className="text-sm text-white/45">{card.game}</p>
           </div>
-          <div className="rounded-2xl border border-white/8 bg-black/20 p-3 text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/30">Status odds</p>
-            <p className="mt-1 text-xs font-black text-white">{multiple.oddStatus || '--'}</p>
+        </div>
+        <div className="mt-5 rounded-2xl border border-white/8 bg-black/18 p-4">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#c8f71f]">{card.market}</p>
+          <div className="mt-3 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-sm text-white/45">Status</p>
+              <p className="font-black text-white">{card.status}</p>
+            </div>
+            <p className="text-3xl font-black text-[#c8f71f]">{card.confidence}%</p>
           </div>
-          <button onClick={() => setActiveTab('entradas')} className="rounded-2xl bg-[#c8f71f] p-3 text-sm font-black text-black shadow-[0_14px_34px_rgba(200,247,31,.14)] transition hover:bg-[#d9ff59]">Usar múltipla</button>
         </div>
       </div>
     );
@@ -1036,441 +1093,148 @@ export default function OddixDashboardPage() {
   function renderInicio() {
     return (
       <div className="space-y-5">
-        <section className="relative overflow-hidden rounded-[34px] border border-[#c8f71f]/25 bg-[radial-gradient(circle_at_15%_15%,#efff92,transparent_26%),linear-gradient(135deg,#d9ff59,#92d70f)] p-7 text-black shadow-[0_28px_90px_rgba(200,247,31,.18)]">
-          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-black/55">V23.16 • Jogos atuais + mercados reais</p>
-              <h1 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">Palpites e múltiplas somente com dados atuais.</h1>
-              <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-black/65">
-                Gere oportunidades, monte múltiplas por risco, salve entradas e acompanhe banca, ROI e performance em tempo real.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => void loadDashboard()}
-                className="inline-flex h-12 min-w-[148px] items-center justify-center whitespace-nowrap rounded-2xl border border-black/10 bg-black px-5 text-sm font-black text-[#c8f71f] shadow-[0_14px_30px_rgba(0,0,0,.18)]"
-              >
-                {dashboardLoading ? 'Atualizando...' : 'Atualizar dados'}
-              </button>
-              <button
-                onClick={() => setShowBankrollForm(true)}
-                className="inline-flex h-12 min-w-[148px] items-center justify-center whitespace-nowrap rounded-2xl border border-black/10 bg-black/12 px-5 text-sm font-black text-black"
-              >
-                Configurar banca
-              </button>
-              <a href="/chat" className="inline-flex h-12 min-w-[148px] items-center justify-center whitespace-nowrap rounded-2xl border border-black/10 bg-white/70 px-5 text-sm font-black text-black">
-                Abrir chat
-              </a>
+        {renderHero()}
+        {renderMetricCards()}
+        {error && <div className="rounded-[24px] border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">{error}</div>}
+        <section className="grid gap-5 xl:grid-cols-[1.05fr_.95fr]">
+          <div className="rounded-[34px] border border-white/8 bg-[#10141d] p-5 shadow-[0_28px_90px_rgba(0,0,0,.24)]">
+            <SectionHeader title="Principais jogos" subtitle="Fonte real do futebol" action="Ver jogos" onAction={() => setActiveTab('jogos')} />
+            <div className="mt-5 grid gap-4">{games.length ? games.slice(0, 4).map((game) => <GameCard key={game.id} game={game} />) : <EmptyState title="Nenhum jogo principal" subtitle="Ajuste o filtro de score ou verifique /football/live e /football/fixtures." />}</div>
+          </div>
+          <div className="space-y-5">
+            <div className="rounded-[34px] border border-white/8 bg-[#10141d] p-5 shadow-[0_28px_90px_rgba(0,0,0,.24)]">
+              <SectionHeader title="Palpites em destaque" subtitle="Mercados gerados" action="Gerar" onAction={() => setActiveTab('palpites')} />
+              <div className="mt-5 grid gap-4">{allPicks.length ? allPicks.slice(0, 2).map((pick) => <PickCard key={pick.id} pick={pick} />) : <EmptyState title="Sem palpites" subtitle="Os palpites aparecem quando houver jogos principais carregados." />}</div>
             </div>
           </div>
         </section>
+      </div>
+    );
+  }
 
-        {dashboardError && (
-          <div className="rounded-[24px] border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">{dashboardError}</div>
-        )}
-
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {[
-            ['Banca', formatCurrency(overview.balance), overview.balance ? `${overview.openBets} abertas` : 'Sem dados', 'bg-emerald-400/12 text-emerald-300'],
-            ['Lucro', formatCurrency(overview.profit), overview.totalBets ? `${overview.settledBets} liquidadas` : 'Sem dados', 'bg-[#c8f71f]/12 text-[#c8f71f]'],
-            ['ROI', `${formatDecimal(overview.roi)}%`, `Odd média ${formatDecimal(overview.avgOdd || 0)}`, 'bg-sky-400/12 text-sky-300'],
-            ['Win rate', `${formatDecimal(overview.winRate)}%`, `${overview.totalBets} apostas`, 'bg-indigo-400/12 text-indigo-300'],
-            ['Plano', planLabel(plan), allowed ? 'Liberado' : 'Bloqueado', allowed ? 'bg-emerald-400/12 text-emerald-300' : 'bg-rose-400/12 text-rose-300'],
-          ].map(([label, value, detail, tone]) => (
-            <div key={label} className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-white/35">{label}</p>
-              <p className="mt-4 text-3xl font-black text-white">{value}</p>
-              <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-black ${tone}`}>{detail}</span>
-            </div>
-          ))}
-        </section>
-
-        <section className="grid gap-5 xl:grid-cols-[1.08fr_.92fr]">
-          <div className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Jogos reais</p>
-                <h2 className="mt-2 text-2xl font-black">Para acompanhar hoje</h2>
-              </div>
-              <button onClick={() => setActiveTab('jogos')} className="rounded-full bg-white/6 px-4 py-2 text-xs font-black text-white/70">Ver todos</button>
-            </div>
-            <div className="space-y-3">
-              {games.length ? games.slice(0, 3).map((game) => <GameCard key={game.id} game={game} />) : <EmptyState title="Sem jogos carregados" subtitle="Quando o backend retornar partidas reais, os cards com logos dos times aparecem aqui." />}
-            </div>
-          </div>
-
-          <div className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Entradas reais</p>
-                <h2 className="mt-2 text-2xl font-black">Minhas apostas</h2>
-              </div>
-              <button onClick={() => openBetFormFromGame()} className="rounded-full bg-[#c8f71f] px-4 py-2 text-xs font-black text-black">Adicionar aposta</button>
-            </div>
-            <div className="space-y-3">
-              {bets.length ? bets.slice(0, 3).map((bet) => <BetCard key={bet.id} bet={bet} />) : <EmptyState title="Nenhuma aposta real encontrada" subtitle="Conecte o controle de bilhetes do usuário no backend para preencher esta área automaticamente." />}
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-5 xl:grid-cols-[1.08fr_.92fr]">
-          <div className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Mercados reais</p>
-                <h2 className="mt-2 text-2xl font-black">Odds disponíveis</h2>
-              </div>
-              <button onClick={() => void generatePicks()} className="rounded-full bg-[#c8f71f] px-4 py-2 text-xs font-black text-black">Gerar</button>
-            </div>
-            <div className="space-y-3">
-              {picks.length ? picks.slice(0, 3).map((pick) => <PickCard key={pick.id} pick={pick} />) : <EmptyState title="Sem mercados reais disponíveis" subtitle="O Oddix só mostra palpites quando o backend recebe odds/mercados reais. Ative a fonte de odds para preencher esta área." />}
-            </div>
-          </div>
-
-          <div className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Múltiplas</p>
-                <h2 className="mt-2 text-2xl font-black">Combinações prontas</h2>
-              </div>
-              <button onClick={() => void generateMultiple('moderada')} className="rounded-full bg-white/6 px-4 py-2 text-xs font-black text-white/70">Gerar</button>
-            </div>
-            <div className="space-y-3">
-              {multiples.length ? multiples.slice(0, 1).map((multiple) => <MultipleCard key={multiple.id} multiple={multiple} />) : <EmptyState title="Sem múltiplas geradas" subtitle="Gere múltiplas seguras, moderadas ou ousadas a partir dos palpites." />}
-            </div>
-          </div>
-        </section>
-
+  function SectionHeader({ title, subtitle, action, onAction }: { title: string; subtitle: string; action?: string; onAction?: () => void }) {
+    return (
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-[#c8f71f]">{subtitle}</p>
+          <h2 className="mt-2 text-2xl font-black text-white">{title}</h2>
+        </div>
+        {action && <button onClick={onAction} className="rounded-full bg-[#c8f71f] px-4 py-2 text-xs font-black text-black shadow-[0_12px_28px_rgba(200,247,31,.16)]">{action}</button>}
       </div>
     );
   }
 
   function renderJogos() {
     return (
-      <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-        {sectionHeader('Jogos do dia', 'Partidas reais monitoradas pelo Oddix', 'Atualizar jogos', () => void loadDashboard())}
-        <div className="mt-5 grid gap-3 lg:grid-cols-2">
-          {games.length ? games.map((game) => <GameCard key={game.id} game={game} />) : <EmptyState title="Sem jogos retornados" subtitle="O endpoint /dashboard/games precisa retornar a lista real de partidas com logos, odds e status." />}
-        </div>
-      </section>
+      <div className="space-y-5">
+        <section className="rounded-[34px] border border-white/8 bg-[#10141d] p-5 shadow-[0_28px_90px_rgba(0,0,0,.24)]">
+          <SectionHeader title="Jogos principais" subtitle="Live + hoje + amanhã" action="Atualizar" onAction={() => void loadAll(authToken, false)} />
+          <div className="mt-5 grid gap-3 md:grid-cols-[1fr_220px]">
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar time ou liga" className="h-12 rounded-2xl border border-white/10 bg-black/22 px-4 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#c8f71f]/40" />
+            <select value={leagueFilter} onChange={(event) => setLeagueFilter(event.target.value)} className="h-12 rounded-2xl border border-white/10 bg-black/22 px-4 text-sm text-white outline-none focus:border-[#c8f71f]/40">
+              <option value="all">Todas as ligas</option>
+              {leagues.map((league) => <option key={league} value={league}>{league}</option>)}
+            </select>
+          </div>
+          <div className="mt-5 grid gap-4 xl:grid-cols-2">{filteredGames.length ? filteredGames.map((game) => <GameCard key={game.id} game={game} />) : <EmptyState title="Sem jogos para esse filtro" subtitle="Tente limpar a busca ou reduzir o score mínimo no ambiente." />}</div>
+        </section>
+      </div>
     );
   }
 
-
   function renderPalpites() {
     return (
-      <div className="space-y-5">
-        <section className="overflow-hidden rounded-[34px] border border-[#c8f71f]/18 bg-[radial-gradient(circle_at_12%_18%,rgba(200,247,31,.16),transparent_26%),linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))] p-6 shadow-[0_26px_90px_rgba(0,0,0,.25)]">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#c8f71f]">Picks Engine Real</p>
-              <h2 className="mt-3 text-3xl font-black leading-tight text-white sm:text-4xl">Palpites só com mercado e odd real.</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">O Oddix agora bloqueia sugestões inventadas. Quando a fonte de odds retornar mercados reais, os palpites e múltiplas aparecem aqui.</p>
-            </div>
-            <button onClick={() => void generatePicks()} className="h-12 rounded-2xl bg-[#c8f71f] px-6 text-sm font-black text-black shadow-[0_18px_44px_rgba(200,247,31,.16)]">
-              {generatingPicks ? 'Gerando...' : 'Gerar palpites'}
-            </button>
-          </div>
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-2">
-          {picks.length ? picks.map((pick) => <PickCard key={pick.id} pick={pick} />) : <EmptyState title="Nenhum mercado real encontrado" subtitle="Clique em Gerar palpites depois que o backend estiver recebendo odds/mercados reais. O Oddix não vai inventar dupla chance, over ou escanteios sem fonte." />}
-        </section>
-      </div>
+      <section className="rounded-[34px] border border-white/8 bg-[#10141d] p-5 shadow-[0_28px_90px_rgba(0,0,0,.24)]">
+        <SectionHeader title="Palpites da IA" subtitle="Vários mercados por jogo" action="Atualizar" onAction={() => void loadAll(authToken, false)} />
+        <div className="mt-5 grid gap-4 xl:grid-cols-2">{allPicks.length ? allPicks.map((pick) => <PickCard key={pick.id} pick={pick} />) : <EmptyState title="Sem palpites agora" subtitle="Carregue jogos principais para gerar mercados sugeridos." />}</div>
+      </section>
     );
   }
 
   function renderMultiplas() {
     return (
-      <div className="space-y-5">
-        <section className="overflow-hidden rounded-[34px] border border-[#c8f71f]/18 bg-[radial-gradient(circle_at_85%_10%,rgba(200,247,31,.16),transparent_28%),linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))] p-6 shadow-[0_26px_90px_rgba(0,0,0,.25)]">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#c8f71f]">Multiples Engine</p>
-              <h2 className="mt-3 text-3xl font-black leading-tight text-white sm:text-4xl">Múltiplas prontas por perfil de risco.</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">Monte combinações seguras, moderadas ou ousadas usando os palpites gerados pela IA e os jogos reais do dia.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {['segura', 'moderada', 'ousada'].map((risk) => (
-                <button key={risk} onClick={() => void generateMultiple(risk)} className="h-11 rounded-2xl bg-[#c8f71f] px-4 text-xs font-black capitalize text-black shadow-[0_14px_34px_rgba(200,247,31,.12)]">
-                  {generatingMultiple === risk ? 'Gerando...' : risk}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
+      <section className="rounded-[34px] border border-white/8 bg-[#10141d] p-5 shadow-[0_28px_90px_rgba(0,0,0,.24)]">
+        <SectionHeader title="Múltiplas prontas" subtitle="Seguro, moderado e ousado" action="Regerar" onAction={() => void loadAll(authToken, false)} />
+        <div className="mt-5 grid gap-5 xl:grid-cols-3">{multiples.length ? multiples.map((multiple) => <MultipleCard key={multiple.id} multiple={multiple} />) : <EmptyState title="Sem múltiplas disponíveis" subtitle="É preciso ter pelo menos dois palpites qualificados para montar múltiplas." />}</div>
+      </section>
+    );
+  }
 
-        <section className="space-y-4">
-          {multiples.length ? multiples.map((multiple) => <MultipleCard key={multiple.id} multiple={multiple} />) : <EmptyState title="Nenhuma múltipla gerada" subtitle="Escolha segura, moderada ou ousada para montar uma múltipla baseada nos jogos reais." />}
-        </section>
-      </div>
+  function renderJogadores() {
+    return (
+      <section className="rounded-[34px] border border-white/8 bg-[#10141d] p-5 shadow-[0_28px_90px_rgba(0,0,0,.24)]">
+        <SectionHeader title="Jogadores em foco" subtitle="Cards de player props" action="Atualizar" onAction={() => void loadAll(authToken, false)} />
+        <div className="mt-5 grid gap-4 xl:grid-cols-3">{playerCards.length ? playerCards.map((card) => <PlayerCardView key={card.id} card={card} />) : <EmptyState title="Aguardando escalações e eventos" subtitle="Os cards de jogadores aparecem quando a fonte retornar lineups, titulares, artilheiros ou eventos do jogo." />}</div>
+      </section>
     );
   }
 
   function renderEntradas() {
     return (
-      <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-        {sectionHeader('Minhas apostas', 'Controle real do usuário', 'Nova aposta', () => openBetFormFromGame())}
-        <div className="mt-5 space-y-3">
-          {bets.length ? bets.map((bet) => <BetCard key={bet.id} bet={bet} />) : <EmptyState title="Sem apostas cadastradas" subtitle="O endpoint /dashboard/bets deve retornar as apostas reais do usuário logado." />}
+      <section className="rounded-[34px] border border-white/8 bg-[#10141d] p-5 shadow-[0_28px_90px_rgba(0,0,0,.24)]">
+        <SectionHeader title="Minhas entradas" subtitle="Controle salvo pelo usuário" action="Adicionar aposta" />
+        <div className="mt-5 grid gap-4 xl:grid-cols-2">
+          {bets.length ? bets.map((bet, index) => (
+            <div key={bet.id || index} className="rounded-[28px] border border-white/8 bg-black/18 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-black text-white">{bet.match || bet.game || 'Aposta'}</p>
+                  <p className="mt-1 text-sm text-white/48">{bet.market || 'Mercado'}</p>
+                </div>
+                <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-black text-white/72">{bet.status || bet.result || 'Aberta'}</span>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <InfoTile label="Stake" value={formatCurrency(safeNumber(bet.stake, 0))} />
+                <InfoTile label="Odd" value={safeNumber(bet.odd, 0) ? safeNumber(bet.odd, 0).toFixed(2) : '--'} />
+                <InfoTile label="Lucro" value={formatCurrency(safeNumber(bet.profit, 0))} />
+              </div>
+            </div>
+          )) : <EmptyState title="Nenhuma entrada salva" subtitle="Salve um palpite ou uma múltipla para começar a controlar a banca." />}
         </div>
       </section>
     );
   }
 
-  function renderRanking() {
+  function renderBanca() {
     return (
-      <div className="grid gap-5 xl:grid-cols-2">
-        <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-          {sectionHeader('Melhores jogadores', 'Dados reais de performance')}
-          <div className="mt-5 space-y-3">
-            {players.length ? (
-              players.map((player, index) => (
-                <div key={`${player.id || player.name}-${index}`} className="flex items-center gap-4 rounded-2xl border border-white/8 bg-black/20 p-4">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#c8f71f] text-sm font-black text-black">#{index + 1}</span>
-                  <TeamLogo src={player.teamLogo} team={player.team || player.name} size={42} />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-black text-white">{player.name}</p>
-                    <p className="text-sm text-white/48">{player.team || 'Sem time'} • {player.metric || 'Sem métrica'}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-black text-[#c8f71f]">{player.score ?? '--'}</p>
-                    <p className="text-xs font-bold text-white/36">{player.trend || 'Tendência'}</p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <EmptyState title="Sem ranking de jogadores" subtitle="Conecte os dados reais do backend para exibir atletas, time, score e tendência." />
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-          {sectionHeader('Ranking de mercados', 'Mercados reais com melhor leitura')}
-          <div className="mt-5 space-y-3">
-            {markets.length ? (
-              markets.map((market, index) => {
-                const edge = Number(market.edge || market.winRate || 0);
-                return (
-                  <div key={`${market.id || market.name}-${index}`} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-black text-white">#{index + 1} {market.name}</p>
-                        <p className="mt-1 text-sm text-white/48">{market.note || `${market.volume || 0} entradas monitoradas`}</p>
-                      </div>
-                      <span className="rounded-full bg-[#c8f71f]/12 px-3 py-1 text-sm font-black text-[#c8f71f]">{edge}%</span>
-                    </div>
-                    <div className="mt-4 h-2 rounded-full bg-white/8">
-                      <div className="h-full rounded-full bg-[#c8f71f]" style={{ width: `${Math.max(4, Math.min(100, edge))}%` }} />
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <EmptyState title="Sem ranking de mercados" subtitle="O endpoint /dashboard/markets deve alimentar esta aba com edge, volume e observação." />
-            )}
-          </div>
-        </section>
-      </div>
+      <section className="rounded-[34px] border border-white/8 bg-[#10141d] p-5 shadow-[0_28px_90px_rgba(0,0,0,.24)]">
+        <SectionHeader title="Banca e performance" subtitle="ROI real após entradas" />
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <InfoBig title="Total em stake" value={formatCurrency(stats.totalStake)} />
+          <InfoBig title="Lucro/prejuízo" value={formatCurrency(stats.profit)} />
+          <InfoBig title="Win rate" value={`${stats.roi}%`} />
+          <InfoBig title="Entradas" value={String(stats.bets)} />
+        </div>
+      </section>
     );
   }
 
-  function renderBanca() {
+  function InfoBig({ title, value }: { title: string; value: string }) {
     return (
-      <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
-        <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-          {sectionHeader('Evolução da banca', 'Gráfico real do usuário')}
-          {bankrollHistory.length ? (
-            <div className="mt-8 flex h-64 items-end gap-3 rounded-[24px] border border-white/8 bg-black/20 p-5">
-              {bankrollHistory.map((item) => (
-                <div key={item.label} className="flex h-full flex-1 flex-col justify-end gap-2">
-                  <div
-                    className="min-h-[16px] rounded-t-2xl bg-[#c8f71f] shadow-[0_0_24px_rgba(200,247,31,.18)]"
-                    style={{ height: `${Math.max(12, ((item.value || 0) / maxBankroll) * 100)}%` }}
-                    title={`${item.label}: ${formatCurrency(item.value)}`}
-                  />
-                  <p className="text-center text-xs font-bold text-white/42">{item.label}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-5">
-              <EmptyState title="Sem histórico de banca" subtitle="O endpoint /dashboard/overview deve retornar bankrollHistory para montar o gráfico real." />
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-          {sectionHeader('Resumo financeiro', 'ROI, lucro e exposição reais')}
-          <div className="mt-5 space-y-3">
-            {[
-              ['Banca inicial', formatCurrency(overview.initialBalance)],
-              ['Banca atual', formatCurrency(overview.balance)],
-              ['Lucro/prejuízo', formatCurrency(overview.profit)],
-              ['ROI', `${formatDecimal(overview.roi)}%`],
-              ['Win rate', `${formatDecimal(overview.winRate)}%`],
-              ['Apostas abertas', String(overview.openBets)],
-              ['Apostas liquidadas', String(overview.settledBets)],
-              ['Odd média', formatDecimal(overview.avgOdd)],
-            ].map(([label, value]) => (
-              <div key={label} className="flex items-center justify-between rounded-2xl border border-white/8 bg-black/20 p-4">
-                <span className="text-sm text-white/55">{label}</span>
-                <span className="text-base font-black text-white">{value}</span>
-              </div>
-            ))}
-          </div>
-        </section>
+      <div className="rounded-[28px] border border-white/8 bg-black/18 p-5">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-white/35">{title}</p>
+        <p className="mt-4 text-3xl font-black text-white">{value}</p>
       </div>
     );
   }
 
   function renderCompliance() {
     return (
-      <div className="grid gap-5 xl:grid-cols-[.9fr_1.1fr]">
-        <section className="rounded-[28px] border border-[#c8f71f]/20 bg-[linear-gradient(135deg,#d9ff59,#a8e71a)] p-6 text-black">
+      <section className="grid gap-5 xl:grid-cols-[.9fr_1.1fr]">
+        <div className="rounded-[34px] bg-[linear-gradient(135deg,#d9ff59,#a8e71a)] p-7 text-black shadow-[0_30px_90px_rgba(200,247,31,.14)]">
           <p className="text-xs font-black uppercase tracking-[0.22em] text-black/55">Jogo responsável</p>
-          <h2 className="mt-3 text-4xl font-black">18+</h2>
-          <p className="mt-3 text-sm font-semibold leading-7 text-black/68">
-            O Oddix deve operar com avisos claros: aposta não é investimento, não há garantia de lucro e o conteúdo é exclusivo para maiores de idade.
-          </p>
-          <div className="mt-5 grid gap-3">
-            {['Aposte com responsabilidade', 'Não aposte para recuperar perdas', 'Defina limites de banca', 'Use apenas operadores autorizados'].map((item) => (
-              <div key={item} className="rounded-2xl bg-black/10 px-4 py-3 text-sm font-black text-black">{item}</div>
+          <h2 className="mt-3 text-5xl font-black">18+</h2>
+          <p className="mt-4 text-sm font-semibold leading-7 text-black/68">A Oddix gera análise, não promessa de lucro. Apostas devem ser tratadas como entretenimento, com limites e responsabilidade.</p>
+        </div>
+        <div className="rounded-[34px] border border-white/8 bg-[#10141d] p-5">
+          <SectionHeader title="Selos e avisos" subtitle="Compliance" />
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {['18+ obrigatório', 'Aposte com responsabilidade', 'Sem promessa de lucro', 'Aposta não é investimento', 'Não recupere perdas', 'Use operadores autorizados'].map((item) => (
+              <div key={item} className="rounded-2xl border border-white/8 bg-black/18 p-4 text-sm font-black text-white/78">{item}</div>
             ))}
           </div>
-        </section>
-
-        <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-          {sectionHeader('Selos e avisos', 'Compliance obrigatório para operação e afiliados')}
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {complianceItems.length ? complianceItems.map((item) => (
-              <div key={item.title} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <p className="font-black text-[#c8f71f]">{item.title}</p>
-                <p className="mt-2 text-sm leading-6 text-white/55">{item.description}</p>
-              </div>
-            )) : defaultCompliance.map((item) => (
-              <div key={item.title} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <p className="font-black text-[#c8f71f]">{item.title}</p>
-                <p className="mt-2 text-sm leading-6 text-white/55">{item.description}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <a href="/jogo-responsavel" className="flex h-12 items-center justify-center rounded-2xl bg-white/6 text-sm font-black text-white/75">Jogo responsável</a>
-            <a href="/aviso-legal" className="flex h-12 items-center justify-center rounded-2xl bg-white/6 text-sm font-black text-white/75">Aviso legal</a>
-          </div>
-        </section>
-      </div>
-    );
-  }
-
-  function renderBankrollModal() {
-    if (!showBankrollForm) return null;
-
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-        <form onSubmit={saveBankroll} className="w-full max-w-md rounded-[30px] border border-white/10 bg-[#12151d] p-6 shadow-[0_30px_120px_rgba(0,0,0,.5)]">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Banca</p>
-              <h3 className="mt-2 text-2xl font-black text-white">Configurar banca inicial</h3>
-            </div>
-            <button type="button" onClick={() => setShowBankrollForm(false)} className="rounded-full bg-white/6 px-3 py-1 text-sm font-black text-white/60">×</button>
-          </div>
-
-          <label className="mt-5 block text-xs font-black uppercase tracking-[0.14em] text-white/35">Valor inicial</label>
-          <input
-            value={bankrollInitial}
-            onChange={(event) => setBankrollInitial(event.target.value)}
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Ex: 1000"
-            className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-[#c8f71f]/50"
-          />
-
-          <button disabled={savingBankroll} className="mt-5 h-12 w-full rounded-2xl bg-[#c8f71f] text-sm font-black text-black disabled:opacity-60">
-            {savingBankroll ? 'Salvando...' : 'Salvar banca'}
-          </button>
-        </form>
-      </div>
-    );
-  }
-
-  function renderBetModal() {
-    if (!showBetForm) return null;
-
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-        <form onSubmit={saveBet} className="w-full max-w-xl rounded-[30px] border border-white/10 bg-[#12151d] p-6 shadow-[0_30px_120px_rgba(0,0,0,.5)]">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Aposta</p>
-              <h3 className="mt-2 text-2xl font-black text-white">Adicionar aposta real</h3>
-            </div>
-            <button type="button" onClick={() => setShowBetForm(false)} className="rounded-full bg-white/6 px-3 py-1 text-sm font-black text-white/60">×</button>
-          </div>
-
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-black uppercase tracking-[0.14em] text-white/35">Jogo</label>
-              <select
-                value={betGameId}
-                onChange={(event) => {
-                  const game = games.find((item) => item.id === event.target.value);
-                  setBetGameId(event.target.value);
-                  if (game) {
-                    setBetMatch(`${game.homeTeam} x ${game.awayTeam}`);
-                    setBetMarket(game.topMarket || betMarket);
-                    setBetOdd(game.topOdd ? String(game.topOdd) : betOdd);
-                  }
-                }}
-                className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none focus:border-[#c8f71f]/50"
-              >
-                <option value="">Selecionar jogo ou preencher manual</option>
-                {games.map((game) => (
-                  <option key={game.id} value={game.id}>{game.homeTeam} x {game.awayTeam}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-black uppercase tracking-[0.14em] text-white/35">Partida</label>
-              <input value={betMatch} onChange={(event) => setBetMatch(event.target.value)} placeholder="Brasil x Argentina" className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-[#c8f71f]/50" />
-            </div>
-
-            <div>
-              <label className="block text-xs font-black uppercase tracking-[0.14em] text-white/35">Mercado</label>
-              <input value={betMarket} onChange={(event) => setBetMarket(event.target.value)} placeholder="Over 1.5" className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-[#c8f71f]/50" />
-            </div>
-
-            <div>
-              <label className="block text-xs font-black uppercase tracking-[0.14em] text-white/35">Status</label>
-              <select value={betResult} onChange={(event) => setBetResult(event.target.value)} className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none focus:border-[#c8f71f]/50">
-                <option>Aberta</option>
-                <option>Green</option>
-                <option>Red</option>
-                <option>Void</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-black uppercase tracking-[0.14em] text-white/35">Stake</label>
-              <input value={betStake} onChange={(event) => setBetStake(event.target.value)} type="number" min="0" step="0.01" placeholder="R$ 50" className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-[#c8f71f]/50" />
-            </div>
-
-            <div>
-              <label className="block text-xs font-black uppercase tracking-[0.14em] text-white/35">Odd</label>
-              <input value={betOdd} onChange={(event) => setBetOdd(event.target.value)} type="number" min="1" step="0.01" placeholder="1.80" className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-[#c8f71f]/50" />
-            </div>
-          </div>
-
-          <button disabled={savingBet} className="mt-5 h-12 w-full rounded-2xl bg-[#c8f71f] text-sm font-black text-black disabled:opacity-60">
-            {savingBet ? 'Salvando...' : 'Salvar aposta'}
-          </button>
-        </form>
-      </div>
+        </div>
+      </section>
     );
   }
 
@@ -1478,28 +1242,22 @@ export default function OddixDashboardPage() {
     if (activeTab === 'jogos') return renderJogos();
     if (activeTab === 'palpites') return renderPalpites();
     if (activeTab === 'multiplas') return renderMultiplas();
+    if (activeTab === 'jogadores') return renderJogadores();
     if (activeTab === 'entradas') return renderEntradas();
-    if (activeTab === 'ranking') return renderRanking();
     if (activeTab === 'banca') return renderBanca();
     if (activeTab === 'compliance') return renderCompliance();
     return renderInicio();
   }
 
-  if (!user) {
-    return (
-      <main className="min-h-screen bg-[#070a0f] text-white">
-        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top,rgba(215,255,47,.12),transparent_34%),linear-gradient(180deg,#070a0f,#05070b)]" />
-        <div className="relative">{renderLogin()}</div>
-      </main>
-    );
-  }
+  if (!user && !loading) return renderLogin();
 
   return (
-    <main className="min-h-screen bg-[#070a0f] text-white">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(215,255,47,.12),transparent_24%),radial-gradient(circle_at_top_right,rgba(14,165,233,.08),transparent_22%),linear-gradient(180deg,#070a0f,#05070b)]" />
+    <main className="min-h-screen bg-[#05070b] text-white">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_8%_0%,rgba(200,247,31,.12),transparent_28%),radial-gradient(circle_at_88%_4%,rgba(56,189,248,.10),transparent_22%),linear-gradient(180deg,#070a0f,#040509)]" />
+      <div className="pointer-events-none fixed left-1/2 top-24 h-48 w-48 -translate-x-1/2 rounded-full bg-[#c8f71f]/10 blur-3xl" />
 
       <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
-        <header className="sticky top-3 z-30 rounded-[28px] border border-white/8 bg-[#0d1017]/90 p-3 shadow-[0_22px_80px_rgba(0,0,0,.28)] backdrop-blur-xl">
+        <header className="sticky top-3 z-30 rounded-[30px] border border-white/8 bg-[#0d1017]/88 p-3 shadow-[0_22px_80px_rgba(0,0,0,.30)] backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <a href="/chat" className="flex items-center gap-3">
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#c8f71f]/35 bg-[#0d1017] shadow-[0_0_24px_rgba(200,247,31,.12)]">
@@ -1507,18 +1265,13 @@ export default function OddixDashboardPage() {
               </span>
               <div>
                 <p className="text-sm font-black tracking-tight text-white">Oddix Control</p>
-                <p className="text-xs font-semibold text-white/42">Dashboard de palpites premium</p>
+                <p className="text-xs font-semibold text-white/42">Dashboard animado de palpites</p>
               </div>
             </a>
-
             <div className="flex items-center gap-2">
-              <button onClick={() => void loadDashboard()} className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-black text-white/70 hover:bg-white/6">
-                {dashboardLoading ? 'Sincronizando...' : 'Sincronizar'}
-              </button>
+              <button onClick={() => void loadAll(authToken, false)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-black text-white/70 hover:bg-white/6">{refreshing ? 'Sincronizando...' : 'Sincronizar'}</button>
               <span className="hidden rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-black text-white/58 sm:inline-flex">{planLabel(plan)}</span>
-              <span className={allowed ? 'rounded-full bg-emerald-400/12 px-3 py-1.5 text-xs font-black text-emerald-300' : 'rounded-full bg-rose-400/12 px-3 py-1.5 text-xs font-black text-rose-300'}>
-                {allowed ? 'Liberado' : 'Bloqueado'}
-              </span>
+              <span className={allowed ? 'rounded-full bg-emerald-400/12 px-3 py-1.5 text-xs font-black text-emerald-300' : 'rounded-full bg-rose-400/12 px-3 py-1.5 text-xs font-black text-rose-300'}>{allowed ? 'Liberado' : 'Bloqueado'}</span>
               <button onClick={logout} className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-white/58 hover:bg-white/6">Sair</button>
             </div>
           </div>
@@ -1526,49 +1279,35 @@ export default function OddixDashboardPage() {
 
         <section className="mt-4 grid flex-1 gap-5 lg:grid-cols-[240px_1fr]">
           <aside className="lg:sticky lg:top-24 lg:h-[calc(100vh-7rem)]">
-            <div className="rounded-[30px] border border-white/8 bg-[#0d1017] p-3 shadow-[0_24px_70px_rgba(0,0,0,.24)]">
-              <div className="mb-3 rounded-[24px] bg-white/[0.035] p-4">
+            <div className="rounded-[32px] border border-white/8 bg-[#0d1017]/92 p-3 shadow-[0_24px_70px_rgba(0,0,0,.26)] backdrop-blur-xl">
+              <div className="mb-3 rounded-[26px] bg-white/[0.035] p-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#c8f71f]/14 text-sm font-black text-[#c8f71f]">{initials}</div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black text-white">{displayName}</p>
-                    <p className="truncate text-xs text-white/40">{user.email}</p>
-                    <p className="mt-1 text-[11px] font-bold text-white/28">{status}</p>
+                    <p className="truncate text-xs text-white/40">{user?.email}</p>
+                    <p className="mt-1 text-[11px] font-bold text-white/28">{games.length} jogos no radar</p>
                   </div>
                 </div>
               </div>
-
               <nav className="space-y-1">
                 {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={[
-                      'flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black transition',
-                      activeTab === tab.id
-                        ? 'bg-[#c8f71f] text-black shadow-[0_14px_34px_rgba(200,247,31,.16)]'
-                        : 'text-white/58 hover:bg-white/[0.05] hover:text-white',
-                    ].join(' ')}
-                  >
+                  <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} className={['flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black transition', activeTab === tab.id ? 'bg-[#c8f71f] text-black shadow-[0_14px_34px_rgba(200,247,31,.16)]' : 'text-white/58 hover:bg-white/[0.05] hover:text-white'].join(' ')}>
                     <span>{tab.icon}</span>
                     <span>{tab.label}</span>
                   </button>
                 ))}
               </nav>
-
-              <div className="mt-3 rounded-[22px] border border-[#c8f71f]/18 bg-[#c8f71f]/8 p-4">
+              <div className="mt-3 rounded-[24px] border border-[#c8f71f]/18 bg-[#c8f71f]/8 p-4">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">18+</p>
                 <p className="mt-2 text-xs leading-5 text-white/58">Aposte com responsabilidade. Aposta não é investimento.</p>
               </div>
             </div>
           </aside>
 
-          <section className="pb-8">{renderContent()}</section>
+          <section className="pb-10">{loading ? <EmptyState title="Carregando radar Oddix" subtitle="Buscando /football/live, jogos de hoje e jogos de amanhã." /> : renderContent()}</section>
         </section>
       </div>
-      {renderBankrollModal()}
-      {renderBetModal()}
     </main>
   );
 }
