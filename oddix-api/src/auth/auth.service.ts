@@ -410,6 +410,139 @@ export class AuthService {
     return points.slice(-14);
   }
 
+  private normalizeDashboardGameRow(row: any, index = 0) {
+    const homeTeam = this.firstValue(row, ['homeTeamName', 'homeName', 'home', 'teamHome', 'homeTeam.name'], 'Mandante');
+    const awayTeam = this.firstValue(row, ['awayTeamName', 'awayName', 'away', 'teamAway', 'awayTeam.name'], 'Visitante');
+
+    return {
+      id: String(this.firstValue(row, ['id', 'externalId'], `${homeTeam}-${awayTeam}-${index}`)),
+      league: this.firstValue(row, ['league', 'competition', 'tournament', 'competitionName', 'leagueName'], 'Futebol'),
+      status: this.firstValue(row, ['status', 'state', 'matchStatus'], 'Sem status'),
+      minute: this.firstValue(row, ['minute', 'elapsed', 'matchMinute']),
+      kickoff: this.toDateTimeLabel(this.firstValue(row, ['kickoff', 'startTime', 'date', 'matchDate'])),
+      score: this.firstValue(row, ['score', 'scoreText', 'result']),
+      confidence: this.toNumber(this.firstValue(row, ['confidence', 'scoreConfidence', 'probability']), 0),
+      homeTeam: String(homeTeam),
+      awayTeam: String(awayTeam),
+      homeLogo: this.firstValue(row, ['homeLogo', 'homeTeamLogo', 'homeLogoUrl', 'homeTeam.logo', 'homeTeam.logoUrl']),
+      awayLogo: this.firstValue(row, ['awayLogo', 'awayTeamLogo', 'awayLogoUrl', 'awayTeam.logo', 'awayTeam.logoUrl']),
+      topMarket: this.firstValue(row, ['topMarket', 'market', 'bestMarket', 'recommendation']),
+      topOdd: this.firstValue(row, ['topOdd', 'odd', 'odds', 'bestOdd']),
+    };
+  }
+
+  private espnCompetitionSlugs() {
+    return String(process.env.ODDIX_DASHBOARD_ESPN_LEAGUES || 'fifa.world,bra.1,eng.1,esp.1,ita.1,ger.1,fra.1,por.1,usa.1')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  private scoreFromEspnCompetition(competition: any) {
+    const competitors = Array.isArray(competition?.competitors) ? competition.competitors : [];
+    const home = competitors.find((item: any) => item?.homeAway === 'home') || competitors[0];
+    const away = competitors.find((item: any) => item?.homeAway === 'away') || competitors[1];
+    const homeScore = home?.score;
+    const awayScore = away?.score;
+
+    if (homeScore === undefined || awayScore === undefined || homeScore === null || awayScore === null) return undefined;
+    return `${homeScore} x ${awayScore}`;
+  }
+
+  private normalizeEspnEvent(event: any, slug: string, index = 0) {
+    const competition = Array.isArray(event?.competitions) ? event.competitions[0] : null;
+    const competitors = Array.isArray(competition?.competitors) ? competition.competitors : [];
+    const home = competitors.find((item: any) => item?.homeAway === 'home') || competitors[0];
+    const away = competitors.find((item: any) => item?.homeAway === 'away') || competitors[1];
+    const status = competition?.status || event?.status || {};
+    const statusType = status?.type || {};
+    const statusName = statusType?.shortDetail || statusType?.detail || status?.displayClock || 'Sem status';
+    const displayClock = status?.displayClock;
+    const period = status?.period;
+    const isLive = Boolean(statusType?.state === 'in' || statusType?.name === 'STATUS_IN_PROGRESS');
+    const isFinal = Boolean(statusType?.state === 'post' || statusType?.completed);
+    const kickoff = event?.date || competition?.date;
+    const score = this.scoreFromEspnCompetition(competition);
+    const homeName = home?.team?.displayName || home?.team?.shortDisplayName || home?.team?.name || 'Mandante';
+    const awayName = away?.team?.displayName || away?.team?.shortDisplayName || away?.team?.name || 'Visitante';
+
+    return {
+      id: String(event?.id || `${slug}-${homeName}-${awayName}-${index}`),
+      league: event?.league?.name || event?.league?.abbreviation || slug,
+      status: isLive ? 'Ao vivo' : isFinal ? 'Encerrado' : statusName,
+      minute: displayClock ? `${displayClock}${period ? ` • ${period}º tempo` : ''}` : undefined,
+      kickoff: this.toDateTimeLabel(kickoff),
+      score,
+      confidence: 0,
+      homeTeam: String(homeName),
+      awayTeam: String(awayName),
+      homeLogo: home?.team?.logo || home?.team?.logos?.[0]?.href,
+      awayLogo: away?.team?.logo || away?.team?.logos?.[0]?.href,
+      topMarket: undefined,
+      topOdd: undefined,
+      source: 'espn-public-scoreboard',
+    };
+  }
+
+  private sortDashboardGames(games: any[]) {
+    const weight = (game: any) => {
+      const status = String(game?.status || '').toLowerCase();
+      if (status.includes('ao vivo')) return 0;
+      if (status.includes('pré') || status.includes('pre')) return 1;
+      if (status.includes('encerrado') || status.includes('final')) return 3;
+      return 2;
+    };
+
+    return games.sort((a, b) => weight(a) - weight(b));
+  }
+
+  private async fetchEspnPublicGames() {
+    const fetchFn = (globalThis as any).fetch;
+    if (!fetchFn) return [];
+
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeout = controller ? setTimeout(() => controller.abort(), 4500) : null;
+
+    try {
+      const slugs = this.espnCompetitionSlugs();
+      const results = await Promise.all(
+        slugs.map(async (slug) => {
+          try {
+            const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(slug)}/scoreboard`;
+            const response = await fetchFn(url, {
+              headers: {
+                accept: 'application/json',
+                'user-agent': 'OddixDashboard/1.0',
+              },
+              signal: controller?.signal,
+            });
+
+            if (!response?.ok) return [];
+            const data = await response.json();
+            const events = Array.isArray(data?.events) ? data.events : [];
+            return events.map((event: any, index: number) => this.normalizeEspnEvent(event, slug, index));
+          } catch {
+            return [];
+          }
+        }),
+      );
+
+      const seen = new Set<string>();
+      const merged = results.flat().filter((game: any) => {
+        const key = `${game.homeTeam}-${game.awayTeam}-${game.kickoff || game.score || game.status}`.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      return this.sortDashboardGames(merged).slice(0, 40);
+    } catch {
+      return [];
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
+  }
+
   async getDashboardGames(_userId: string) {
     const rows = await this.findManyFromModels(
       ['dashboardGame', 'game', 'match', 'fixture', 'footballMatch'],
@@ -420,26 +553,11 @@ export class AuthService {
       ],
     );
 
-    return rows.map((row: any, index: number) => {
-      const homeTeam = this.firstValue(row, ['homeTeamName', 'homeName', 'home', 'teamHome', 'homeTeam.name'], 'Mandante');
-      const awayTeam = this.firstValue(row, ['awayTeamName', 'awayName', 'away', 'teamAway', 'awayTeam.name'], 'Visitante');
+    if (rows.length) {
+      return rows.map((row: any, index: number) => this.normalizeDashboardGameRow(row, index));
+    }
 
-      return {
-        id: String(this.firstValue(row, ['id', 'externalId'], `${homeTeam}-${awayTeam}-${index}`)),
-        league: this.firstValue(row, ['league', 'competition', 'tournament', 'competitionName', 'leagueName'], 'Futebol'),
-        status: this.firstValue(row, ['status', 'state', 'matchStatus'], 'Sem status'),
-        minute: this.firstValue(row, ['minute', 'elapsed', 'matchMinute']),
-        kickoff: this.toDateTimeLabel(this.firstValue(row, ['kickoff', 'startTime', 'date', 'matchDate'])),
-        score: this.firstValue(row, ['score', 'scoreText', 'result']),
-        confidence: this.toNumber(this.firstValue(row, ['confidence', 'scoreConfidence', 'probability']), 0),
-        homeTeam: String(homeTeam),
-        awayTeam: String(awayTeam),
-        homeLogo: this.firstValue(row, ['homeLogo', 'homeTeamLogo', 'homeLogoUrl', 'homeTeam.logo', 'homeTeam.logoUrl']),
-        awayLogo: this.firstValue(row, ['awayLogo', 'awayTeamLogo', 'awayLogoUrl', 'awayTeam.logo', 'awayTeam.logoUrl']),
-        topMarket: this.firstValue(row, ['topMarket', 'market', 'bestMarket', 'recommendation']),
-        topOdd: this.firstValue(row, ['topOdd', 'odd', 'odds', 'bestOdd']),
-      };
-    });
+    return this.fetchEspnPublicGames();
   }
 
   async getDashboardBets(userId: string) {
