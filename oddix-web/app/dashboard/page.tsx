@@ -297,6 +297,17 @@ export default function OddixDashboardPage() {
   const [error, setError] = useState('');
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState('');
+  const [showBetForm, setShowBetForm] = useState(false);
+  const [showBankrollForm, setShowBankrollForm] = useState(false);
+  const [savingBet, setSavingBet] = useState(false);
+  const [savingBankroll, setSavingBankroll] = useState(false);
+  const [betGameId, setBetGameId] = useState('');
+  const [betMatch, setBetMatch] = useState('');
+  const [betMarket, setBetMarket] = useState('');
+  const [betStake, setBetStake] = useState('');
+  const [betOdd, setBetOdd] = useState('');
+  const [betResult, setBetResult] = useState('Aberta');
+  const [bankrollInitial, setBankrollInitial] = useState('');
 
   const [overview, setOverview] = useState<DashboardOverview>(defaultOverview);
   const [games, setGames] = useState<DashboardGame[]>([]);
@@ -489,6 +500,120 @@ export default function OddixDashboardPage() {
     setOverview(defaultOverview);
   }
 
+  function openBetFormFromGame(game?: DashboardGame) {
+    if (game) {
+      setBetGameId(game.id);
+      setBetMatch(`${game.homeTeam} x ${game.awayTeam}`);
+      setBetMarket(game.topMarket || '');
+      setBetOdd(game.topOdd ? String(game.topOdd) : '');
+    } else {
+      setBetGameId('');
+      setBetMatch('');
+      setBetMarket('');
+      setBetOdd('');
+    }
+
+    setBetStake('');
+    setBetResult('Aberta');
+    setShowBetForm(true);
+  }
+
+  async function saveBankroll(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!cleanApiBase || !authToken) return;
+
+    setSavingBankroll(true);
+    setDashboardError('');
+
+    try {
+      await fetch(`${cleanApiBase}/dashboard/bankroll`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ initialAmount: Number(bankrollInitial), currentAmount: Number(bankrollInitial) }),
+      });
+
+      setShowBankrollForm(false);
+      setBankrollInitial('');
+      await loadDashboard();
+    } catch (err: any) {
+      setDashboardError(err?.message || 'Não foi possível salvar a banca.');
+    } finally {
+      setSavingBankroll(false);
+    }
+  }
+
+  async function saveBet(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!cleanApiBase || !authToken) return;
+
+    const selectedGame = games.find((game) => game.id === betGameId);
+    const match = betMatch || (selectedGame ? `${selectedGame.homeTeam} x ${selectedGame.awayTeam}` : 'Aposta registrada');
+    const stake = Number(betStake);
+    const odd = Number(betOdd || selectedGame?.topOdd || 1);
+
+    setSavingBet(true);
+    setDashboardError('');
+
+    try {
+      await fetch(`${cleanApiBase}/dashboard/bets`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          match,
+          market: betMarket || selectedGame?.topMarket || 'Mercado não informado',
+          stake,
+          odd,
+          potentialReturn: stake * odd,
+          result: betResult,
+          homeTeam: selectedGame?.homeTeam,
+          awayTeam: selectedGame?.awayTeam,
+          homeLogo: selectedGame?.homeLogo,
+          awayLogo: selectedGame?.awayLogo,
+        }),
+      });
+
+      setShowBetForm(false);
+      setBetGameId('');
+      setBetMatch('');
+      setBetMarket('');
+      setBetStake('');
+      setBetOdd('');
+      setBetResult('Aberta');
+      await loadDashboard();
+    } catch (err: any) {
+      setDashboardError(err?.message || 'Não foi possível salvar a aposta.');
+    } finally {
+      setSavingBet(false);
+    }
+  }
+
+  async function updateBetResult(betId: string, result: string) {
+    if (!cleanApiBase || !authToken) return;
+
+    setDashboardError('');
+
+    try {
+      await fetch(`${cleanApiBase}/dashboard/bets/${encodeURIComponent(betId)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ result }),
+      });
+
+      await loadDashboard();
+    } catch (err: any) {
+      setDashboardError(err?.message || 'Não foi possível atualizar a aposta.');
+    }
+  }
+
   function sectionHeader(title: string, subtitle: string, action?: string, onAction?: () => void) {
     return (
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -591,6 +716,9 @@ export default function OddixDashboardPage() {
             <p className="mt-1 text-xs font-black text-white">{game.confidence ? `${game.confidence}%` : '--'}</p>
           </div>
         </div>
+        <button onClick={() => openBetFormFromGame(game)} className="mt-3 h-10 w-full rounded-2xl bg-[#c8f71f] text-xs font-black text-black">
+          Adicionar aposta neste jogo
+        </button>
       </div>
     );
   }
@@ -633,6 +761,12 @@ export default function OddixDashboardPage() {
             <p className="mt-1 text-xs font-black text-white">{formatCurrency(returnValue)}</p>
           </div>
         </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <button onClick={() => updateBetResult(bet.id, 'Green')} className="h-9 rounded-xl bg-emerald-400/12 text-xs font-black text-emerald-300">Green</button>
+          <button onClick={() => updateBetResult(bet.id, 'Red')} className="h-9 rounded-xl bg-rose-400/12 text-xs font-black text-rose-300">Red</button>
+          <button onClick={() => updateBetResult(bet.id, 'Void')} className="h-9 rounded-xl bg-white/6 text-xs font-black text-white/65">Void</button>
+        </div>
       </div>
     );
   }
@@ -643,10 +777,10 @@ export default function OddixDashboardPage() {
         <section className="rounded-[32px] bg-[linear-gradient(135deg,#d9ff59,#9fdc12)] p-6 text-black shadow-[0_24px_80px_rgba(200,247,31,.14)]">
           <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-black/55">V23.10 • Dados reais</p>
-              <h1 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">Palpites, banca e controle com dados reais do backend.</h1>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-black/55">V23.13 • Bet Tracker</p>
+              <h1 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">Banca, apostas e ROI agora com controle real do usuário.</h1>
               <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-black/65">
-                Cards com logos dos times, partidas reais, apostas reais do usuário e métricas vindas do backend do Oddix.
+                Cadastre banca, adicione apostas, marque Green/Red/Void e acompanhe ROI, lucro e win rate reais.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -655,6 +789,12 @@ export default function OddixDashboardPage() {
                 className="inline-flex h-12 min-w-[148px] items-center justify-center whitespace-nowrap rounded-2xl border border-black/10 bg-black px-5 text-sm font-black text-[#c8f71f] shadow-[0_14px_30px_rgba(0,0,0,.18)]"
               >
                 {dashboardLoading ? 'Atualizando...' : 'Atualizar dados'}
+              </button>
+              <button
+                onClick={() => setShowBankrollForm(true)}
+                className="inline-flex h-12 min-w-[148px] items-center justify-center whitespace-nowrap rounded-2xl border border-black/10 bg-black/12 px-5 text-sm font-black text-black"
+              >
+                Configurar banca
               </button>
               <a href="/chat" className="inline-flex h-12 min-w-[148px] items-center justify-center whitespace-nowrap rounded-2xl border border-black/10 bg-white/70 px-5 text-sm font-black text-black">
                 Abrir chat
@@ -703,7 +843,7 @@ export default function OddixDashboardPage() {
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Entradas reais</p>
                 <h2 className="mt-2 text-2xl font-black">Minhas apostas</h2>
               </div>
-              <button onClick={() => setActiveTab('entradas')} className="rounded-full bg-[#c8f71f] px-4 py-2 text-xs font-black text-black">Ver controle</button>
+              <button onClick={() => openBetFormFromGame()} className="rounded-full bg-[#c8f71f] px-4 py-2 text-xs font-black text-black">Adicionar aposta</button>
             </div>
             <div className="space-y-3">
               {bets.length ? bets.slice(0, 3).map((bet) => <BetCard key={bet.id} bet={bet} />) : <EmptyState title="Nenhuma aposta real encontrada" subtitle="Conecte o controle de bilhetes do usuário no backend para preencher esta área automaticamente." />}
@@ -728,7 +868,7 @@ export default function OddixDashboardPage() {
   function renderEntradas() {
     return (
       <section className="rounded-[30px] border border-white/8 bg-[#12151d] p-5">
-        {sectionHeader('Minhas apostas', 'Controle real do usuário', 'Atualizar entradas', () => void loadDashboard())}
+        {sectionHeader('Minhas apostas', 'Controle real do usuário', 'Nova aposta', () => openBetFormFromGame())}
         <div className="mt-5 space-y-3">
           {bets.length ? bets.map((bet) => <BetCard key={bet.id} bet={bet} />) : <EmptyState title="Sem apostas cadastradas" subtitle="O endpoint /dashboard/bets deve retornar as apostas reais do usuário logado." />}
         </div>
@@ -883,6 +1023,115 @@ export default function OddixDashboardPage() {
     );
   }
 
+  function renderBankrollModal() {
+    if (!showBankrollForm) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+        <form onSubmit={saveBankroll} className="w-full max-w-md rounded-[30px] border border-white/10 bg-[#12151d] p-6 shadow-[0_30px_120px_rgba(0,0,0,.5)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Banca</p>
+              <h3 className="mt-2 text-2xl font-black text-white">Configurar banca inicial</h3>
+            </div>
+            <button type="button" onClick={() => setShowBankrollForm(false)} className="rounded-full bg-white/6 px-3 py-1 text-sm font-black text-white/60">×</button>
+          </div>
+
+          <label className="mt-5 block text-xs font-black uppercase tracking-[0.14em] text-white/35">Valor inicial</label>
+          <input
+            value={bankrollInitial}
+            onChange={(event) => setBankrollInitial(event.target.value)}
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Ex: 1000"
+            className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-[#c8f71f]/50"
+          />
+
+          <button disabled={savingBankroll} className="mt-5 h-12 w-full rounded-2xl bg-[#c8f71f] text-sm font-black text-black disabled:opacity-60">
+            {savingBankroll ? 'Salvando...' : 'Salvar banca'}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  function renderBetModal() {
+    if (!showBetForm) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+        <form onSubmit={saveBet} className="w-full max-w-xl rounded-[30px] border border-white/10 bg-[#12151d] p-6 shadow-[0_30px_120px_rgba(0,0,0,.5)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#c8f71f]">Aposta</p>
+              <h3 className="mt-2 text-2xl font-black text-white">Adicionar aposta real</h3>
+            </div>
+            <button type="button" onClick={() => setShowBetForm(false)} className="rounded-full bg-white/6 px-3 py-1 text-sm font-black text-white/60">×</button>
+          </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-black uppercase tracking-[0.14em] text-white/35">Jogo</label>
+              <select
+                value={betGameId}
+                onChange={(event) => {
+                  const game = games.find((item) => item.id === event.target.value);
+                  setBetGameId(event.target.value);
+                  if (game) {
+                    setBetMatch(`${game.homeTeam} x ${game.awayTeam}`);
+                    setBetMarket(game.topMarket || betMarket);
+                    setBetOdd(game.topOdd ? String(game.topOdd) : betOdd);
+                  }
+                }}
+                className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none focus:border-[#c8f71f]/50"
+              >
+                <option value="">Selecionar jogo ou preencher manual</option>
+                {games.map((game) => (
+                  <option key={game.id} value={game.id}>{game.homeTeam} x {game.awayTeam}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-black uppercase tracking-[0.14em] text-white/35">Partida</label>
+              <input value={betMatch} onChange={(event) => setBetMatch(event.target.value)} placeholder="Brasil x Argentina" className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-[#c8f71f]/50" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-black uppercase tracking-[0.14em] text-white/35">Mercado</label>
+              <input value={betMarket} onChange={(event) => setBetMarket(event.target.value)} placeholder="Over 1.5" className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-[#c8f71f]/50" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-black uppercase tracking-[0.14em] text-white/35">Status</label>
+              <select value={betResult} onChange={(event) => setBetResult(event.target.value)} className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none focus:border-[#c8f71f]/50">
+                <option>Aberta</option>
+                <option>Green</option>
+                <option>Red</option>
+                <option>Void</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-black uppercase tracking-[0.14em] text-white/35">Stake</label>
+              <input value={betStake} onChange={(event) => setBetStake(event.target.value)} type="number" min="0" step="0.01" placeholder="R$ 50" className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-[#c8f71f]/50" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-black uppercase tracking-[0.14em] text-white/35">Odd</label>
+              <input value={betOdd} onChange={(event) => setBetOdd(event.target.value)} type="number" min="1" step="0.01" placeholder="1.80" className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-[#c8f71f]/50" />
+            </div>
+          </div>
+
+          <button disabled={savingBet} className="mt-5 h-12 w-full rounded-2xl bg-[#c8f71f] text-sm font-black text-black disabled:opacity-60">
+            {savingBet ? 'Salvando...' : 'Salvar aposta'}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   function renderContent() {
     if (activeTab === 'jogos') return renderJogos();
     if (activeTab === 'entradas') return renderEntradas();
@@ -974,6 +1223,8 @@ export default function OddixDashboardPage() {
           <section className="pb-8">{renderContent()}</section>
         </section>
       </div>
+      {renderBankrollModal()}
+      {renderBetModal()}
     </main>
   );
 }

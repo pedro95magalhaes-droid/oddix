@@ -1,4 +1,4 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
@@ -45,4 +45,30 @@ export class DashboardController {
   async compliance(@Req() req: any) {
     return this.authService.getDashboardCompliance(this.getUserId(req));
   }
+
+  @Get('bankroll')
+  async bankroll(@Req() req: any) {
+    return this.authService.getDashboardBankroll(this.getUserId(req));
+  }
+
+  @Post('bankroll')
+  async setBankroll(@Req() req: any, @Body() body: any) {
+    return this.authService.setDashboardBankroll(this.getUserId(req), body);
+  }
+
+  @Post('bets')
+  async createBet(@Req() req: any, @Body() body: any) {
+    return this.authService.createDashboardBet(this.getUserId(req), body);
+  }
+
+  @Patch('bets/:id')
+  async updateBet(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    return this.authService.updateDashboardBet(this.getUserId(req), id, body);
+  }
+
+  @Delete('bets/:id')
+  async deleteBet(@Req() req: any, @Param('id') id: string) {
+    return this.authService.deleteDashboardBet(this.getUserId(req), id);
+  }
+
 }

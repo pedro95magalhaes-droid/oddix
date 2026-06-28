@@ -2,6 +2,8 @@ import { ForbiddenException, Injectable, NotFoundException, UnauthorizedExceptio
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import * as fs from 'fs';
+import * as path from 'path';
 
 type OddixPlan = 'Free' | 'VIP' | 'PRO' | 'Premium' | 'Admin';
 
@@ -238,23 +240,187 @@ export class AuthService {
     return ['Green', 'Red', 'Void', 'Cashout'].includes(this.resultLabel(this.firstValue(row, ['result', 'status', 'state'])));
   }
 
+  private dashboardStorePath() {
+    return process.env.ODDIX_DASHBOARD_STORE_PATH || path.join(process.cwd(), 'data', 'oddix-dashboard-store.json');
+  }
+
+  private readDashboardStore() {
+    const filePath = this.dashboardStorePath();
+
+    try {
+      if (!fs.existsSync(filePath)) {
+        return { users: {} as Record<string, any> };
+      }
+
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      if (!parsed || typeof parsed !== 'object') return { users: {} as Record<string, any> };
+      if (!parsed.users || typeof parsed.users !== 'object') parsed.users = {};
+      return parsed as { users: Record<string, any> };
+    } catch {
+      return { users: {} as Record<string, any> };
+    }
+  }
+
+  private writeDashboardStore(store: { users: Record<string, any> }) {
+    const filePath = this.dashboardStorePath();
+    const dir = path.dirname(filePath);
+
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    fs.writeFileSync(filePath, JSON.stringify(store, null, 2), 'utf8');
+  }
+
+  private getStoredUserDashboard(userId: string) {
+    const store = this.readDashboardStore();
+    const current = store.users[userId] || {};
+
+    if (!Array.isArray(current.bets)) current.bets = [];
+    store.users[userId] = current;
+
+    return { store, current };
+  }
+
+  private getStoredBets(userId: string) {
+    const { current } = this.getStoredUserDashboard(userId);
+    return Array.isArray(current.bets) ? current.bets : [];
+  }
+
+  private getStoredBankroll(userId: string) {
+    const { current } = this.getStoredUserDashboard(userId);
+    return current.bankroll || null;
+  }
+
   private async getRawBets(userId: string) {
-    return this.findManyFromModels(
+    const dbRows = await this.findManyFromModels(
       ['bet', 'userBet', 'oddixBet', 'bettingSlip', 'ticket', 'pick', 'entry'],
       this.userScopedArgs(userId, {
         orderBy: [{ placedAt: 'desc' }, { createdAt: 'desc' }, { updatedAt: 'desc' }],
         take: 100,
       }),
     );
+
+    const storedRows = this.getStoredBets(userId);
+    return [...storedRows, ...dbRows];
   }
 
   private async getRawBankroll(userId: string) {
-    return this.findFirstFromModels(
+    const dbRow = await this.findFirstFromModels(
       ['bankroll', 'userBankroll'],
       this.userScopedArgs(userId, {
         orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       }),
     );
+
+    return dbRow || this.getStoredBankroll(userId);
+  }
+
+  async getDashboardBankroll(userId: string) {
+    const bankroll = await this.getRawBankroll(userId);
+    const overview = await this.getDashboardOverview(userId);
+
+    return {
+      bankroll,
+      overview,
+    };
+  }
+
+  async setDashboardBankroll(userId: string, data: any) {
+    const { store, current } = this.getStoredUserDashboard(userId);
+    const rawInitial = this.firstValue(data, ['initialAmount', 'initialBalance', 'startingBalance', 'amount', 'balance']);
+    const rawCurrent = this.firstValue(data, ['currentAmount', 'currentBalance', 'balance']);
+    const initialAmount = this.toNumber(rawInitial);
+    const currentAmount = rawCurrent !== undefined && rawCurrent !== null && rawCurrent !== '' ? this.toNumber(rawCurrent) : initialAmount;
+
+    current.bankroll = {
+      id: current.bankroll?.id || `bankroll-${userId}`,
+      userId,
+      initialAmount,
+      currentAmount,
+      currency: String(data?.currency || current.bankroll?.currency || 'BRL'),
+      updatedAt: new Date().toISOString(),
+      createdAt: current.bankroll?.createdAt || new Date().toISOString(),
+    };
+
+    store.users[userId] = current;
+    this.writeDashboardStore(store);
+
+    return this.getDashboardOverview(userId);
+  }
+
+  async createDashboardBet(userId: string, data: any) {
+    const { store, current } = this.getStoredUserDashboard(userId);
+    const now = new Date().toISOString();
+    const id = String(data?.id || `bet-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    const stake = this.toNumber(data?.stake || data?.amount || data?.value);
+    const odd = this.toNumber(data?.odd || data?.odds || data?.price, 1);
+
+    const bet = {
+      id,
+      userId,
+      match: String(data?.match || data?.matchName || 'Aposta registrada'),
+      market: String(data?.market || data?.marketName || data?.selection || 'Mercado não informado'),
+      stake,
+      odd,
+      potentialReturn: this.toNumber(data?.potentialReturn, stake * odd),
+      result: this.resultLabel(data?.result || data?.status || 'Aberta'),
+      status: this.resultLabel(data?.status || data?.result || 'Aberta'),
+      homeTeam: data?.homeTeam,
+      awayTeam: data?.awayTeam,
+      homeLogo: data?.homeLogo,
+      awayLogo: data?.awayLogo,
+      placedAt: data?.placedAt || now,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    current.bets = [bet, ...(Array.isArray(current.bets) ? current.bets : [])];
+    store.users[userId] = current;
+    this.writeDashboardStore(store);
+
+    return this.normalizeBet(bet);
+  }
+
+  async updateDashboardBet(userId: string, betId: string, data: any) {
+    const { store, current } = this.getStoredUserDashboard(userId);
+    const bets = Array.isArray(current.bets) ? current.bets : [];
+    const index = bets.findIndex((bet: any) => String(bet?.id) === String(betId));
+
+    if (index === -1) {
+      throw new NotFoundException('Aposta não encontrada');
+    }
+
+    const existing = bets[index];
+    const nextResult = data?.result !== undefined || data?.status !== undefined ? this.resultLabel(data?.result || data?.status) : existing.result;
+    bets[index] = {
+      ...existing,
+      ...data,
+      result: nextResult,
+      status: nextResult,
+      stake: data?.stake !== undefined ? this.toNumber(data.stake) : existing.stake,
+      odd: data?.odd !== undefined ? this.toNumber(data.odd, 1) : existing.odd,
+      settledAt: ['Green', 'Red', 'Void', 'Cashout'].includes(nextResult) ? data?.settledAt || existing.settledAt || new Date().toISOString() : existing.settledAt,
+      updatedAt: new Date().toISOString(),
+    };
+
+    current.bets = bets;
+    store.users[userId] = current;
+    this.writeDashboardStore(store);
+
+    return this.normalizeBet(bets[index]);
+  }
+
+  async deleteDashboardBet(userId: string, betId: string) {
+    const { store, current } = this.getStoredUserDashboard(userId);
+    const bets = Array.isArray(current.bets) ? current.bets : [];
+    const nextBets = bets.filter((bet: any) => String(bet?.id) !== String(betId));
+
+    current.bets = nextBets;
+    store.users[userId] = current;
+    this.writeDashboardStore(store);
+
+    return { ok: true, removed: bets.length - nextBets.length };
   }
 
   async register(data: any) {
