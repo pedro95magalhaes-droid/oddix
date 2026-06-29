@@ -626,12 +626,19 @@ function getGameByTip(tip: any, games: any[]) {
     if (byId) return byId;
   }
 
-  const home = normalizeName(tip?.homeTeam || tip?.game?.split(" x ")?.[0]);
-  const away = normalizeName(tip?.awayTeam || tip?.game?.split(" x ")?.[1]);
+  const [rawHome, rawAway] = String(tip?.game || "").split(/\s+x\s+/i);
+  const home = normalizeName(tip?.homeTeam || rawHome);
+  const away = normalizeName(tip?.awayTeam || rawAway);
+
   return games.find((game) => {
     const gh = normalizeName(game?.teams?.home?.name);
     const ga = normalizeName(game?.teams?.away?.name);
-    return gh.includes(home) || home.includes(gh) || ga.includes(away) || away.includes(ga);
+    const sameOrder = home && away && (gh.includes(home) || home.includes(gh)) && (ga.includes(away) || away.includes(ga));
+    const invertedOrder = home && away && (gh.includes(away) || away.includes(gh)) && (ga.includes(home) || home.includes(ga));
+
+    if (sameOrder || invertedOrder) return true;
+    if (home && !away) return gh.includes(home) || home.includes(gh) || ga.includes(home) || home.includes(ga);
+    return false;
   });
 }
 
@@ -852,17 +859,18 @@ export default function Dashboard() {
       .slice(0, activeTab === "highlights" ? 160 : 220);
   }, [games, leagueFilter, search, activeTab]);
 
-  async function loadAll(showLoading = false) {
+  async function loadAll(showLoading = false, forceRefresh = false) {
     try {
       if (showLoading) setLoading(true);
       setRefreshing(true);
 
       const tomorrow = dateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
+      const fixtureUrl = (date: string) => `/football/fixtures?date=${date}${forceRefresh ? "&refresh=1" : ""}`;
 
       const responses = await Promise.allSettled([
         api.get("/football/live"),
-        api.get(`/football/fixtures?date=${today}`),
-        api.get(`/football/fixtures?date=${tomorrow}`),
+        api.get(fixtureUrl(today)),
+        api.get(fixtureUrl(tomorrow)),
         api.get("/bets"),
         api.get("/favorite"),
       ]);
@@ -913,7 +921,7 @@ export default function Dashboard() {
       const response = await api.get("/auth/me");
       setPlan(response.data?.plan || "Free");
       setRole(response.data?.role || "USER");
-      await loadAll(true);
+      await loadAll(true, true);
     } catch {
       localStorage.removeItem("token");
       window.location.href = "/";
@@ -1090,7 +1098,7 @@ export default function Dashboard() {
         risk: ai.risk || "Médio",
       });
 
-      await loadAll(false);
+      await loadAll(false, true);
       setSelectedAnalysis({ ...selectedAnalysis, saved: true, savedBetId: created.data?.id });
       alert("Análise salva com sucesso.");
     } catch {
@@ -1258,7 +1266,7 @@ export default function Dashboard() {
           { label: "💰 Odds", action: "odds" },
           { label: "🏆 Brasileirão", action: "brasil" },
           { label: "🌎 Sul-Americanos", action: "sulamericanos" },
-          ...(role === "ADMIN" ? [{ label: "⚙️ Admin", action: "admin" }] : []),
+          ...(isAdmin ? [{ label: "⚙️ Admin", action: "admin" }] : []),
         ].map((item) => (
           <button
             key={item.label}
@@ -1468,7 +1476,7 @@ export default function Dashboard() {
               <option value="all">Todas as ligas</option>
               {leagues.map((league) => <option key={league} value={league}>{league}</option>)}
             </select>
-            <button style={styles.refreshButton} onClick={() => loadAll(false)}>{refreshing ? "Atualizando..." : "Atualizar"}</button>
+            <button style={styles.refreshButton} onClick={() => loadAll(false, true)}>{refreshing ? "Atualizando..." : "Atualizar"}</button>
           </div>
 
           <div style={styles.sideCard}>
@@ -2324,6 +2332,12 @@ function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: 
             const playerPhoto = playerPhotoFromProp(prop);
             const type = playerPropType(prop);
             const line = playerPropLine(prop);
+            const propGameLabel =
+              prop.game ||
+              (game
+                ? `${game?.teams?.home?.name || prop.homeTeam || ""} x ${game?.teams?.away?.name || prop.awayTeam || ""}`
+                : [prop.homeTeam, prop.awayTeam].filter(Boolean).join(" x ")) ||
+              "Jogo Oddix";
 
             return (
               <article key={`${prop.fixtureId || index}-${prop.tip || prop.selection}`} style={styles.playerPropCard}>
@@ -2350,7 +2364,7 @@ function PlayerPropsSection({ props, games, isPaidPlan, onUpgrade, onAnalyze }: 
                   <h3>{playerName}</h3>
 
                   <div style={styles.playerPropGame}>
-                    <strong>{prop.game || game ? `${game?.teams?.home?.name || prop.homeTeam || ""} x ${game?.teams?.away?.name || prop.awayTeam || ""}` : "Jogo Oddix"}</strong>
+                    <strong>{propGameLabel}</strong>
                     <small>{prop.league || game?.league?.name || prop.bookmaker || "Mercado real"}</small>
                   </div>
 
