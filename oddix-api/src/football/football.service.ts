@@ -2294,6 +2294,35 @@ export class FootballService {
       }
     }
 
+
+    /**
+     * Prioridade absoluta no fallback: se os próximos dias tiverem Copa do Mundo,
+     * ela deve aparecer antes de qualquer Série B ou outra liga premium nacional.
+     */
+    const fallbackWorldCupMerged = this.filterFixturesByBrazilDates(
+      this.mergeUniqueFixtures(providerGroups).map((item: any) =>
+        this.enrichFixtureForOddix(item),
+      ),
+      fallbackDates,
+    )
+      .filter((item: any) => this.isOddixWorldCupFixture(item))
+      .filter((item: any) =>
+        this.fixtureStartsInFuture(
+          item,
+          -30,
+          fallbackDays * 24 * 60 + 180,
+        ),
+      );
+
+    if (fallbackWorldCupMerged.length > 0) {
+      const finalWorldCup = this.publicDashboardFixtures(fallbackWorldCupMerged);
+
+      if (finalWorldCup.length > 0) {
+        await this.saveFixturesCache(finalWorldCup);
+        return finalWorldCup;
+      }
+    }
+
     const merged = this.filterFixturesByBrazilDates(
       this.filterDashboardFixtures(this.mergeUniqueFixtures(providerGroups)),
       fallbackDates,
@@ -2419,6 +2448,31 @@ export class FootballService {
       const footballData = await this.getFixturesFromFootballData(currentDate);
       if (footballData.ok && footballData.data.length > 0)
         providerGroups.push(footballData.data);
+    }
+
+
+    /**
+     * Blindagem final Oddix:
+     * alguns providers (principalmente SportScore6) retornam Copa do Mundo como
+     * "FIFA World Copa". O debug já mostra esses jogos como premium, mas o fluxo
+     * final não pode cair no fallback se houver Copa do Mundo na data solicitada.
+     * Aqui retornamos diretamente os jogos de Copa do Mundo da data antes de
+     * qualquer fallback para Série B ou próximos dias.
+     */
+    const directWorldCupMerged = this.filterFixturesByBrazilDate(
+      this.mergeUniqueFixtures(providerGroups).map((item: any) =>
+        this.enrichFixtureForOddix(item),
+      ),
+      requestedDate,
+    ).filter((item: any) => this.isOddixWorldCupFixture(item));
+
+    if (directWorldCupMerged.length > 0) {
+      const finalWorldCup = this.publicDashboardFixtures(directWorldCupMerged);
+
+      if (finalWorldCup.length > 0) {
+        await this.saveFixturesCache(finalWorldCup);
+        return finalWorldCup;
+      }
     }
 
     const providerMerged = this.filterFixturesByBrazilDate(
