@@ -783,7 +783,10 @@ export default function Dashboard() {
   const [liveTick, setLiveTick] = useState(0);
   const [freeLockOpen, setFreeLockOpen] = useState(false);
 
-  const isPaidPlan = ["PRO", "VIP", "Pro", "Vip", "pro", "vip"].includes(String(plan));
+  const normalizedPlan = String(plan || "Free").trim().toUpperCase();
+  const normalizedRole = String(role || "USER").trim().toUpperCase();
+  const isAdmin = normalizedRole === "ADMIN" || normalizedPlan === "ADMIN" || normalizedPlan === "OWNER";
+  const isPaidPlan = isAdmin || ["PRO", "VIP", "PREMIUM"].includes(normalizedPlan);
   const today = dateKey(new Date());
 
   const liveGames = useMemo(() => games.filter(isGameLive), [games]);
@@ -1217,7 +1220,7 @@ export default function Dashboard() {
       <FreeLockModal
         open={freeLockOpen}
         onClose={() => setFreeLockOpen(false)}
-        onUpgrade={() => (window.location.href = "/plans")}
+        onUpgrade={() => (isPaidPlan ? setActiveTab("smart") : (window.location.href = "/plans"))}
       />
       <header style={styles.topHeader}>
         <div style={styles.brand} onClick={() => (window.location.href = "/dashboard")}>
@@ -1233,7 +1236,13 @@ export default function Dashboard() {
           <button style={styles.headerButton} onClick={() => openSportsButton("live")}>Ao vivo</button>
           
           
-          <button style={styles.vipButton} onClick={() => (window.location.href = "/plans")}>Assinar VIP</button>
+          {isAdmin ? (
+            <button style={styles.adminButton} onClick={() => (window.location.href = "/admin")}>Painel Admin</button>
+          ) : isPaidPlan ? (
+            <button style={styles.vipButton} onClick={() => setActiveTab("smart")}>Área Premium</button>
+          ) : (
+            <button style={styles.vipButton} onClick={() => (window.location.href = "/plans")}>Assinar VIP</button>
+          )}
           <button style={styles.logoutButton} onClick={logout}>Sair</button>
         </div>
       </header>
@@ -1268,12 +1277,39 @@ export default function Dashboard() {
         ))}
       </section>
 
-      <VipConversionBanner
-        plan={plan}
-        liveGames={liveGames.length}
-        topTips={top5Tips.length}
-        onUpgrade={() => (window.location.href = "/plans")}
-      />
+      {!isPaidPlan && (
+        <VipConversionBanner
+          plan={plan}
+          liveGames={liveGames.length}
+          topTips={top5Tips.length}
+          onUpgrade={() => (window.location.href = "/plans")}
+        />
+      )}
+
+      {isAdmin && (
+        <section
+          style={{
+            margin: "14px 26px 20px",
+            padding: "18px 22px",
+            borderRadius: 24,
+            background: "linear-gradient(135deg, #0f172a, #312e81 48%, #581c87)",
+            color: "#fff",
+            border: "1px solid rgba(250,204,21,.22)",
+            boxShadow: "0 22px 70px rgba(76,29,149,.18)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, flexWrap: "wrap" }}>
+            <div>
+              <span style={{ color: "#facc15", fontWeight: 900, fontSize: 12, letterSpacing: 1.6, textTransform: "uppercase" }}>Acesso Admin liberado</span>
+              <h2 style={{ margin: "7px 0 6px", fontSize: 26, lineHeight: 1.08 }}>Todos os recursos premium estão desbloqueados.</h2>
+              <p style={{ margin: 0, color: "rgba(255,255,255,.78)", maxWidth: 720 }}>
+                IA Premium, Combinadas, Player Props, Oddix Boost, estatísticas e análises completas ficam livres para contas ADMIN.
+              </p>
+            </div>
+            <button style={styles.adminButton} onClick={() => (window.location.href = "/admin")}>Abrir painel admin</button>
+          </div>
+        </section>
+      )}
 
       {selectedMatchDetail && (
         <MatchDetailPanel
@@ -1368,7 +1404,7 @@ export default function Dashboard() {
         secondaryGames={topGames.slice(1, 4)}
         liveTick={liveTick}
         onAnalyze={openMatchDetail}
-        onVip={() => (window.location.href = "/plans")}
+        onVip={() => (isPaidPlan ? setActiveTab("smart") : (window.location.href = "/plans"))}
       />
 
       <section style={{ margin: "0 26px 20px" }}>
@@ -1386,7 +1422,7 @@ export default function Dashboard() {
             combinedOdd={boostOdd ? boostOdd.toFixed(2) : "0.00"}
             confidence={boostConfidence}
             isPaidPlan={isPaidPlan}
-            onUpgrade={() => (window.location.href = "/plans")}
+            onUpgrade={() => (isPaidPlan ? setActiveTab("boost") : (window.location.href = "/plans"))}
             onOpen={(tip: any) => {
               const game = getGameByTip(tip, games);
               if (game) openMatchDetail(game);
@@ -1471,7 +1507,7 @@ export default function Dashboard() {
               props={playerPropsTips}
               games={games}
               isPaidPlan={isPaidPlan}
-              onUpgrade={() => (window.location.href = "/plans")}
+              onUpgrade={() => (isPaidPlan ? setActiveTab("playerprops") : (window.location.href = "/plans"))}
               onAnalyze={openMatchDetail}
             />
           )}
