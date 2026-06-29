@@ -64,6 +64,27 @@ export class FootballController {
     return this.footballService.clearAllFixturesCache();
   }
 
+
+  /**
+   * Centro de Controle Oddix: análises, apostas do usuário, produtores de tips,
+   * melhores jogos, mercados, ligas e jogadores em uma única resposta para o Dashboard.
+   */
+  @Get('control-center')
+  async getControlCenter(
+    @Query('date') date?: string,
+    @Query('userId') userId?: string,
+  ) {
+    return this.footballService.getControlCenter(date, userId);
+  }
+
+  @Get('dashboard/control')
+  async getDashboardControl(
+    @Query('date') date?: string,
+    @Query('userId') userId?: string,
+  ) {
+    return this.footballService.getControlCenter(date, userId);
+  }
+
   /**
    * Diagnóstico rápido da SportScore/SportScore6/FlashScore.
    */
