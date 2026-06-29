@@ -345,7 +345,7 @@ const LIVE_ALLOWED_PREMIUM_PATTERNS = [
   /\bspain\b.*\bla liga\b|\bla liga\b.*\bspain\b|\bespanha\b.*\bla liga\b|\bla liga\b.*\bespanha\b|\blaliga\b.*\bspain\b|\bspain\b.*\blaliga\b/,
   /\bgermany\b.*\bbundesliga\b|\bbundesliga\b.*\bgermany\b|\balemanha\b.*\bbundesliga\b|\bbundesliga\b.*\balemanha\b/,
   /\bitaly\b.*\bserie a\b|\bserie a\b.*\bitaly\b|\bitalia\b.*\bserie a\b|\bserie a\b.*\bitalia\b|\bit[aá]lia\b.*\bserie a\b|\bserie a\b.*\bit[aá]lia\b/,
-  /\bfifa\b|\bfifa world cup\b|\bfifa world copa\b|\bworld cup\b|\bworld copa\b|\bcopa do mundo\b|\bcopa mundial\b|\bclub world cup\b|\bmundial de clubes\b/,
+  /\bfifa\b|\bfifa world cup\b|\bfifa world copa\b|\bworld cup\b|\bworld copa\b|\bcopa do mundo\b|\bcopa mundial\b|\bcampeonato do mundo\b|\bcampeonato mundial\b|\bworld championship\b|\bclub world cup\b|\bmundial de clubes\b/,
 ];
 
 const LOW_QUALITY_PATTERNS = [
@@ -371,7 +371,10 @@ function isOddixWorldCupText(text: string) {
     /\bworld\s+copa\b/.test(text) ||
     /\bcopa\s+do\s+mundo\b/.test(text) ||
     /\bcopa\s+mundial\b/.test(text) ||
-    (/\bfifa\b/.test(text) && (/\bworld\b/.test(text) || /\bcopa\b/.test(text)))
+    /\bcampeonato\s+do\s+mundo\b/.test(text) ||
+    /\bcampeonato\s+mundial\b/.test(text) ||
+    /\bworld\s+championship\b/.test(text) ||
+    (/\bfifa\b/.test(text) && (/\bworld\b/.test(text) || /\bcopa\b/.test(text) || /\bcampeonato\b/.test(text)))
   );
 }
 
@@ -426,6 +429,7 @@ function explicitLeagueScore(item: OddixFixtureLike) {
     [/\buefa conference league\b|\bconference league\b/, 91],
     [/\bsudamericana\b|\bsul americana\b|\bcopa sudamericana\b/, 89],
     [/\brecopa sudamericana\b|\brecopa sul americana\b/, 86],
+    [/\bfifa world cup\b|\bfifa world copa\b|\bworld cup\b|\bworld copa\b|\bcopa do mundo\b|\bcopa mundial\b|\bcampeonato do mundo\b|\bcampeonato mundial\b|\bworld championship\b/, 100],
     [/\bworld cup qualifiers\b|\beliminatorias\b.*\bcopa\b|\bqualifiers\b.*\bworld cup\b/, 88],
     [/\bcopa america\b|\bcopa am[eé]rica\b|\bconmebol copa america\b/, 90],
     [/\beurocopa\b|\buefa euro\b|\beuro\b.*\bqualifiers\b|\beuropean championship\b/, 90],

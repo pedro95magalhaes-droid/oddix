@@ -864,25 +864,34 @@ export default function Dashboard() {
       if (showLoading) setLoading(true);
       setRefreshing(true);
 
-      const tomorrow = dateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
-      const fixtureUrl = (date: string) => `/football/fixtures?date=${date}${forceRefresh ? "&refresh=1" : ""}`;
+      /**
+       * Busca uma janela maior em uma única chamada backend.
+       * Antes era só hoje + amanhã, por isso o dashboard ficava com poucos jogos
+       * quando o filtro premium estava muito rígido.
+       */
+      const dashboardDays = Math.max(
+        2,
+        Math.min(14, Number(process.env.NEXT_PUBLIC_ODDIX_DASHBOARD_DAYS || 7)),
+      );
+      const fixtureDates = Array.from({ length: dashboardDays }, (_, index) =>
+        dateKey(new Date(Date.now() + index * 24 * 60 * 60 * 1000)),
+      );
+      const fixtureUrl = `/football/fixtures?date=${today}&days=${dashboardDays}${forceRefresh ? "&refresh=1" : ""}`;
 
       const responses = await Promise.allSettled([
         api.get("/football/live"),
-        api.get(fixtureUrl(today)),
-        api.get(fixtureUrl(tomorrow)),
+        api.get(fixtureUrl),
         api.get("/bets"),
         api.get("/favorite"),
       ]);
 
       const live = responses[0].status === "fulfilled" ? responses[0].value?.data || [] : [];
-      const fixturesToday = responses[1].status === "fulfilled" ? responses[1].value?.data || [] : [];
-      const fixturesTomorrow = responses[2].status === "fulfilled" ? responses[2].value?.data || [] : [];
-      const bets = responses[3].status === "fulfilled" ? responses[3].value?.data || [] : [];
-      const favs = responses[4].status === "fulfilled" ? responses[4].value?.data || [] : [];
+      const fixturesWindow = responses[1].status === "fulfilled" ? responses[1].value?.data || [] : [];
+      const bets = responses[2].status === "fulfilled" ? responses[2].value?.data || [] : [];
+      const favs = responses[3].status === "fulfilled" ? responses[3].value?.data || [] : [];
 
-      const allowedDateKeys = new Set([today, tomorrow]);
-      const merged = mergeGames([live, fixturesToday, fixturesTomorrow])
+      const allowedDateKeys = new Set(fixtureDates);
+      const merged = mergeGames([live, fixturesWindow])
         .filter((game) => allowedDateKeys.has(gameDateKey(game)))
         .filter((game) => safeNumber(game?.oddix?.qualityScore, 0) >= DASHBOARD_MIN_SCORE);
 

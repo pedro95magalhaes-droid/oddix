@@ -17,6 +17,14 @@ export class FootballController {
     );
   }
 
+  private parseLookaheadDays(days?: string) {
+    const parsed = Number(days);
+
+    if (!Number.isFinite(parsed)) return undefined;
+
+    return Math.max(1, Math.min(14, Math.floor(parsed)));
+  }
+
   /**
    * Compatibilidade: permite testar direto /football.
    */
@@ -25,10 +33,12 @@ export class FootballController {
     @Query('date') date?: string,
     @Query('refresh') refresh?: string,
     @Query('fallback') fallback?: string,
+    @Query('days') days?: string,
   ) {
     return this.footballService.getFixtures(date, {
       forceRefresh: this.isRefreshRequest(refresh),
       allowEmptyFallback: !this.isDisabledRequest(fallback),
+      lookaheadDays: this.parseLookaheadDays(days),
     });
   }
 
@@ -37,10 +47,12 @@ export class FootballController {
     @Query('date') date?: string,
     @Query('refresh') refresh?: string,
     @Query('fallback') fallback?: string,
+    @Query('days') days?: string,
   ) {
     return this.footballService.getFixtures(date, {
       forceRefresh: this.isRefreshRequest(refresh),
       allowEmptyFallback: !this.isDisabledRequest(fallback),
+      lookaheadDays: this.parseLookaheadDays(days),
     });
   }
 
@@ -49,10 +61,12 @@ export class FootballController {
     @Query('date') date?: string,
     @Query('refresh') refresh?: string,
     @Query('fallback') fallback?: string,
+    @Query('days') days?: string,
   ) {
     return this.footballService.getFixtures(date, {
       forceRefresh: this.isRefreshRequest(refresh),
       allowEmptyFallback: !this.isDisabledRequest(fallback),
+      lookaheadDays: this.parseLookaheadDays(days),
     });
   }
 
@@ -61,11 +75,23 @@ export class FootballController {
     @Query('date') date?: string,
     @Query('refresh') refresh?: string,
     @Query('fallback') fallback?: string,
+    @Query('days') days?: string,
   ) {
     return this.footballService.getFixtures(date, {
       forceRefresh: this.isRefreshRequest(refresh),
       allowEmptyFallback: !this.isDisabledRequest(fallback),
+      lookaheadDays: this.parseLookaheadDays(days),
     });
+  }
+
+  @Get('build-info')
+  async buildInfo() {
+    return {
+      ok: true,
+      service: 'oddix-football',
+      oddixFix: 'dashboard-flashscore-ptbr-worldcup-v1',
+      timestamp: new Date().toISOString(),
+    };
   }
 
   @Get('live')
@@ -110,20 +136,6 @@ export class FootballController {
   @Get('sportscore/debug')
   async sportScoreDebug(@Query('date') date?: string) {
     return this.footballService.debug(date);
-  }
-
-
-  /**
-   * Rota simples para confirmar no Railway qual build está rodando.
-   */
-  @Get('build-info')
-  async buildInfo() {
-    return {
-      ok: true,
-      service: 'oddix-football',
-      oddixFix: 'worldcup-direct-return-v3-flashscore-debug',
-      timestamp: new Date().toISOString(),
-    };
   }
 
 
