@@ -167,15 +167,17 @@ export class FootballService {
     const cleanItem: any = this.standardizeFixture(
       this.stripRawProviderData(item),
     );
+    const isWorldCup = this.isOddixWorldCupFixture(cleanItem);
+    const qualityScore = isWorldCup ? 100 : getOddixFixtureQualityScore(cleanItem);
 
     return {
       ...cleanItem,
       oddix: {
         ...(cleanItem?.oddix || {}),
-        leagueAllowed: isOddixLeagueAllowed(cleanItem),
-        priorityLeague: isOddixPriorityLeague(cleanItem),
-        qualityScore: getOddixFixtureQualityScore(cleanItem),
-        qualityLabel: getOddixFixtureQualityLabel(cleanItem),
+        leagueAllowed: isWorldCup || isOddixLeagueAllowed(cleanItem),
+        priorityLeague: isWorldCup || isOddixPriorityLeague(cleanItem),
+        qualityScore,
+        qualityLabel: isWorldCup ? "premium" : getOddixFixtureQualityLabel(cleanItem),
       },
     };
   }
@@ -196,6 +198,8 @@ export class FootballService {
 
   private publicDashboardFixtures(fixtures: any[]) {
     return this.compactFixtures(fixtures).filter((item: any) => {
+      if (this.isOddixWorldCupFixture(item)) return true;
+
       return (
         item?.oddix?.leagueAllowed === true &&
         Number(item?.oddix?.qualityScore || 0) > 0
@@ -1429,6 +1433,27 @@ export class FootballService {
       .trim();
   }
 
+  private isOddixWorldCupFixture(item: any) {
+    const cleanItem = this.standardizeFixture(item);
+    const league = this.getLeagueObject(cleanItem);
+    const home = this.getHomeTeam(cleanItem);
+    const away = this.getAwayTeam(cleanItem);
+
+    const text = this.normalizeTextLoose(
+      `${league?.name || league?.nome || ""} ${league?.country || league?.pais || league?.país || ""} ${this.getTeamName(home)} ${this.getTeamName(away)}`,
+    );
+
+    return (
+      /\bfifa\b/.test(text) ||
+      /\bfifa\s+world\s+cup\b/.test(text) ||
+      /\bfifa\s+world\s+copa\b/.test(text) ||
+      /\bworld\s+cup\b/.test(text) ||
+      /\bworld\s+copa\b/.test(text) ||
+      /\bcopa\s+do\s+mundo\b/.test(text) ||
+      /\bcopa\s+mundial\b/.test(text)
+    );
+  }
+
   private isExtraDashboardLeagueAllowed(item: any) {
     const league = this.getLeagueObject(item);
     const home = this.getHomeTeam(item);
@@ -1441,7 +1466,9 @@ export class FootballService {
     const isFifaOrSelection =
       text.includes("fifa") ||
       text.includes("world cup") ||
+      text.includes("world copa") ||
       text.includes("copa do mundo") ||
+      text.includes("copa mundial") ||
       text.includes("selecoes") ||
       text.includes("selecao") ||
       text.includes("national team") ||
@@ -1503,7 +1530,7 @@ export class FootballService {
     );
 
     const alwaysAllowedPatterns = [
-      /\bfifa\b|\bworld cup\b|\bcopa do mundo\b|\bclub world cup\b|\bmundial de clubes\b/,
+      /\bfifa\b|\bfifa world cup\b|\bfifa world copa\b|\bworld cup\b|\bworld copa\b|\bcopa do mundo\b|\bcopa mundial\b|\bclub world cup\b|\bmundial de clubes\b/,
       /\blibertadores\b/,
       /\bsudamericana\b|\bsul americana\b/,
       /\bchampions league\b/,
