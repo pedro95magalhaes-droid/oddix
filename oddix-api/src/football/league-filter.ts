@@ -363,14 +363,28 @@ function has(patterns: RegExp[], text: string) {
   return patterns.some((pattern) => pattern.test(text));
 }
 
-function isOddixWorldCompetitionText(text: string) {
+function isOddixWorldCupText(text: string) {
   return (
-    /\bfifa\b/.test(text) ||
-    /\bworld cup\b/.test(text) ||
-    /\bcopa do mundo\b/.test(text) ||
-    /\bclub world cup\b/.test(text) ||
-    /\bmundial de clubes\b/.test(text)
+    /\bfifa\s+world\s+cup\b/.test(text) ||
+    /\bfifa\s+world\s+copa\b/.test(text) ||
+    /\bworld\s+cup\b/.test(text) ||
+    /\bworld\s+copa\b/.test(text) ||
+    /\bcopa\s+do\s+mundo\b/.test(text) ||
+    /\bcopa\s+mundial\b/.test(text) ||
+    (/\bfifa\b/.test(text) && (/\bworld\b/.test(text) || /\bcopa\b/.test(text)))
   );
+}
+
+function isOddixClubWorldCupText(text: string) {
+  return (
+    /\bfifa\s+club\s+world\s+cup\b/.test(text) ||
+    /\bclub\s+world\s+cup\b/.test(text) ||
+    /\bmundial\s+de\s+clubes\b/.test(text)
+  );
+}
+
+function isOddixWorldCompetitionText(text: string) {
+  return isOddixWorldCupText(text) || isOddixClubWorldCupText(text);
 }
 
 function providerText(item: OddixFixtureLike) {
@@ -396,8 +410,9 @@ function explicitLeagueScore(item: OddixFixtureLike) {
 
   // Copa do Mundo/FIFA deve ser premium mesmo quando os times são seleções de países
   // que normalmente seriam bloqueados em ligas nacionais fracas.
-  if (/\bfifa world cup\b|\bworld cup\b|\bcopa do mundo\b/.test(text)) return 100;
-  if (/\bfifa club world cup\b|\bclub world cup\b|\bmundial de clubes\b/.test(text)) return 96;
+  // SportScore6 às vezes normaliza como "FIFA World Copa", então tratamos esse caso também.
+  if (isOddixClubWorldCupText(text)) return 96;
+  if (isOddixWorldCupText(text)) return 100;
 
   // Bloqueio de países/ligas fracas para evitar falso premium do tipo:
   // "BHUTAN: Premier League", "LEBANON: Premier League", "KUWAIT: Premier League".
@@ -542,6 +557,7 @@ export function getOddixFixtureQualityScore(item: OddixFixtureLike) {
   const fullText = normalizeText(getOddixFullSearchText(item));
 
   const explicitScore = explicitLeagueScore(item);
+  const isWorldCompetition = isOddixWorldCompetitionText(leagueText);
   let score = explicitScore || 42;
 
   score += getProviderScore(item);
@@ -558,10 +574,10 @@ export function getOddixFixtureQualityScore(item: OddixFixtureLike) {
   if ((league?.logo || league?.logotipo) && explicitScore >= 70) score += 2;
   if ((home?.logo || home?.logotipo) && (away?.logo || away?.logotipo) && explicitScore >= 70) score += 3;
 
-  if (has(HARD_LOW_LEAGUE_PATTERNS, fullText) && explicitScore === 0) score = Math.min(score, 45);
-  if (has(HARD_LOW_LEAGUE_PATTERNS, fullText) && explicitScore > 0) score = Math.max(45, score - 8);
-  if (has(WEAK_COUNTRY_PATTERNS, fullText) && explicitScore === 0) score = Math.min(score, 45);
-  if (has(BLOCKED_COUNTRY_PATTERNS, fullText)) score = 0;
+  if (!isWorldCompetition && has(HARD_LOW_LEAGUE_PATTERNS, fullText) && explicitScore === 0) score = Math.min(score, 45);
+  if (!isWorldCompetition && has(HARD_LOW_LEAGUE_PATTERNS, fullText) && explicitScore > 0) score = Math.max(45, score - 8);
+  if (!isWorldCompetition && has(WEAK_COUNTRY_PATTERNS, fullText) && explicitScore === 0) score = Math.min(score, 45);
+  if (!isWorldCompetition && has(BLOCKED_COUNTRY_PATTERNS, fullText)) score = 0;
 
   if (/\b(ii|b)\b/.test(teamsText) || /\b2\b/.test(teamsText)) score -= 10;
   if (/\bunknown\b|\bdesconhecido\b|\bliga nao informada\b/.test(leagueText)) score -= 18;
