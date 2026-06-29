@@ -168,6 +168,12 @@ const BRAZIL_LOW_DIVISION_PATTERNS = [
   /\bcarioca\s*2\b/,
   /\bcarioca\s*serie\s*a2\b/,
   /\bcarioca\s*a2\b/,
+  /\bcarioca\s*serie\s*b\b/,
+  /\bcarioca\s*b\b/,
+  /\bcarioca\s*serie\s*c\b/,
+  /\bcarioca\s*c\b/,
+  /\bcarioca\s*serie\s*d\b/,
+  /\bcarioca\s*d\b/,
   /\bcatarinense\s*2\b/,
   /\bcatarinense\s*serie\s*b\b/,
   /\bcatarinense\s*b\b/,
@@ -191,6 +197,8 @@ const BRAZIL_LOW_DIVISION_PATTERNS = [
   /\balagoano\s*2\b/,
   /\bsergipano\s*2\b/,
   /\bcapixaba\s*2\b/,
+  /\b(?:carioca|paulista|mineiro|gaucho|paranaense|pernambucano|cearense|baiano|goiano|catarinense|potiguar|paraense|alagoano|sergipano|maranhense|brasiliense|capixaba)\s*(?:serie\s*)?(?:a2|a3|b|b1|b2|c|d|2|3)\b/,
+  /\b(?:campeonato\s*)?(?:carioca|paulista|mineiro|gaucho|paranaense|pernambucano|cearense|baiano|goiano|catarinense|potiguar|paraense|alagoano|sergipano|maranhense|brasiliense|capixaba)\s*(?:segunda|terceira)\s*divisao\b/,
   /\bsegunda divisao\b/,
   /\bsegunda divisão\b/,
   /\b2a divisao\b/,
@@ -205,7 +213,7 @@ const BRAZIL_LOW_DIVISION_PATTERNS = [
 ];
 
 const HARD_LOW_LEAGUE_PATTERNS = [
-  ...BRAZIL_LOW_DIVISION_PATTERNS.filter(() => false),
+  ...BRAZIL_LOW_DIVISION_PATTERNS,
   /\bprimera b metropolitana\b/,
   /\bargentina\s*primera\s*b\b/,
   /\bprimera b\b/,
@@ -338,6 +346,31 @@ const LIVE_ALLOWED_PREMIUM_PATTERNS = [
   /\bfifa\b|\bworld cup\b|\bcopa do mundo\b|\bnations league\b|\beuro\b/,
 ];
 
+
+const CORE_PREMIUM_LEAGUE_PATTERNS = [
+  /\bfifa\b.*\bworld cup\b|\bworld cup\b|\bcopa do mundo\b|\bmundial\b/,
+  /\buefa champions league\b|\bchampions league\b.*\buefa\b|\bchampions league\b/,
+  /\bcopa libertadores\b|\blibertadores\b/,
+  /\buefa europa league\b|\beuropa league\b/,
+  /\buefa conference league\b|\bconference league\b/,
+  /\bsudamericana\b|\bsul americana\b|\bcopa sudamericana\b/,
+  /\bengland\b.*\bpremier league\b|\bpremier league\b.*\bengland\b|\binglaterra\b.*\bpremier league\b|\bpremier league\b.*\binglaterra\b|\bepl\b|\bpremier league\b/,
+  /\bspain\b.*\bla liga\b|\bla liga\b.*\bspain\b|\bespanha\b.*\bla liga\b|\bla liga\b.*\bespanha\b|\blaliga\b|\bla liga\b/,
+  /\bgermany\b.*\bbundesliga\b|\bbundesliga\b.*\bgermany\b|\balemanha\b.*\bbundesliga\b|\bbundesliga\b.*\balemanha\b|\bbundesliga\b/,
+  /\bitaly\b.*\bserie a\b|\bserie a\b.*\bitaly\b|\bitalia\b.*\bserie a\b|\bserie a\b.*\bitalia\b|\bit[aá]lia\b.*\bserie a\b|\bserie a\b.*\bit[aá]lia\b|^serie a$/,
+  /\bbrasileirao serie a\b|\bbrasileirao a\b|\bbrasileiro serie a\b|\bbrasil serie a\b|\bbrazil serie a\b|\bbrazil\b.*\bserie a\b|\bbrasil\b.*\bserie a\b/,
+  /\bbrasileirao serie b\b|\bbrasileirao b\b|\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b|\bbrazil\b.*\bserie b\b|\bbrasil\b.*\bserie b\b/,
+  /\bcopa do brasil\b/,
+];
+
+function isOddixCorePremiumLeagueInternal(item: OddixFixtureLike) {
+  const leagueText = normalizeText(getOddixLeagueText(item));
+  if (!leagueText) return false;
+  if (/\bu\s?\d{2}\b|\bu-\s?\d{2}\b|\bsub\s?\d{2}\b|\bunder\s?\d{2}\b|\bwomen\b|\bfeminino\b|\bfeminina\b/.test(leagueText)) return false;
+  if (has(BRAZIL_LOW_DIVISION_PATTERNS, leagueText)) return false;
+  return has(CORE_PREMIUM_LEAGUE_PATTERNS, leagueText);
+}
+
 const LOW_QUALITY_PATTERNS = [
   ...HARD_LOW_LEAGUE_PATTERNS,
   /\buniversity\b/,
@@ -374,17 +407,21 @@ function explicitLeagueScore(item: OddixFixtureLike) {
   const text = normalizeText(getOddixLeagueText(item));
   if (!text) return 0;
 
-  if (has(BLOCKED_COUNTRY_PATTERNS, text)) return 0;
-  if (has(WEAK_COUNTRY_PATTERNS, text)) return 0;
+  if (has(BRAZIL_LOW_DIVISION_PATTERNS, text)) return 0;
+
+  const isCorePremiumLeague = has(CORE_PREMIUM_LEAGUE_PATTERNS, text);
+  if (!isCorePremiumLeague && has(BLOCKED_COUNTRY_PATTERNS, text)) return 0;
+  if (!isCorePremiumLeague && has(WEAK_COUNTRY_PATTERNS, text)) return 0;
 
   const rules: Array<[RegExp, number]> = [
+    [/\bfifa\b.*\bworld cup\b|\bworld cup\b|\bcopa do mundo\b|\bmundial\b/, 100],
     [/\buefa champions league\b|\bchampions league\b.*\buefa\b|\bchampions league\b/, 100],
     [/\bcopa libertadores\b|\blibertadores\b/, 99],
     [/\buefa europa league\b|\beuropa league\b/, 94],
     [/\buefa conference league\b|\bconference league\b/, 91],
     [/\bsudamericana\b|\bsul americana\b|\bcopa sudamericana\b/, 89],
     [/\brecopa sudamericana\b|\brecopa sul americana\b/, 86],
-    [/\bfifa club world cup\b|\bclub world cup\b|\bmundial de clubes\b/, 92],
+    [/\bfifa club world cup\b|\bclub world cup\b|\bmundial de clubes\b/, 94],
     [/\bworld cup qualifiers\b|\beliminatorias\b.*\bcopa\b|\bqualifiers\b.*\bworld cup\b/, 88],
     [/\bcopa america\b|\bcopa am[eé]rica\b|\bconmebol copa america\b/, 90],
     [/\beurocopa\b|\buefa euro\b|\beuro\b.*\bqualifiers\b|\beuropean championship\b/, 90],
@@ -402,21 +439,19 @@ function explicitLeagueScore(item: OddixFixtureLike) {
     [/\btaca de portugal\b|\btaça de portugal\b|\bportuguese cup\b/, 81],
     [/\bcopa argentina\b/, 80],
 
-    [/\bbrasileirao serie a\b|\bbrasileirao a\b|\bbrasileiro serie a\b|\bbrasil serie a\b|\bbrazil serie a\b/, 93],
-    [/\bbrasileirao serie b\b|\bbrasileirao b\b|\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b/, 88],
+    [/\bbrasileirao serie a\b|\bbrasileirao a\b|\bbrasileiro serie a\b|\bbrasil serie a\b|\bbrazil serie a\b|\bbrazil\b.*\bserie a\b|\bbrasil\b.*\bserie a\b/, 96],
+    [/\bbrasileirao serie b\b|\bbrasileirao b\b|\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b|\bbrazil\b.*\bserie b\b|\bbrasil\b.*\bserie b\b/, 91],
 
-    [/\bpaulista\s*b\b|\bpaulista\s*a2\b|\bpaulista\s*a3\b|\bpaulista\b|\bcarioca\b|\bmineiro\b|\bgaucho\b|\bparanaense\b|\bpernambucano\b|\bcearense\b|\bbaiano\b|\bgoiano\b|\bcatarinense\b|\bpotiguar\b|\bparaense\b|\balagoano\b|\bsergipano\b|\bmaranhense\b|\bbrasiliense\b/, 76],
-
-    [/\bengland\b.*\bpremier league\b|\binglaterra\b.*\bpremier league\b|\bepl\b/, 98],
+    [/\bengland\b.*\bpremier league\b|\bpremier league\b.*\bengland\b|\binglaterra\b.*\bpremier league\b|\bpremier league\b.*\binglaterra\b|\bepl\b|\bpremier league\b/, 100],
     [/\bengland\b.*\bchampionship\b|\binglaterra\b.*\bchampionship\b|\befl championship\b/, 84],
     [/\bfa cup\b|\befl cup\b|\bcarabao cup\b/, 82],
-    [/\bgermany\b.*\bbundesliga\b|\balemanha\b.*\bbundesliga\b|\bbundesliga\b/, 95],
+    [/\bgermany\b.*\bbundesliga\b|\bbundesliga\b.*\bgermany\b|\balemanha\b.*\bbundesliga\b|\bbundesliga\b.*\balemanha\b|\bbundesliga\b/, 98],
     [/\bgermany\b.*\b2 bundesliga\b|\balemanha\b.*\b2 bundesliga\b|\b2 bundesliga\b|\bbundesliga 2\b/, 84],
     [/\bdfb pokal\b|\bgerman cup\b/, 82],
 
-    [/\bspain\b.*\bla liga\b|\bespanha\b.*\bla liga\b|\blaliga\b/, 97],
+    [/\bspain\b.*\bla liga\b|\bla liga\b.*\bspain\b|\bespanha\b.*\bla liga\b|\bla liga\b.*\bespanha\b|\blaliga\b|\bla liga\b/, 99],
     [/\bspain\b.*\bsegunda\b|\bespanha\b.*\bsegunda\b|\bla liga 2\b|\blaliga 2\b/, 82],
-    [/\bitaly\b.*\bserie a\b|\bitalia\b.*\bserie a\b|\bit[aá]lia\b.*\bserie a\b/, 96],
+    [/\bitaly\b.*\bserie a\b|\bserie a\b.*\bitaly\b|\bitalia\b.*\bserie a\b|\bserie a\b.*\bitalia\b|\bit[aá]lia\b.*\bserie a\b|\bserie a\b.*\bit[aá]lia\b|^serie a$/, 98],
     [/\bitaly\b.*\bserie b\b|\bitalia\b.*\bserie b\b|\bit[aá]lia\b.*\bserie b\b/, 82],
     [/\bfrance\b.*\bligue 1\b|\bfranca\b.*\bligue 1\b|\bfrança\b.*\bligue 1\b|\bligue 1\b.*\bfrance\b/, 94],
     [/\bfrance\b.*\bligue 2\b|\bfranca\b.*\bligue 2\b|\bfrança\b.*\bligue 2\b/, 78],
@@ -435,7 +470,7 @@ function explicitLeagueScore(item: OddixFixtureLike) {
     [/\bkorea\b.*\bk league 1\b|\bcoreia\b.*\bk league 1\b|\bk league 1\b/, 78],
     [/\bsaudi pro league\b/, 77],
     [/\bturkey\b.*\bsuper lig\b|\bturquia\b.*\bsuper lig\b|\bsuper lig\b/, 77],
-    [/\bworld cup\b|\bclub world cup\b|\bfifa club world cup\b|\bnations league\b|\beuro\b|\brecopa\b/, 90],
+    [/\bworld cup\b|\bcopa do mundo\b|\bfifa\b|\bclub world cup\b|\bfifa club world cup\b|\bnations league\b|\beuro\b|\brecopa\b/, 96],
   ];
 
   for (const [pattern, score] of rules) {
@@ -445,11 +480,16 @@ function explicitLeagueScore(item: OddixFixtureLike) {
   return 0;
 }
 
+export function isOddixCorePremiumLeague(item: OddixFixtureLike) {
+  return isOddixCorePremiumLeagueInternal(item);
+}
+
 export function isOddixLiveBlockedLeague(item: OddixFixtureLike) {
   const fullText = normalizeText(getOddixFullSearchText(item));
   if (!fullText) return false;
 
   if (isOddixBlockedLeague(item)) return true;
+  if (isOddixCorePremiumLeagueInternal(item)) return false;
   if (has(LIVE_BLOCKED_COUNTRY_PATTERNS, fullText)) return true;
   if (has(HARD_LOW_LEAGUE_PATTERNS, fullText)) return true;
 
@@ -482,6 +522,8 @@ export function isOddixBlockedLeague(item: OddixFixtureLike) {
   if (!fullText) return false;
 
   if (has(HARD_BLOCKED_PATTERNS, fullText)) return true;
+  if (has(BRAZIL_LOW_DIVISION_PATTERNS, fullText)) return true;
+  if (isOddixCorePremiumLeagueInternal(item)) return false;
   if (has(BLOCKED_COUNTRY_PATTERNS, fullText)) return true;
 
   const blockLowQuality = process.env.ODDIX_BLOCK_LOW_QUALITY_LEAGUES === 'true';
@@ -537,8 +579,9 @@ export function getOddixFixtureQualityScore(item: OddixFixtureLike) {
 
   if (has(HARD_LOW_LEAGUE_PATTERNS, fullText) && explicitScore === 0) score = Math.min(score, 45);
   if (has(HARD_LOW_LEAGUE_PATTERNS, fullText) && explicitScore > 0) score = Math.max(45, score - 8);
-  if (has(WEAK_COUNTRY_PATTERNS, fullText) && explicitScore === 0) score = Math.min(score, 45);
-  if (has(BLOCKED_COUNTRY_PATTERNS, fullText)) score = 0;
+  const isCorePremiumLeague = isOddixCorePremiumLeagueInternal(item);
+  if (!isCorePremiumLeague && has(WEAK_COUNTRY_PATTERNS, fullText) && explicitScore === 0) score = Math.min(score, 45);
+  if (!isCorePremiumLeague && has(BLOCKED_COUNTRY_PATTERNS, fullText)) score = 0;
 
   if (/\b(ii|b)\b/.test(teamsText) || /\b2\b/.test(teamsText)) score -= 10;
   if (/\bunknown\b|\bdesconhecido\b|\bliga nao informada\b/.test(leagueText)) score -= 18;
