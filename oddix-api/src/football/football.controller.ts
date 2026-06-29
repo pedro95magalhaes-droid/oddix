@@ -11,6 +11,12 @@ export class FootballController {
     );
   }
 
+  private isDisabledRequest(value?: string) {
+    return ["0", "false", "no", "nao", "não", "off"].includes(
+      String(value || "").trim().toLowerCase(),
+    );
+  }
+
   /**
    * Compatibilidade: permite testar direto /football.
    */
@@ -18,9 +24,11 @@ export class FootballController {
   async getRootFixtures(
     @Query('date') date?: string,
     @Query('refresh') refresh?: string,
+    @Query('fallback') fallback?: string,
   ) {
     return this.footballService.getFixtures(date, {
       forceRefresh: this.isRefreshRequest(refresh),
+      allowEmptyFallback: !this.isDisabledRequest(fallback),
     });
   }
 
@@ -28,9 +36,11 @@ export class FootballController {
   async getFixtures(
     @Query('date') date?: string,
     @Query('refresh') refresh?: string,
+    @Query('fallback') fallback?: string,
   ) {
     return this.footballService.getFixtures(date, {
       forceRefresh: this.isRefreshRequest(refresh),
+      allowEmptyFallback: !this.isDisabledRequest(fallback),
     });
   }
 
@@ -38,9 +48,11 @@ export class FootballController {
   async getTodayFixtures(
     @Query('date') date?: string,
     @Query('refresh') refresh?: string,
+    @Query('fallback') fallback?: string,
   ) {
     return this.footballService.getFixtures(date, {
       forceRefresh: this.isRefreshRequest(refresh),
+      allowEmptyFallback: !this.isDisabledRequest(fallback),
     });
   }
 
@@ -48,9 +60,11 @@ export class FootballController {
   async getDashboardFixtures(
     @Query('date') date?: string,
     @Query('refresh') refresh?: string,
+    @Query('fallback') fallback?: string,
   ) {
     return this.footballService.getFixtures(date, {
       forceRefresh: this.isRefreshRequest(refresh),
+      allowEmptyFallback: !this.isDisabledRequest(fallback),
     });
   }
 

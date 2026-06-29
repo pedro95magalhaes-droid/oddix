@@ -18,6 +18,7 @@ import {
 
 type GetFixturesOptions = {
   forceRefresh?: boolean;
+  allowEmptyFallback?: boolean;
 };
 
 @Injectable()
@@ -1866,6 +1867,37 @@ export class FootballService {
     );
   }
 
+  private filterFixturesByBrazilDates(fixtures: any[], targetDates: string[]) {
+    const safeTargetDates = new Set(
+      (targetDates || []).map((date) => this.normalizeDateKey(date)),
+    );
+
+    return (fixtures || []).filter((item: any) => {
+      const rawDate = this.getFixtureDateValue(item);
+      if (!rawDate) return false;
+
+      const parsed = new Date(rawDate);
+      if (Number.isNaN(parsed.getTime())) return false;
+
+      return safeTargetDates.has(this.brazilDateKey(parsed));
+    });
+  }
+
+  private shouldFallbackNextWhenEmpty() {
+    return (
+      String(
+        process.env.ODDIX_DASHBOARD_FALLBACK_NEXT_WHEN_EMPTY || "true",
+      ).toLowerCase() !== "false"
+    );
+  }
+
+  private emptyFallbackNextDays() {
+    return Math.max(
+      0,
+      Number(process.env.ODDIX_DASHBOARD_EMPTY_FALLBACK_DAYS || 2),
+    );
+  }
+
   private fixtureStartsInFuture(
     item: any,
     minMinutes = -30,
@@ -2180,11 +2212,117 @@ export class FootballService {
     return output;
   }
 
+  private async getFallbackNextFixtures(requestedDate: string, forceRefresh = false) {
+    const fallbackDays = this.emptyFallbackNextDays();
+
+    if (fallbackDays <= 0) return [];
+
+    const fallbackDates = Array.from({ length: fallbackDays }, (_, index) =>
+      this.addDays(requestedDate, index + 1),
+    );
+
+    const providerGroups: any[][] = [];
+
+    if (!forceRefresh) {
+      for (const currentDate of fallbackDates) {
+        const freshCache = await this.getFreshFixturesFromCache(
+          currentDate,
+          this.fixturesCacheMinutes(),
+        );
+
+        if (freshCache.length > 0) providerGroups.push(freshCache);
+      }
+    }
+
+    for (const currentDate of fallbackDates) {
+      const flashScore = await this.getFixturesFromFlashScore(currentDate);
+      if (flashScore.ok && flashScore.data.length > 0) {
+        providerGroups.push(flashScore.data);
+      }
+    }
+
+    /**
+     * SportScore6 retorna uma agenda global, então buscamos uma vez e filtramos
+     * pelos próximos dias desejados logo abaixo.
+     */
+    const sportScore6 = await this.getFixturesFromSportScore6(
+      fallbackDates[0] || requestedDate,
+    );
+    if (sportScore6.ok && sportScore6.data.length > 0) {
+      providerGroups.push(sportScore6.data);
+    }
+
+    for (const currentDate of fallbackDates) {
+      const soccerFootballInfo =
+        await this.getFixturesFromSoccerFootballInfo(currentDate);
+      if (soccerFootballInfo.ok && soccerFootballInfo.data.length > 0) {
+        providerGroups.push(soccerFootballInfo.data);
+      }
+
+      const sportScore = await this.getFixturesFromSportScore(currentDate);
+      if (sportScore.ok && sportScore.data.length > 0) {
+        providerGroups.push(sportScore.data);
+      }
+
+      const allScores = await this.getFixturesFromAllScores(currentDate);
+      if (allScores.ok && allScores.data.length > 0) {
+        providerGroups.push(allScores.data);
+      }
+
+      const sportsDb = await this.getFixturesFromSportsDb(currentDate);
+      if (sportsDb.ok && sportsDb.data.length > 0) {
+        providerGroups.push(sportsDb.data);
+      }
+
+      if (this.shouldUseApiFootballFallback()) {
+        const apiFootball = await this.getFixturesFromApiFootball(currentDate);
+        if (apiFootball.ok && apiFootball.data.length > 0) {
+          providerGroups.push(apiFootball.data);
+        }
+      }
+
+      const sportmonks = await this.getFixturesFromSportmonks(currentDate);
+      if (sportmonks.ok && sportmonks.data.length > 0) {
+        providerGroups.push(sportmonks.data);
+      }
+
+      const footballData = await this.getFixturesFromFootballData(currentDate);
+      if (footballData.ok && footballData.data.length > 0) {
+        providerGroups.push(footballData.data);
+      }
+    }
+
+    const merged = this.filterFixturesByBrazilDates(
+      this.filterDashboardFixtures(this.mergeUniqueFixtures(providerGroups)),
+      fallbackDates,
+    ).filter((item: any) => {
+      // Fallback do dashboard é só para preencher próximos jogos; não traz jogo antigo.
+      return this.fixtureStartsInFuture(
+        item,
+        -30,
+        fallbackDays * 24 * 60 + 180,
+      );
+    });
+
+    if (!merged.length) return [];
+
+    const enriched = await this.enrichFixturesWithPreMatchStats(merged);
+    const finalFixtures = this.publicDashboardFixtures(enriched);
+
+    if (finalFixtures.length > 0) {
+      await this.saveFixturesCache(finalFixtures);
+    }
+
+    return finalFixtures;
+  }
+
   async getFixtures(date?: string, options: GetFixturesOptions | boolean = {}) {
     await this.cleanupDashboardCache(false);
 
     const forceRefresh =
       typeof options === "boolean" ? options : options.forceRefresh === true;
+    const allowEmptyFallback =
+      typeof options === "boolean" ? true : options.allowEmptyFallback !== false;
 
     date = this.normalizeDateKey(date);
 
@@ -2308,7 +2446,26 @@ export class FootballService {
       requestedDate,
     );
     const enrichedStale = await this.enrichFixturesWithPreMatchStats(staleMerged);
-    return this.publicDashboardFixtures(enrichedStale);
+    const finalStale = this.publicDashboardFixtures(enrichedStale);
+
+    if (finalStale.length > 0) return finalStale;
+
+    /**
+     * Se o dia selecionado não tiver nenhum jogo elegível, o dashboard não deve
+     * ficar com [] quando já existe próximo jogo premium em 24/48h.
+     * Isso mantém a data exata quando há jogos, mas evita uma tela vazia.
+     * Use ODDIX_DASHBOARD_FALLBACK_NEXT_WHEN_EMPTY=false para desativar.
+     */
+    if (allowEmptyFallback && this.shouldFallbackNextWhenEmpty()) {
+      const fallbackNextFixtures = await this.getFallbackNextFixtures(
+        requestedDate,
+        forceRefresh,
+      );
+
+      if (fallbackNextFixtures.length > 0) return fallbackNextFixtures;
+    }
+
+    return [];
   }
 
   private async getLiveFixturesFromCache(onlyFresh = true) {
