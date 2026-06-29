@@ -16,6 +16,10 @@ import {
   isOddixPriorityLeague,
 } from "./league-filter";
 
+type GetFixturesOptions = {
+  forceRefresh?: boolean;
+};
+
 @Injectable()
 export class FootballService {
   constructor(
@@ -727,22 +731,17 @@ export class FootballService {
       return [];
     }
 
-    const todayKey = this.brazilDateKey();
-    const maxFutureDays = Number(
-      process.env.ODDIX_DASHBOARD_MAX_FUTURE_DAYS || 2,
-    );
-    const rangeEnd =
-      safeDate === todayKey
-        ? new Date(
-            end.getTime() + Math.max(0, maxFutureDays) * 24 * 60 * 60 * 1000,
-          )
-        : end;
-
+    /**
+     * Importante: cache por data precisa respeitar SOMENTE o dia solicitado.
+     * O frontend já busca hoje/amanhã em chamadas separadas.
+     * Antes, quando a data era hoje, o cache também trazia dias futuros e fazia
+     * aparecer jogo de amanhã dentro da aba de hoje.
+     */
     const cached = await this.prisma.cachedFixture.findMany({
       where: {
         date: {
           gte: start,
-          lte: rangeEnd,
+          lte: end,
         },
       },
       orderBy: {
@@ -1859,6 +1858,14 @@ export class FootballService {
     return this.brazilDateKey(parsed) === targetDate;
   }
 
+  private filterFixturesByBrazilDate(fixtures: any[], targetDate: string) {
+    const safeTargetDate = this.normalizeDateKey(targetDate);
+
+    return (fixtures || []).filter((item: any) =>
+      this.fixtureBelongsToBrazilDate(item, safeTargetDate),
+    );
+  }
+
   private fixtureStartsInFuture(
     item: any,
     minMinutes = -30,
@@ -2173,8 +2180,11 @@ export class FootballService {
     return output;
   }
 
-  async getFixtures(date?: string, forceRefresh = false) {
+  async getFixtures(date?: string, options: GetFixturesOptions | boolean = {}) {
     await this.cleanupDashboardCache(false);
+
+    const forceRefresh =
+      typeof options === "boolean" ? options : options.forceRefresh === true;
 
     date = this.normalizeDateKey(date);
 
@@ -2196,8 +2206,9 @@ export class FootballService {
       if (freshCache.length > 0) freshGroups.push(freshCache);
     }
 
-    const freshMerged = this.filterDashboardFixtures(
-      this.mergeUniqueFixtures(freshGroups),
+    const freshMerged = this.filterFixturesByBrazilDate(
+      this.filterDashboardFixtures(this.mergeUniqueFixtures(freshGroups)),
+      requestedDate,
     );
 
     if (!forceRefresh && freshMerged.length > 0) {
@@ -2222,7 +2233,7 @@ export class FootballService {
      * chamando os providers. No final, tudo é deduplicado e o dashboard recebe a
      * união limpa entre cache + APIs reais.
      */
-    if (freshMerged.length > 0) providerGroups.push(freshMerged);
+    if (!forceRefresh && freshMerged.length > 0) providerGroups.push(freshMerged);
 
     for (const currentDate of searchDates) {
       const flashScore = await this.getFixturesFromFlashScore(currentDate);
@@ -2270,8 +2281,9 @@ export class FootballService {
         providerGroups.push(footballData.data);
     }
 
-    const providerMerged = this.filterDashboardFixtures(
-      this.mergeUniqueFixtures(providerGroups),
+    const providerMerged = this.filterFixturesByBrazilDate(
+      this.filterDashboardFixtures(this.mergeUniqueFixtures(providerGroups)),
+      requestedDate,
     );
 
     if (providerMerged.length > 0) {
@@ -2291,7 +2303,10 @@ export class FootballService {
       if (staleCache.length > 0) staleGroups.push(staleCache);
     }
 
-    const staleMerged = this.filterDashboardFixtures(this.mergeUniqueFixtures(staleGroups));
+    const staleMerged = this.filterFixturesByBrazilDate(
+      this.filterDashboardFixtures(this.mergeUniqueFixtures(staleGroups)),
+      requestedDate,
+    );
     const enrichedStale = await this.enrichFixturesWithPreMatchStats(staleMerged);
     return this.publicDashboardFixtures(enrichedStale);
   }

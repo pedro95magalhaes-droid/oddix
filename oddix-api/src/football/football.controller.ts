@@ -5,6 +5,12 @@ import { FootballService } from './football.service';
 export class FootballController {
   constructor(private readonly footballService: FootballService) {}
 
+  private isRefreshRequest(refresh?: string) {
+    return ["1", "true", "yes", "sim", "on"].includes(
+      String(refresh || "").trim().toLowerCase(),
+    );
+  }
+
   /**
    * Compatibilidade: permite testar direto /football.
    */
@@ -13,10 +19,9 @@ export class FootballController {
     @Query('date') date?: string,
     @Query('refresh') refresh?: string,
   ) {
-    return this.footballService.getFixtures(
-      date,
-      String(refresh || '').toLowerCase() === 'true' || refresh === '1',
-    );
+    return this.footballService.getFixtures(date, {
+      forceRefresh: this.isRefreshRequest(refresh),
+    });
   }
 
   @Get('fixtures')
@@ -24,10 +29,9 @@ export class FootballController {
     @Query('date') date?: string,
     @Query('refresh') refresh?: string,
   ) {
-    return this.footballService.getFixtures(
-      date,
-      String(refresh || '').toLowerCase() === 'true' || refresh === '1',
-    );
+    return this.footballService.getFixtures(date, {
+      forceRefresh: this.isRefreshRequest(refresh),
+    });
   }
 
   @Get('today')
@@ -35,10 +39,9 @@ export class FootballController {
     @Query('date') date?: string,
     @Query('refresh') refresh?: string,
   ) {
-    return this.footballService.getFixtures(
-      date,
-      String(refresh || '').toLowerCase() === 'true' || refresh === '1',
-    );
+    return this.footballService.getFixtures(date, {
+      forceRefresh: this.isRefreshRequest(refresh),
+    });
   }
 
   @Get('dashboard')
@@ -46,10 +49,9 @@ export class FootballController {
     @Query('date') date?: string,
     @Query('refresh') refresh?: string,
   ) {
-    return this.footballService.getFixtures(
-      date,
-      String(refresh || '').toLowerCase() === 'true' || refresh === '1',
-    );
+    return this.footballService.getFixtures(date, {
+      forceRefresh: this.isRefreshRequest(refresh),
+    });
   }
 
   @Get('live')
