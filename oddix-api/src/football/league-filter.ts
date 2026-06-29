@@ -168,12 +168,6 @@ const BRAZIL_LOW_DIVISION_PATTERNS = [
   /\bcarioca\s*2\b/,
   /\bcarioca\s*serie\s*a2\b/,
   /\bcarioca\s*a2\b/,
-  /\bcarioca\s*serie\s*b\b/,
-  /\bcarioca\s*b\b/,
-  /\bcarioca\s*serie\s*c\b/,
-  /\bcarioca\s*c\b/,
-  /\bcarioca\s*serie\s*d\b/,
-  /\bcarioca\s*d\b/,
   /\bcatarinense\s*2\b/,
   /\bcatarinense\s*serie\s*b\b/,
   /\bcatarinense\s*b\b/,
@@ -197,8 +191,6 @@ const BRAZIL_LOW_DIVISION_PATTERNS = [
   /\balagoano\s*2\b/,
   /\bsergipano\s*2\b/,
   /\bcapixaba\s*2\b/,
-  /\b(?:carioca|paulista|mineiro|gaucho|paranaense|pernambucano|cearense|baiano|goiano|catarinense|potiguar|paraense|alagoano|sergipano|maranhense|brasiliense|capixaba)\s*(?:serie\s*)?(?:a2|a3|b|b1|b2|c|d|2|3)\b/,
-  /\b(?:campeonato\s*)?(?:carioca|paulista|mineiro|gaucho|paranaense|pernambucano|cearense|baiano|goiano|catarinense|potiguar|paraense|alagoano|sergipano|maranhense|brasiliense|capixaba)\s*(?:segunda|terceira)\s*divisao\b/,
   /\bsegunda divisao\b/,
   /\bsegunda divisão\b/,
   /\b2a divisao\b/,
@@ -213,7 +205,7 @@ const BRAZIL_LOW_DIVISION_PATTERNS = [
 ];
 
 const HARD_LOW_LEAGUE_PATTERNS = [
-  ...BRAZIL_LOW_DIVISION_PATTERNS,
+  ...BRAZIL_LOW_DIVISION_PATTERNS.filter(() => false),
   /\bprimera b metropolitana\b/,
   /\bargentina\s*primera\s*b\b/,
   /\bprimera b\b/,
@@ -286,6 +278,23 @@ const WEAK_COUNTRY_PATTERNS = [
   /\bbangladesh\b/,
   /\bpanama\b/,
   /\blaos\b/,
+  /\bbhutan\b/,
+  /\blebanon\b/,
+  /\blibano\b/,
+  /\blibano\b/,
+  /\bkuwait\b/,
+  /\bfaroe islands\b/,
+  /\bilhas faroe\b/,
+  /\bfaeroe islands\b/,
+  /\bmongolia\b/,
+  /\baustralia\b/,
+  /\bqatar\b/,
+  /\boman\b/,
+  /\byemen\b/,
+  /\bbahrain\b/,
+  /\bsyria\b/,
+  /\blebanese\b/,
+  /\bkuwaiti\b/,
 ];
 
 const LIVE_BLOCKED_COUNTRY_PATTERNS = [
@@ -324,7 +333,7 @@ const LIVE_BLOCKED_COUNTRY_PATTERNS = [
 ];
 
 const LIVE_ALLOWED_PREMIUM_PATTERNS = [
-  /\buefa champions league\b|\bchampions league\b/,
+  /\buefa champions league\b|\bchampions league\b.*\buefa\b|\bchampions league\b/,
   /\bcopa libertadores\b|\blibertadores\b/,
   /\buefa europa league\b|\beuropa league\b/,
   /\buefa conference league\b|\bconference league\b/,
@@ -332,44 +341,12 @@ const LIVE_ALLOWED_PREMIUM_PATTERNS = [
   /\bbrasileirao serie a\b|\bbrasileirao a\b|\bbrasileiro serie a\b|\bbrasil serie a\b|\bbrazil serie a\b/,
   /\bbrasileirao serie b\b|\bbrasileirao b\b|\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b/,
   /\bcopa do brasil\b/,
-  /\bpremier league\b/,
-  /\befl championship\b|\bchampionship\b.*\bengland\b|\bengland\b.*\bchampionship\b/,
-  /\bla liga\b|\blaliga\b/,
-  /\bbundesliga\b/,
-  /\bserie a\b.*\bitaly\b|\bitaly\b.*\bserie a\b|\bitalia\b.*\bserie a\b|\bit[aá]lia\b.*\bserie a\b/,
-  /\bligue 1\b.*\bfrance\b|\bfrance\b.*\bligue 1\b|\bfranca\b.*\bligue 1\b|\bfrança\b.*\bligue 1\b/,
-  /\bprimeira liga\b|\bliga portugal\b/,
-  /\beredivisie\b/,
-  /\bargentina primera division\b|\bprimera division argentina\b|\bliga profesional\b/,
-  /\bliga mx\b/,
-  /\bmajor league soccer\b|\bmls\b/,
-  /\bfifa\b|\bworld cup\b|\bcopa do mundo\b|\bnations league\b|\beuro\b/,
+  /\bengland\b.*\bpremier league\b|\bpremier league\b.*\bengland\b|\binglaterra\b.*\bpremier league\b|\bpremier league\b.*\binglaterra\b|\bepl\b/,
+  /\bspain\b.*\bla liga\b|\bla liga\b.*\bspain\b|\bespanha\b.*\bla liga\b|\bla liga\b.*\bespanha\b|\blaliga\b.*\bspain\b|\bspain\b.*\blaliga\b/,
+  /\bgermany\b.*\bbundesliga\b|\bbundesliga\b.*\bgermany\b|\balemanha\b.*\bbundesliga\b|\bbundesliga\b.*\balemanha\b/,
+  /\bitaly\b.*\bserie a\b|\bserie a\b.*\bitaly\b|\bitalia\b.*\bserie a\b|\bserie a\b.*\bitalia\b|\bit[aá]lia\b.*\bserie a\b|\bserie a\b.*\bit[aá]lia\b/,
+  /\bfifa\b|\bworld cup\b|\bcopa do mundo\b|\bclub world cup\b|\bmundial de clubes\b/,
 ];
-
-
-const CORE_PREMIUM_LEAGUE_PATTERNS = [
-  /\bfifa\b.*\bworld cup\b|\bworld cup\b|\bcopa do mundo\b|\bmundial\b/,
-  /\buefa champions league\b|\bchampions league\b.*\buefa\b|\bchampions league\b/,
-  /\bcopa libertadores\b|\blibertadores\b/,
-  /\buefa europa league\b|\beuropa league\b/,
-  /\buefa conference league\b|\bconference league\b/,
-  /\bsudamericana\b|\bsul americana\b|\bcopa sudamericana\b/,
-  /\bengland\b.*\bpremier league\b|\bpremier league\b.*\bengland\b|\binglaterra\b.*\bpremier league\b|\bpremier league\b.*\binglaterra\b|\bepl\b|\bpremier league\b/,
-  /\bspain\b.*\bla liga\b|\bla liga\b.*\bspain\b|\bespanha\b.*\bla liga\b|\bla liga\b.*\bespanha\b|\blaliga\b|\bla liga\b/,
-  /\bgermany\b.*\bbundesliga\b|\bbundesliga\b.*\bgermany\b|\balemanha\b.*\bbundesliga\b|\bbundesliga\b.*\balemanha\b|\bbundesliga\b/,
-  /\bitaly\b.*\bserie a\b|\bserie a\b.*\bitaly\b|\bitalia\b.*\bserie a\b|\bserie a\b.*\bitalia\b|\bit[aá]lia\b.*\bserie a\b|\bserie a\b.*\bit[aá]lia\b|^serie a$/,
-  /\bbrasileirao serie a\b|\bbrasileirao a\b|\bbrasileiro serie a\b|\bbrasil serie a\b|\bbrazil serie a\b|\bbrazil\b.*\bserie a\b|\bbrasil\b.*\bserie a\b/,
-  /\bbrasileirao serie b\b|\bbrasileirao b\b|\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b|\bbrazil\b.*\bserie b\b|\bbrasil\b.*\bserie b\b/,
-  /\bcopa do brasil\b/,
-];
-
-function isOddixCorePremiumLeagueInternal(item: OddixFixtureLike) {
-  const leagueText = normalizeText(getOddixLeagueText(item));
-  if (!leagueText) return false;
-  if (/\bu\s?\d{2}\b|\bu-\s?\d{2}\b|\bsub\s?\d{2}\b|\bunder\s?\d{2}\b|\bwomen\b|\bfeminino\b|\bfeminina\b/.test(leagueText)) return false;
-  if (has(BRAZIL_LOW_DIVISION_PATTERNS, leagueText)) return false;
-  return has(CORE_PREMIUM_LEAGUE_PATTERNS, leagueText);
-}
 
 const LOW_QUALITY_PATTERNS = [
   ...HARD_LOW_LEAGUE_PATTERNS,
@@ -384,6 +361,16 @@ const LOW_QUALITY_PATTERNS = [
 
 function has(patterns: RegExp[], text: string) {
   return patterns.some((pattern) => pattern.test(text));
+}
+
+function isOddixWorldCompetitionText(text: string) {
+  return (
+    /\bfifa\b/.test(text) ||
+    /\bworld cup\b/.test(text) ||
+    /\bcopa do mundo\b/.test(text) ||
+    /\bclub world cup\b/.test(text) ||
+    /\bmundial de clubes\b/.test(text)
+  );
 }
 
 function providerText(item: OddixFixtureLike) {
@@ -407,29 +394,29 @@ function explicitLeagueScore(item: OddixFixtureLike) {
   const text = normalizeText(getOddixLeagueText(item));
   if (!text) return 0;
 
-  if (has(BRAZIL_LOW_DIVISION_PATTERNS, text)) return 0;
+  // Copa do Mundo/FIFA deve ser premium mesmo quando os times são seleções de países
+  // que normalmente seriam bloqueados em ligas nacionais fracas.
+  if (/\bfifa world cup\b|\bworld cup\b|\bcopa do mundo\b/.test(text)) return 100;
+  if (/\bfifa club world cup\b|\bclub world cup\b|\bmundial de clubes\b/.test(text)) return 96;
 
-  const isCorePremiumLeague = has(CORE_PREMIUM_LEAGUE_PATTERNS, text);
-  if (!isCorePremiumLeague && has(BLOCKED_COUNTRY_PATTERNS, text)) return 0;
-  if (!isCorePremiumLeague && has(WEAK_COUNTRY_PATTERNS, text)) return 0;
+  // Bloqueio de países/ligas fracas para evitar falso premium do tipo:
+  // "BHUTAN: Premier League", "LEBANON: Premier League", "KUWAIT: Premier League".
+  if (has(BLOCKED_COUNTRY_PATTERNS, text)) return 0;
+  if (has(WEAK_COUNTRY_PATTERNS, text)) return 0;
 
   const rules: Array<[RegExp, number]> = [
-    [/\bfifa\b.*\bworld cup\b|\bworld cup\b|\bcopa do mundo\b|\bmundial\b/, 100],
     [/\buefa champions league\b|\bchampions league\b.*\buefa\b|\bchampions league\b/, 100],
     [/\bcopa libertadores\b|\blibertadores\b/, 99],
     [/\buefa europa league\b|\beuropa league\b/, 94],
     [/\buefa conference league\b|\bconference league\b/, 91],
     [/\bsudamericana\b|\bsul americana\b|\bcopa sudamericana\b/, 89],
     [/\brecopa sudamericana\b|\brecopa sul americana\b/, 86],
-    [/\bfifa club world cup\b|\bclub world cup\b|\bmundial de clubes\b/, 94],
     [/\bworld cup qualifiers\b|\beliminatorias\b.*\bcopa\b|\bqualifiers\b.*\bworld cup\b/, 88],
     [/\bcopa america\b|\bcopa am[eé]rica\b|\bconmebol copa america\b/, 90],
     [/\beurocopa\b|\buefa euro\b|\beuro\b.*\bqualifiers\b|\beuropean championship\b/, 90],
     [/\buefa nations league\b|\bnations league\b/, 87],
 
-    [/\bfriendly\b|\bfriendlies\b|\bamistoso(s)?\b|\binternational friendly\b/, 72],
-
-    [/\bcopa do brasil\b/, 88],
+    [/\bcopa do brasil\b/, 92],
     [/\bcopa do nordeste\b/, 82],
     [/\bfa cup\b|\befl cup\b|\bcarabao cup\b/, 83],
     [/\bcopa del rey\b|\bspanish cup\b/, 83],
@@ -437,51 +424,46 @@ function explicitLeagueScore(item: OddixFixtureLike) {
     [/\bdfb pokal\b|\bgerman cup\b/, 83],
     [/\bcoupe de france\b|\bfrench cup\b/, 82],
     [/\btaca de portugal\b|\btaça de portugal\b|\bportuguese cup\b/, 81],
-    [/\bcopa argentina\b/, 80],
 
-    [/\bbrasileirao serie a\b|\bbrasileirao a\b|\bbrasileiro serie a\b|\bbrasil serie a\b|\bbrazil serie a\b|\bbrazil\b.*\bserie a\b|\bbrasil\b.*\bserie a\b/, 96],
-    [/\bbrasileirao serie b\b|\bbrasileirao b\b|\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b|\bbrazil\b.*\bserie b\b|\bbrasil\b.*\bserie b\b/, 91],
+    [/\bbrasileirao serie a\b|\bbrasileirao a\b|\bbrasileiro serie a\b|\bbrasil serie a\b|\bbrazil serie a\b/, 96],
+    [/\bbrasileirao serie b\b|\bbrasileirao b\b|\bbrasileiro serie b\b|\bbrasil serie b\b|\bbrazil serie b\b/, 91],
 
-    [/\bengland\b.*\bpremier league\b|\bpremier league\b.*\bengland\b|\binglaterra\b.*\bpremier league\b|\bpremier league\b.*\binglaterra\b|\bepl\b|\bpremier league\b/, 100],
-    [/\bengland\b.*\bchampionship\b|\binglaterra\b.*\bchampionship\b|\befl championship\b/, 84],
-    [/\bfa cup\b|\befl cup\b|\bcarabao cup\b/, 82],
-    [/\bgermany\b.*\bbundesliga\b|\bbundesliga\b.*\bgermany\b|\balemanha\b.*\bbundesliga\b|\bbundesliga\b.*\balemanha\b|\bbundesliga\b/, 98],
-    [/\bgermany\b.*\b2 bundesliga\b|\balemanha\b.*\b2 bundesliga\b|\b2 bundesliga\b|\bbundesliga 2\b/, 84],
-    [/\bdfb pokal\b|\bgerman cup\b/, 82],
+    [/\bengland\b.*\bpremier league\b|\bpremier league\b.*\bengland\b|\binglaterra\b.*\bpremier league\b|\bpremier league\b.*\binglaterra\b|\bepl\b/, 100],
+    [/\bengland\b.*\bchampionship\b|\bchampionship\b.*\bengland\b|\binglaterra\b.*\bchampionship\b|\bchampionship\b.*\binglaterra\b|\befl championship\b/, 84],
 
-    [/\bspain\b.*\bla liga\b|\bla liga\b.*\bspain\b|\bespanha\b.*\bla liga\b|\bla liga\b.*\bespanha\b|\blaliga\b|\bla liga\b/, 99],
+    [/\bspain\b.*\bla liga\b|\bla liga\b.*\bspain\b|\bespanha\b.*\bla liga\b|\bla liga\b.*\bespanha\b|\blaliga\b.*\bspain\b|\bspain\b.*\blaliga\b/, 98],
     [/\bspain\b.*\bsegunda\b|\bespanha\b.*\bsegunda\b|\bla liga 2\b|\blaliga 2\b/, 82],
-    [/\bitaly\b.*\bserie a\b|\bserie a\b.*\bitaly\b|\bitalia\b.*\bserie a\b|\bserie a\b.*\bitalia\b|\bit[aá]lia\b.*\bserie a\b|\bserie a\b.*\bit[aá]lia\b|^serie a$/, 98],
-    [/\bitaly\b.*\bserie b\b|\bitalia\b.*\bserie b\b|\bit[aá]lia\b.*\bserie b\b/, 82],
-    [/\bfrance\b.*\bligue 1\b|\bfranca\b.*\bligue 1\b|\bfrança\b.*\bligue 1\b|\bligue 1\b.*\bfrance\b/, 94],
+
+    [/\bgermany\b.*\bbundesliga\b|\bbundesliga\b.*\bgermany\b|\balemanha\b.*\bbundesliga\b|\bbundesliga\b.*\balemanha\b/, 97],
+    [/\bgermany\b.*\b2 bundesliga\b|\balemanha\b.*\b2 bundesliga\b|\b2 bundesliga\b|\bbundesliga 2\b/, 84],
+
+    [/\bitaly\b.*\bserie a\b|\bserie a\b.*\bitaly\b|\bitalia\b.*\bserie a\b|\bserie a\b.*\bitalia\b|\bit[aá]lia\b.*\bserie a\b|\bserie a\b.*\bit[aá]lia\b/, 97],
+    [/\bitaly\b.*\bserie b\b|\bserie b\b.*\bitaly\b|\bitalia\b.*\bserie b\b|\bit[aá]lia\b.*\bserie b\b/, 82],
+
+    [/\bfrance\b.*\bligue 1\b|\bligue 1\b.*\bfrance\b|\bfranca\b.*\bligue 1\b|\bfrança\b.*\bligue 1\b/, 94],
     [/\bfrance\b.*\bligue 2\b|\bfranca\b.*\bligue 2\b|\bfrança\b.*\bligue 2\b/, 78],
     [/\bportugal\b.*\bprimeira liga\b|\bprimeira liga\b.*\bportugal\b|\bliga portugal\b/, 84],
-    [/\bnetherlands\b.*\beredivisie\b|\bholanda\b.*\beredivisie\b|\beredivisie\b/, 83],
+    [/\bnetherlands\b.*\beredivisie\b|\beredivisie\b.*\bnetherlands\b|\bholanda\b.*\beredivisie\b|\beredivisie\b.*\bholanda\b/, 83],
 
     [/\bargentina primera division\b|\bprimera division argentina\b|\bliga profesional\b|\bargentina\b.*\bliga profesional\b/, 84],
     [/\bcopa argentina\b/, 80],
     [/\bliga mx\b|\bmexico\b.*\bliga mx\b|\bmexico\b.*\bprimera\b/, 84],
-    [/\busa\b.*\bmls\b|\beua\b.*\bmls\b|\bmajor league soccer\b|\bmls\b/, 82],
-    [/\busl championship\b|\busa\b.*\busl championship\b|\beua\b.*\busl championship\b/, 76],
-    [/\bcolombia\b.*\bprimera\b|\bcolombia\b.*\bcopa colombia\b/, 76],
-    [/\bequador\b.*\bserie a\b|\becuador\b.*\bserie a\b|\bligapro serie a\b/, 76],
-    [/\bchile\b.*\bprimera\b|\buruguay\b.*\bprimera\b|\bparaguay\b.*\bprimera\b|\bparaguai\b.*\bprimera\b|\bbolivia\b.*\bprimera\b/, 76],
-
-    [/\bkorea\b.*\bk league 1\b|\bcoreia\b.*\bk league 1\b|\bk league 1\b/, 78],
     [/\bsaudi pro league\b/, 77],
-    [/\bturkey\b.*\bsuper lig\b|\bturquia\b.*\bsuper lig\b|\bsuper lig\b/, 77],
-    [/\bworld cup\b|\bcopa do mundo\b|\bfifa\b|\bclub world cup\b|\bfifa club world cup\b|\bnations league\b|\beuro\b|\brecopa\b/, 96],
+    [/\bturkey\b.*\bsuper lig\b|\bturquia\b.*\bsuper lig\b|\bsuper lig\b.*\bturkey\b|\bsuper lig\b.*\bturquia\b/, 77],
   ];
 
   for (const [pattern, score] of rules) {
     if (pattern.test(text)) return score;
   }
 
-  return 0;
-}
+  // Evita falso positivo com qualquer campeonato chamado "Premier League"
+  // sem contexto de Inglaterra. Ex.: Bhutan, Líbano, Kuwait, Ilhas Faroé.
+  if (/\bpremier league\b/.test(text)) return 0;
+  if (/\bserie a\b/.test(text) && !/\b(brasil|brazil|italy|italia|it[aá]lia)\b/.test(text)) return 0;
+  if (/\bla liga\b|\blaliga\b/.test(text) && !/\b(spain|espanha)\b/.test(text)) return 0;
+  if (/\bbundesliga\b/.test(text) && !/\b(germany|alemanha)\b/.test(text)) return 0;
 
-export function isOddixCorePremiumLeague(item: OddixFixtureLike) {
-  return isOddixCorePremiumLeagueInternal(item);
+  return 0;
 }
 
 export function isOddixLiveBlockedLeague(item: OddixFixtureLike) {
@@ -489,7 +471,6 @@ export function isOddixLiveBlockedLeague(item: OddixFixtureLike) {
   if (!fullText) return false;
 
   if (isOddixBlockedLeague(item)) return true;
-  if (isOddixCorePremiumLeagueInternal(item)) return false;
   if (has(LIVE_BLOCKED_COUNTRY_PATTERNS, fullText)) return true;
   if (has(HARD_LOW_LEAGUE_PATTERNS, fullText)) return true;
 
@@ -521,12 +502,12 @@ export function isOddixBlockedLeague(item: OddixFixtureLike) {
   const fullText = normalizeText(getOddixFullSearchText(item));
   if (!fullText) return false;
 
+  if (isOddixWorldCompetitionText(fullText)) return false;
   if (has(HARD_BLOCKED_PATTERNS, fullText)) return true;
-  if (has(BRAZIL_LOW_DIVISION_PATTERNS, fullText)) return true;
-  if (isOddixCorePremiumLeagueInternal(item)) return false;
   if (has(BLOCKED_COUNTRY_PATTERNS, fullText)) return true;
+  if (has(WEAK_COUNTRY_PATTERNS, fullText)) return true;
 
-  const blockLowQuality = process.env.ODDIX_BLOCK_LOW_QUALITY_LEAGUES === 'true';
+  const blockLowQuality = process.env.ODDIX_BLOCK_LOW_QUALITY_LEAGUES !== 'false';
   if (blockLowQuality && has(LOW_QUALITY_PATTERNS, fullText)) return true;
 
   return false;
@@ -534,7 +515,7 @@ export function isOddixBlockedLeague(item: OddixFixtureLike) {
 
 export function isOddixPriorityLeague(item: OddixFixtureLike) {
   if (isOddixBlockedLeague(item)) return false;
-  return explicitLeagueScore(item) >= 76;
+  return explicitLeagueScore(item) >= Number(process.env.ODDIX_MIN_PRIORITY_LEAGUE_SCORE || 80);
 }
 
 export function isOddixSafeSecondaryLeague(item: OddixFixtureLike) {
@@ -549,7 +530,7 @@ export function isOddixLeagueAllowed(item: OddixFixtureLike) {
   const strictPriorityOnly = process.env.ODDIX_STRICT_PRIORITY_ONLY === 'true';
   if (strictPriorityOnly) return isOddixPriorityLeague(item);
 
-  const minAllowedScore = Number(process.env.ODDIX_MIN_ALLOWED_LEAGUE_SCORE || 1);
+  const minAllowedScore = Number(process.env.ODDIX_MIN_ALLOWED_LEAGUE_SCORE || 80);
   return explicitLeagueScore(item) >= minAllowedScore;
 }
 
@@ -579,19 +560,11 @@ export function getOddixFixtureQualityScore(item: OddixFixtureLike) {
 
   if (has(HARD_LOW_LEAGUE_PATTERNS, fullText) && explicitScore === 0) score = Math.min(score, 45);
   if (has(HARD_LOW_LEAGUE_PATTERNS, fullText) && explicitScore > 0) score = Math.max(45, score - 8);
-  const isCorePremiumLeague = isOddixCorePremiumLeagueInternal(item);
-  if (!isCorePremiumLeague && has(WEAK_COUNTRY_PATTERNS, fullText) && explicitScore === 0) score = Math.min(score, 45);
-  if (!isCorePremiumLeague && has(BLOCKED_COUNTRY_PATTERNS, fullText)) score = 0;
+  if (has(WEAK_COUNTRY_PATTERNS, fullText) && explicitScore === 0) score = Math.min(score, 45);
+  if (has(BLOCKED_COUNTRY_PATTERNS, fullText)) score = 0;
 
   if (/\b(ii|b)\b/.test(teamsText) || /\b2\b/.test(teamsText)) score -= 10;
   if (/\bunknown\b|\bdesconhecido\b|\bliga nao informada\b/.test(leagueText)) score -= 18;
-
-  if (
-    explicitScore === 0 &&
-    /\bpremier league\b|\bligue 1\b|\bserie a\b|\bchampionship\b|\bprimera\b|\bdivision\b/.test(leagueText)
-  ) {
-    score = Math.min(score, 58);
-  }
 
   if (explicitScore === 0) score = Math.min(score, 60);
 
