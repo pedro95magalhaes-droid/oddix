@@ -207,6 +207,63 @@ export class FootballService {
     });
   }
 
+
+  /**
+   * Blindagem principal do Dashboard Oddix.
+   *
+   * O FlashScore continua sendo o provider preferencial, mas quando a Copa do
+   * Mundo vem pelo SportScore6 como "FIFA World Copa", o fluxo não pode cair no
+   * fallback de próximos dias e acabar mostrando Série B no lugar da Copa.
+   *
+   * Este helper trabalha em cima dos providers já carregados, antes do fallback,
+   * e retorna imediatamente qualquer Copa do Mundo premium da data solicitada.
+   */
+  private getDirectWorldCupFixturesForDate(
+    providerGroups: any[][],
+    targetDate: string,
+  ) {
+    const showFinished = process.env.ODDIX_DASHBOARD_SHOW_FINISHED === "true";
+
+    const candidates = this.filterFixturesByBrazilDate(
+      (providerGroups || [])
+        .flatMap((group) => (Array.isArray(group) ? group : []))
+        .map((item: any) => this.enrichFixtureForOddix(item)),
+      targetDate,
+    )
+      .filter((item: any) => this.isOddixWorldCupFixture(item))
+      .filter((item: any) => {
+        if (!showFinished && isOddixFinishedFixture(item)) return false;
+        return isOddixDashboardFixtureAllowed(
+          item,
+          this.hideFinishedAfterHours(),
+        );
+      });
+
+    const unique = new Map<string, any>();
+
+    for (const item of candidates) {
+      const fixture = this.getFixtureObject(item);
+      const key = String(
+        fixture?.id ||
+          fixture?.externalId ||
+          this.fixtureLooseKey(item) ||
+          this.fixtureKey(item) ||
+          `${this.getFixtureTimestamp(item)}-${this.getTeamName(
+            this.getHomeTeam(item),
+          )}-${this.getTeamName(this.getAwayTeam(item))}`,
+      );
+
+      if (!key) continue;
+
+      const current = unique.get(key);
+      if (!current || this.shouldReplaceFixture(current, item)) {
+        unique.set(key, item);
+      }
+    }
+
+    return this.publicDashboardFixtures(Array.from(unique.values()));
+  }
+
   private getCacheAgeSeconds(item: any) {
     const rawDate =
       item?.__oddixCachedAt ||
@@ -2419,6 +2476,21 @@ export class FootballService {
       providerGroups.push(sportScore6.data);
     }
 
+    /**
+     * WorldCup direct return V3 Oddix:
+     * após carregar FlashScore + SportScore6, qualquer jogo de Copa do Mundo da
+     * data solicitada deve vencer o fallback. Isso resolve o caso em que o debug
+     * mostra Brazil x Japan e Germany x Paraguay como premium, mas /fixtures
+     * ainda caía na Série B do próximo dia.
+     */
+    const directWorldCupFromPrimaryProviders =
+      this.getDirectWorldCupFixturesForDate(providerGroups, requestedDate);
+
+    if (directWorldCupFromPrimaryProviders.length > 0) {
+      await this.saveFixturesCache(directWorldCupFromPrimaryProviders);
+      return directWorldCupFromPrimaryProviders;
+    }
+
     for (const currentDate of searchDates) {
       const soccerFootballInfo = await this.getFixturesFromSoccerFootballInfo(currentDate);
       if (soccerFootballInfo.ok && soccerFootballInfo.data.length > 0) providerGroups.push(soccerFootballInfo.data);
@@ -2459,20 +2531,14 @@ export class FootballService {
      * Aqui retornamos diretamente os jogos de Copa do Mundo da data antes de
      * qualquer fallback para Série B ou próximos dias.
      */
-    const directWorldCupMerged = this.filterFixturesByBrazilDate(
-      this.mergeUniqueFixtures(providerGroups).map((item: any) =>
-        this.enrichFixtureForOddix(item),
-      ),
+    const directWorldCupMerged = this.getDirectWorldCupFixturesForDate(
+      providerGroups,
       requestedDate,
-    ).filter((item: any) => this.isOddixWorldCupFixture(item));
+    );
 
     if (directWorldCupMerged.length > 0) {
-      const finalWorldCup = this.publicDashboardFixtures(directWorldCupMerged);
-
-      if (finalWorldCup.length > 0) {
-        await this.saveFixturesCache(finalWorldCup);
-        return finalWorldCup;
-      }
+      await this.saveFixturesCache(directWorldCupMerged);
+      return directWorldCupMerged;
     }
 
     const providerMerged = this.filterFixturesByBrazilDate(
@@ -4101,6 +4167,19 @@ export class FootballService {
 
     const live = await this.getLiveFixtures();
 
+    const debugPrimaryProviderGroups: any[][] = [];
+    if (flashScore.ok && flashScore.data.length > 0) {
+      debugPrimaryProviderGroups.push(flashScore.data);
+    }
+    if (sportScore6.ok && sportScore6.data.length > 0) {
+      debugPrimaryProviderGroups.push(sportScore6.data);
+    }
+
+    const debugDirectWorldCup = this.getDirectWorldCupFixturesForDate(
+      debugPrimaryProviderGroups,
+      date,
+    );
+
     return {
       date,
       soccerFootballInfoEnabled: this.soccerFootballInfoService.isEnabled(),
@@ -4127,7 +4206,14 @@ export class FootballService {
         this.apiFootballBlockedUntil?.toISOString() || null,
       liveCacheSeconds: this.liveCacheSeconds(),
       fixturesCacheMinutes: this.fixturesCacheMinutes(),
-      note: "API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem: FlashScore > Soccer Football Info > SportScore6 > SportScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData.",
+      note: "API-Football só é consultada se API_FOOTBALL_ENABLE_FALLBACK=true ou API_FOOTBALL_DEBUG_FORCE=true. Ordem real do dashboard: FlashScore > SportScore6 > Soccer Football Info > SportScore > AllScores > TheSportsDB/cache > API-Football opcional > Sportmonks > FootballData.",
+      oddixFix: "worldcup-direct-return-v3-flashscore-debug",
+      finalFlowCheck: {
+        directWorldCupLength: debugDirectWorldCup.length,
+        directWorldCupSample: this.compactFixtures(debugDirectWorldCup.slice(0, 4)),
+        fallbackEnabled: this.shouldFallbackNextWhenEmpty(),
+        minFixturesBeforeCacheHit: this.minFixturesBeforeCacheHit(),
+      },
 
       cache: {
         responseLength: cache.length,
@@ -4155,7 +4241,13 @@ export class FootballService {
       sportScore6: {
         ok: sportScore6.ok,
         error: sportScore6.error,
+        rawLength: sportScore6.data.length,
+        allowedLength: this.filterAllowedLeagues(sportScore6.data).length,
+        dashboardLength: this.publicDashboardFixtures(
+          this.filterDashboardFixtures(sportScore6.data),
+        ).length,
         responseLength: this.filterAllowedLeagues(sportScore6.data).length,
+        rawSample: this.compactFixtures((sportScore6.data || []).slice(0, 3)),
         sample: this.compactFixtures(
           this.filterAllowedLeagues(sportScore6.data).slice(0, 3),
         ),
@@ -4191,9 +4283,15 @@ export class FootballService {
       flashScore: {
         ok: flashScore.ok,
         error: flashScore.error,
+        rawLength: flashScore.data.length,
+        allowedLength: this.filterAllowedLeagues(flashScore.data).length,
+        dashboardLength: this.publicDashboardFixtures(
+          this.filterDashboardFixtures(flashScore.data),
+        ).length,
         responseLength: this.filterAllowedLeagues(flashScore.data).length,
+        rawSample: this.compactFixtures((flashScore.data || []).slice(0, 3)),
         sample: this.compactFixtures(
-          this.filterAllowedLeagues(flashScore.data).slice(0, 2),
+          this.filterAllowedLeagues(flashScore.data).slice(0, 3),
         ),
       },
 

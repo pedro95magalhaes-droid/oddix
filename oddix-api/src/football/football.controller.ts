@@ -113,6 +113,20 @@ export class FootballController {
   }
 
 
+  /**
+   * Rota simples para confirmar no Railway qual build está rodando.
+   */
+  @Get('build-info')
+  async buildInfo() {
+    return {
+      ok: true,
+      service: 'oddix-football',
+      oddixFix: 'worldcup-direct-return-v3-flashscore-debug',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+
   @Get('lineups/:fixtureId')
   async getLineups(@Param('fixtureId') fixtureId: string) {
     return this.footballService.getLineups(fixtureId);
