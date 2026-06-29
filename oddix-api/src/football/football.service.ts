@@ -59,6 +59,13 @@ export class FootballService {
     return Number(process.env.FOOTBALL_FIXTURES_CACHE_MINUTES || 180);
   }
 
+  private minFixturesBeforeCacheHit() {
+    return Math.max(
+      0,
+      Number(process.env.ODDIX_DASHBOARD_MIN_FIXTURES_BEFORE_CACHE_HIT || 4),
+    );
+  }
+
   private hideFinishedAfterHours() {
     return Number(process.env.ODDIX_DASHBOARD_HIDE_FINISHED_AFTER_HOURS || 2);
   }
@@ -2166,7 +2173,7 @@ export class FootballService {
     return output;
   }
 
-  async getFixtures(date?: string) {
+  async getFixtures(date?: string, forceRefresh = false) {
     await this.cleanupDashboardCache(false);
 
     date = this.normalizeDateKey(date);
@@ -2193,16 +2200,29 @@ export class FootballService {
       this.mergeUniqueFixtures(freshGroups),
     );
 
-    if (freshMerged.length > 0) {
+    if (!forceRefresh && freshMerged.length > 0) {
       const enrichedFresh = await this.enrichFixturesWithPreMatchStats(freshMerged);
       const finalFresh = this.publicDashboardFixtures(enrichedFresh);
 
-      if (finalFresh.length > 0) {
+      /**
+       * Correção Oddix Dashboard:
+       * Antes qualquer cache fresco, até 1 jogo, encerrava a função aqui.
+       * Isso impedia a chamada da API principal e fazia o dashboard parecer travado.
+       * Agora o cache só é retorno final quando tiver uma quantidade mínima saudável.
+       */
+      if (finalFresh.length >= this.minFixturesBeforeCacheHit()) {
         return finalFresh;
       }
     }
 
     const providerGroups: any[][] = [];
+
+    /**
+     * Mesmo quando o cache tem poucos jogos, preservamos esses registros e seguimos
+     * chamando os providers. No final, tudo é deduplicado e o dashboard recebe a
+     * união limpa entre cache + APIs reais.
+     */
+    if (freshMerged.length > 0) providerGroups.push(freshMerged);
 
     for (const currentDate of searchDates) {
       const flashScore = await this.getFixturesFromFlashScore(currentDate);
@@ -3817,507 +3837,6 @@ export class FootballService {
       fixtureId,
       errors.length ? errors.join(" | ") : "Nenhuma fonte retornou dados oficiais.",
     );
-  }
-
-
-  private controlFixtureId(item: any) {
-    return String(item?.fixture?.id || item?.id || "").trim();
-  }
-
-  private controlFixtureTitle(item: any) {
-    const clean = this.standardizeFixture(item);
-    return `${clean?.teams?.home?.name || "Casa"} x ${clean?.teams?.away?.name || "Fora"}`;
-  }
-
-  private controlStatusKind(item: any) {
-    const clean = this.standardizeFixture(item);
-    const short = String(clean?.fixture?.status?.short || "").toUpperCase();
-    const long = String(clean?.fixture?.status?.long || "");
-
-    if (this.shouldTreatAsLive(clean)) return "live";
-    if (this.isFinishedStatus(short, long)) return "finished";
-    return "scheduled";
-  }
-
-  private controlSuggestedFocus(item: any) {
-    const clean = this.standardizeFixture(item);
-    const status = this.controlStatusKind(clean);
-    const hasOdds = Array.isArray(clean?.odds?.options) && clean.odds.options.length > 0;
-    const hasPreMatch = clean?.preMatchStats?.available === true;
-    const quality = Number(clean?.oddix?.qualityScore || getOddixFixtureQualityScore(clean));
-
-    if (status === "live") {
-      return "Acompanhar ao vivo. Só liberar entrada se houver estatística real.";
-    }
-
-    if (hasPreMatch && hasOdds && quality >= 80) {
-      return "Pré-jogo forte: odds + H2H disponíveis para análise.";
-    }
-
-    if (hasOdds && quality >= 75) {
-      return "Mercado 1X2 disponível. Validar contexto antes de recomendar.";
-    }
-
-    if (quality >= 80) {
-      return "Jogo premium para monitoramento, aguardando dados complementares.";
-    }
-
-    return "Manter em observação. Evitar aposta sem leitura profissional.";
-  }
-
-  private buildControlTopGames(fixtures: any[], limit = 12) {
-    return this.compactFixtures(fixtures || [])
-      .map((item: any) => {
-        const clean = this.enrichFixtureForOddix(item);
-        const status = this.controlStatusKind(clean);
-        const oddsOptions = Array.isArray(clean?.odds?.options) ? clean.odds.options : [];
-        const qualityScore = Number(clean?.oddix?.qualityScore || 0);
-        const liveBonus = status === "live" ? 14 : 0;
-        const oddsBonus = oddsOptions.length > 0 ? 8 : 0;
-        const preMatchBonus = clean?.preMatchStats?.available === true ? 6 : 0;
-
-        return {
-          fixtureId: this.controlFixtureId(clean),
-          provider: clean?.provider || "unknown",
-          game: this.controlFixtureTitle(clean),
-          homeTeam: clean?.teams?.home?.name || "Casa",
-          awayTeam: clean?.teams?.away?.name || "Fora",
-          league: clean?.league?.name || "Liga",
-          country: clean?.league?.country || "",
-          date: clean?.fixture?.date || null,
-          status,
-          statusShort: clean?.fixture?.status?.short || "NS",
-          elapsed: clean?.fixture?.status?.elapsed ?? null,
-          score: {
-            home: clean?.goals?.home ?? null,
-            away: clean?.goals?.away ?? null,
-          },
-          qualityScore,
-          qualityLabel: clean?.oddix?.qualityLabel || getOddixFixtureQualityLabel(clean),
-          hasOdds: oddsOptions.length > 0,
-          odds: oddsOptions,
-          hasPreMatchStats: clean?.preMatchStats?.available === true,
-          suggestedFocus: this.controlSuggestedFocus(clean),
-          controlScore: qualityScore + liveBonus + oddsBonus + preMatchBonus,
-          logos: {
-            home: clean?.teams?.home?.logo || null,
-            away: clean?.teams?.away?.logo || null,
-            league: clean?.league?.logo || null,
-          },
-        };
-      })
-      .filter((item: any) => item.fixtureId)
-      .sort((a: any, b: any) => {
-        if (Number(b.controlScore || 0) !== Number(a.controlScore || 0)) {
-          return Number(b.controlScore || 0) - Number(a.controlScore || 0);
-        }
-
-        return new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime();
-      })
-      .slice(0, limit);
-  }
-
-  private buildControlTopLeagues(fixtures: any[], limit = 10) {
-    const map = new Map<string, any>();
-
-    for (const raw of fixtures || []) {
-      const item = this.enrichFixtureForOddix(raw);
-      const league = item?.league?.name || "Liga";
-      const country = item?.league?.country || "";
-      const key = `${league}::${country}`;
-      const current = map.get(key) || {
-        league,
-        country,
-        logo: item?.league?.logo || null,
-        games: 0,
-        liveGames: 0,
-        withOdds: 0,
-        totalQuality: 0,
-        bestQuality: 0,
-      };
-
-      const quality = Number(item?.oddix?.qualityScore || getOddixFixtureQualityScore(item));
-      current.games += 1;
-      current.liveGames += this.controlStatusKind(item) === "live" ? 1 : 0;
-      current.withOdds += Array.isArray(item?.odds?.options) && item.odds.options.length > 0 ? 1 : 0;
-      current.totalQuality += quality;
-      current.bestQuality = Math.max(current.bestQuality, quality);
-      if (!current.logo && item?.league?.logo) current.logo = item.league.logo;
-
-      map.set(key, current);
-    }
-
-    return Array.from(map.values())
-      .map((item: any) => ({
-        ...item,
-        averageQuality: item.games ? Math.round(item.totalQuality / item.games) : 0,
-      }))
-      .sort((a: any, b: any) => {
-        if (b.bestQuality !== a.bestQuality) return b.bestQuality - a.bestQuality;
-        if (b.liveGames !== a.liveGames) return b.liveGames - a.liveGames;
-        return b.games - a.games;
-      })
-      .slice(0, limit);
-  }
-
-  private buildControlMarkets(fixtures: any[], playerProps: any[] = []) {
-    const marketMap = new Map<string, any>();
-
-    const touchMarket = (key: string, payload: any = {}) => {
-      const current = marketMap.get(key) || {
-        key,
-        market: payload.market || key,
-        count: 0,
-        games: [],
-        bestOdd: null,
-        averageOdd: null,
-        totalOdd: 0,
-        oddCount: 0,
-      };
-
-      current.count += 1;
-
-      if (payload.game && current.games.length < 5) {
-        current.games.push(payload.game);
-      }
-
-      const odd = Number(payload.odd || 0);
-      if (Number.isFinite(odd) && odd > 1) {
-        current.bestOdd = current.bestOdd ? Math.max(current.bestOdd, odd) : odd;
-        current.totalOdd += odd;
-        current.oddCount += 1;
-        current.averageOdd = Number((current.totalOdd / current.oddCount).toFixed(2));
-      }
-
-      marketMap.set(key, current);
-    };
-
-    for (const raw of fixtures || []) {
-      const item = this.standardizeFixture(raw);
-      const game = this.controlFixtureTitle(item);
-      const options = Array.isArray(item?.odds?.options) ? item.odds.options : [];
-
-      for (const option of options) {
-        const name = String(option?.name || "").toUpperCase();
-        const label = name === "1" ? "1X2 - Casa" : name === "X" ? "1X2 - Empate" : name === "2" ? "1X2 - Fora" : "1X2";
-        touchMarket(label, { market: label, game, odd: option?.odd });
-      }
-
-      if (item?.preMatchStats?.available === true) {
-        touchMarket("Pré-jogo com H2H", { market: "Pré-jogo com H2H", game });
-      }
-
-      if (this.controlStatusKind(item) === "live") {
-        touchMarket("Live com estatísticas", { market: "Live com estatísticas", game });
-      }
-    }
-
-    for (const prop of playerProps || []) {
-      touchMarket(prop?.market || "Player Props", {
-        market: prop?.market || "Player Props",
-        game: prop?.game,
-        odd: prop?.odd,
-      });
-    }
-
-    return Array.from(marketMap.values())
-      .map((item: any) => {
-        const { totalOdd, oddCount, ...publicItem } = item;
-        return publicItem;
-      })
-      .sort((a: any, b: any) => {
-        if (b.count !== a.count) return b.count - a.count;
-        return Number(b.bestOdd || 0) - Number(a.bestOdd || 0);
-      })
-      .slice(0, 10);
-  }
-
-  private buildControlTipProducers(fixtures: any[], live: any[], playerProps: any[] = []) {
-    const premiumFixtures = (fixtures || []).filter(
-      (item: any) => Number(this.enrichFixtureForOddix(item)?.oddix?.qualityScore || 0) >= 80,
-    );
-
-    const withOdds = (fixtures || []).filter(
-      (item: any) => Array.isArray(this.standardizeFixture(item)?.odds?.options) && this.standardizeFixture(item).odds.options.length > 0,
-    );
-
-    const withPreMatch = (fixtures || []).filter(
-      (item: any) => this.standardizeFixture(item)?.preMatchStats?.available === true,
-    );
-
-    const producers = [
-      {
-        id: "oddix_prematch_scanner",
-        name: "Oddix Pré-jogo Scanner",
-        type: "Pré-jogo",
-        status: premiumFixtures.length ? "ativo" : "aguardando jogos fortes",
-        produced: premiumFixtures.length,
-        accuracyLabel: "controle por qualidade da liga",
-      },
-      {
-        id: "oddix_live_control",
-        name: "Oddix Live Control",
-        type: "Ao vivo",
-        status: live?.length ? "ativo" : "sem live premium agora",
-        produced: live?.length || 0,
-        accuracyLabel: "sem estatística real = sem entrada",
-      },
-      {
-        id: "oddix_market_reader",
-        name: "Oddix Market Reader",
-        type: "Mercados",
-        status: withOdds.length ? "ativo" : "aguardando odds",
-        produced: withOdds.length,
-        accuracyLabel: "odds + filtro de liga",
-      },
-      {
-        id: "oddix_player_props_lab",
-        name: "Oddix Player Props Lab",
-        type: "Jogadores",
-        status: playerProps.length ? "ativo" : "aguardando escalações reais",
-        produced: playerProps.length,
-        accuracyLabel: "foto e escalação real obrigatórias",
-      },
-      {
-        id: "oddix_h2h_reader",
-        name: "Oddix H2H Reader",
-        type: "Histórico",
-        status: withPreMatch.length ? "ativo" : "aguardando H2H",
-        produced: withPreMatch.length,
-        accuracyLabel: "H2H/odds FlashScore",
-      },
-    ];
-
-    return producers.sort((a, b) => b.produced - a.produced);
-  }
-
-  private normalizeUserBetStatus(value: any) {
-    const status = String(value || "").toLowerCase();
-
-    if (["green", "win", "won", "ganha", "ganhou", "vencedora"].some((word) => status.includes(word))) return "green";
-    if (["red", "loss", "lost", "perdida", "perdeu"].some((word) => status.includes(word))) return "red";
-    if (["void", "push", "cancel", "anulada"].some((word) => status.includes(word))) return "void";
-    if (["pending", "open", "aberta", "pendente", "em aberto"].some((word) => status.includes(word))) return "pending";
-
-    return status || "unknown";
-  }
-
-  private summarizeUserBets(rows: any[], sourceModel: string) {
-    const normalized = (rows || []).map((bet: any) => {
-      const status = this.normalizeUserBetStatus(
-        bet?.status || bet?.result || bet?.resultado || bet?.state || bet?.situacao,
-      );
-
-      return {
-        id: String(bet?.id || bet?.betId || bet?.apostaId || ""),
-        sourceModel,
-        status,
-        market: bet?.market || bet?.marketName || bet?.mercado || bet?.selection || bet?.palpite || null,
-        fixtureId: bet?.fixtureId || bet?.fixture_id || bet?.jogoId || null,
-        game: bet?.game || bet?.jogo || bet?.match || bet?.partida || null,
-        odd: this.normalizeNumber(bet?.odd || bet?.odds || bet?.cotacao, null),
-        stake: this.normalizeNumber(bet?.stake || bet?.valor || bet?.amount, null),
-        profit: this.normalizeNumber(bet?.profit || bet?.lucro || bet?.returnAmount, null),
-        createdAt: bet?.createdAt || bet?.created_at || bet?.date || bet?.data || null,
-      };
-    });
-
-    const countByStatus = normalized.reduce((acc: any, bet: any) => {
-      acc[bet.status] = (acc[bet.status] || 0) + 1;
-      return acc;
-    }, {});
-
-    return {
-      enabled: true,
-      sourceModel,
-      total: normalized.length,
-      pending: countByStatus.pending || 0,
-      green: countByStatus.green || 0,
-      red: countByStatus.red || 0,
-      void: countByStatus.void || 0,
-      countByStatus,
-      recent: normalized.slice(0, 12),
-    };
-  }
-
-  private async getUserBetsForControlCenter(userId?: string) {
-    const safeUserId = String(userId || "").trim();
-
-    if (!safeUserId) {
-      return {
-        enabled: false,
-        requiresUserId: true,
-        message: "Envie ?userId=ID_DO_USUARIO para carregar o controle de apostas do usuário.",
-        total: 0,
-        recent: [],
-      };
-    }
-
-    const prismaAny = this.prisma as any;
-    const numericUserId = Number(safeUserId);
-    const userIdValues = Number.isFinite(numericUserId) && String(numericUserId) === safeUserId
-      ? [safeUserId, numericUserId]
-      : [safeUserId];
-
-    const modelNames = [
-      "userBet",
-      "userBets",
-      "bet",
-      "bets",
-      "betSlip",
-      "betSlips",
-      "ticket",
-      "tickets",
-      "oddixBet",
-      "oddixBets",
-      "aposta",
-      "apostas",
-    ];
-
-    const whereCandidates = userIdValues.flatMap((value) => [
-      { userId: value },
-      { user_id: value },
-      { usuarioId: value },
-      { ownerId: value },
-      { profileId: value },
-    ]);
-
-    const errors: string[] = [];
-
-    for (const modelName of modelNames) {
-      const model = prismaAny?.[modelName];
-      if (!model || typeof model.findMany !== "function") continue;
-
-      for (const where of whereCandidates) {
-        try {
-          const rows = await model.findMany({
-            where,
-            take: 30,
-          });
-
-          return this.summarizeUserBets(rows || [], modelName);
-        } catch (error: any) {
-          errors.push(`${modelName}: ${error?.message || "consulta recusada"}`);
-        }
-      }
-    }
-
-    return {
-      enabled: false,
-      requiresSchema: true,
-      message:
-        "Ainda não encontrei um model Prisma de apostas compatível. Quando você enviar o schema/service de apostas, conectamos essa seção com dados reais.",
-      total: 0,
-      recent: [],
-      errors: errors.slice(0, 5),
-    };
-  }
-
-  private async getBestPlayersForControlCenter(topGames: any[]) {
-    const limit = Math.max(0, Number(process.env.ODDIX_CONTROL_PLAYER_PROPS_LIMIT || 4));
-    if (limit <= 0) return [];
-
-    const players: any[] = [];
-
-    for (const game of (topGames || []).slice(0, limit)) {
-      const fixtureId = String(game?.fixtureId || "").trim();
-      if (!fixtureId) continue;
-
-      try {
-        const result: any = await this.getPlayerProps(fixtureId);
-        const props = Array.isArray(result?.playerProps) ? result.playerProps : [];
-
-        for (const prop of props) {
-          players.push({
-            player: prop?.playerName || prop?.player,
-            photo: prop?.playerPhoto || prop?.photo || null,
-            teamName: prop?.teamName || prop?.playerTeam || null,
-            role: prop?.playerRole || null,
-            market: prop?.market || prop?.marketName || "Player Props",
-            tip: prop?.tip || prop?.selection || null,
-            odd: prop?.odd || null,
-            confidence: prop?.confidence || null,
-            fixtureId,
-            game: prop?.game || game?.game,
-            source: prop?.source || result?.source || "lineups",
-          });
-        }
-      } catch {}
-    }
-
-    return players
-      .filter((player: any) => player?.player)
-      .sort((a: any, b: any) => Number(b.confidence || 0) - Number(a.confidence || 0))
-      .slice(0, 10);
-  }
-
-  async getControlCenter(date?: string, userId?: string) {
-    const safeDate = this.normalizeDateKey(date);
-
-    const [fixturesResult, liveResult] = await Promise.allSettled([
-      this.getFixtures(safeDate),
-      this.getLiveFixtures(),
-    ]);
-
-    const fixtures = fixturesResult.status === "fulfilled" && Array.isArray(fixturesResult.value)
-      ? fixturesResult.value
-      : [];
-
-    const live = liveResult.status === "fulfilled" && Array.isArray(liveResult.value)
-      ? liveResult.value
-      : [];
-
-    const mergedFixtures = this.publicDashboardFixtures(
-      this.mergeUniqueFixtures([live, fixtures]),
-    );
-
-    const topGames = this.buildControlTopGames(mergedFixtures, 12);
-    const bestPlayers = await this.getBestPlayersForControlCenter(topGames);
-    const markets = this.buildControlMarkets(mergedFixtures, bestPlayers);
-    const topLeagues = this.buildControlTopLeagues(mergedFixtures, 10);
-    const tipProducers = this.buildControlTipProducers(mergedFixtures, live, bestPlayers);
-    const userBets = await this.getUserBetsForControlCenter(userId);
-
-    const liveCount = live.length;
-    const scheduledCount = mergedFixtures.filter((item: any) => this.controlStatusKind(item) === "scheduled").length;
-    const premiumCount = mergedFixtures.filter(
-      (item: any) => Number(this.enrichFixtureForOddix(item)?.oddix?.qualityScore || 0) >= 80,
-    ).length;
-    const withOddsCount = mergedFixtures.filter(
-      (item: any) => Array.isArray(this.standardizeFixture(item)?.odds?.options) && this.standardizeFixture(item).odds.options.length > 0,
-    ).length;
-
-    return {
-      ok: true,
-      date: safeDate,
-      generatedAt: new Date().toISOString(),
-      title: "Centro de Controle Oddix",
-      message:
-        "Dashboard consolidado com jogos, análises, mercados, players, produtores de tips e controle de apostas do usuário quando o schema estiver conectado.",
-      summary: {
-        fixtures: mergedFixtures.length,
-        live: liveCount,
-        scheduled: scheduledCount,
-        premium: premiumCount,
-        withOdds: withOddsCount,
-        userBets: userBets?.total || 0,
-        playerProps: bestPlayers.length,
-      },
-      sections: {
-        analyses: topGames,
-        userBets,
-        tipProducers,
-        bestPlayers,
-        markets,
-        topGames,
-        topLeagues,
-      },
-      guardrails: {
-        noRealStatsNoBet: true,
-        hideFinishedByDefault: process.env.ODDIX_DASHBOARD_SHOW_FINISHED !== "true",
-        leagueFilterEnabled: process.env.ODDIX_LEAGUE_FILTER_ENABLED !== "false",
-      },
-    };
   }
 
   async debug(date?: string) {

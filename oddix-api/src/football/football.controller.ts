@@ -9,23 +9,47 @@ export class FootballController {
    * Compatibilidade: permite testar direto /football.
    */
   @Get()
-  async getRootFixtures(@Query('date') date?: string) {
-    return this.footballService.getFixtures(date);
+  async getRootFixtures(
+    @Query('date') date?: string,
+    @Query('refresh') refresh?: string,
+  ) {
+    return this.footballService.getFixtures(
+      date,
+      String(refresh || '').toLowerCase() === 'true' || refresh === '1',
+    );
   }
 
   @Get('fixtures')
-  async getFixtures(@Query('date') date?: string) {
-    return this.footballService.getFixtures(date);
+  async getFixtures(
+    @Query('date') date?: string,
+    @Query('refresh') refresh?: string,
+  ) {
+    return this.footballService.getFixtures(
+      date,
+      String(refresh || '').toLowerCase() === 'true' || refresh === '1',
+    );
   }
 
   @Get('today')
-  async getTodayFixtures(@Query('date') date?: string) {
-    return this.footballService.getFixtures(date);
+  async getTodayFixtures(
+    @Query('date') date?: string,
+    @Query('refresh') refresh?: string,
+  ) {
+    return this.footballService.getFixtures(
+      date,
+      String(refresh || '').toLowerCase() === 'true' || refresh === '1',
+    );
   }
 
   @Get('dashboard')
-  async getDashboardFixtures(@Query('date') date?: string) {
-    return this.footballService.getFixtures(date);
+  async getDashboardFixtures(
+    @Query('date') date?: string,
+    @Query('refresh') refresh?: string,
+  ) {
+    return this.footballService.getFixtures(
+      date,
+      String(refresh || '').toLowerCase() === 'true' || refresh === '1',
+    );
   }
 
   @Get('live')
@@ -62,27 +86,6 @@ export class FootballController {
   @Get('cache/clear')
   async clearCache() {
     return this.footballService.clearAllFixturesCache();
-  }
-
-
-  /**
-   * Centro de Controle Oddix: análises, apostas do usuário, produtores de tips,
-   * melhores jogos, mercados, ligas e jogadores em uma única resposta para o Dashboard.
-   */
-  @Get('control-center')
-  async getControlCenter(
-    @Query('date') date?: string,
-    @Query('userId') userId?: string,
-  ) {
-    return this.footballService.getControlCenter(date, userId);
-  }
-
-  @Get('dashboard/control')
-  async getDashboardControl(
-    @Query('date') date?: string,
-    @Query('userId') userId?: string,
-  ) {
-    return this.footballService.getControlCenter(date, userId);
   }
 
   /**
