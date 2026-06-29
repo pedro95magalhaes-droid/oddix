@@ -345,7 +345,7 @@ const LIVE_ALLOWED_PREMIUM_PATTERNS = [
   /\bspain\b.*\bla liga\b|\bla liga\b.*\bspain\b|\bespanha\b.*\bla liga\b|\bla liga\b.*\bespanha\b|\blaliga\b.*\bspain\b|\bspain\b.*\blaliga\b/,
   /\bgermany\b.*\bbundesliga\b|\bbundesliga\b.*\bgermany\b|\balemanha\b.*\bbundesliga\b|\bbundesliga\b.*\balemanha\b/,
   /\bitaly\b.*\bserie a\b|\bserie a\b.*\bitaly\b|\bitalia\b.*\bserie a\b|\bserie a\b.*\bitalia\b|\bit[aá]lia\b.*\bserie a\b|\bserie a\b.*\bit[aá]lia\b/,
-  /\bfifa\b|\bworld cup\b|\bcopa do mundo\b|\bclub world cup\b|\bmundial de clubes\b/,
+  /\bfifa\b|\bfifa world cup\b|\bfifa world copa\b|\bworld cup\b|\bworld copa\b|\bcopa do mundo\b|\bcopa mundial\b|\bclub world cup\b|\bmundial de clubes\b/,
 ];
 
 const LOW_QUALITY_PATTERNS = [
